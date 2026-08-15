@@ -15,7 +15,19 @@ export function telegramBotToken(): string | null {
 }
 
 export function telegramWebhookSecret(): string | null {
-  return process.env.WEBHOOK_SECRET ?? process.env.TELEGRAM_WEBHOOK_SECRET ?? null;
+  const primary = process.env.WEBHOOK_SECRET;
+  const legacy = process.env.TELEGRAM_WEBHOOK_SECRET;
+  // If both aliases are present they must describe the same Telegram secret.
+  // Returning null fail-closes the webhook rather than silently provisioning
+  // Telegram with one secret while the endpoint validates another.
+  if (primary && legacy && primary !== legacy) return null;
+  return primary ?? legacy ?? null;
+}
+
+export function telegramWebhookSecretsMatch(): boolean {
+  const primary = process.env.WEBHOOK_SECRET;
+  const legacy = process.env.TELEGRAM_WEBHOOK_SECRET;
+  return !(primary && legacy && primary !== legacy);
 }
 
 /** Public URL of the Mini App (used for BotFather / inline keyboard buttons). */
