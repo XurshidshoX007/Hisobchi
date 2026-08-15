@@ -1,19 +1,16 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import pg from "pg";
 
-// A separate migration role can be supplied for least-privilege production
-// deployments. Railway preDeploy uses this value; runtime uses DATABASE_URL.
-const databaseUrl = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL;
+const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
-  console.error("MIGRATION_DATABASE_URL or DATABASE_URL is required");
+  console.error("DATABASE_URL is required");
   process.exit(1);
 }
 
-const migrationsFolder = path.resolve("./drizzle");
-const journalPath = path.join(migrationsFolder, "meta", "_journal.json");
-const migrationsTable = "__drizzle_migrations";
+const migrationsFolder = "./drizzle";
+const journalTable = "__drizzle_migrations";
 
 const pool = new pg.Pool({
   connectionString: databaseUrl,
@@ -26,90 +23,68 @@ const pool = new pg.Pool({
       : undefined,
 });
 
-function quoteIdentifier(value) {
-  return `"${value.replaceAll('"', '""')}"`;
-}
-
 function readMigrations() {
-  if (!fs.existsSync(journalPath)) throw new Error("Can't find drizzle/meta/_journal.json");
+  const journalPath = path.join(migrationsFolder, "meta/_journal.json");
+  if (!fs.existsSync(journalPath)) {
+    throw new Error("Can't find drizzle/meta/_journal.json");
+  }
   const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
-  if (!Array.isArray(journal.entries)) throw new Error("Invalid Drizzle migration journal");
-
   return journal.entries.map((entry) => {
-    if (!/^\d{4}_[a-z0-9_]+$/i.test(entry.tag) || !Number.isSafeInteger(entry.when)) {
-      throw new Error("Invalid Drizzle migration metadata");
+    const filePath = path.join(migrationsFolder, `${entry.tag}.sql`);
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Missing migration file ${filePath}`);
     }
-    const migrationPath = path.join(migrationsFolder, `${entry.tag}.sql`);
-    if (!fs.existsSync(migrationPath)) throw new Error(`Missing migration file: ${entry.tag}.sql`);
-    const source = fs.readFileSync(migrationPath, "utf8");
+    const query = fs.readFileSync(filePath, "utf8");
     return {
-      when: entry.when,
-      hash: crypto.createHash("sha256").update(source).digest("hex"),
-      statements: source.split("--> statement-breakpoint").filter((statement) => statement.trim().length > 0),
+      hash: crypto.createHash("sha256").update(query).digest("hex"),
+      folderMillis: entry.when,
+      statements: query
+        .split("--> statement-breakpoint")
+        .map((part) => part.trim())
+        .filter(Boolean),
     };
   });
-}
-
-async function migrationJournalSchema(client) {
-  // Legacy deployments may already have Drizzle's historical journal. Reuse it
-  // without trying CREATE SCHEMA, which would require database-level CREATE.
-  const legacy = await client.query("SELECT to_regclass('drizzle.__drizzle_migrations') AS relation");
-  if (legacy.rows[0]?.relation) return "drizzle";
-
-  // Railway managed PostgreSQL always provides `public`. It only needs
-  // schema-level USAGE + CREATE (not CREATE DATABASE / CREATE SCHEMA).
-  return "public";
 }
 
 try {
   const client = await pool.connect();
   try {
-    const schema = await migrationJournalSchema(client);
-    const journalTable = `${quoteIdentifier(schema)}.${quoteIdentifier(migrationsTable)}`;
-    const existing = await client.query("SELECT to_regclass($1) AS relation", [`${schema}.${migrationsTable}`]);
-
-    // New Railway installation: CREATE TABLE in existing public schema only.
-    // No CREATE SCHEMA statement is ever emitted.
-    if (!existing.rows[0]?.relation) {
-      await client.query(`
-        CREATE TABLE ${journalTable} (
-          id serial PRIMARY KEY,
-          hash text NOT NULL,
-          created_at bigint NOT NULL
-        )
-      `);
-    }
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.${journalTable} (
+        id SERIAL PRIMARY KEY,
+        hash text NOT NULL,
+        created_at bigint
+      )
+    `);
 
     const applied = await client.query(
-      `SELECT hash, created_at FROM ${journalTable} ORDER BY created_at DESC LIMIT 1`,
+      `SELECT hash, created_at FROM public.${journalTable} ORDER BY created_at ASC`,
     );
-    const lastAppliedAt = applied.rows[0] ? Number(applied.rows[0].created_at) : -1;
+    const appliedHashes = new Set(applied.rows.map((row) => row.hash));
     const migrations = readMigrations();
 
-    await client.query("BEGIN");
-    try {
-      for (const migration of migrations) {
-        if (migration.when <= lastAppliedAt) continue;
+    for (const migration of migrations) {
+      if (appliedHashes.has(migration.hash)) continue;
+      await client.query("BEGIN");
+      try {
         for (const statement of migration.statements) {
           await client.query(statement);
         }
         await client.query(
-          `INSERT INTO ${journalTable} (hash, created_at) VALUES ($1, $2)`,
-          [migration.hash, migration.when],
+          `INSERT INTO public.${journalTable} (hash, created_at) VALUES ($1, $2)`,
+          [migration.hash, migration.folderMillis],
         );
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
       }
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
     }
-
-    console.log(`Database migrations applied (journal schema: ${schema})`);
+    console.log("Database migrations applied");
   } finally {
     client.release();
   }
 } catch (error) {
-  // Never include DATABASE_URL or database credentials in deploy logs.
   console.error("Database migration failed", error instanceof Error ? error.message : "unknown error");
   process.exitCode = 1;
 } finally {
