@@ -31,6 +31,7 @@ export async function GET() {
         botUsername: telegram.username,
         webhookUrlMatches: telegram.webhookUrlMatches,
         pendingTelegramUpdates: telegram.pendingUpdates,
+        hasLastWebhookError: telegram.hasLastWebhookError,
         warnings,
         time: new Date().toISOString(),
       },

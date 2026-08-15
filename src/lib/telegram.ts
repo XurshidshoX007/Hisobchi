@@ -1,4 +1,4 @@
-import { appUrl, telegramBotToken } from "./env";
+import { appUrl, telegramBotToken, telegramWebhookSecret } from "./env";
 import { securityLog } from "./security";
 
 type TelegramEnvelope<T> = {
@@ -12,6 +12,17 @@ export type TelegramCallContext = {
   requestId: string;
   userId?: number | null;
 };
+
+/** The one canonical URL used by both health checks and webhook provisioning. */
+export function telegramWebhookUrl(): string | null {
+  const configured = appUrl();
+  if (!configured) return null;
+  return `${configured.replace(/\/+$/, "")}/api/telegram/webhook`;
+}
+
+function normalizeWebhookUrl(url: string): string {
+  return url.replace(/\/+$/, "");
+}
 
 export async function telegramApi<T = unknown>(
   method: string,
@@ -55,6 +66,54 @@ export async function telegramApi<T = unknown>(
   }
 }
 
+type TelegramWebhookInfo = {
+  url?: string;
+  pending_update_count?: number;
+  last_error_date?: number;
+  last_error_message?: string;
+};
+
+/**
+ * Reconciles Telegram's webhook without ever dropping queued updates.
+ * This is explicit (not part of /api/health) so a health probe stays read-only.
+ */
+export async function ensureTelegramWebhook(): Promise<{
+  ok: boolean;
+  changed: boolean;
+  expectedUrl: string | null;
+  actualUrl: string | null;
+  reason?: string;
+}> {
+  const expectedUrl = telegramWebhookUrl();
+  const secret = telegramWebhookSecret();
+  if (!expectedUrl || !secret) {
+    return { ok: false, changed: false, expectedUrl, actualUrl: null, reason: "telegram_webhook_configuration_missing" };
+  }
+  const before = await telegramApi<TelegramWebhookInfo>("getWebhookInfo", {}, undefined, { timeoutMs: 10_000 });
+  if (!before.ok) return { ok: false, changed: false, expectedUrl, actualUrl: null, reason: "get_webhook_info_failed" };
+  const actualUrl = before.result?.url ? normalizeWebhookUrl(before.result.url) : "";
+  if (actualUrl === expectedUrl) return { ok: true, changed: false, expectedUrl, actualUrl: before.result?.url ?? null };
+
+  const set = await telegramApi("setWebhook", {
+    url: expectedUrl,
+    secret_token: secret,
+    allowed_updates: ["message", "callback_query"],
+    drop_pending_updates: false,
+    max_connections: 40,
+  }, undefined, { timeoutMs: 10_000 });
+  if (!set.ok) return { ok: false, changed: false, expectedUrl, actualUrl: before.result?.url ?? null, reason: "set_webhook_failed" };
+
+  const after = await telegramApi<TelegramWebhookInfo>("getWebhookInfo", {}, undefined, { timeoutMs: 10_000 });
+  const verifiedUrl = after.result?.url ?? null;
+  return {
+    ok: after.ok && normalizeWebhookUrl(verifiedUrl ?? "") === expectedUrl,
+    changed: true,
+    expectedUrl,
+    actualUrl: verifiedUrl,
+    ...(after.ok ? {} : { reason: "webhook_verification_failed" }),
+  };
+}
+
 export type TelegramHealth = {
   status: "unset" | "connected" | "misconfigured" | "error";
   username: string | null;
@@ -70,14 +129,14 @@ export async function telegramHealth(): Promise<TelegramHealth> {
   }
   const [me, webhook] = await Promise.all([
     telegramApi<{ username?: string }>("getMe", {}, undefined, { timeoutMs: 2_500 }),
-    telegramApi<{ url?: string; pending_update_count?: number; last_error_date?: number }>("getWebhookInfo", {}, undefined, { timeoutMs: 2_500 }),
+    telegramApi<TelegramWebhookInfo>("getWebhookInfo", {}, undefined, { timeoutMs: 2_500 }),
   ]);
   if (!me.ok || !webhook.ok) {
     return { status: "error", username: null, webhookUrlMatches: null, pendingUpdates: null, hasLastWebhookError: false };
   }
-  const expectedUrl = appUrl()?.replace(/\/$/, "");
-  const actualUrl = webhook.result?.url?.replace(/\/$/, "") ?? "";
-  const webhookUrlMatches = expectedUrl ? actualUrl === `${expectedUrl}/api/telegram/webhook` : null;
+  const expectedUrl = telegramWebhookUrl();
+  const actualUrl = webhook.result?.url ? normalizeWebhookUrl(webhook.result.url) : "";
+  const webhookUrlMatches = expectedUrl ? actualUrl === expectedUrl : null;
   return {
     status: webhookUrlMatches ? "connected" : "misconfigured",
     username: me.result?.username ?? null,
