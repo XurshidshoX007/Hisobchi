@@ -1,0 +1,316 @@
+"use client";
+
+import { compact, formatAmount, monthLabel, shortDate } from "@/lib/money";
+
+type Pt = { x: number; y: number };
+const line = (pts: Pt[]) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+
+/** Income vs Expense grouped bars */
+export function IncomeExpenseBars({
+  data,
+  height = 150,
+}: {
+  data: Array<{ month: string; income: number; expense: number }>;
+  height?: number;
+}) {
+  const W = 320;
+  const H = height;
+  const pad = { top: 8, bottom: 22, left: 4, right: 4 };
+  const innerW = W - pad.left - pad.right;
+  const innerH = H - pad.top - pad.bottom;
+  const max = Math.max(1, ...data.flatMap((d) => [d.income, d.expense]));
+  const group = innerW / Math.max(1, data.length);
+  const barW = Math.max(4, group * 0.28);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img">
+      {[0.25, 0.5, 0.75, 1].map((g) => (
+        <line
+          key={g}
+          x1={pad.left}
+          x2={W - pad.right}
+          y1={pad.top + innerH * (1 - g)}
+          y2={pad.top + innerH * (1 - g)}
+          stroke="var(--chart-grid)"
+          strokeWidth="1"
+        />
+      ))}
+      {data.map((d, i) => {
+        const cx = pad.left + group * i + group / 2;
+        const hi = (d.income / max) * innerH;
+        const he = (d.expense / max) * innerH;
+        return (
+          <g key={d.month}>
+            <rect
+              x={cx - barW - 1.5}
+              y={pad.top + innerH - hi}
+              width={barW}
+              height={Math.max(1, hi)}
+              rx={Math.min(3, barW / 2)}
+              fill="var(--positive)"
+            />
+            <rect
+              x={cx + 1.5}
+              y={pad.top + innerH - he}
+              width={barW}
+              height={Math.max(1, he)}
+              rx={Math.min(3, barW / 2)}
+              fill="var(--fg)"
+              opacity={0.75}
+            />
+            <text x={cx} y={H - 6} textAnchor="middle" fontSize="8.5" fill="var(--muted)">
+              {monthLabel(d.month)}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/** Forecast projection with min/max uncertainty band and risk markers */
+export function ForecastArea({
+  data,
+  height = 160,
+}: {
+  data: Array<{ date: string; projectedMin: number; projectedBase: number; projectedMax: number }>;
+  height?: number;
+}) {
+  const W = 320;
+  const H = height;
+  const pad = { top: 10, bottom: 18, left: 4, right: 4 };
+  const innerW = W - pad.left - pad.right;
+  const innerH = H - pad.top - pad.bottom;
+  const values = data.flatMap((d) => [d.projectedMin, d.projectedMax, d.projectedBase]);
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const span = max - min || 1;
+  const x = (i: number) => pad.left + (innerW * i) / Math.max(1, data.length - 1);
+  const y = (v: number) => pad.top + innerH - ((v - min) / span) * innerH;
+
+  const base = data.map((d, i) => ({ x: x(i), y: y(d.projectedBase) }));
+  const top = data.map((d, i) => ({ x: x(i), y: y(d.projectedMax) }));
+  const bottom = [...data].reverse().map((d, i) => ({ x: x(data.length - 1 - i), y: y(d.projectedMin) }));
+  const zeroY = y(0);
+
+  const risks = data
+    .map((d, i) => ({ ...d, i }))
+    .filter((d) => d.projectedMin < 0);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img">
+      <defs>
+        <linearGradient id="fa-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={`${line(top)} ${line(bottom).replace("M", "L")} Z`} fill="var(--fg)" opacity={0.07} />
+      <path
+        d={`${line(base)} L ${x(data.length - 1)} ${pad.top + innerH} L ${x(0)} ${pad.top + innerH} Z`}
+        fill="url(#fa-fill)"
+      />
+      {min < 0 ? (
+        <line x1={pad.left} x2={W - pad.right} y1={zeroY} y2={zeroY} stroke="var(--negative)" strokeWidth="1" strokeDasharray="3 3" />
+      ) : null}
+      <path d={line(base)} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
+      {risks.map((r) => (
+        <circle key={r.date} cx={x(r.i)} cy={y(r.projectedMin)} r="2.6" fill="var(--negative)" />
+      ))}
+      {[0, Math.floor(data.length / 2), data.length - 1].map((i) => (
+        <text key={i} x={x(i)} y={H - 5} textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"} fontSize="8.5" fill="var(--muted)">
+          {shortDate(data[i]?.date ?? "")}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+/** Balance history line */
+export function BalanceLine({
+  data,
+  height = 130,
+}: {
+  data: Array<{ date: string; balance: number }>;
+  height?: number;
+}) {
+  const W = 320;
+  const H = height;
+  const pad = { top: 10, bottom: 16, left: 4, right: 4 };
+  const innerH = H - pad.top - pad.bottom;
+  const innerW = W - pad.left - pad.right;
+  if (data.length < 2) return <div className="h-24" />;
+  const max = Math.max(...data.map((d) => d.balance));
+  const min = Math.min(...data.map((d) => d.balance));
+  const span = max - min || 1;
+  const pts = data.map((d, i) => ({
+    x: pad.left + (innerW * i) / (data.length - 1),
+    y: pad.top + innerH - ((d.balance - min) / span) * innerH,
+  }));
+  const area = `${line(pts)} L ${pts[pts.length - 1].x} ${pad.top + innerH} L ${pts[0].x} ${pad.top + innerH} Z`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img">
+      <defs>
+        <linearGradient id="bl-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--fg)" stopOpacity="0.14" />
+          <stop offset="100%" stopColor="var(--fg)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#bl-fill)" />
+      <path d={line(pts)} fill="none" stroke="var(--fg)" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx={last.x} cy={last.y} r="3" fill="var(--fg)" />
+      <circle cx={last.x} cy={last.y} r="6" fill="var(--fg)" opacity="0.15" />
+    </svg>
+  );
+}
+
+/** Horizontal category spending bars */
+export function CategoryBars({
+  items,
+}: {
+  items: Array<{ name: string; icon: string; amount: number; share: number }>;
+}) {
+  const max = Math.max(1, ...items.map((i) => i.amount));
+  return (
+    <div className="space-y-3.5">
+      {items.map((c) => (
+        <div key={c.name}>
+          <div className="mb-1.5 flex items-baseline justify-between gap-2">
+            <span className="truncate text-[13px] font-medium">
+              <span className="mr-1.5 text-muted">{c.icon}</span>
+              {c.name}
+            </span>
+            <span className="num shrink-0 text-[13px] text-fg-soft">
+              {formatAmount(c.amount)}
+              <span className="ml-1.5 text-[11px] text-faint">{(c.share * 100).toFixed(0)}%</span>
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-3">
+            <div
+              className="h-full rounded-full transition-[width] duration-700"
+              style={{ width: `${(c.amount / max) * 100}%`, background: "var(--fg)", opacity: 0.82 }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Progress ring used for health score / budget usage */
+export function Ring({
+  value,
+  size = 116,
+  label,
+  sublabel,
+  tone = "auto",
+}: {
+  value: number;
+  size?: number;
+  label?: string;
+  sublabel?: string;
+  tone?: "auto" | "accent";
+}) {
+  const pct = Math.max(0, Math.min(1, value));
+  const r = 46;
+  const c = 2 * Math.PI * r;
+  const color =
+    tone === "accent"
+      ? "var(--accent)"
+      : pct >= 0.8
+        ? "var(--positive)"
+        : pct >= 0.6
+          ? "var(--warning)"
+          : "var(--negative)";
+  return (
+    <div className="relative grid place-items-center" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+        <circle cx="60" cy="60" r={r} fill="none" stroke="var(--surface-3)" strokeWidth="10" />
+        <circle
+          cx="60"
+          cy="60"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray={`${c * pct} ${c}`}
+          className="transition-[stroke-dasharray] duration-1000 ease-out"
+        />
+      </svg>
+      <div className="absolute text-center">
+        {label ? <div className="num text-xl font-semibold leading-none">{label}</div> : null}
+        {sublabel ? <div className="mt-1 text-[10px] uppercase tracking-wide text-muted">{sublabel}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+/** Small sparkline for savings trend */
+export function Sparkline({ values, height = 44 }: { values: number[]; height?: number }) {
+  const W = 120;
+  const H = height;
+  if (values.length < 2) return <div style={{ height: H }} />;
+  const max = Math.max(...values, 0);
+  const min = Math.min(...values, 0);
+  const span = max - min || 1;
+  const pts = values.map((v, i) => ({
+    x: (W * i) / (values.length - 1),
+    y: H - 4 - ((v - min) / span) * (H - 8),
+  }));
+  const positive = values[values.length - 1] >= values[0];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" preserveAspectRatio="none">
+      <path
+        d={line(pts)}
+        fill="none"
+        stroke={positive ? "var(--positive)" : "var(--negative)"}
+        strokeWidth="2"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+/** Cash flow calendar strip: green/red bars per day */
+export function CashFlowStrip({
+  data,
+}: {
+  data: Array<{ date: string; inflow: number; outflow: number; projectedBase: number }>;
+}) {
+  const max = Math.max(1, ...data.map((d) => Math.max(d.inflow, d.outflow)));
+  return (
+    <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      {data.map((d) => {
+        const hasEvent = d.inflow > 0 || d.outflow > 0;
+        const negative = d.projectedBase < 0;
+        return (
+          <div
+            key={d.date}
+            className="flex w-[34px] shrink-0 flex-col items-center gap-1"
+            title={`${shortDate(d.date)} · +${compact(d.inflow)} / -${compact(d.outflow)}`}
+          >
+            <div className="flex h-20 w-full flex-col justify-end gap-0.5">
+              <div
+                className="w-full rounded-sm bg-positive"
+                style={{ height: `${(d.inflow / max) * 100}%`, minHeight: d.inflow > 0 ? 3 : 0 }}
+              />
+              <div
+                className="w-full rounded-sm"
+                style={{
+                  height: `${(d.outflow / max) * 100}%`,
+                  minHeight: d.outflow > 0 ? 3 : 0,
+                  background: negative ? "var(--negative)" : "var(--fg)",
+                  opacity: 0.8,
+                }}
+              />
+            </div>
+            <span className={`text-[9px] ${hasEvent ? "text-muted" : "text-faint"}`}>{shortDate(d.date).split("-")[0]}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

@@ -1,0 +1,289 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================================
+   Personal Financial OS — Design tokens
+   Palette is WCAG-verified: every text/bg pair used in the product measures
+   >= 4.5:1 in BOTH light and dark mode (see tokens marked "AA").
+   Separate tokens exist for FILL colours (charts/progress) vs TEXT colours,
+   because a saturated green that works as a bar fill is unreadable as body text.
+   ========================================================================== */
+
+:root {
+  /* Light — Warm White / Deep Navy */
+  --bg: #f5f4f1;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #faf9f7;
+  --surface-3: #f1efeb;
+  --border: #e5e2db;
+  --border-strong: #d3cfc6;
+
+  /* Text ramp — AA on all surfaces */
+  --fg: #0c1222; /* 18.7:1 */
+  --fg-soft: #333b4d; /* 11.2:1 */
+  --muted: #555b67; /* 5.9:1 on surface-3 */
+  --faint: #616671; /* 4.5:1 on surface-3 */
+
+  /* Brand */
+  --primary: #101828;
+  --primary-fg: #f7f7f5;
+  --primary-hover: #1d2939;
+
+  /* Semantic FILL (bars, progress, rings) */
+  --positive: #0e884e; /* 4.52:1 against white labels */
+  --negative: #c02a2a;
+  --warning: #b7791f;
+  --accent: #3b5bdb;
+
+  /* Semantic TEXT — AA on surface and on their soft tint */
+  --positive-text: #0d7b47; /* 4.7:1 on soft, 5.3:1 on surface */
+  --negative-text: #c02a2a; /* 4.7:1 / 5.4:1 */
+  --warning-text: #8f5d17; /* 5.1:1 / 5.6:1 */
+  --accent-text: #3452c4; /* 5.8:1 / 6.7:1 */
+
+  /* Foreground for filled semantic buttons */
+  --positive-fg: #ffffff;
+  --negative-fg: #ffffff;
+
+  --positive-soft: #e7f5ed;
+  --negative-soft: #fdecec;
+  --warning-soft: #fdf3e2;
+  --accent-soft: #eaeeff;
+
+  --shadow-card: 0 1px 2px rgba(12, 18, 34, 0.04), 0 8px 24px -12px rgba(12, 18, 34, 0.12);
+  --chart-grid: rgba(12, 18, 34, 0.07);
+  --focus: #3b5bdb;
+}
+
+.dark {
+  /* Dark — its own system, not an inversion */
+  --bg: #070910;
+  --bg-elevated: #10141d;
+  --surface: #0f131c;
+  --surface-2: #151a25;
+  --surface-3: #1c2230;
+  --border: #242b3a;
+  --border-strong: #333d50;
+
+  --fg: #f1f3f7; /* 16.7:1 */
+  --fg-soft: #c8cfdb; /* 11.9:1 */
+  --muted: #9ba3b3; /* 6.3:1 on surface-3 */
+  --faint: #838b9b; /* 4.6:1 on surface-3 */
+
+  --primary: #f1f3f7;
+  --primary-fg: #0b0f18;
+  --primary-hover: #ffffff;
+
+  /* FILL — light, saturated */
+  --positive: #34d399;
+  --negative: #f87171;
+  --warning: #fbbf24;
+  --accent: #7ca5ff;
+
+  /* TEXT — slightly lifted so they pass on dark surfaces */
+  --positive-text: #3ed598;
+  --negative-text: #f98a8a;
+  --warning-text: #fcc534;
+  --accent-text: #8fb0ff;
+
+  /* Light fills need dark text, not white */
+  --positive-fg: #07130c;
+  --negative-fg: #1a0808;
+
+  --positive-soft: #12251d;
+  --negative-soft: #2a1b1f;
+  --warning-soft: #2a2317;
+  --accent-soft: #171f30;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 40px -24px rgba(0, 0, 0, 0.8);
+  --chart-grid: rgba(255, 255, 255, 0.07);
+  --focus: #7ca5ff;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-soft: var(--fg-soft);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-positive: var(--positive);
+  --color-positive-text: var(--positive-text);
+  --color-positive-fg: var(--positive-fg);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-negative-text: var(--negative-text);
+  --color-negative-fg: var(--negative-fg);
+  --color-negative-soft: var(--negative-soft);
+  --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
+  --color-warning-soft: var(--warning-soft);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --font-sans: ui-sans-serif, -apple-system, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --radius-card: 20px;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font-feature-settings: "tnum" 1, "cv01" 1;
+  overscroll-behavior-y: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
+  overflow-x: hidden;
+}
+
+/* Numeric data is always tabular so figures never jitter */
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.flat-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+/* Keyboard / switch-accessibility focus ring */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+
+/*
+ * Inputs inherit color (so typed text matches --fg), but buttons must NOT —
+ * `color: inherit` on <button> overrides Tailwind text-* utilities like
+ * `text-primary-fg`, producing dark-on-dark labels. Buttons carry their own
+ * color via utility classes, so we only normalize font + cursor for them.
+ */
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+input::placeholder {
+  color: var(--faint);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.glass-nav {
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: saturate(180%) blur(22px);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+}
+
+.glass-bar {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(160%) blur(18px);
+  -webkit-backdrop-filter: saturate(160%) blur(18px);
+}
+
+.safe-b {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-pop {
+  animation: pop-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-sheet {
+  animation: sheet-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-shimmer {
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-pop,
+  .animate-sheet,
+  .animate-shimmer {
+    animation: none !important;
+  }
+}
