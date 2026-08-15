@@ -161,6 +161,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       note: t.note,
       source: t.source,
       recurringId: t.recurringId,
+      expectedIncomeId: t.expectedIncomeId,
       isDeleted: false,
     }));
 
@@ -197,9 +198,15 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   /* ---- expected incomes ---- */
   const incomeViews: ExpectedIncomeView[] = incomeRows.map((i) => {
     const { base } = rangeValue(i.amount, i.minAmount, i.maxAmount);
-    const received = txViews.some(
-      (t) => t.type === "income" && t.date.startsWith(thisMonth) && t.categoryId === i.categoryId && t.amount >= (i.minAmount ?? i.amount ?? 0) * 0.9,
+    // A category/amount heuristic marks unrelated income as received (especially
+    // when categoryId is null). The explicit FK is the source of truth.
+    const linkedTransaction = txViews.find(
+      (t) =>
+        t.type === "income" &&
+        t.expectedIncomeId === i.id &&
+        (i.frequency === "once" || t.date.startsWith(thisMonth)),
     );
+    const received = Boolean(linkedTransaction);
     return {
       id: i.id,
       sourceName: i.sourceName,
@@ -213,9 +220,10 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       isActive: i.isActive,
       note: i.note,
       accountId: i.accountId,
+      categoryId: i.categoryId,
       received,
       daysLeft: dayDiff(today, i.expectedDate),
-      linkedTransactionId: null,
+      linkedTransactionId: linkedTransaction?.id ?? null,
     };
   });
 
@@ -309,7 +317,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     recurring: recurringRows,
     incomes: incomeRows.map((i) => ({
       ...i,
-      linkedTransactionId: incomeViews.find((v) => v.id === i.id)?.received ? 1 : null,
+      linkedTransactionId: incomeViews.find((v) => v.id === i.id)?.linkedTransactionId ?? null,
     })),
     minReserve: user.minReserve,
     estimatedConfidence: user.estimatedIncomeConfidence,

@@ -14,6 +14,7 @@ require_env DATABASE_URL
 require_env REDIS_URL
 require_env NEXT_PUBLIC_APP_URL
 require_env LOG_HASH_SECRET
+require_env NOTIFICATION_CRON_SECRET
 
 # Support canonical Railway names, while keeping TELEGRAM_* aliases compatible.
 if [ -z "${BOT_TOKEN:-${TELEGRAM_BOT_TOKEN:-}}" ]; then

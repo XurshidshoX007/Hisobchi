@@ -17,6 +17,7 @@ export type TxView = {
   note: string | null;
   source: string;
   recurringId: number | null;
+  expectedIncomeId: number | null;
   isDeleted: boolean;
 };
 
@@ -80,6 +81,7 @@ export type ExpectedIncomeView = {
   isActive: boolean;
   note: string | null;
   accountId: number | null;
+  categoryId: number | null;
   received: boolean;
   daysLeft: number;
   linkedTransactionId: number | null;
@@ -163,8 +165,10 @@ function nextOccurrences(
 ): string[] {
   const out: string[] = [];
   let cursor = seedDate;
-  // the scheduled date itself counts — future ones are planned, past ones surface once as overdue
+  // The scheduled date itself counts. A one-time item must never be silently
+  // expanded into monthly occurrences.
   if (seedDate <= horizonEnd) out.push(seedDate);
+  if (frequency === "once") return out;
   let guard = 0;
   while (cursor <= horizonEnd && guard < 60) {
     cursor =

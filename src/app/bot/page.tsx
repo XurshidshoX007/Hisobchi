@@ -15,7 +15,12 @@ type Draft = {
   note: string;
   estimated: boolean;
   confidence: number;
+  accountId?: number;
+  toAccountId?: number;
 };
+
+const BOT_CONSOLE_ENABLED = process.env.NODE_ENV !== "production";
+const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
 
 const QUICK = [
   "📊 Hisobot",
@@ -42,6 +47,39 @@ export default function BotPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const counter = useRef(2);
+
+  if (!BOT_CONSOLE_ENABLED) {
+    const botUrl = BOT_USERNAME ? `https://t.me/${BOT_USERNAME.replace(/^@/, "")}` : null;
+    return (
+      <div className="animate-fade-up space-y-4">
+        <PageHeader title="🤖 Telegram bot" subtitle="Real Telegram webhook va Mini App — bitta backend" action={<Badge tone="positive">Webhook</Badge>} />
+        <Card>
+          <p className="text-[15px] font-semibold">Bot Telegram ichida mustaqil ishlaydi</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">
+            Bu sahifa simulator emas. Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring; tabiiy tildagi operatsiyalar tasdiqlashdan keyin Mini App bilan bir xil bazaga yoziladi.
+          </p>
+          {botUrl ? (
+            <a
+              href={botUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-fg"
+            >
+              Telegram botni ochish
+            </a>
+          ) : (
+            <p className="mt-4 rounded-xl bg-warning-soft px-3 py-2 text-[12px] text-warning-text">
+              Bot havolasi uchun NEXT_PUBLIC_TELEGRAM_BOT_USERNAME sozlanishi kerak.
+            </p>
+          )}
+        </Card>
+        <Card>
+          <p className="mb-2 text-[15px] font-semibold">Mavjud buyruqlar</p>
+          <p className="text-[13px] leading-7 text-muted">/start · /report · /forecast · /help · Kirim · Chiqim · Transfer</p>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
 

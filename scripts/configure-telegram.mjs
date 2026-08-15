@@ -42,7 +42,11 @@ try {
   await api("setChatMenuButton", {
     menu_button: { type: "web_app", text: "Moliyam", web_app: { url: appUrl } },
   });
-  console.log(`Telegram configured: ${appUrl.replace(/\/$/, "")}/api/telegram/webhook`);
+  const [me, webhook] = await Promise.all([api("getMe", {}), api("getWebhookInfo", {})]);
+  const expectedWebhook = `${appUrl.replace(/\/$/, "")}/api/telegram/webhook`;
+  if (webhook.result?.url !== expectedWebhook) throw new Error("Webhook verification failed");
+  console.log(`Telegram configured: @${me.result?.username ?? "unknown"}`);
+  console.log(`Webhook verified: ${expectedWebhook}`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Telegram configuration failed");
   process.exit(1);

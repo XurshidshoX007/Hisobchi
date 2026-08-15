@@ -24,7 +24,18 @@ import type { DebtView } from "@/lib/finance";
 export default function DebtsPage() {
   const { state, loading, mutate } = useFinance();
   const [sheet, setSheet] = useState(false);
+  const [editing, setEditing] = useState<DebtView | null>(null);
   const [payFor, setPayFor] = useState<DebtView | null>(null);
+
+  function openCreate() {
+    setEditing(null);
+    setSheet(true);
+  }
+
+  function closeSheet() {
+    setSheet(false);
+    setEditing(null);
+  }
 
   if (loading && !state) return <Skeleton className="h-72 w-full" />;
   if (!state) return null;
@@ -40,7 +51,7 @@ export default function DebtsPage() {
         title="Qarzdorlik"
         subtitle="Men qarzdorman / menga qarzdor"
         action={
-          <Button type="button" size="sm" onClick={() => setSheet(true)}>
+          <Button type="button" size="sm" onClick={openCreate}>
             ➕ Qarz
           </Button>
         }
@@ -99,13 +110,23 @@ export default function DebtsPage() {
                       <Progress value={d.progress} height={6} />
                       <div className="mt-2 flex items-center justify-between">
                         <span className="text-[11.5px] text-muted">to‘langan {compact(d.paidAmount)}</span>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => setPayFor(d)}
                             className="min-h-8 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:bg-surface-3 touch-manipulation"
                           >
                             To‘lov
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditing(d);
+                              setSheet(true);
+                            }}
+                            className="min-h-8 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
+                          >
+                            Tahrir
                           </button>
                           <button
                             type="button"
@@ -144,20 +165,20 @@ export default function DebtsPage() {
           title="Qarzdorlik yozuvlari yo‘q"
           description="Qarzlarni qo‘shing — tizim muddat va to‘lovlarni kuzatadi."
           action={
-            <Button type="button" onClick={() => setSheet(true)}>
+            <Button type="button" onClick={openCreate}>
               ➕ Qarz qo‘shish
             </Button>
           }
         />
       ) : null}
 
-      <DebtSheet open={sheet} onClose={() => setSheet(false)} />
+      <DebtSheet open={sheet} onClose={closeSheet} editing={editing} />
       <PaySheet debt={payFor} onClose={() => setPayFor(null)} />
     </div>
   );
 }
 
-function DebtSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: DebtView | null }) {
   const { mutate } = useFinance();
   const [direction, setDirection] = useState<"i_owe" | "owed_to_me">("i_owe");
   const [personName, setPersonName] = useState("");
@@ -166,18 +187,19 @@ function DebtSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [note, setNote] = useState("");
 
   useEffect(() => {
-    if (!open) {
-      setPersonName("");
-      setAmount("");
-      setDueDate("");
-      setNote("");
-    }
-  }, [open]);
+    if (!open) return;
+    setDirection(editing?.direction ?? "i_owe");
+    setPersonName(editing?.personName ?? "");
+    setAmount(editing ? String(editing.amount) : "");
+    setDueDate(editing?.dueDate ?? "");
+    setNote(editing?.note ?? "");
+  }, [open, editing]);
 
   async function save() {
     const value = Number(amount.replace(/\s/g, ""));
     if (!personName.trim() || !value) return;
-    const res = await mutate("debt", "create", {
+    const res = await mutate("debt", editing ? "update" : "create", {
+      id: editing?.id,
       direction,
       personName: personName.trim(),
       amount: value,
@@ -192,7 +214,7 @@ function DebtSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     <Sheet
       open={open}
       onClose={onClose}
-      title="Yangi qarzdorlik"
+      title={editing ? "Qarzdorlikni tahrirlash" : "Yangi qarzdorlik"}
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>

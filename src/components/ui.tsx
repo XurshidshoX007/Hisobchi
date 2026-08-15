@@ -198,34 +198,48 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div
-      role="tablist"
-      /*
-       * grid gives every tab an equal fraction that ALWAYS fits the container
-       * width — no clipping of the last item ("Transfer" bug), no forced
-       * horizontal scroll. Labels shrink gracefully via truncate on tiny
-       * screens instead of overflowing.
-       */
-      className="grid w-full gap-1 rounded-full border border-line bg-surface-2 p-1"
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
-    >
-      {options.map((o) => {
-        const active = value === o.value;
-        return (
-          <button
-            key={o.value}
-            role="tab"
-            aria-selected={active}
-            type="button"
-            onClick={() => onChange(o.value)}
-            className={`flex min-h-9 min-w-0 touch-manipulation items-center justify-center rounded-full px-2 text-xs font-semibold transition-all ${
-              active ? "bg-primary text-primary-fg shadow-sm" : "text-muted hover:bg-surface-3 hover:text-fg"
-            }`}
-          >
-            <span className="truncate">{o.label}</span>
-          </button>
-        );
-      })}
+    <div className="no-scrollbar w-full overflow-x-auto overscroll-x-contain rounded-full" data-segmented-scroll>
+      {/*
+       * The inner row grows equally while labels fit, then becomes horizontally
+       * scrollable when their intrinsic widths no longer fit. Labels are never
+       * ellipsized: “Hammasi” must remain fully readable at 320px and every
+       * longer segmented control keeps the same behaviour globally.
+       */}
+      <div role="tablist" className="flex w-max min-w-full gap-1 rounded-full border border-line bg-surface-2 p-1">
+        {options.map((o) => {
+          const active = value === o.value;
+          return (
+            <button
+              key={o.value}
+              role="tab"
+              aria-selected={active}
+              tabIndex={active ? 0 : -1}
+              type="button"
+              onClick={() => onChange(o.value)}
+              onKeyDown={(event) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                event.preventDefault();
+                const tabs = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLElement>("[role=tab]") ?? []);
+                const current = tabs.indexOf(event.currentTarget);
+                const next =
+                  event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? tabs.length - 1
+                      : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+                tabs[next]?.focus();
+                tabs[next]?.click();
+              }}
+              className={`flex min-h-11 flex-1 shrink-0 touch-manipulation select-none items-center justify-center whitespace-nowrap rounded-full px-3 text-xs font-semibold transition-all sm:min-h-10 ${
+                active ? "shadow-sm" : "text-fg-soft hover:bg-surface-3 hover:text-fg active:bg-surface-3"
+              }`}
+              style={active ? { background: "var(--segmented-active)", color: "var(--segmented-active-fg)" } : undefined}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

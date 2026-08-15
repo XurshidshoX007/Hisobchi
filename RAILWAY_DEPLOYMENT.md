@@ -30,6 +30,8 @@ Configure these in Railway Variables (never commit values):
 | `WEBHOOK_SECRET` | yes | 32+ random bytes (secret) |
 | `NEXT_PUBLIC_APP_URL` | yes | Railway public HTTPS URL, no trailing slash |
 | `LOG_HASH_SECRET` | yes | 32+ random bytes (secret) |
+| `NOTIFICATION_CRON_SECRET` | yes | 32+ random bytes for the scheduled dispatcher |
+| `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | recommended | BotFather username without `@` |
 | `NODE_ENV` | yes | `production` |
 | `DISABLE_DEMO` | yes | `true` |
 | `ALLOW_DEMO_IN_PRODUCTION` | yes | `false` |
@@ -111,10 +113,23 @@ Expected production response:
 - `redis: "connected"`
 - `demo: false`
 - `verifiedAuthRequired: true`
-- `bot: "configured"`
+- `bot: "connected"`
+- `webhookUrlMatches: true`
 - no warnings
 
 If status is `warning`, do not open beta access until warnings are resolved.
+
+Configure a Railway Cron service (for example every hour) to invoke the same
+web service's dispatcher. It sends payment, income, budget and risk alerts with
+Redis-backed deduplication:
+
+```bash
+curl -fsS -X POST \
+  -H "Authorization: Bearer $NOTIFICATION_CRON_SECRET" \
+  https://YOUR-SERVICE.up.railway.app/api/telegram/notifications
+```
+
+The cron secret must never be prefixed with `NEXT_PUBLIC_`.
 
 ## 7. Backup / restore
 
