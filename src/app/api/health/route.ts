@@ -3,15 +3,21 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { inspectEnv } from "@/lib/env";
 import { redisHealth } from "@/lib/redis";
+import { telegramHealth } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     await db.execute(sql`select 1`);
-    const [env, redis] = await Promise.all([Promise.resolve(inspectEnv()), redisHealth()]);
+    const [env, redis, telegram] = await Promise.all([Promise.resolve(inspectEnv()), redisHealth(), telegramHealth()]);
     const dependencyOk = redis !== "error";
-    const status = env.ok && dependencyOk ? "ok" : "warning";
+    const botOk = telegram.status === "connected" || (env.mode === "development" && telegram.status === "unset");
+    const status = env.ok && dependencyOk && botOk && !telegram.hasLastWebhookError ? "ok" : "warning";
+    const warnings = [...env.warnings];
+    if (telegram.status === "misconfigured") warnings.push("Telegram webhook URL does not match NEXT_PUBLIC_APP_URL");
+    if (telegram.status === "error") warnings.push("Telegram Bot API is unreachable or BOT_TOKEN is invalid");
+    if (telegram.hasLastWebhookError) warnings.push("Telegram reports a recent webhook delivery error");
     return NextResponse.json(
       {
         status,
@@ -21,8 +27,11 @@ export async function GET() {
         mode: env.mode,
         demo: env.demo,
         verifiedAuthRequired: env.verifiedAuthRequired,
-        bot: env.hasBotToken ? "configured" : "unset",
-        warnings: env.warnings,
+        bot: telegram.status,
+        botUsername: telegram.username,
+        webhookUrlMatches: telegram.webhookUrlMatches,
+        pendingTelegramUpdates: telegram.pendingUpdates,
+        warnings,
         time: new Date().toISOString(),
       },
       {

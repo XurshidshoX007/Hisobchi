@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
 import { Badge, Button, Card, EmptyState, Money, PageHeader, Segmented, Select, Skeleton, TextInput } from "@/components/ui";
-import { compact, formatAmount, humanDate } from "@/lib/money";
+import { compact, humanDate } from "@/lib/money";
+import type { TxView } from "@/lib/finance";
 
 type Filter = "all" | "income" | "expense" | "transfer";
 
@@ -14,6 +15,17 @@ export default function TransactionsPage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<TxView | null>(null);
+
+  function openCreate() {
+    setEditing(null);
+    setAddOpen(true);
+  }
+
+  function closeSheet() {
+    setAddOpen(false);
+    setEditing(null);
+  }
 
   const grouped = useMemo(() => {
     const list = (state?.transactions ?? []).filter((t) => {
@@ -51,7 +63,7 @@ export default function TransactionsPage() {
         title="Operatsiyalar"
         subtitle="Real pul harakatlari"
         action={
-          <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
+          <Button type="button" size="sm" onClick={openCreate}>
             ➕ Qo‘shish
           </Button>
         }
@@ -93,7 +105,7 @@ export default function TransactionsPage() {
           title="Operatsiya topilmadi"
           description="Filtr yoki qidiruv shartlarini o‘zgartiring."
           action={
-            <Button type="button" onClick={() => setAddOpen(true)}>
+            <Button type="button" onClick={openCreate}>
               ➕ Operatsiya qo‘shish
             </Button>
           }
@@ -133,14 +145,27 @@ export default function TransactionsPage() {
                         signed
                         tone={t.type === "income" ? "positive" : t.type === "expense" ? "default" : "muted"}
                       />
-                      <button
-                        type="button"
-                        onClick={() => mutate("transaction", "delete", { id: t.id })}
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
-                        aria-label="Bekor qilish"
-                      >
-                        ✕
-                      </button>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditing(t);
+                            setAddOpen(true);
+                          }}
+                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
+                          aria-label="Tahrirlash"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => mutate("transaction", "delete", { id: t.id })}
+                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
+                          aria-label="Bekor qilish"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -154,7 +179,7 @@ export default function TransactionsPage() {
         Muhim operatsiyalar o‘chirilmaydi — belgilanadi va tarix saqlanadi.
       </p>
 
-      <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} />
+      <QuickAddSheet open={addOpen} onClose={closeSheet} editing={editing} />
     </div>
   );
 }

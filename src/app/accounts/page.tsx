@@ -43,7 +43,9 @@ export default function AccountsPage() {
   const { state, loading, mutate } = useFinance();
   const [tab, setTab] = useState<"accounts" | "categories">("accounts");
   const [sheet, setSheet] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<AccountView | null>(null);
   const [catSheet, setCatSheet] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CategoryView | null>(null);
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
@@ -77,7 +79,14 @@ export default function AccountsPage() {
                   <span className="text-sm text-muted">{state.user.currency}</span>
                 </div>
               </div>
-              <Button type="button" size="sm" onClick={() => setSheet(true)}>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setEditingAccount(null);
+                  setSheet(true);
+                }}
+              >
                 ➕ Hisob
               </Button>
             </div>
@@ -129,6 +138,16 @@ export default function AccountsPage() {
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"
+                    onClick={() => {
+                      setEditingAccount(a);
+                      setSheet(true);
+                    }}
+                    className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
+                  >
+                    Tahrir
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => mutate("account", "update", { id: a.id, isActive: !a.isActive })}
                     className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
                   >
@@ -142,7 +161,14 @@ export default function AccountsPage() {
       ) : (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <Button type="button" size="sm" onClick={() => setCatSheet(true)}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setEditingCategory(null);
+                setCatSheet(true);
+              }}
+            >
               ➕ Kategoriya
             </Button>
           </div>
@@ -156,7 +182,14 @@ export default function AccountsPage() {
                   {state.categories
                     .filter((c) => c.type === type)
                     .map((c) => (
-                      <CategoryRow key={c.id} node={c} />
+                      <CategoryRow
+                        key={c.id}
+                        node={c}
+                        onEdit={(category) => {
+                          setEditingCategory(category);
+                          setCatSheet(true);
+                        }}
+                      />
                     ))}
                 </div>
               </Card>
@@ -165,13 +198,27 @@ export default function AccountsPage() {
         </div>
       )}
 
-      <AccountSheet open={sheet} onClose={() => setSheet(false)} accounts={state.accounts} />
-      <CategorySheet open={catSheet} onClose={() => setCatSheet(false)} />
+      <AccountSheet
+        open={sheet}
+        onClose={() => {
+          setSheet(false);
+          setEditingAccount(null);
+        }}
+        editing={editingAccount}
+      />
+      <CategorySheet
+        open={catSheet}
+        onClose={() => {
+          setCatSheet(false);
+          setEditingCategory(null);
+        }}
+        editing={editingCategory}
+      />
     </div>
   );
 }
 
-function CategoryRow({ node }: { node: CategoryView }) {
+function CategoryRow({ node, onEdit }: { node: CategoryView; onEdit: (category: CategoryView) => void }) {
   const { mutate } = useFinance();
   return (
     <div className="py-3">
@@ -181,6 +228,13 @@ function CategoryRow({ node }: { node: CategoryView }) {
           <p className="truncate text-[14px] font-medium">{node.name}</p>
           {node.isEssential ? <p className="text-[11px] text-muted">majburiy</p> : null}
         </div>
+        <button
+          type="button"
+          onClick={() => onEdit(node)}
+          className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11px] font-medium text-fg-soft transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
+        >
+          tahrir
+        </button>
         <button
           type="button"
           onClick={() => mutate("category", "update", { id: node.id, isActive: !node.isActive })}
@@ -196,6 +250,9 @@ function CategoryRow({ node }: { node: CategoryView }) {
               <span className="text-sm">{ch.icon}</span>
               <span className="flex-1 truncate text-[13px] text-fg-soft">{ch.name}</span>
               {ch.isEssential ? <Badge tone="neutral">majburiy</Badge> : null}
+              <button type="button" onClick={() => onEdit(ch)} className="min-h-8 px-1.5 text-[11px] font-medium text-accent-text">
+                tahrir
+              </button>
             </div>
           ))}
         </div>
@@ -207,11 +264,11 @@ function CategoryRow({ node }: { node: CategoryView }) {
 function AccountSheet({
   open,
   onClose,
-  accounts,
+  editing,
 }: {
   open: boolean;
   onClose: () => void;
-  accounts: AccountView[];
+  editing: AccountView | null;
 }) {
   const { mutate } = useFinance();
   const [name, setName] = useState("");
@@ -219,16 +276,15 @@ function AccountSheet({
   const [initialBalance, setInitialBalance] = useState("");
 
   useEffect(() => {
-    if (!open) {
-      setName("");
-      setType("cash");
-      setInitialBalance("");
-    }
-  }, [open]);
+    if (!open) return;
+    setName(editing?.name ?? "");
+    setType(editing?.type ?? "cash");
+    setInitialBalance(editing ? String(editing.initialBalance) : "");
+  }, [open, editing]);
 
   async function save() {
     if (!name.trim()) return;
-    const res = await mutate("account", "create", { name: name.trim(), type, initialBalance: Number(initialBalance.replace(/\s/g, "") || 0) });
+    const res = await mutate("account", editing ? "update" : "create", { id: editing?.id, name: name.trim(), type, initialBalance: Number(initialBalance.replace(/\s/g, "") || 0) });
     if (res.ok) onClose();
   }
 
@@ -236,7 +292,7 @@ function AccountSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="Yangi hisob"
+      title={editing ? "Hisobni tahrirlash" : "Yangi hisob"}
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>
@@ -263,29 +319,11 @@ function AccountSheet({
       <Field label="Boshlang‘ich balans">
         <TextInput value={initialBalance} onChange={(e) => setInitialBalance(e.target.value)} inputMode="decimal" placeholder="0" />
       </Field>
-      {accounts.length ? (
-        <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Mavjud hisobni yangilash</p>
-          {accounts.map((a) => (
-            <div key={a.id} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2.5">
-              <span className="truncate text-[13px] font-medium">{a.name}</span>
-              <button
-                type="button"
-                onClick={() => mutate("account", "update", { id: a.id, initialBalance: Number(initialBalance.replace(/\s/g, "") || 0) })}
-                className="shrink-0 text-[11px] font-medium text-accent-text touch-manipulation disabled:text-muted"
-                disabled={!initialBalance}
-              >
-                Yangilash
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
     </Sheet>
   );
 }
 
-function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: CategoryView | null }) {
   const { state, mutate } = useFinance();
   const [name, setName] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
@@ -294,19 +332,20 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
   const [isEssential, setIsEssential] = useState(false);
 
   useEffect(() => {
-    if (!open) {
-      setName("");
-      setIcon("•");
-      setParentId("");
-      setIsEssential(false);
-    }
-  }, [open]);
+    if (!open) return;
+    setName(editing?.name ?? "");
+    setType(editing?.type ?? "expense");
+    setIcon(editing?.icon ?? "•");
+    setParentId(editing?.parentId ? String(editing.parentId) : "");
+    setIsEssential(editing?.isEssential ?? false);
+  }, [open, editing]);
 
-  const parents = (state?.categories ?? []).filter((c) => c.type === type && !c.parentId);
+  const parents = (state?.categories ?? []).filter((c) => c.type === type && !c.parentId && c.id !== editing?.id);
 
   async function save() {
     if (!name.trim()) return;
-    const res = await mutate("category", "create", {
+    const res = await mutate("category", editing ? "update" : "create", {
+      id: editing?.id,
       name: name.trim(),
       type,
       icon: icon || "•",
@@ -320,7 +359,7 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
     <Sheet
       open={open}
       onClose={onClose}
-      title="Yangi kategoriya"
+      title={editing ? "Kategoriyani tahrirlash" : "Yangi kategoriya"}
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>

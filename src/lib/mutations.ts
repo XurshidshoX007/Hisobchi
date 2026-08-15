@@ -78,7 +78,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
     recurring: ["create", "update", "pay", "toggle", "delete"],
     expectedIncome: ["create", "update", "receive", "toggle", "delete"],
     budget: ["upsert", "delete"],
-    debt: ["create", "pay", "delete"],
+    debt: ["create", "update", "pay", "delete"],
     goal: ["create", "contribute", "update", "delete"],
     notification: ["read", "readAll"],
   };
@@ -120,7 +120,10 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         }
 
         // Ownership: category (if any) must belong to the user.
-        const catId = type === "transfer" ? null : int(d.categoryId);
+        const catId =
+          type === "transfer"
+            ? null
+            : int(d.categoryId) ?? (str(d.categoryName) ? await resolveCategoryId(userId, str(d.categoryName), type) : null);
         if (catId) {
           const ownsCat = await db
             .select({ id: categories.id })
@@ -131,18 +134,34 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         }
         const recurringId = int(d.recurringId);
         const expectedIncomeId = int(d.expectedIncomeId);
+        if (recurringId) {
+          const ownedRecurring = await db
+            .select({ id: recurringExpenses.id })
+            .from(recurringExpenses)
+            .where(and(eq(recurringExpenses.id, recurringId), eq(recurringExpenses.userId, userId)))
+            .limit(1);
+          if (!ownedRecurring[0] || type !== "expense") return { ok: false, message: "Doimiy to'lov topilmadi" };
+        }
+        if (expectedIncomeId) {
+          const ownedIncome = await db
+            .select({ id: expectedIncomes.id })
+            .from(expectedIncomes)
+            .where(and(eq(expectedIncomes.id, expectedIncomeId), eq(expectedIncomes.userId, userId)))
+            .limit(1);
+          if (!ownedIncome[0] || type !== "income") return { ok: false, message: "Kutilayotgan daromad topilmadi" };
+        }
         const [row] = await db
           .insert(transactions)
           .values({
             userId,
             accountId,
             toAccountId: type === "transfer" ? int(d.toAccountId) : null,
-            categoryId: type === "transfer" ? null : int(d.categoryId),
+            categoryId: catId,
             type,
             amount,
             date: isoDate(d.date, today) ?? today,
             note: str(d.note),
-            source: str(d.source, "miniapp") ?? "miniapp",
+            source: allowed(str(d.source, "miniapp"), ["bot", "miniapp", "api", "auto"], "miniapp"),
             currency: user.currency,
             recurringId,
             expectedIncomeId,
@@ -150,12 +169,16 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .returning();
 
         if (recurringId) {
-          const rec = await db.select().from(recurringExpenses).where(eq(recurringExpenses.id, recurringId)).limit(1);
+          const rec = await db
+            .select()
+            .from(recurringExpenses)
+            .where(and(eq(recurringExpenses.id, recurringId), eq(recurringExpenses.userId, userId)))
+            .limit(1);
           if (rec[0]) {
             await db
               .update(recurringExpenses)
-              .set({ nextDueDate: advance(rec[0].nextDueDate, rec[0].frequency) })
-              .where(eq(recurringExpenses.id, recurringId));
+              .set(rec[0].frequency === "once" ? { isActive: false } : { nextDueDate: advance(rec[0].nextDueDate, rec[0].frequency) })
+              .where(and(eq(recurringExpenses.id, recurringId), eq(recurringExpenses.userId, userId)));
           }
         }
         return {
@@ -167,40 +190,63 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "update") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        const patch: Record<string, unknown> = { updatedAt: new Date() };
-        if (d.amount !== undefined) {
-          const amount = num(d.amount);
-          if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
-          patch.amount = amount;
+        const existing = await db
+          .select()
+          .from(transactions)
+          .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+          .limit(1);
+        if (!existing[0]) return { ok: false, message: "Operatsiya topilmadi yoki ruxsat yo'q" };
+
+        const type = allowed(str(d.type, existing[0].type), ["income", "expense", "transfer"], existing[0].type) as
+          | "income"
+          | "expense"
+          | "transfer";
+        if (existing[0].recurringId && type !== "expense") return { ok: false, message: "Reja to'lovi chiqim bo'lib qolishi kerak" };
+        if (existing[0].expectedIncomeId && type !== "income") return { ok: false, message: "Qabul qilingan daromad kirim bo'lib qolishi kerak" };
+        const amount = d.amount !== undefined ? num(d.amount) : existing[0].amount;
+        if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
+        const accountId = d.accountId !== undefined ? int(d.accountId) : existing[0].accountId;
+        if (!accountId || !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+
+        const toAccountId = type === "transfer" ? (d.toAccountId !== undefined ? int(d.toAccountId) : existing[0].toAccountId) : null;
+        if (type === "transfer") {
+          if (!toAccountId || !(await ownsAccount(userId, toAccountId))) return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
+          if (toAccountId === accountId) return { ok: false, message: "Bir xil hisobga transfer qilib bo'lmaydi" };
         }
-        if (d.categoryId !== undefined) {
-          const categoryId = int(d.categoryId);
-          if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
-          patch.categoryId = categoryId;
-        }
-        if (d.accountId !== undefined) {
-          const accountId = int(d.accountId);
-          if (!accountId || !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
-          patch.accountId = accountId;
-        }
-        if (d.note !== undefined) patch.note = str(d.note);
-        if (d.date !== undefined) {
-          const date = isoDate(d.date);
-          if (!date) return { ok: false, message: "Sana noto'g'ri" };
-          patch.date = date;
-        }
-        await db.update(transactions).set(patch).where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
-        return { ok: true, message: "Operatsiya yangilandi" };
+
+        const categoryId = type === "transfer" ? null : d.categoryId !== undefined ? int(d.categoryId) : existing[0].categoryId;
+        if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
+        const date = d.date !== undefined ? isoDate(d.date) : existing[0].date;
+        if (!date) return { ok: false, message: "Sana noto'g'ri" };
+
+        const updated = await db
+          .update(transactions)
+          .set({
+            type,
+            amount,
+            accountId,
+            toAccountId,
+            categoryId,
+            date,
+            note: d.note !== undefined ? str(d.note) : existing[0].note,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+          .returning({ id: transactions.id });
+        if (!updated[0]) return { ok: false, message: "Operatsiya topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated[0].id, message: "Operatsiya yangilandi" };
       }
       if (input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
         // Business rule: soft delete / reversal instead of hard delete.
-        await db
+        const deleted = await db
           .update(transactions)
           .set({ isDeleted: true, deletedAt: new Date() })
-          .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
-        return { ok: true, message: "Operatsiya bekor qilindi" };
+          .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+          .returning({ id: transactions.id });
+        if (!deleted[0]) return { ok: false, message: "Operatsiya topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: deleted[0].id, message: "Operatsiya bekor qilindi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
@@ -226,13 +272,24 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "update") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        const patch: Record<string, unknown> = {};
-        if (d.name !== undefined) patch.name = str(d.name);
-        if (d.type !== undefined) patch.type = str(d.type, "cash");
-        if (d.initialBalance !== undefined) patch.initialBalance = num(d.initialBalance, 0);
-        if (d.isActive !== undefined) patch.isActive = bool(d.isActive, true);
-        await db.update(accounts).set(patch).where(and(eq(accounts.id, id), eq(accounts.userId, userId)));
-        return { ok: true, message: "Hisob yangilandi" };
+        const existing = await db.select().from(accounts).where(and(eq(accounts.id, id), eq(accounts.userId, userId))).limit(1);
+        if (!existing[0]) return { ok: false, message: "Hisob topilmadi yoki ruxsat yo'q" };
+        const name = d.name !== undefined ? str(d.name) : existing[0].name;
+        if (!name) return { ok: false, message: "Hisob nomi kerak" };
+        const initialBalance = d.initialBalance !== undefined ? num(d.initialBalance) : existing[0].initialBalance;
+        if (initialBalance === null) return { ok: false, message: "Boshlang'ich balans noto'g'ri" };
+        const updated = await db
+          .update(accounts)
+          .set({
+            name,
+            type: allowed(str(d.type, existing[0].type), ["cash", "uzcard", "humo", "bank", "ewallet", "other"], existing[0].type),
+            initialBalance,
+            isActive: d.isActive !== undefined ? bool(d.isActive, existing[0].isActive) : existing[0].isActive,
+          })
+          .where(and(eq(accounts.id, id), eq(accounts.userId, userId)))
+          .returning({ id: accounts.id });
+        if (!updated[0]) return { ok: false, message: "Hisob topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated[0].id, message: "Hisob yangilandi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
@@ -263,13 +320,35 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "update") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        const patch: Record<string, unknown> = {};
-        if (d.name !== undefined) patch.name = str(d.name);
-        if (d.icon !== undefined) patch.icon = str(d.icon, "•");
-        if (d.isEssential !== undefined) patch.isEssential = bool(d.isEssential, false);
-        if (d.isActive !== undefined) patch.isActive = bool(d.isActive, true);
-        await db.update(categories).set(patch).where(and(eq(categories.id, id), eq(categories.userId, userId)));
-        return { ok: true, message: "Kategoriya yangilandi" };
+        const existing = await db.select().from(categories).where(and(eq(categories.id, id), eq(categories.userId, userId))).limit(1);
+        if (!existing[0]) return { ok: false, message: "Kategoriya topilmadi yoki ruxsat yo'q" };
+        const name = d.name !== undefined ? str(d.name) : existing[0].name;
+        if (!name) return { ok: false, message: "Kategoriya nomi kerak" };
+        const type = allowed(str(d.type, existing[0].type), ["income", "expense"], existing[0].type);
+        const parentId = d.parentId !== undefined ? int(d.parentId) : existing[0].parentId;
+        if (parentId === id) return { ok: false, message: "Kategoriya o'ziga ota bo'la olmaydi" };
+        if (parentId) {
+          const parent = await db
+            .select()
+            .from(categories)
+            .where(and(eq(categories.id, parentId), eq(categories.userId, userId), eq(categories.isActive, true)))
+            .limit(1);
+          if (!parent[0] || parent[0].type !== type || parent[0].parentId) return { ok: false, message: "Ota kategoriya topilmadi" };
+        }
+        const updated = await db
+          .update(categories)
+          .set({
+            name,
+            type,
+            parentId,
+            icon: d.icon !== undefined ? str(d.icon, "•") ?? "•" : existing[0].icon,
+            isEssential: d.isEssential !== undefined ? bool(d.isEssential, existing[0].isEssential) : existing[0].isEssential,
+            isActive: d.isActive !== undefined ? bool(d.isActive, existing[0].isActive) : existing[0].isActive,
+          })
+          .where(and(eq(categories.id, id), eq(categories.userId, userId)))
+          .returning({ id: categories.id });
+        if (!updated[0]) return { ok: false, message: "Kategoriya topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated[0].id, message: "Kategoriya yangilandi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
@@ -295,9 +374,14 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           return { ok: false, message: "Taxminiy diapazon noto'g'ri" };
         }
         const dueDay = Math.min(28, Math.max(1, int(d.dueDay, 1) ?? 1));
+        const submittedDate = d.nextDueDate ?? d.dueDate;
         const nextDueDate =
-          isoDate(d.nextDueDate) ??
-          (isoDate(d.dueDate) ?? (dueDay >= Number(today.slice(8, 10)) ? thisMonthDate(dueDay) : addMonths(thisMonthDate(dueDay), 1)));
+          submittedDate !== undefined
+            ? isoDate(submittedDate)
+            : dueDay >= Number(today.slice(8, 10))
+              ? thisMonthDate(dueDay)
+              : addMonths(thisMonthDate(dueDay), 1);
+        if (!nextDueDate) return { ok: false, message: "Keyingi to'lov sanasi noto'g'ri" };
         const values = {
           userId,
           categoryId,
@@ -320,8 +404,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         }
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        await db.update(recurringExpenses).set(values).where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)));
-        return { ok: true, message: `${name} yangilandi` };
+        const updated = await db
+          .update(recurringExpenses)
+          .set(values)
+          .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
+          .returning({ id: recurringExpenses.id });
+        if (!updated[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated[0].id, message: `${name} yangilandi` };
       }
       if (input.action === "pay") {
         const id = int(d.id);
@@ -351,19 +440,25 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           });
           await tx
             .update(recurringExpenses)
-            .set({ nextDueDate: advance(rec[0].nextDueDate, rec[0].frequency), paidThrough: today })
-            .where(eq(recurringExpenses.id, id));
+            .set(
+              rec[0].frequency === "once"
+                ? { isActive: false, paidThrough: today }
+                : { nextDueDate: advance(rec[0].nextDueDate, rec[0].frequency), paidThrough: today },
+            )
+            .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)));
         });
         return { ok: true, message: `${rec[0].name} to'landi` };
       }
       if (input.action === "toggle" || input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        await db
+        const updated = await db
           .update(recurringExpenses)
           .set({ isActive: input.action === "toggle" ? sql`not ${recurringExpenses.isActive}` : false })
-          .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)));
-        return { ok: true, message: input.action === "toggle" ? "Holati o'zgartirildi" : "Reja o'chirildi" };
+          .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
+          .returning({ id: recurringExpenses.id });
+        if (!updated[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated[0].id, message: input.action === "toggle" ? "Holati o'zgartirildi" : "Reja o'chirildi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
@@ -371,6 +466,16 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
     /* ------------------------- expected income ------------------------- */
     case "expectedIncome": {
       if (input.action === "create" || input.action === "update") {
+        const updateId = input.action === "update" ? int(d.id) : null;
+        if (input.action === "update") {
+          if (!updateId) return { ok: false, message: "ID kerak" };
+          const owned = await db
+            .select({ id: expectedIncomes.id })
+            .from(expectedIncomes)
+            .where(and(eq(expectedIncomes.id, updateId), eq(expectedIncomes.userId, userId)))
+            .limit(1);
+          if (!owned[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
+        }
         const sourceName = str(d.sourceName);
         if (!sourceName) return { ok: false, message: "Manba nomi kerak" };
         const certainty = allowed(str(d.certainty, "exact"), ["exact", "estimated"], "exact");
@@ -388,7 +493,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         ) {
           return { ok: false, message: "Taxminiy diapazon noto'g'ri" };
         }
-        const expectedDate = isoDate(d.expectedDate) ?? addMonths(thisMonthDate(int(d.dueDay, 1) ?? 1), 0);
+        const expectedDate = isoDate(d.expectedDate);
+        if (!expectedDate) return { ok: false, message: "Kutilayotgan sana noto'g'ri" };
         const values = {
           userId,
           sourceName,
@@ -407,10 +513,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           const [row] = await db.insert(expectedIncomes).values(values).returning();
           return { ok: true, id: row.id, message: `${sourceName} kutilayotgan daromadga qo'shildi` };
         }
-        const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
-        await db.update(expectedIncomes).set(values).where(and(eq(expectedIncomes.id, id), eq(expectedIncomes.userId, userId)));
-        return { ok: true, message: `${sourceName} yangilandi` };
+        const updated = await db
+          .update(expectedIncomes)
+          .set(values)
+          .where(and(eq(expectedIncomes.id, updateId!), eq(expectedIncomes.userId, userId)))
+          .returning({ id: expectedIncomes.id });
+        if (!updated[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated[0].id, message: `${sourceName} yangilandi` };
       }
       if (input.action === "receive") {
         const id = int(d.id);
@@ -425,7 +534,27 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const incomeAccountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId));
         if (!incomeAccountId || !(await ownsAccount(userId, incomeAccountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (!row[0].isActive) return { ok: false, message: "Daromad faol emas" };
         const txRow = await db.transaction(async (tx) => {
+          // Claim this exact occurrence before inserting money. Concurrent
+          // clicks compare the old date/active state, so only one can win.
+          const claimed = await tx
+            .update(expectedIncomes)
+            .set(
+              row[0].frequency === "once"
+                ? { isActive: false }
+                : { expectedDate: advance(row[0].expectedDate, row[0].frequency) },
+            )
+            .where(
+              and(
+                eq(expectedIncomes.id, id),
+                eq(expectedIncomes.userId, userId),
+                eq(expectedIncomes.isActive, true),
+                eq(expectedIncomes.expectedDate, row[0].expectedDate),
+              ),
+            )
+            .returning({ id: expectedIncomes.id });
+          if (!claimed[0]) return null;
           const [created] = await tx
             .insert(transactions)
             .values({
@@ -441,35 +570,34 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               currency: user.currency,
             })
             .returning();
-          await tx
-            .update(expectedIncomes)
-            .set({ expectedDate: advance(row[0].expectedDate, row[0].frequency) })
-            .where(eq(expectedIncomes.id, id));
           return created;
         });
+        if (!txRow) return { ok: false, message: "Bu daromad avval qabul qilingan" };
         return { ok: true, id: txRow.id, message: `${row[0].sourceName} kirim sifatida qayd etildi` };
       }
       if (input.action === "toggle" || input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        await db
+        const updated = await db
           .update(expectedIncomes)
           .set({ isActive: input.action === "toggle" ? sql`not ${expectedIncomes.isActive}` : false })
-          .where(and(eq(expectedIncomes.id, id), eq(expectedIncomes.userId, userId)));
-        return { ok: true, message: "Yangilandi" };
+          .where(and(eq(expectedIncomes.id, id), eq(expectedIncomes.userId, userId)))
+          .returning({ id: expectedIncomes.id });
+        if (!updated[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated[0].id, message: "Yangilandi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
 
     /* ------------------------- budgets ------------------------- */
     case "budget": {
-      const month = str(d.month, monthKey(today)) ?? monthKey(today);
-      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return { ok: false, message: "Oy formati noto'g'ri" };
-      const categoryId = int(d.categoryId);
-      if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
-      const amount = num(d.amount);
-      if (amount === null || amount <= 0) return { ok: false, message: "Limit noto'g'ri" };
       if (input.action === "upsert") {
+        const month = str(d.month, monthKey(today)) ?? monthKey(today);
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return { ok: false, message: "Oy formati noto'g'ri" };
+        const categoryId = int(d.categoryId);
+        if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
+        const amount = num(d.amount);
+        if (amount === null || amount <= 0) return { ok: false, message: "Limit noto'g'ri" };
         const existing = await db
           .select()
           .from(budgets)
@@ -482,7 +610,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           )
           .limit(1);
         if (existing[0]) {
-          await db.update(budgets).set({ amount }).where(eq(budgets.id, existing[0].id));
+          await db.update(budgets).set({ amount, isDeleted: false }).where(and(eq(budgets.id, existing[0].id), eq(budgets.userId, userId)));
           return { ok: true, message: "Budjet yangilandi" };
         }
         await db.insert(budgets).values({ userId, categoryId, month, amount });
@@ -491,11 +619,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        await db
+        const deleted = await db
           .update(budgets)
           .set({ isDeleted: true })
-          .where(and(eq(budgets.id, id), eq(budgets.userId, userId)));
-        return { ok: true, message: "Budjet o'chirildi" };
+          .where(and(eq(budgets.id, id), eq(budgets.userId, userId), eq(budgets.isDeleted, false)))
+          .returning({ id: budgets.id });
+        if (!deleted[0]) return { ok: false, message: "Budjet topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: deleted[0].id, message: "Budjet o'chirildi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
@@ -521,6 +651,43 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           })
           .returning();
         return { ok: true, id: row.id, message: `${personName} qarzdorlikka qo'shildi` };
+      }
+      if (input.action === "update") {
+        const id = int(d.id);
+        if (!id) return { ok: false, message: "ID kerak" };
+        const existing = await db
+          .select()
+          .from(debts)
+          .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false)))
+          .limit(1);
+        if (!existing[0]) return { ok: false, message: "Qarz topilmadi yoki ruxsat yo'q" };
+        const personName = str(d.personName);
+        const amount = num(d.amount);
+        if (!personName || !amount || amount <= 0) return { ok: false, message: "Ma'lumot to'liq emas" };
+        const paidAmount = existing[0].amount - existing[0].remainingAmount;
+        if (amount < paidAmount) return { ok: false, message: "Jami summa avval to'langan summadan kam bo'lmasligi kerak" };
+        const direction = allowed(str(d.direction, existing[0].direction), ["i_owe", "owed_to_me"], existing[0].direction);
+        if (direction !== existing[0].direction && paidAmount > 0) {
+          return { ok: false, message: "To'lovli qarz yo'nalishini o'zgartirib bo'lmaydi" };
+        }
+        const dueDate = d.dueDate === null || d.dueDate === "" ? null : isoDate(d.dueDate);
+        if (d.dueDate && !dueDate) return { ok: false, message: "Sana noto'g'ri" };
+        const remainingAmount = amount - paidAmount;
+        const updated = await db
+          .update(debts)
+          .set({
+            direction,
+            personName,
+            amount,
+            remainingAmount,
+            dueDate,
+            note: str(d.note),
+            status: remainingAmount === 0 ? "settled" : "active",
+          })
+          .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false)))
+          .returning({ id: debts.id });
+        if (!updated[0]) return { ok: false, message: "Qarz topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated[0].id, message: "Qarz yangilandi" };
       }
       if (input.action === "pay") {
         const id = int(d.id);
@@ -572,8 +739,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        await db.update(debts).set({ isDeleted: true }).where(and(eq(debts.id, id), eq(debts.userId, userId)));
-        return { ok: true, message: "Qarz arxivlandi" };
+        const deleted = await db
+          .update(debts)
+          .set({ isDeleted: true })
+          .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false)))
+          .returning({ id: debts.id });
+        if (!deleted[0]) return { ok: false, message: "Qarz topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: deleted[0].id, message: "Qarz arxivlandi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
@@ -631,20 +803,35 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "update") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        const patch: Record<string, unknown> = {};
-        if (d.name !== undefined) patch.name = str(d.name);
-        if (d.icon !== undefined) patch.icon = str(d.icon, "🎯");
-        if (d.targetAmount !== undefined) patch.targetAmount = num(d.targetAmount);
-        if (d.monthlyContribution !== undefined) patch.monthlyContribution = num(d.monthlyContribution);
-        if (d.targetDate !== undefined) patch.targetDate = isoDate(d.targetDate);
-        await db.update(goals).set(patch).where(and(eq(goals.id, id), eq(goals.userId, userId)));
-        return { ok: true, message: "Maqsad yangilandi" };
+        const existing = await db.select().from(goals).where(and(eq(goals.id, id), eq(goals.userId, userId))).limit(1);
+        if (!existing[0]) return { ok: false, message: "Maqsad topilmadi yoki ruxsat yo'q" };
+        const name = str(d.name, existing[0].name);
+        const icon = str(d.icon, existing[0].icon);
+        const targetAmount = d.targetAmount !== undefined ? num(d.targetAmount) : existing[0].targetAmount;
+        const monthlyContribution = d.monthlyContribution !== undefined ? num(d.monthlyContribution) : existing[0].monthlyContribution;
+        if (!name || !targetAmount || targetAmount < existing[0].savedAmount) {
+          return { ok: false, message: "Maqsad summasi yig'ilgan summadan kam bo'lmasligi kerak" };
+        }
+        if (monthlyContribution === null || monthlyContribution < 0) return { ok: false, message: "Oylik jamg'arma noto'g'ri" };
+        const targetDate = d.targetDate === null || d.targetDate === "" ? null : d.targetDate !== undefined ? isoDate(d.targetDate) : existing[0].targetDate;
+        if (d.targetDate && !targetDate) return { ok: false, message: "Sana noto'g'ri" };
+        const updated = await db
+          .update(goals)
+          .set({ name, icon: icon ?? "🎯", targetAmount, monthlyContribution, targetDate })
+          .where(and(eq(goals.id, id), eq(goals.userId, userId)))
+          .returning({ id: goals.id });
+        if (!updated[0]) return { ok: false, message: "Maqsad topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated[0].id, message: "Maqsad yangilandi" };
       }
       if (input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        await db.delete(goals).where(and(eq(goals.id, id), eq(goals.userId, userId)));
-        return { ok: true, message: "Maqsad o'chirildi" };
+        const deleted = await db
+          .delete(goals)
+          .where(and(eq(goals.id, id), eq(goals.userId, userId)))
+          .returning({ id: goals.id });
+        if (!deleted[0]) return { ok: false, message: "Maqsad topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: deleted[0].id, message: "Maqsad o'chirildi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }

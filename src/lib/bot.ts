@@ -4,6 +4,7 @@ import { quickAdd } from "./mutations";
 import { parseDraft } from "./nlp";
 import { compact, formatAmount, humanDate, shortDate } from "./money";
 import type { AppState } from "./types";
+import { botIntent } from "./bot-routing";
 
 export type BotReply = {
   text: string;
@@ -18,6 +19,8 @@ export type BotReply = {
     note: string;
     estimated: boolean;
     confidence: number;
+    accountId?: number;
+    toAccountId?: number;
   };
 };
 
@@ -38,7 +41,7 @@ export async function respondToBotMessage(
   confirm?: Record<string, unknown> | null,
 ): Promise<BotReply> {
   const text = message.trim();
-  const lower = text.toLowerCase();
+  const intent = botIntent(text);
   const state = await buildAppState(user);
 
   if (confirm && confirm.amount && confirm.type) {
@@ -52,7 +55,7 @@ export async function respondToBotMessage(
     };
   }
 
-  if (!text || lower === "/start" || lower === "start" || lower === "boshlash") {
+  if (intent === "start") {
     return {
       text: [
         `Salom, ${user.firstName} 👋`,
@@ -69,37 +72,56 @@ export async function respondToBotMessage(
     };
   }
 
-  if (lower.includes("hisobot") || lower === "/report" || lower === "📊 hisobot") {
+  if (intent === "add-income") {
+    return {
+      text: "➕ Kirim summasi va manbasini yozing. Misol: „1,5 mln maosh keldi“.",
+      keyboard: MAIN_MENU,
+    };
+  }
+  if (intent === "add-expense") {
+    return {
+      text: "➖ Chiqim summasi va maqsadini yozing. Misol: „150 ming ovqatga ketdi“.",
+      keyboard: MAIN_MENU,
+    };
+  }
+  if (intent === "add-transfer") {
+    return {
+      text: "↔️ Summani va ikkala hisob nomini yozing. Misol: „Naqd puldan Humo hisobiga 200 ming o'tkazdim“.",
+      keyboard: MAIN_MENU,
+    };
+  }
+
+  if (intent === "report") {
     return { text: reportBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("prognoz") || lower.includes("reja") || lower === "/forecast") {
+  if (intent === "forecast") {
     return { text: forecastBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("hisob") && !lower.includes("hisobot")) {
+  if (intent === "accounts") {
     return { text: accountsBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("kategoriya")) {
+  if (intent === "categories") {
     return { text: categoriesBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("majburiy") || lower.includes("to'lov") || lower.includes("tolov")) {
+  if (intent === "payments") {
     return { text: paymentsBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("daromad")) {
+  if (intent === "income-plans") {
     return { text: incomeBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("budjet")) {
+  if (intent === "budget") {
     return { text: budgetBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("qarz")) {
+  if (intent === "debts") {
     return { text: debtsBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("maqsad")) {
+  if (intent === "goals") {
     return { text: goalsBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("eslatma") || lower.includes("xabar")) {
+  if (intent === "alerts") {
     return { text: alertsBlock(state), keyboard: MAIN_MENU };
   }
-  if (lower.includes("sozlam") || lower.includes("help") || lower === "/help") {
+  if (intent === "settings" || intent === "help") {
     return {
       text: [
         "⚙️ Sozlamalar",
@@ -114,8 +136,12 @@ export async function respondToBotMessage(
         `• Budjet: ${state.user.notifyBudget ? "yoqilgan" : "o'chirilgan"}`,
         `• Xavf: ${state.user.notifyRisk ? "yoqilgan" : "o'chirilgan"}`,
         "",
-        "To'liq imkoniyatlar Mini Appda:",
-        "/app — dashboard, grafiklar, forecast",
+        "Buyruqlar:",
+        "/report — bugun va oylik hisobot",
+        "/forecast — reja, xavf va Safe-to-Spend",
+        "/help — yordam",
+        "",
+        "Operatsiya uchun summani tabiiy tilda yozing. Mini App tugmasi grafiklar va batafsil boshqaruvni ochadi.",
       ].join("\n"),
       keyboard: MAIN_MENU,
     };
@@ -126,6 +152,13 @@ export async function respondToBotMessage(
   if (!draft.ok || draft.amount === null) {
     return {
       text: "🤔 Summani tushunmadim. Misol: „150 ming ovqatga ketdi“ yoki „8 mln maosh keldi“.",
+      keyboard: MAIN_MENU,
+    };
+  }
+  const transferAccounts = draft.type === "transfer" ? matchTransferAccounts(text, state) : null;
+  if (draft.type === "transfer" && !transferAccounts) {
+    return {
+      text: "Transfer uchun manba va qabul qiluvchi hisob nomlarini yozing. Misol: „Naqd puldan Humo hisobiga 200 ming o'tkazdim“.",
       keyboard: MAIN_MENU,
     };
   }
@@ -151,8 +184,21 @@ export async function respondToBotMessage(
       note: draft.note,
       estimated: draft.estimated,
       confidence: draft.confidence,
+      accountId: transferAccounts?.accountId,
+      toAccountId: transferAccounts?.toAccountId,
     },
   };
+}
+
+function matchTransferAccounts(text: string, state: AppState): { accountId: number; toAccountId: number } | null {
+  const normalized = text.toLocaleLowerCase("uz").replace(/[’‘]/g, "'");
+  const matches = state.accounts
+    .filter((account) => account.isActive)
+    .map((account) => ({ account, index: normalized.indexOf(account.name.toLocaleLowerCase("uz")) }))
+    .filter((entry) => entry.index >= 0)
+    .sort((a, b) => a.index - b.index);
+  if (matches.length < 2 || matches[0].account.id === matches[1].account.id) return null;
+  return { accountId: matches[0].account.id, toAccountId: matches[1].account.id };
 }
 
 function summaryBlock(s: AppState): string {

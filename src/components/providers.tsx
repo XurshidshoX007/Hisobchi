@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect -- external Telegram/theme state is initialized after browser hydration */
 
 import {
   createContext,

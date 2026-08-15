@@ -30,6 +30,8 @@
   --primary: #101828;
   --primary-fg: #f7f7f5;
   --primary-hover: #1d2939;
+  --segmented-active: #101828;
+  --segmented-active-fg: #f7f7f5;
 
   /* Semantic FILL (bars, progress, rings) */
   --positive: #0e884e; /* 4.52:1 against white labels */
@@ -75,6 +77,9 @@
   --primary: #f1f3f7;
   --primary-fg: #0b0f18;
   --primary-hover: #ffffff;
+  /* Segmented selection remains Deep Navy in both themes. */
+  --segmented-active: #101828;
+  --segmented-active-fg: #f7f7f5;
 
   /* FILL — light, saturated */
   --positive: #34d399;

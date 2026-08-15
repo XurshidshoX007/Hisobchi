@@ -3,9 +3,11 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { pendingDrafts, telegramUpdates } from "@/db/schema";
 import { respondToBotMessage, MAIN_MENU } from "@/lib/bot";
+import { isStartCommand, parseDraftCallback } from "@/lib/bot-routing";
+import { telegramApi } from "@/lib/telegram";
 import { resolveUser } from "@/lib/user";
 import { runMutation } from "@/lib/mutations";
-import { appUrl, demoModeEnabled, isProduction, telegramBotToken, telegramWebhookSecret } from "@/lib/env";
+import { appUrl, demoModeEnabled, isProduction, telegramWebhookSecret } from "@/lib/env";
 import { writeAudit, writeSecurityEvent } from "@/lib/audit";
 import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from "@/lib/security";
 import { formatAmount, humanDate } from "@/lib/money";
@@ -27,24 +29,12 @@ type TelegramUpdate = {
   };
 };
 
-async function callTelegram(method: string, payload: Record<string, unknown>) {
-  const token = telegramBotToken();
-  if (!token) return null;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(8_000),
-    });
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(request: Request) {
   const sec = securityContext(request);
+  let resolvedUserId: number | null = null;
+  let claimedUpdateId: number | null = null;
+  const callTelegram = (method: string, payload: Record<string, unknown>) =>
+    telegramApi(method, payload, { requestId: sec.requestId, userId: resolvedUserId });
   try {
     const secret = telegramWebhookSecret();
     // Strict production is fail-closed if webhook secret is missing.
@@ -78,6 +68,7 @@ export async function POST(request: Request) {
       .onConflictDoNothing()
       .returning({ updateId: telegramUpdates.updateId });
     if (!claimed[0]) return NextResponse.json({ ok: true, idempotent: true });
+    claimedUpdateId = update.update_id;
 
     const from = update.message?.from ?? update.callback_query?.from;
     const chatId = update.message?.chat.id ?? update.callback_query?.message?.chat.id;
@@ -101,6 +92,7 @@ export async function POST(request: Request) {
       void writeSecurityEvent({ event: "blocked_or_invalid_bot_user", requestId: sec.requestId, ipHash: sec.ipKey });
       return NextResponse.json({ ok: true });
     }
+    resolvedUserId = user.id;
     await db.update(telegramUpdates).set({ userId: user.id }).where(eq(telegramUpdates.updateId, update.update_id));
 
     /* ---------------- CALLBACK QUERIES ---------------- */
@@ -113,14 +105,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      const draftMatch = data.match(/^draft:(\d+):(confirm|cancel)$/);
-      if (draftMatch) {
-        const draftId = Number(draftMatch[1]);
-        const action = draftMatch[2] as "confirm" | "cancel";
+      const draftCallback = parseDraftCallback(data);
+      if (draftCallback) {
+        const { draftId, action } = draftCallback;
         const draftRow = await db
           .select()
           .from(pendingDrafts)
-          .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id)))
+          .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.chatId, chatId)))
           .limit(1);
 
         let ack = "So'rov topilmadi";
@@ -177,17 +168,18 @@ export async function POST(request: Request) {
             });
           }
         } else {
-          await db
+          const cancelled = await db
             .update(pendingDrafts)
             .set({ status: "cancelled", resolvedAt: new Date() })
-            .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")));
-          ack = "Bekor qilindi";
+            .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
+            .returning({ id: pendingDrafts.id });
+          ack = cancelled[0] ? "Bekor qilindi" : "Bu so'rov avval yakunlangan";
           await writeAudit({
             userId: user.id,
             actorRole: user.role,
             action: "cancel_draft",
             entity: "transaction",
-            outcome: "success",
+            outcome: cancelled[0] ? "success" : "denied",
             requestId: sec.requestId,
             ipHash: sec.ipKey,
             metadata: { draftId },
@@ -266,7 +258,7 @@ export async function POST(request: Request) {
       reply_markup: { keyboard: reply.keyboard, resize_keyboard: true, is_persistent: true },
     });
 
-    if (text.startsWith("/start")) {
+    if (isStartCommand(text)) {
       const url = appUrl();
       if (url) {
         await callTelegram("sendMessage", {
@@ -278,9 +270,26 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch {
-    securityLog("error", "webhook_error", { requestId: sec.requestId, ipKey: sec.ipKey, code: "internal" });
-    // Return 200 so Telegram doesn't retry poison messages forever.
-    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const code = error instanceof SyntaxError ? "invalid_json" : "internal";
+    // Release the update claim after an internal/database failure so Telegram
+    // can retry it. Draft status transitions remain atomic and prevent a retry
+    // from creating a second transaction.
+    if (claimedUpdateId !== null) {
+      await db.delete(telegramUpdates).where(eq(telegramUpdates.updateId, claimedUpdateId)).catch(() => undefined);
+    }
+    securityLog("error", "webhook_error", { requestId: sec.requestId, userId: resolvedUserId, ipKey: sec.ipKey, code });
+    void writeSecurityEvent({
+      userId: resolvedUserId,
+      event: "telegram_webhook_error",
+      severity: "warning",
+      requestId: sec.requestId,
+      ipHash: sec.ipKey,
+      metadata: { code },
+    });
+    // A malformed update is poison and must not be retried forever. A claimed
+    // update that hit a database/internal error is retriable and returns 500.
+    // Telegram API delivery failures are logged by telegramApi.
+    return NextResponse.json({ ok: claimedUpdateId === null }, { status: claimedUpdateId === null ? 200 : 500 });
   }
 }

@@ -17,10 +17,11 @@ import {
   Select,
   Sheet,
   Skeleton,
+  TextArea,
   TextInput,
 } from "@/components/ui";
-import { addMonths, compact, formatAmount, humanDate, monthStart, shortDate, todayISO } from "@/lib/money";
-import type { RecurringView } from "@/lib/finance";
+import { compact, formatAmount, humanDate, shortDate, todayISO } from "@/lib/money";
+import type { ExpectedIncomeView, RecurringView } from "@/lib/finance";
 
 type Tab = "payments" | "income" | "cashflow";
 
@@ -29,6 +30,13 @@ export default function PlansPage() {
   const [tab, setTab] = useState<Tab>("payments");
   const [sheet, setSheet] = useState<"recurring" | "income" | null>(null);
   const [editing, setEditing] = useState<RecurringView | null>(null);
+  const [editingIncome, setEditingIncome] = useState<ExpectedIncomeView | null>(null);
+
+  function closeSheet() {
+    setSheet(null);
+    setEditing(null);
+    setEditingIncome(null);
+  }
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
@@ -161,7 +169,14 @@ export default function PlansPage() {
           </Card>
 
           <div className="flex justify-end">
-            <Button type="button" size="sm" onClick={() => setSheet("income")}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setEditingIncome(null);
+                setSheet("income");
+              }}
+            >
               ➕ Kutilayotgan daromad
             </Button>
           </div>
@@ -170,47 +185,60 @@ export default function PlansPage() {
             <Card padded={false} className="overflow-hidden">
               <div className="divide-y divide-line px-4 sm:px-5">
                 {state.expectedIncomes.map((i) => (
-                  <div key={i.id} className="flex items-start gap-3 py-4">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-positive-soft text-[11px] font-semibold text-positive-text">
-                      {i.daysLeft < 0 ? "!" : `${i.daysLeft}k`}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14.5px] font-medium">{i.sourceName}</p>
-                      <p className="mt-0.5 text-[11.5px] text-muted">
-                        {humanDate(i.expectedDate)} · {i.frequency === "monthly" ? "har oy" : "bir marta"}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Badge tone={i.certainty === "estimated" ? "warning" : "accent"}>
-                          {i.certainty === "estimated" ? "taxminiy" : "aniq"}
-                        </Badge>
-                        {i.received ? <Badge tone="positive">qayd etilgan</Badge> : <Badge tone="neutral">kutilmoqda</Badge>}
-                        {!i.isActive ? <Badge tone="neutral">pauza</Badge> : null}
+                  <div key={i.id} className="py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-positive-soft text-[11px] font-semibold text-positive-text">
+                        {i.daysLeft < 0 ? "!" : `${i.daysLeft}k`}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[14.5px] font-medium">{i.sourceName}</p>
+                        <p className="mt-0.5 text-[11.5px] text-muted">
+                          {humanDate(i.expectedDate)} · {frequencyLabel(i.frequency)}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <Badge tone={i.certainty === "estimated" ? "warning" : "accent"}>
+                            {i.certainty === "estimated" ? "taxminiy" : "aniq"}
+                          </Badge>
+                          {i.received ? <Badge tone="positive">qayd etilgan</Badge> : <Badge tone="neutral">kutilmoqda</Badge>}
+                          {!i.isActive ? <Badge tone="neutral">pauza</Badge> : null}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        {i.certainty === "estimated" && i.minAmount && i.maxAmount ? (
+                          <span className="num text-[14px] font-medium">
+                            {compact(i.minAmount)}–{compact(i.maxAmount)}
+                          </span>
+                        ) : (
+                          <Money value={i.baseAmount} size="md" tone="positive" />
+                        )}
                       </div>
                     </div>
-                    <div className="flex shrink-0 flex-col items-end gap-2">
-                      {i.certainty === "estimated" && i.minAmount && i.maxAmount ? (
-                        <span className="num text-[14px] font-medium">
-                          {compact(i.minAmount)}–{compact(i.maxAmount)}
-                        </span>
-                      ) : (
-                        <Money value={i.baseAmount} size="md" tone="positive" />
-                      )}
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => mutate("expectedIncome", "receive", { id: i.id })}
-                          className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-positive hover:text-positive-text active:bg-surface-3 touch-manipulation"
-                        >
-                          Qabul
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => mutate("expectedIncome", "toggle", { id: i.id })}
-                          className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
-                        >
-                          {i.isActive ? "Pauza" : "Yoqish"}
-                        </button>
-                      </div>
+                    <div className="ml-[52px] mt-3 flex flex-wrap justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => mutate("expectedIncome", "receive", { id: i.id })}
+                        disabled={!i.isActive}
+                        className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-positive hover:text-positive-text active:bg-surface-3 disabled:pointer-events-none disabled:opacity-50 touch-manipulation"
+                      >
+                        Qabul
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingIncome(i);
+                          setSheet("income");
+                        }}
+                        className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
+                      >
+                        Tahrir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => mutate("expectedIncome", "toggle", { id: i.id })}
+                        className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
+                      >
+                        {i.isActive ? "Pauza" : "Yoqish"}
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -222,7 +250,13 @@ export default function PlansPage() {
               title="Kutilayotgan daromad yo‘q"
               description="Keladigan daromadlarni kiritib prognoz aniqligini oshiring."
               action={
-                <Button type="button" onClick={() => setSheet("income")}>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setEditingIncome(null);
+                    setSheet("income");
+                  }}
+                >
                   ➕ Daromad reja
                 </Button>
               }
@@ -304,8 +338,8 @@ export default function PlansPage() {
         </div>
       ) : null}
 
-      <RecurringSheet open={sheet === "recurring"} onClose={() => setSheet(null)} editing={editing} />
-      <IncomeSheet open={sheet === "income"} onClose={() => setSheet(null)} />
+      <RecurringSheet open={sheet === "recurring"} onClose={closeSheet} editing={editing} />
+      <IncomeSheet open={sheet === "income"} onClose={closeSheet} editing={editingIncome} />
     </div>
   );
 }
@@ -350,10 +384,12 @@ function RecurringSheet({
   const [amount, setAmount] = useState("");
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
-  const [dueDay, setDueDay] = useState("1");
+  const [nextDueDate, setNextDueDate] = useState(todayISO());
+  const [frequency, setFrequency] = useState("monthly");
   const [categoryId, setCategoryId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [isMandatory, setIsMandatory] = useState(true);
+  const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -362,10 +398,12 @@ function RecurringSheet({
       setAmount(editing?.amount ? String(editing.amount) : "");
       setMin(editing?.minAmount ? String(editing.minAmount) : "");
       setMax(editing?.maxAmount ? String(editing.maxAmount) : "");
-      setDueDay(String(editing?.dueDay ?? 1));
+      setNextDueDate(editing?.nextDueDate ?? todayISO());
+      setFrequency(editing?.frequency ?? "monthly");
       setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
       setAccountId(editing?.accountId ? String(editing.accountId) : "");
       setIsMandatory(editing?.isMandatory ?? true);
+      setIsActive(editing?.isActive ?? true);
     }
   }, [open, editing]);
 
@@ -373,9 +411,7 @@ function RecurringSheet({
 
   async function save() {
     if (!name.trim()) return;
-    const day = Math.min(28, Math.max(1, Number(dueDay) || 1));
-    const thisMonth = `${monthStart(todayISO()).slice(0, 7)}-${String(day).padStart(2, "0")}`;
-    const nextDue = thisMonth >= todayISO() ? thisMonth : addMonths(thisMonth, 1).slice(0, 10);
+    const day = Math.min(28, Math.max(1, Number(nextDueDate.slice(8, 10)) || 1));
     const res = await mutate("recurring", editing ? "update" : "create", {
       id: editing?.id,
       name: name.trim(),
@@ -384,10 +420,12 @@ function RecurringSheet({
       minAmount: certainty === "estimated" ? min : null,
       maxAmount: certainty === "estimated" ? max : null,
       dueDay: day,
+      nextDueDate,
+      frequency,
       categoryId: categoryId ? Number(categoryId) : null,
       accountId: accountId ? Number(accountId) : null,
       isMandatory,
-      nextDueDate: nextDue,
+      isActive,
     });
     if (res.ok) onClose();
   }
@@ -413,7 +451,15 @@ function RecurringSheet({
       </Field>
       <Segmented
         value={certainty}
-        onChange={setCertainty}
+        onChange={(value) => {
+          setCertainty(value);
+          if (value === "exact") {
+            setMin("");
+            setMax("");
+          } else {
+            setAmount("");
+          }
+        }}
         options={[
           { value: "exact", label: "Aniq summa" },
           { value: "estimated", label: "Taxminiy diapazon" },
@@ -433,14 +479,30 @@ function RecurringSheet({
           </Field>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="To‘lov sanasi (oy kuni)">
-          <TextInput value={dueDay} onChange={(e) => setDueDay(e.target.value)} inputMode="numeric" />
+      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+        <Field label="Keyingi to‘lov sanasi">
+          <TextInput type="date" value={nextDueDate} onChange={(e) => setNextDueDate(e.target.value)} />
         </Field>
+        <Field label="Takrorlanish">
+          <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+            <option value="once">Bir marta</option>
+            <option value="weekly">Har hafta</option>
+            <option value="monthly">Har oy</option>
+            <option value="yearly">Har yil</option>
+          </Select>
+        </Field>
+      </div>
+      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
         <Field label="Turi">
           <Select value={isMandatory ? "1" : "0"} onChange={(e) => setIsMandatory(e.target.value === "1")}>
             <option value="1">Majburiy</option>
             <option value="0">Ixtiyoriy</option>
+          </Select>
+        </Field>
+        <Field label="Faollik">
+          <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
+            <option value="1">Faol</option>
+            <option value="0">Pauza</option>
           </Select>
         </Field>
       </div>
@@ -470,7 +532,15 @@ function RecurringSheet({
   );
 }
 
-function IncomeSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function IncomeSheet({
+  open,
+  onClose,
+  editing,
+}: {
+  open: boolean;
+  onClose: () => void;
+  editing: ExpectedIncomeView | null;
+}) {
   const { state, mutate } = useFinance();
   const [sourceName, setSourceName] = useState("");
   const [certainty, setCertainty] = useState<"exact" | "estimated">("exact");
@@ -478,33 +548,49 @@ function IncomeSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
   const [expectedDate, setExpectedDate] = useState(todayISO());
+  const [frequency, setFrequency] = useState("monthly");
   const [categoryId, setCategoryId] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [note, setNote] = useState("");
 
   useEffect(() => {
-    if (open) {
-      setExpectedDate(todayISO());
-    } else {
-      setSourceName("");
-      setAmount("");
-      setMin("");
-      setMax("");
-      setCategoryId("");
-    }
-  }, [open]);
+    if (!open) return;
+    // Initialize every field for the selected record. Opening a second record
+    // cannot inherit any draft value from the first one.
+    setSourceName(editing?.sourceName ?? "");
+    setCertainty(editing?.certainty ?? "exact");
+    setAmount(editing?.amount !== null && editing?.amount !== undefined ? String(editing.amount) : "");
+    setMin(editing?.minAmount !== null && editing?.minAmount !== undefined ? String(editing.minAmount) : "");
+    setMax(editing?.maxAmount !== null && editing?.maxAmount !== undefined ? String(editing.maxAmount) : "");
+    setExpectedDate(editing?.expectedDate ?? todayISO());
+    setFrequency(editing?.frequency ?? "monthly");
+    setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
+    setAccountId(editing?.accountId ? String(editing.accountId) : "");
+    setIsActive(editing?.isActive ?? true);
+    setNote(editing?.note ?? "");
+  }, [open, editing]);
 
   const categories = (state?.flatCategories ?? []).filter((c) => c.type === "income" && c.isActive);
+  const accounts = (state?.accounts ?? []).filter((a) => a.isActive || a.id === editing?.accountId);
 
   async function save() {
-    if (!sourceName.trim()) return;
-    const res = await mutate("expectedIncome", "create", {
+    if (!sourceName.trim() || !expectedDate) return;
+    const res = await mutate("expectedIncome", editing ? "update" : "create", {
+      id: editing?.id,
       sourceName: sourceName.trim(),
       certainty,
+      // Sending explicit nulls is intentional: switching modes clears stale
+      // values in the opposite representation at the database boundary.
       amount: certainty === "exact" ? amount : null,
       minAmount: certainty === "estimated" ? min : null,
       maxAmount: certainty === "estimated" ? max : null,
       expectedDate,
-      frequency: "monthly",
+      frequency,
       categoryId: categoryId ? Number(categoryId) : null,
+      accountId: accountId ? Number(accountId) : null,
+      isActive,
+      note: note.trim() || null,
     });
     if (res.ok) onClose();
   }
@@ -513,14 +599,14 @@ function IncomeSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
     <Sheet
       open={open}
       onClose={onClose}
-      title="Kutilayotgan daromad"
+      title={editing ? "✏️ Kutilayotgan daromadni tahrirlash" : "➕ Kutilayotgan daromad"}
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>
             Bekor qilish
           </Button>
           <Button className="flex-[2]" onClick={save}>
-            Saqlash
+            {editing ? "Yangilash" : "Saqlash"}
           </Button>
         </>
       }
@@ -530,7 +616,15 @@ function IncomeSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       </Field>
       <Segmented
         value={certainty}
-        onChange={setCertainty}
+        onChange={(value) => {
+          setCertainty(value);
+          if (value === "exact") {
+            setMin("");
+            setMax("");
+          } else {
+            setAmount("");
+          }
+        }}
         options={[
           { value: "exact", label: "Aniq summa" },
           { value: "estimated", label: "Taxminiy diapazon" },
@@ -541,19 +635,29 @@ function IncomeSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
           <TextInput value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="8000000" />
         </Field>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Minimal">
+        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+          <Field label="Minimal summa">
             <TextInput value={min} onChange={(e) => setMin(e.target.value)} inputMode="decimal" placeholder="3000000" />
           </Field>
-          <Field label="Maksimal">
+          <Field label="Maksimal summa">
             <TextInput value={max} onChange={(e) => setMax(e.target.value)} inputMode="decimal" placeholder="5000000" />
           </Field>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
         <Field label="Kutilayotgan sana">
           <TextInput type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
         </Field>
+        <Field label="Takrorlanish">
+          <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+            <option value="once">Bir marta</option>
+            <option value="weekly">Har hafta</option>
+            <option value="monthly">Har oy</option>
+            <option value="yearly">Har yil</option>
+          </Select>
+        </Field>
+      </div>
+      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
         <Field label="Kategoriya">
           <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
             <option value="">Tanlanmagan</option>
@@ -564,7 +668,33 @@ function IncomeSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
             ))}
           </Select>
         </Field>
+        <Field label="Qabul qiluvchi hisob">
+          <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <option value="">Standart hisob</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
       </div>
+      <Field label="Faollik">
+        <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
+          <option value="1">Faol</option>
+          <option value="0">Pauza</option>
+        </Select>
+      </Field>
+      <Field label="Izoh">
+        <TextArea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ixtiyoriy" />
+      </Field>
     </Sheet>
   );
+}
+
+function frequencyLabel(frequency: string): string {
+  if (frequency === "weekly") return "har hafta";
+  if (frequency === "yearly") return "har yil";
+  if (frequency === "monthly") return "har oy";
+  return "bir marta";
 }

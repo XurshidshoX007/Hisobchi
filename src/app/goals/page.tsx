@@ -10,7 +10,18 @@ import type { GoalView } from "@/lib/finance";
 export default function GoalsPage() {
   const { state, loading, mutate } = useFinance();
   const [sheet, setSheet] = useState(false);
+  const [editing, setEditing] = useState<GoalView | null>(null);
   const [goal, setGoal] = useState<GoalView | null>(null);
+
+  function openCreate() {
+    setEditing(null);
+    setSheet(true);
+  }
+
+  function closeSheet() {
+    setSheet(false);
+    setEditing(null);
+  }
 
   if (loading && !state) return <Skeleton className="h-72 w-full" />;
   if (!state) return null;
@@ -25,7 +36,7 @@ export default function GoalsPage() {
         title="Maqsadlar"
         subtitle="Jamg‘arma rejalari va taxminiy muddatlar"
         action={
-          <Button type="button" size="sm" onClick={() => setSheet(true)}>
+          <Button type="button" size="sm" onClick={openCreate}>
             ➕ Maqsad
           </Button>
         }
@@ -106,7 +117,7 @@ export default function GoalsPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setGoal(g)}
@@ -116,10 +127,20 @@ export default function GoalsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => mutate("goal", "update", { id: g.id, monthlyContribution: g.monthlyContribution * 1.1 })}
+                  onClick={() => {
+                    setEditing(g);
+                    setSheet(true);
+                  }}
                   className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
                 >
-                  +10%
+                  Tahrir
+                </button>
+                <button
+                  type="button"
+                  onClick={() => mutate("goal", "delete", { id: g.id })}
+                  className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-muted transition-colors hover:text-negative-text active:bg-surface-3 touch-manipulation"
+                >
+                  O‘chirish
                 </button>
               </div>
             </Card>
@@ -131,20 +152,20 @@ export default function GoalsPage() {
           title="Maqsadlar yo‘q"
           description="Mashina, zaxira jamg‘arma yoki sayohat uchun maqsad qo‘shing."
           action={
-            <Button type="button" onClick={() => setSheet(true)}>
+            <Button type="button" onClick={openCreate}>
               ➕ Birinchi maqsad
             </Button>
           }
         />
       )}
 
-      <GoalSheet open={sheet} onClose={() => setSheet(false)} />
+      <GoalSheet open={sheet} onClose={closeSheet} editing={editing} />
       <ContributeSheet goal={goal} onClose={() => setGoal(null)} />
     </div>
   );
 }
 
-function GoalSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: GoalView | null }) {
   const { mutate } = useFinance();
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🎯");
@@ -154,20 +175,20 @@ function GoalSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [monthlyContribution, setMonthlyContribution] = useState("");
 
   useEffect(() => {
-    if (!open) {
-      setName("");
-      setIcon("🎯");
-      setTargetAmount("");
-      setSavedAmount("");
-      setTargetDate("");
-      setMonthlyContribution("");
-    }
-  }, [open]);
+    if (!open) return;
+    setName(editing?.name ?? "");
+    setIcon(editing?.icon ?? "🎯");
+    setTargetAmount(editing ? String(editing.targetAmount) : "");
+    setSavedAmount(editing ? String(editing.savedAmount) : "");
+    setTargetDate(editing?.targetDate ?? "");
+    setMonthlyContribution(editing ? String(editing.monthlyContribution) : "");
+  }, [open, editing]);
 
   async function save() {
     const target = Number(targetAmount.replace(/\s/g, ""));
     if (!name.trim() || !target) return;
-    const res = await mutate("goal", "create", {
+    const res = await mutate("goal", editing ? "update" : "create", {
+      id: editing?.id,
       name: name.trim(),
       icon: icon || "🎯",
       targetAmount: target,
@@ -182,7 +203,7 @@ function GoalSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     <Sheet
       open={open}
       onClose={onClose}
-      title="Yangi maqsad"
+      title={editing ? "Maqsadni tahrirlash" : "Yangi maqsad"}
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>
@@ -205,9 +226,16 @@ function GoalSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
       <Field label="Maqsad summasi">
         <TextInput value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} inputMode="decimal" placeholder="100000000" />
       </Field>
-      <Field label="Yig‘ilgan">
-        <TextInput value={savedAmount} onChange={(e) => setSavedAmount(e.target.value)} inputMode="decimal" placeholder="25000000" />
-      </Field>
+      {!editing ? (
+        <Field label="Yig‘ilgan">
+          <TextInput value={savedAmount} onChange={(e) => setSavedAmount(e.target.value)} inputMode="decimal" placeholder="25000000" />
+        </Field>
+      ) : (
+        <div className="flat-card flex items-center justify-between p-3 text-sm">
+          <span className="text-muted">Yig‘ilgan summa</span>
+          <Money value={editing.savedAmount} size="sm" tone="positive" />
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <Field label="Mo‘ljaldangan sana">
           <TextInput type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />

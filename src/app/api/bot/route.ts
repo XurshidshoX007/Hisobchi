@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { respondToBotMessage } from "@/lib/bot";
 import { resolveUser, verifyInitData } from "@/lib/user";
 import { writeSecurityEvent } from "@/lib/audit";
+import { isProduction } from "@/lib/env";
 import {
   checkRateLimit,
   isAllowedMutationOrigin,
@@ -15,6 +16,11 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const sec = securityContext(request);
+  // This route is a local-development simulator, not the Telegram transport.
+  // Production updates enter exclusively through /api/telegram/webhook.
+  if (isProduction()) {
+    return withSecurityHeaders(NextResponse.json({ error: "Not found", code: "not_found" }, { status: 404 }), sec.requestId);
+  }
   try {
     if (!isAllowedMutationOrigin(request)) return originRejected(sec.requestId);
     const limit = await checkRateLimit({ scope: "bot-console", identity: sec.ipKey, limit: 30, windowMs: 60_000 });

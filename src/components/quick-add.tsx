@@ -1,8 +1,10 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect -- sheet drafts synchronize to the selected record when opened */
 
 import { useEffect, useMemo, useState } from "react";
 import { parseDraft } from "@/lib/nlp";
 import { addDays, humanDate, todayISO } from "@/lib/money";
+import type { TxView } from "@/lib/finance";
 import { useFinance } from "./providers";
 import { Button, Field, Segmented, Select, Sheet, TextInput } from "./ui";
 
@@ -12,10 +14,12 @@ export function QuickAddSheet({
   open,
   onClose,
   defaultType = "expense",
+  editing = null,
 }: {
   open: boolean;
   onClose: () => void;
   defaultType?: "income" | "expense" | "transfer";
+  editing?: TxView | null;
 }) {
   const { state, mutate } = useFinance();
   const [type, setType] = useState<"income" | "expense" | "transfer">(defaultType);
@@ -28,21 +32,18 @@ export function QuickAddSheet({
   const [quickText, setQuickText] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Sync defaultType when sheet opens
   useEffect(() => {
-    if (open) setType(defaultType);
-  }, [open, defaultType]);
-
-  // Reset form when sheet closes
-  useEffect(() => {
-    if (!open) {
-      setAmount("");
-      setNote("");
-      setQuickText("");
-      setCategoryId("");
-      setSaving(false);
-    }
-  }, [open]);
+    if (!open) return;
+    setType(editing?.type ?? defaultType);
+    setAmount(editing ? String(editing.amount) : "");
+    setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
+    setAccountId(editing?.accountId ? String(editing.accountId) : "");
+    setToAccountId(editing?.toAccountId ? String(editing.toAccountId) : "");
+    setDate(editing?.date ?? todayISO());
+    setNote(editing?.note ?? "");
+    setQuickText("");
+    setSaving(false);
+  }, [open, defaultType, editing]);
 
   const accounts = state?.accounts.filter((a) => a.isActive) ?? [];
   const categories = useMemo(
@@ -69,7 +70,8 @@ export function QuickAddSheet({
     if (!value || value <= 0) return;
     setSaving(true);
     try {
-      const res = await mutate("transaction", "create", {
+      const res = await mutate("transaction", editing ? "update" : "create", {
+        id: editing?.id,
         type,
         amount: value,
         categoryId: type === "transfer" ? null : categoryId ? Number(categoryId) : null,
@@ -89,14 +91,14 @@ export function QuickAddSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="Tezkor operatsiya"
+      title={editing ? "Operatsiyani tahrirlash" : "Tezkor operatsiya"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} className="flex-1">
             Bekor qilish
           </Button>
           <Button onClick={save} disabled={saving || !amount} className="flex-[2]">
-            {saving ? "Saqlanmoqda…" : "Saqlash"}
+            {saving ? "Saqlanmoqda…" : editing ? "Yangilash" : "Saqlash"}
           </Button>
         </>
       }

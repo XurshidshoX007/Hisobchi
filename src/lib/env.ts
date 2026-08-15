@@ -74,6 +74,7 @@ export function inspectEnv(): EnvReport {
   if (!hasDatabaseUrl) warnings.push("DATABASE_URL missing");
   if (isProduction() && !process.env.REDIS_URL) warnings.push("REDIS_URL missing in production");
   if (isProduction() && !process.env.LOG_HASH_SECRET) warnings.push("LOG_HASH_SECRET missing in production");
+  if (isProduction() && !process.env.NOTIFICATION_CRON_SECRET) warnings.push("NOTIFICATION_CRON_SECRET missing in production");
 
   return {
     ok: warnings.length === 0,

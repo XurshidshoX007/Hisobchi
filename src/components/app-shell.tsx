@@ -77,7 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             pathname === "/bot" ? "bg-primary text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
           }`}
         >
-          <span className="text-base">🤖</span> Bot konsol
+          <span className="text-base">🤖</span> Telegram bot
         </Link>
 
         <div className="mt-6 px-2">

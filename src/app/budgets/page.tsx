@@ -5,10 +5,22 @@ import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, formatAmount, monthLabel } from "@/lib/money";
+import type { BudgetView } from "@/lib/finance";
 
 export default function BudgetsPage() {
   const { state, loading, mutate } = useFinance();
   const [sheet, setSheet] = useState(false);
+  const [editing, setEditing] = useState<BudgetView | null>(null);
+
+  function openCreate() {
+    setEditing(null);
+    setSheet(true);
+  }
+
+  function closeSheet() {
+    setSheet(false);
+    setEditing(null);
+  }
 
   if (loading && !state) return <Skeleton className="h-72 w-full" />;
   if (!state) return null;
@@ -26,7 +38,7 @@ export default function BudgetsPage() {
         title="Budjetlar"
         subtitle={`${monthLabel(state.analytics.month)} · ${daysLeft} kun qoldi`}
         action={
-          <Button type="button" size="sm" onClick={() => setSheet(true)}>
+          <Button type="button" size="sm" onClick={openCreate}>
             ➕ Limit
           </Button>
         }
@@ -101,10 +113,13 @@ export default function BudgetsPage() {
               <div className="mt-3 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => mutate("budget", "upsert", { categoryId: b.categoryId, month: b.month, amount: b.amount * 1.1 })}
+                  onClick={() => {
+                    setEditing(b);
+                    setSheet(true);
+                  }}
                   className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
                 >
-                  +10%
+                  Tahrir
                 </button>
                 <button
                   type="button"
@@ -123,29 +138,28 @@ export default function BudgetsPage() {
           title="Budjet belgilanmagan"
           description="Toifalar uchun oylik limit qo‘ying — tizim 80% da ogohlantiradi."
           action={
-            <Button type="button" onClick={() => setSheet(true)}>
+            <Button type="button" onClick={openCreate}>
               ➕ Birinchi budjet
             </Button>
           }
         />
       )}
 
-      <BudgetSheet open={sheet} onClose={() => setSheet(false)} />
+      <BudgetSheet open={sheet} onClose={closeSheet} editing={editing} />
     </div>
   );
 }
 
-function BudgetSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: BudgetView | null }) {
   const { state, mutate } = useFinance();
   const [categoryId, setCategoryId] = useState("");
   const [amount, setAmount] = useState("");
 
   useEffect(() => {
-    if (!open) {
-      setCategoryId("");
-      setAmount("");
-    }
-  }, [open]);
+    if (!open) return;
+    setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
+    setAmount(editing ? String(editing.amount) : "");
+  }, [open, editing]);
 
   const categories = (state?.flatCategories ?? []).filter((c) => c.type === "expense" && c.isActive);
 
@@ -164,7 +178,7 @@ function BudgetSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
     <Sheet
       open={open}
       onClose={onClose}
-      title="Budjet limiti"
+      title={editing ? "Budjetni tahrirlash" : "Budjet limiti"}
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>
@@ -177,7 +191,7 @@ function BudgetSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       }
     >
       <Field label="Kategoriya" hint="Bo‘sh qoldirilsa — umumiy oylik limit">
-        <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+        <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={Boolean(editing)}>
           <option value="">Umumiy oylik</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
