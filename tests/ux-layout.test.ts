@@ -21,9 +21,11 @@ test("mobile chrome uses shared geometry instead of magic FAB offsets", () => {
   assert.doesNotMatch(css, /bottom:\s*(72|80)px/);
 });
 
-test("AppShell mounts one global FAB and reserves contextual scroll clearance", () => {
+test("AppShell mounts one global add FAB and reserves the shared slot for History filters", () => {
   assert.equal((shell.match(/<GlobalAddFab\s*\/>/g) ?? []).length, 1);
-  assert.match(shell, /hasGlobalFab \? "has-global-fab"/);
+  assert.match(shell, /const hasContextualFab = pathname === "\/transactions"/);
+  assert.match(shell, /hasGlobalFab \|\| hasContextualFab/);
+  assert.match(shell, /hasFloatingAction \? "has-global-fab"/);
   assert.match(css, /\.app-shell-layout\.has-global-fab/);
   assert.match(css, /--z-bottom-nav:\s*40/);
   assert.match(css, /--z-fab:\s*50/);
@@ -51,25 +53,31 @@ test("plans share one compact single-select status filter", () => {
   assert.doesNotMatch(planFilter + transactionFilter, /Apply|Qo‘llash/);
 });
 
-test("History is list-first and composes all local filters in one shared sheet", () => {
-  assert.match(history, /action=\{/);
+test("History keeps search visible and only true filters in the shared sheet", () => {
+  assert.match(history, /<PageHeader title="Tarix"/);
+  assert.match(history, /<TextInput/);
+  assert.match(history, /placeholder="Kategoriya, izoh yoki summa"/);
+  assert.match(history, /const \[searchQuery, setSearchQuery\]/);
+  assert.match(history, /const \[filterState, setFilterState\]/);
+  assert.match(history, /composeTransactionFilters\(filterState, searchQuery\)/);
   assert.match(history, /<TransactionFilter/);
   assert.match(transactionFilter, /title="Tarixni filtrlash"/);
   assert.match(transactionFilter, /Operatsiya turi/);
   assert.match(transactionFilter, /Kategoriya/);
-  assert.match(transactionFilter, /Qidiruv/);
+  assert.doesNotMatch(transactionFilter, /label="Qidiruv"|Tarixdan qidirish/);
   assert.match(transactionFilter, /Filtrlarni tozalash/);
   assert.match(transactionFilter, /status=\{localCount \|\| undefined\}/);
-  assert.doesNotMatch(transactionFilter, /localCount \+ contexts\.length/);
-  assert.doesNotMatch(history, /<Segmented|<Select|<TextInput/);
-  assert.doesNotMatch(history, /[Pp]astdagi \+ tugmasi/);
+  assert.match(transactionFilter, /floating/);
 });
 
-test("History filter controls expose dialog, radio and labelled-search semantics", () => {
-  assert.match(transactionFilter, /ariaLabel="Tarixni filtrlash"/);
+test("History controls expose labelled search, floating dialog and active indicator semantics", () => {
+  assert.match(history, /htmlFor="history-search"/);
+  assert.match(history, /aria-label="Qidiruvni tozalash"/);
+  assert.match(transactionFilter, /ariaLabel="Filtrlar"/);
   assert.match(filterControls, /aria-haspopup="dialog"/);
+  assert.match(filterControls, /global-fab/);
+  assert.match(filterControls, /ta faol filtr/);
   assert.match(filterControls, /role="radiogroup"/);
-  assert.match(transactionFilter, /htmlFor=\{searchId\}/);
   assert.match(transactionFilter, /overflow-y-auto overflow-x-hidden/);
 });
 
