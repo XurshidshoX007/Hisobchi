@@ -12,7 +12,7 @@ const transactionFilter = readFileSync(new URL("../src/components/transaction-fi
 const history = readFileSync(new URL("../src/app/transactions/page.tsx", import.meta.url), "utf8");
 
 test("mobile chrome uses shared geometry instead of magic FAB offsets", () => {
-  for (const variable of ["--bottom-nav-height", "--fab-size", "--fab-gap"]) {
+  for (const variable of ["--bottom-nav-height", "--fab-size", "--fab-gap", "--content-bottom-gap"]) {
     assert.match(css, new RegExp(variable));
   }
   assert.match(css, /--app-safe-area-bottom:[\s\S]*env\(safe-area-inset-bottom, 0px\)/);
@@ -26,7 +26,7 @@ test("AppShell mounts one global add FAB and reserves the shared slot for Histor
   assert.match(shell, /const hasContextualFab = pathname === "\/transactions"/);
   assert.match(shell, /hasGlobalFab \|\| hasContextualFab/);
   assert.match(shell, /hasFloatingAction \? "has-global-fab"/);
-  assert.match(css, /\.app-shell-layout\.has-global-fab/);
+  assert.match(css, /\.app-shell-layout\.has-global-fab[\s\S]*var\(--fab-size\)[\s\S]*var\(--content-bottom-gap\)/);
   assert.match(css, /--z-bottom-nav:\s*40/);
   assert.match(css, /--z-fab:\s*50/);
   assert.match(css, /--z-sheet:\s*80/);
