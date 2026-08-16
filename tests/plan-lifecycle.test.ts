@@ -2,12 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advanceRecurringState,
+  canRestorePlan,
   isUserDeactivated,
+  resolveEditLifecycle,
   revertIncomeState,
   revertRecurringState,
+  togglePlanError,
   type PlanStatus,
 } from "../src/lib/reconciliation";
-import { buildPlanned } from "../src/lib/finance";
+import { buildPlanned, filterPlansByTab, isActivePlanLoad, planInTab, type PlanLifecycle } from "../src/lib/finance";
 
 /* ============================ LIFECYCLE GUARD ============================ */
 
@@ -221,4 +224,269 @@ test("section 20: pay 1/2 → cancel → forecast removes future payment; histor
   );
   assert.equal(afterHistoryDelete.isActive, undefined);
   assert.equal(afterHistoryDelete.status, undefined);
+});
+
+/* ============================ TOGGLE GUARD (§13) ============================ */
+
+test("toggle is blocked for cancelled plans (must use restore instead)", () => {
+  assert.match(togglePlanError("cancelled") ?? "", /Qayta faollashtirish/);
+});
+
+test("toggle is blocked for completed plans", () => {
+  assert.ok(togglePlanError("completed") !== null);
+});
+
+test("toggle is allowed for active and paused plans (pause/resume)", () => {
+  assert.equal(togglePlanError("active"), null);
+  assert.equal(togglePlanError("paused"), null);
+  assert.equal(togglePlanError(null), null); // legacy rows
+});
+
+/* ============================ RESTORE GUARD (§11) ============================ */
+
+test("restore is the ONLY way back from cancelled; nothing else qualifies", () => {
+  assert.equal(canRestorePlan("cancelled"), true);
+  assert.equal(canRestorePlan("active"), false);
+  assert.equal(canRestorePlan("paused"), false); // paused resumes via toggle
+  assert.equal(canRestorePlan("completed"), false); // completed stays final
+  assert.equal(canRestorePlan(null), false);
+});
+
+/* ============================ EDIT LIFECYCLE (§11) ============================ */
+
+test("editing a cancelled plan NEVER reactivates it (active intent)", () => {
+  assert.deepEqual(
+    resolveEditLifecycle({
+      previousStatus: "cancelled",
+      planType: "term",
+      frequency: "monthly",
+      total: 12,
+      done: 2,
+      nextIsActive: true,
+    }),
+    { isActive: false, status: "cancelled" },
+  );
+});
+
+test("editing a cancelled plan NEVER reactivates it (paused intent)", () => {
+  assert.deepEqual(
+    resolveEditLifecycle({
+      previousStatus: "cancelled",
+      planType: "recurring",
+      frequency: "monthly",
+      total: null,
+      done: 0,
+      nextIsActive: false,
+    }),
+    { isActive: false, status: "cancelled" },
+  );
+});
+
+test("editing a completed term (rename only) keeps it completed", () => {
+  assert.deepEqual(
+    resolveEditLifecycle({
+      previousStatus: "completed",
+      planType: "term",
+      frequency: "monthly",
+      total: 2,
+      done: 2,
+      nextIsActive: true,
+    }),
+    { isActive: false, status: "completed" },
+  );
+});
+
+test("editing a completed one_time plan keeps it completed", () => {
+  assert.deepEqual(
+    resolveEditLifecycle({
+      previousStatus: "completed",
+      planType: "one_time",
+      frequency: "once",
+      total: null,
+      done: 0,
+      nextIsActive: true,
+    }),
+    { isActive: false, status: "completed" },
+  );
+});
+
+test("extending a completed term (2/2 → count 3) re-opens it via form intent", () => {
+  assert.deepEqual(
+    resolveEditLifecycle({
+      previousStatus: "completed",
+      planType: "term",
+      frequency: "monthly",
+      total: 3,
+      done: 2,
+      nextIsActive: true,
+    }),
+    { isActive: true, status: "active" },
+  );
+});
+
+test("ordinary active/paused edits honour the form intent", () => {
+  assert.deepEqual(
+    resolveEditLifecycle({ previousStatus: "active", planType: "recurring", frequency: "monthly", total: null, done: 0, nextIsActive: false }),
+    { isActive: false, status: "paused" },
+  );
+  assert.deepEqual(
+    resolveEditLifecycle({ previousStatus: "paused", planType: "recurring", frequency: "monthly", total: null, done: 0, nextIsActive: true }),
+    { isActive: true, status: "active" },
+  );
+  // Legacy rows (no status) behave like the active flag says.
+  assert.deepEqual(
+    resolveEditLifecycle({ previousStatus: null, planType: "recurring", frequency: "monthly", total: null, done: 0, nextIsActive: true }),
+    { isActive: true, status: "active" },
+  );
+});
+
+/* ============================ LIST SELECTOR (§2/§7/§20) ============================ */
+
+const plansOf = (...statuses: PlanLifecycle[]) => statuses.map((status, i) => ({ id: i + 1, status }));
+
+test("default To'lovlar list (open tab) shows ACTIVE + PAUSED only", () => {
+  const plans = plansOf("active", "paused", "cancelled", "completed");
+  assert.deepEqual(
+    filterPlansByTab(plans, "open").map((p) => p.status),
+    ["active", "paused"],
+  );
+});
+
+test("cancelled and completed never leak into the open tab, each has its own tab", () => {
+  const plans = plansOf("cancelled", "completed", "active", "cancelled", "paused", "completed");
+  assert.deepEqual(filterPlansByTab(plans, "cancelled").length, 2);
+  assert.deepEqual(filterPlansByTab(plans, "completed").length, 2);
+  assert.deepEqual(filterPlansByTab(plans, "paused").length, 1);
+  assert.equal(planInTab("cancelled", "open"), false);
+  assert.equal(planInTab("completed", "open"), false);
+  assert.equal(planInTab("paused", "open"), true);
+  assert.equal(planInTab("active", "open"), true);
+});
+
+/* ============================ ACTIVE-LOAD STATISTICS (§4/§15/§16) ============================ */
+
+test("money load counts only plans producing future occurrences", () => {
+  assert.equal(isActivePlanLoad("active"), true);
+  assert.equal(isActivePlanLoad("paused"), false); // policy: excluded from active load
+  assert.equal(isActivePlanLoad("cancelled"), false);
+  assert.equal(isActivePlanLoad("completed"), false);
+});
+
+test("monthly mandatory/optional, yearly and term stats exclude cancelled+completed (§4)", () => {
+  // Mirrors the Plans-page stat selectors: cancelled 1.88M term plan and a
+  // completed 2-installment term must contribute 0 to every money stat.
+  const plans = [
+    { status: "active" as PlanLifecycle, isMandatory: true, baseAmount: 500_000, planType: "recurring" as const, yearlyTotal: 6_000_000, planTotal: null, remainingTotal: null },
+    { status: "paused" as PlanLifecycle, isMandatory: true, baseAmount: 300_000, planType: "recurring" as const, yearlyTotal: 3_600_000, planTotal: null, remainingTotal: null },
+    { status: "cancelled" as PlanLifecycle, isMandatory: true, baseAmount: 1_880_000, planType: "term" as const, yearlyTotal: 0, planTotal: 22_560_000, remainingTotal: 18_800_000 },
+    { status: "completed" as PlanLifecycle, isMandatory: true, baseAmount: 1_880_000, planType: "term" as const, yearlyTotal: 0, planTotal: 3_760_000, remainingTotal: 0 },
+  ];
+  const load = plans.filter((p) => isActivePlanLoad(p.status));
+  assert.equal(load.filter((p) => p.isMandatory).reduce((s, p) => s + p.baseAmount, 0), 500_000);
+  assert.equal(load.filter((p) => p.planType === "recurring").reduce((s, p) => s + p.yearlyTotal, 0), 6_000_000);
+  assert.equal(load.filter((p) => p.planType === "term").reduce((s, p) => s + (p.remainingTotal ?? 0), 0), 0);
+});
+
+/* ============================ TEST MATRIX (§24) ============================ */
+
+test("TEST 6: paused plan stays paused on payment delete and can resume via toggle", () => {
+  const paused: Parameters<typeof revertRecurringState>[0] = {
+    planType: "recurring",
+    frequency: "monthly",
+    nextDueDate: "2026-09-01",
+    installmentsPaid: 0,
+    installmentCount: null,
+    isActive: false,
+    status: "paused",
+  };
+  // Deleting this month's payment rewinds the schedule but keeps the pause.
+  const reverted = revertRecurringState(paused, "2026-08-01");
+  assert.deepEqual(reverted, { nextDueDate: "2026-08-01" });
+  // …and toggle is allowed (resume), unlike for cancelled/completed.
+  assert.equal(togglePlanError("paused"), null);
+});
+
+test("TEST 8: active plan payment delete restores the occurrence, plan stays active", () => {
+  const active: Parameters<typeof revertRecurringState>[0] = {
+    planType: "term",
+    frequency: "monthly",
+    nextDueDate: "2026-09-20",
+    installmentsPaid: 1,
+    installmentCount: 2,
+    isActive: true,
+    status: "active",
+  };
+  const reverted = revertRecurringState(active, "2026-08-20");
+  assert.deepEqual(reverted, { installmentsPaid: 0, nextDueDate: "2026-08-20" });
+});
+
+test("TEST 2: completed 2/2 term is not in the open list, keeps history, reopens on delete", () => {
+  const completedView = { id: 1, status: "completed" as PlanLifecycle };
+  assert.deepEqual(filterPlansByTab([completedView], "open"), []);
+  assert.deepEqual(filterPlansByTab([completedView], "completed"), [completedView]);
+  // Reconciliation explicitly allows re-opening a completed term only when ITS
+  // OWN final fulfilment is deleted (product rule, section 10).
+  const reverted = revertRecurringState(
+    {
+      planType: "term",
+      frequency: "monthly",
+      nextDueDate: "2026-09-20",
+      installmentsPaid: 2,
+      installmentCount: 2,
+      isActive: false,
+      status: "completed",
+    },
+    "2026-09-20",
+  );
+  assert.equal(reverted.status, "active");
+  assert.equal(reverted.isActive, true);
+});
+
+test("TEST 4/5: cancelled plan never returns — not via toggle, not via edit, not via history delete", () => {
+  const cancelledView = { id: 7, status: "cancelled" as PlanLifecycle };
+  assert.deepEqual(filterPlansByTab([cancelledView], "open"), []);
+  // toggle guard
+  assert.ok(togglePlanError("cancelled") !== null);
+  // edit lifecycle
+  const edited = resolveEditLifecycle({
+    previousStatus: "cancelled",
+    planType: "recurring",
+    frequency: "monthly",
+    total: null,
+    done: 0,
+    nextIsActive: true,
+  });
+  assert.deepEqual(edited, { isActive: false, status: "cancelled" });
+  // history payment delete
+  const reverted = revertRecurringState(
+    { planType: "term", frequency: "monthly", nextDueDate: "2026-10-20", installmentsPaid: 2, installmentCount: 12, isActive: false, status: "cancelled" },
+    "2026-09-20",
+  );
+  assert.equal(reverted.isActive, undefined);
+  assert.equal(reverted.status, undefined);
+  // restore is the deliberate escape hatch.
+  assert.equal(canRestorePlan("cancelled"), true);
+});
+
+test("TEST 9/10: cancelled plan forecasts nothing and carries no active load (§23)", () => {
+  const cancelledPlan = {
+    id: 1,
+    name: "Kredit",
+    amount: 1_880_000,
+    minAmount: null,
+    maxAmount: null,
+    nextDueDate: "2026-09-01",
+    frequency: "monthly",
+    isMandatory: true,
+    certainty: "exact",
+    isActive: false,
+    categoryId: null,
+    planType: "term",
+    installmentCount: 12,
+    installmentsPaid: 2,
+    startDate: "2026-07-01",
+  };
+  assert.deepEqual(buildPlanned([cancelledPlan], [], "2026-08-16", 180, []), []);
+  assert.equal(isActivePlanLoad("cancelled"), false);
+  assert.equal(isActivePlanLoad("completed"), false);
 });

@@ -57,6 +57,62 @@ export function isUserDeactivated(status: PlanStatus | string | null | undefined
   return status === "cancelled" || status === "paused";
 }
 
+/**
+ * Toggle = pause / resume (active ↔ paused). It must NEVER wake up a
+ * cancelled plan (§13) — cancellation is final until the explicit `restore`
+ * action — nor re-open a completed term (its occurrences are exhausted).
+ * Returns a user-facing error, or null when the toggle is allowed.
+ */
+export function togglePlanError(status: PlanStatus | string | null | undefined): string | null {
+  if (status === "cancelled") {
+    return "Bekor qilingan rejani faqat «Qayta faollashtirish» orqali yoqish mumkin";
+  }
+  if (status === "completed") {
+    return "Yakunlangan rejani pauzaga o'tkazib bo'lmaydi";
+  }
+  return null;
+}
+
+/**
+ * Restore is the ONLY way back from `cancelled` (§11). Paused plans resume
+ * via toggle; completed plans stay final. Strictly typed so an accidental
+ * reactivation path cannot be introduced elsewhere.
+ */
+export function canRestorePlan(status: PlanStatus | string | null | undefined): boolean {
+  return status === "cancelled";
+}
+
+/**
+ * Lifecycle after an ordinary Edit → Save (§11). An edit must never silently
+ * change WHY a plan is inactive:
+ *   - cancelled stays cancelled (only `restore` reactivates it);
+ *   - a term whose installments are exhausted stays completed
+ *     (explicitly raising `installmentCount` above `done` re-opens it — the
+ *     Faol/Pauza form intent is then honoured);
+ *   - a completed one-time plan has no counters and stays completed;
+ *   - anything else honours the active/paused intent from the form.
+ */
+export function resolveEditLifecycle(args: {
+  previousStatus: PlanStatus | string | null | undefined;
+  planType: string;
+  frequency: string;
+  /** term: total scheduled occurrences after the edit; null otherwise */
+  total: number | null;
+  /** term: already fulfilled occurrences */
+  done: number;
+  nextIsActive: boolean;
+}): { isActive: boolean; status: PlanStatus } {
+  // A cancelled plan is never resurrected by Edit → Save.
+  if (args.previousStatus === "cancelled") return { isActive: false, status: "cancelled" };
+  const isOneTime = args.planType === "one_time" || args.frequency === "once";
+  const termFinished = args.planType === "term" && args.total !== null && args.done >= args.total;
+  if (termFinished) return { isActive: false, status: "completed" };
+  if (args.previousStatus === "completed" && isOneTime) {
+    return { isActive: false, status: "completed" };
+  }
+  return args.nextIsActive ? { isActive: true, status: "active" } : { isActive: false, status: "paused" };
+}
+
 /** Advance a date by the plan frequency (weekly/monthly/yearly). */
 export function advancePeriod(date: string, frequency: string): string {
   if (frequency === "weekly") return addDays(date, 7);
