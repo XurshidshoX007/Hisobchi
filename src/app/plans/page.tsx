@@ -11,8 +11,11 @@ import {
   Card,
   EmptyState,
   Field,
+  FinancialRow,
+  MetricGrid,
   Money,
   PageHeader,
+  PrimaryFinancialCard,
   Progress,
   Segmented,
   Select,
@@ -23,7 +26,7 @@ import {
 } from "@/components/ui";
 import {
   addMonths,
-  compact,
+  formatCompactAmount,
   dayMonth,
   formatAmount,
   humanDate,
@@ -239,7 +242,12 @@ export default function PlansPage() {
 
   return (
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-4 sm:space-y-5">
-      <PageHeader title="Reja va prognoz" subtitle="Kelajakdagi majburiyatlar va kutilayotgan pullar markazi" />
+      <PageHeader title="Reja va prognoz" subtitle="Oylik majburiyatlar va kutilayotgan pullar" />
+
+      <div className="text-center">
+        <p className="text-lg font-bold uppercase tracking-tight">{month.label}</p>
+        <p className="mt-0.5 text-[11px] text-muted">Joriy moliyaviy reja</p>
+      </div>
 
       <div className="mb-1 sm:mb-4">
         <Segmented
@@ -258,7 +266,7 @@ export default function PlansPage() {
           {/* §28/§29: monthly planning first — the annual figures are secondary. */}
           <MonthLoadCard month={month} nearest={nearest} />
 
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
+          <MetricGrid className="sm:grid-cols-4">
             <StatCard
               label="Ixtiyoriy / oy"
               value={monthlyOptional}
@@ -275,7 +283,7 @@ export default function PlansPage() {
               value={termRemaining}
               context={termPlans.length ? `${termPlans.length} ta reja` : "muddatli reja yo‘q"}
             />
-          </div>
+          </MetricGrid>
 
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1">
@@ -361,7 +369,7 @@ export default function PlansPage() {
 
       {tab === "income" ? (
         <div className="space-y-3.5 sm:space-y-4">
-          <Card>
+          <PrimaryFinancialCard>
             <div className="mb-2.5 flex items-center justify-between gap-2">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">
                 Bu oy · {state.currentMonthIncome.label}
@@ -374,10 +382,10 @@ export default function PlansPage() {
               <StatCard label="Taxminiy" value={state.currentMonthIncome.estimatedBase} context="diapazon o‘rtachasi" tone="muted" />
             </div>
             <p className="mt-3 border-t border-line pt-3 text-[11.5px] leading-snug text-muted">
-              90 kunlik prognoz: <span className="num font-medium text-fg">{compact(f.income.base)} so‘m</span> (aniq{" "}
-              {compact(f.income.exactBase)}, taxminiy {compact(f.income.estimatedBase)})
+              90 kunlik prognoz: <span className="num font-medium text-fg">{formatCompactAmount(f.income.base)} so‘m</span> (aniq{" "}
+              {formatCompactAmount(f.income.exactBase)}, taxminiy {formatCompactAmount(f.income.estimatedBase)})
             </p>
-          </Card>
+          </PrimaryFinancialCard>
 
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1">
@@ -594,7 +602,7 @@ function MonthLoadCard({
   } | null;
 }) {
   return (
-    <Card className="space-y-4">
+    <PrimaryFinancialCard className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Bu oy · {month.label}</p>
@@ -605,7 +613,7 @@ function MonthLoadCard({
         </div>
         <div className="shrink-0 text-right">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Ixtiyoriy</p>
-          <p className="num mt-1 text-[15px] font-semibold">{compact(month.optionalTotal)}</p>
+          <p className="num mt-1 break-words text-[15px] font-semibold">{formatAmount(month.optionalTotal)}</p>
         </div>
       </div>
 
@@ -628,8 +636,8 @@ function MonthLoadCard({
           <p className="min-w-0 text-[12.5px] font-semibold text-negative-text">
             🔴 {month.overdueCount} ta kechikkan to‘lov
           </p>
-          <span className="num shrink-0 text-[13px] font-semibold text-negative-text">
-            {compact(month.overdueAmount)}
+          <span className="num break-words text-right text-[13px] font-semibold text-negative-text">
+            {formatAmount(month.overdueAmount)}
           </span>
         </div>
       ) : null}
@@ -657,7 +665,7 @@ function MonthLoadCard({
           <p className="mt-1.5 text-[13px] text-muted">Bu oyda ochiq to‘lov qolmadi. 🎉</p>
         )}
       </div>
-    </Card>
+    </PrimaryFinancialCard>
   );
 }
 
@@ -676,7 +684,7 @@ function StatCard({
   plain?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-xl bg-surface-2 px-3 py-2.5">
+    <div className="min-w-0 p-3 sm:p-4">
       <p className="truncate text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
       <div className="mt-1 min-w-0">
         {plain ? (
@@ -719,11 +727,11 @@ function PaymentPlanCard({
   const progress = isTerm && total > 0 ? r.installmentsPaid / total : 0;
 
   return (
-    <Card className={`space-y-3 ${due.overdue ? "border-negative/40" : ""}`}>
+    <FinancialRow className={`space-y-3 ${due.overdue ? "border-l-2 border-l-negative pl-3" : ""}`}>
       {/* TOP: what is it, and in which lifecycle state */}
       <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold leading-tight">{r.name}</p>
+          <p className="break-words text-[15px] font-semibold leading-tight">{r.name}</p>
           <p className="mt-1 truncate text-[11.5px] text-muted">
             {r.categoryName ?? "kategoriya yo‘q"}
             {r.planType === "recurring" ? ` · ${frequencyLabel(r.frequency)} · ${r.dueDay}-sana` : ""}
@@ -739,7 +747,7 @@ function PaymentPlanCard({
         <div className="min-w-0">
           {r.certainty === "estimated" && r.minAmount && r.maxAmount ? (
             <p className="num text-lg font-semibold sm:text-xl">
-              {compact(r.minAmount)}–{compact(r.maxAmount)}
+              {formatAmount(r.minAmount)}–{formatAmount(r.maxAmount)}
             </p>
           ) : (
             <Money value={r.baseAmount} size="lg" tone={due.overdue ? "negative" : "default"} />
@@ -755,7 +763,7 @@ function PaymentPlanCard({
       <div className="flex flex-wrap gap-1.5">
         <Badge tone={r.isMandatory ? "negative" : "neutral"}>{r.isMandatory ? "Majburiy" : "Ixtiyoriy"}</Badge>
         {r.certainty === "estimated" ? <Badge tone="warning">Taxminiy</Badge> : null}
-        {status === "active" && r.paidThisMonth ? <Badge tone="positive">✓ Bu oy to‘langan</Badge> : null}
+        {status === "active" && r.paidThisMonth ? <Badge tone="positive" className="animate-pop">✓ Bu oy to‘langan</Badge> : null}
       </div>
 
       {/* Term progress (§19) — a bar answers "how much is left" instantly. */}
@@ -823,7 +831,7 @@ function PaymentPlanCard({
           </button>
         </div>
       </div>
-    </Card>
+    </FinancialRow>
   );
 }
 
@@ -845,10 +853,10 @@ function IncomePlanCard({
   const progress = isTerm && total > 0 ? i.occurrencesReceived / total : 0;
 
   return (
-    <Card className="space-y-3">
+    <FinancialRow className="space-y-3">
       <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold leading-tight">{i.sourceName}</p>
+          <p className="break-words text-[15px] font-semibold leading-tight">{i.sourceName}</p>
           <p className="mt-1 truncate text-[11.5px] text-muted">
             {frequencyLabel(i.frequency)}
             {i.planType === "one_time" ? " · Bir martalik" : ""}
@@ -861,7 +869,7 @@ function IncomePlanCard({
         <div className="min-w-0">
           {i.certainty === "estimated" && i.minAmount && i.maxAmount ? (
             <p className="num text-lg font-semibold text-positive-text sm:text-xl">
-              {compact(i.minAmount)}–{compact(i.maxAmount)}
+              {formatAmount(i.minAmount)}–{formatAmount(i.maxAmount)}
             </p>
           ) : (
             <Money value={i.baseAmount} size="lg" tone="positive" />
@@ -876,7 +884,7 @@ function IncomePlanCard({
 
       <div className="flex flex-wrap gap-1.5">
         {i.certainty === "estimated" ? <Badge tone="warning">Taxminiy</Badge> : <Badge tone="accent">Aniq</Badge>}
-        {status === "active" && i.received ? <Badge tone="positive">✓ Bu oy qabul qilindi</Badge> : null}
+        {status === "active" && i.received ? <Badge tone="positive" className="animate-pop">✓ Bu oy qabul qilindi</Badge> : null}
       </div>
 
       {isTerm ? (
@@ -934,7 +942,7 @@ function IncomePlanCard({
           </button>
         </div>
       </div>
-    </Card>
+    </FinancialRow>
   );
 }
 
@@ -1178,7 +1186,7 @@ function CashflowTab({
 
   return (
     <div className="space-y-3.5 sm:space-y-4">
-      <Card className="space-y-4">
+      <PrimaryFinancialCard className="space-y-4">
         {/* Month navigation first (§31) */}
         <div className="flex items-center justify-between gap-2">
           <button
@@ -1240,7 +1248,7 @@ function CashflowTab({
             Bu oy prognoz oynasidan tashqarida ({forecast.horizonDays} kunlik gorizont). Joriy oyga qayting.
           </p>
         )}
-      </Card>
+      </PrimaryFinancialCard>
 
       <Card>
         <p className="mb-3 text-[15px] font-semibold">Muhim sanalar · {monthLabel}</p>
@@ -1251,7 +1259,7 @@ function CashflowTab({
                 <span className="num w-14 shrink-0 text-[11.5px] text-muted sm:w-16 sm:text-[12px]">{shortDate(p.date)}</span>
                 <span className={`shrink-0 text-sm font-medium ${p.kind === "income" ? "text-positive-text" : "text-fg"}`}>
                   {p.kind === "income" ? "+" : "−"}
-                  {compact(p.base)}
+                  {formatAmount(p.base)}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[13px] sm:text-[13.5px]">{p.label}</span>
                 <span className="shrink-0">
@@ -1277,7 +1285,7 @@ function CashflowTab({
                   <p className="text-[13.5px] font-semibold text-negative-text">{shortDate(r.date)}</p>
                   <p className="truncate text-[11.5px] text-negative-text/80">{r.cause}</p>
                 </div>
-                <span className="num shrink-0 text-[13px] font-semibold text-negative-text">−{compact(r.deficit)}</span>
+                <span className="num break-words text-right text-[13px] font-semibold text-negative-text">{formatAmount(-r.deficit)}</span>
               </div>
             ))}
           </div>
