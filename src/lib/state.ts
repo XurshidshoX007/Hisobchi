@@ -17,21 +17,28 @@ import {
 import {
   buildAnalytics,
   buildCurrentMonthIncome,
+  buildCurrentMonthPlan,
   buildForecast,
   buildHealth,
   buildMonthlySeries,
+  comparePlansByDue,
+  computeLedgerBalances,
+  ledgerBalanceCheck,
   rangeValue,
+  resolvePlanLifecycle,
   type AccountView,
   type BudgetView,
   type CategoryView,
   type DebtView,
   type ExpectedIncomeView,
   type GoalView,
+  type MonthPlanSummary,
   type RecurringView,
   type TxView,
   type MonthlyView,
 } from "./finance";
 import { addDays, dayDiff, monthKey, monthStart, round2, todayISO } from "./money";
+import { nextScheduleDate } from "./reconciliation";
 import type { AppState, LiveAlert, UserView } from "./types";
 
 const FORECAST_HORIZON_DAYS = 180;
@@ -71,68 +78,38 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const accountNames = new Map(accountRows.map((a) => [a.id, a.name]));
   const catById = new Map(categoryRows.map((c) => [c.id, c]));
 
-  /* ---- balances (full history, SQL aggregated) ----
-   * Date semantics: the current balance reflects financial events up to and
-   * including *today* (transaction.date). A future-dated transaction belongs
-   * to the forecast, not to today's balance. */
-  const lte = (a: typeof transactions.date, b: string) => sql`${a} <= ${b}`;
-  const balanceRows = await db
-    .select({
-      accountId: transactions.accountId,
-      inflow: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`,
-      outflow: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
-      transferOut: sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' then ${transactions.amount} else 0 end), 0)`,
-      transferIn: sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' and ${transactions.toAccountId} = ${transactions.accountId} then 0 else 0 end), 0)`,
-      txCount: sql<number>`count(*)`,
-    })
-    .from(transactions)
-    .where(and(eq(transactions.userId, user.id), eq(transactions.isDeleted, false), lte(transactions.date, today)))
-    .groupBy(transactions.accountId);
-
-  const transferInRows = await db
-    .select({ toAccountId: transactions.toAccountId, total: sql<number>`coalesce(sum(${transactions.amount}), 0)` })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.userId, user.id),
-        eq(transactions.type, "transfer"),
-        eq(transactions.isDeleted, false),
-        lte(transactions.date, today),
-      ),
-    )
-    .groupBy(transactions.toAccountId);
-
-  const balanceByAccount = new Map<number, { inflow: number; outflow: number; transferOut: number; transferIn: number; txCount: number }>();
-  for (const row of balanceRows) {
-    balanceByAccount.set(Number(row.accountId), {
-      inflow: Number(row.inflow),
-      outflow: Number(row.outflow),
-      transferOut: Number(row.transferOut),
-      transferIn: 0,
-      txCount: Number(row.txCount),
-    });
-  }
-  for (const row of transferInRows) {
-    if (row.toAccountId === null) continue;
-    const cur = balanceByAccount.get(Number(row.toAccountId)) ?? { inflow: 0, outflow: 0, transferOut: 0, transferIn: 0, txCount: 0 };
-    cur.transferIn = Number(row.total);
-    balanceByAccount.set(Number(row.toAccountId), cur);
-  }
+  /* ---- balances ----
+   * ONE authoritative calculation (`computeLedgerBalances`) shared with the
+   * accounts page, the forecast start balance and the bot report. It runs over
+   * the SAME rows the History list renders, so a transaction that is visible in
+   * the history can never be missing from the balance.
+   *
+   * Date semantics: the balance reflects financial events up to and including
+   * *today* (transaction.date); a future-dated transaction belongs to the
+   * forecast, not to today's balance. */
+  const ledgerRows = txRows.map((t) => ({
+    accountId: t.accountId,
+    toAccountId: t.toAccountId,
+    type: t.type,
+    amount: t.amount,
+    date: t.date,
+    isDeleted: t.isDeleted,
+  }));
+  const ledger = computeLedgerBalances(accountRows, ledgerRows, today);
 
   const accountViews: AccountView[] = accountRows.map((a) => {
-    const agg = balanceByAccount.get(a.id) ?? { inflow: 0, outflow: 0, transferOut: 0, transferIn: 0, txCount: 0 };
-    const currentBalance = a.initialBalance + agg.inflow - agg.outflow + agg.transferIn - agg.transferOut;
+    const agg = ledger.get(a.id);
     return {
       id: a.id,
       name: a.name,
       type: a.type,
       currency: a.currency,
       initialBalance: a.initialBalance,
-      currentBalance: round2(currentBalance),
+      currentBalance: agg?.currentBalance ?? round2(a.initialBalance),
       isActive: a.isActive,
-      inflow: round2(agg.inflow),
-      outflow: round2(agg.outflow),
-      txCount: agg.txCount,
+      inflow: agg?.inflow ?? 0,
+      outflow: agg?.outflow ?? 0,
+      txCount: agg?.txCount ?? 0,
     };
   });
 
@@ -185,24 +162,33 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const recurringViews: RecurringView[] = recurringRows.map((r) => {
     const { base } = rangeValue(r.amount, r.minAmount, r.maxAmount);
     const daysLeft = dayDiff(today, r.nextDueDate);
-    const paidThisMonth = txViews.some((t) => t.recurringId === r.id && (t.plannedDate ?? t.date).startsWith(thisMonth));
     const planType = (r.planType === "term" ? "term" : r.planType === "one_time" || r.frequency === "once" ? "one_time" : "recurring") as
       | "one_time"
       | "recurring"
       | "term";
+    // Lifecycle comes from the ONE authoritative selector shared with the
+    // forecast engine (§10/§39) — never from a local mix of isActive /
+    // termCompleted / status, which is exactly how the three concepts used to
+    // drift apart between the list, the stats and the projection.
+    const status = resolvePlanLifecycle(r);
+    const termCompleted = planType === "term" && status === "completed";
     const remainingInstallments =
-      planType === "term" ? Math.max(0, (r.installmentCount ?? 0) - r.installmentsPaid) : planType === "one_time" ? (r.isActive ? 1 : 0) : null;
-    const termCompleted = planType === "term" && remainingInstallments === 0;
-    // Lifecycle: a fully-paid term is "completed"; an explicit cancelled/
-    // paused/completed status is preserved; anything else derives from the
-    // active flag (legacy rows with no status default to active/paused).
-    const status = (termCompleted
-      ? "completed"
-      : r.status === "cancelled" || r.status === "paused" || r.status === "completed"
-        ? r.status
-        : r.isActive
-          ? "active"
-          : "paused") as RecurringView["status"];
+      planType === "term"
+        ? Math.max(0, (r.installmentCount ?? 0) - r.installmentsPaid)
+        : planType === "one_time"
+          ? status === "completed" || status === "cancelled"
+            ? 0
+            : 1
+          : null;
+    // §18: a "paid this month" tick is a RECONCILED fact, not decoration.
+    // It requires a real, non-deleted EXPENSE transaction that fulfils an
+    // occurrence (plannedDate) of THIS plan inside the current month — so
+    // deleting that transaction makes the tick disappear, and an income or a
+    // foreign transaction can never produce one.
+    const planPayments = txViews.filter((t) => t.type === "expense" && t.recurringId === r.id);
+    const monthPayments = planPayments.filter((t) => (t.plannedDate ?? t.date).startsWith(thisMonth));
+    // A cancelled plan has no live "paid" state to advertise.
+    const paidThisMonth = status !== "cancelled" && monthPayments.length > 0;
     // Annualized total applies ONLY to indefinite recurring plans. Term and
     // one-time plans must never be multiplied by 12 (a 2-installment term is
     // worth count × amount, not amount × 12).
@@ -214,6 +200,12 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         : planType === "one_time"
           ? round2(base)
           : null;
+    // The date this plan would really resume on (§26): a schedule parked in
+    // the past is rolled forward instead of resurrecting a stale occurrence.
+    const nextOccurrenceDate = nextScheduleDate(
+      { planType, frequency: r.frequency, cursor: r.nextDueDate },
+      today,
+    );
     return {
       id: r.id,
       name: r.name,
@@ -230,7 +222,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       certainty: r.certainty === "estimated" ? "estimated" : "exact",
       nextDueDate: r.nextDueDate,
       reminderDaysBefore: r.reminderDaysBefore,
-      isActive: r.isActive && !termCompleted,
+      isActive: status === "active",
       status,
       daysLeft,
       paidThisMonth,
@@ -242,36 +234,46 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       remainingTotal: remainingInstallments !== null ? round2(remainingInstallments * base) : null,
       planTotal,
       termCompleted,
+      paymentsCount: planPayments.length,
+      paidThisMonthAmount: round2(monthPayments.reduce((sum, t) => sum + t.amount, 0)),
+      lastPaymentDate: planPayments.map((t) => t.date).sort().at(-1) ?? null,
+      nextOccurrenceDate,
+      isOverdue: status === "active" && daysLeft < 0,
     };
   });
 
   /* ---- expected incomes ---- */
   const incomeViews: ExpectedIncomeView[] = incomeRows.map((i) => {
     const { base } = rangeValue(i.amount, i.minAmount, i.maxAmount);
-    const linkedTransaction = txViews.find(
-      (t) => t.type === "income" && t.expectedIncomeId === i.id && (i.frequency === "once" || (t.plannedDate ?? t.date).startsWith(thisMonth)),
-    );
-    const received = Boolean(linkedTransaction);
     const planType = (i.planType === "term" ? "term" : i.planType === "one_time" || i.frequency === "once" ? "one_time" : "recurring") as
       | "one_time"
       | "recurring"
       | "term";
+    const status = resolvePlanLifecycle(i);
+    const termCompleted = planType === "term" && status === "completed";
     const remaining =
-      planType === "term" ? Math.max(0, (i.occurrenceCount ?? 0) - i.occurrencesReceived) : planType === "one_time" ? (i.isActive ? 1 : 0) : null;
-    const termCompleted = planType === "term" && remaining === 0;
-    const status = (termCompleted
-      ? "completed"
-      : i.status === "cancelled" || i.status === "paused" || i.status === "completed"
-        ? i.status
-        : i.isActive
-          ? "active"
-          : "paused") as ExpectedIncomeView["status"];
+      planType === "term"
+        ? Math.max(0, (i.occurrenceCount ?? 0) - i.occurrencesReceived)
+        : planType === "one_time"
+          ? status === "completed" || status === "cancelled"
+            ? 0
+            : 1
+          : null;
+    // Same reconciliation rule as payments (§18/§30): a receipt tick requires
+    // a real income transaction fulfilling an occurrence of this plan.
+    const planReceipts = txViews.filter((t) => t.type === "income" && t.expectedIncomeId === i.id);
+    const linkedTransaction = planReceipts.find(
+      (t) => planType === "one_time" || (t.plannedDate ?? t.date).startsWith(thisMonth),
+    );
+    const received = status !== "cancelled" && Boolean(linkedTransaction);
+    const monthReceipts = planReceipts.filter((t) => (t.plannedDate ?? t.date).startsWith(thisMonth));
     const planTotal =
       planType === "term"
         ? round2((i.occurrenceCount ?? 0) * base)
         : planType === "one_time"
           ? round2(base)
           : null;
+    const daysLeft = dayDiff(today, i.expectedDate);
     return {
       id: i.id,
       sourceName: i.sourceName,
@@ -282,13 +284,13 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       expectedDate: i.expectedDate,
       frequency: i.frequency,
       certainty: i.certainty === "estimated" ? "estimated" : "exact",
-      isActive: i.isActive && !termCompleted,
+      isActive: status === "active",
       status,
       note: i.note,
       accountId: i.accountId,
       categoryId: i.categoryId,
       received,
-      daysLeft: dayDiff(today, i.expectedDate),
+      daysLeft,
       linkedTransactionId: linkedTransaction?.id ?? null,
       planType,
       occurrenceCount: i.occurrenceCount,
@@ -296,6 +298,11 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       remainingOccurrences: remaining,
       planTotal,
       termCompleted,
+      receiptsCount: planReceipts.length,
+      receivedThisMonthAmount: round2(monthReceipts.reduce((sum, t) => sum + t.amount, 0)),
+      lastReceiptDate: planReceipts.map((t) => t.date).sort().at(-1) ?? null,
+      nextOccurrenceDate: nextScheduleDate({ planType, frequency: i.frequency, cursor: i.expectedDate }, today),
+      isOverdue: status === "active" && daysLeft < 0 && !received,
     };
   });
 
@@ -378,6 +385,13 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       status: g.status,
     };
   });
+
+  // §16: the list is ordered by WHEN money moves — overdue, today, nearest —
+  // not by insertion order (the DB returns rows unordered) and never
+  // alphabetically. Sorting lives in the state builder so every surface
+  // (Mini App, bot, notifications) sees the same priority.
+  recurringViews.sort(comparePlansByDue);
+  incomeViews.sort(comparePlansByDue);
 
   /* ---- forecast / analytics / health ---- */
   const recurringBase = recurringViews.filter((r) => r.isActive).reduce((s, r) => s + r.baseAmount, 0);
@@ -598,11 +612,47 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       amount: first.deficit,
     });
   }
+  /* ---- ledger consistency guard (History ↔ REAL BALANCE) ----
+   * The dashboard total intentionally covers ACTIVE accounts only, so money
+   * sitting on an archived account is real but invisible there. That gap used
+   * to be silent — a transaction appeared in History while the balance never
+   * moved. It is now surfaced instead of hidden. */
+  const ledgerCheck = ledgerBalanceCheck(
+    accountRows.map((a) => ({ id: a.id, name: a.name, initialBalance: a.initialBalance, isActive: a.isActive })),
+    ledgerRows,
+    today,
+  );
+  if (ledgerCheck.excludedAccounts.length) {
+    const names = ledgerCheck.excludedAccounts.map((a) => a.name).join(", ");
+    alerts.push({
+      id: "ledger-archived-balance",
+      type: "insight",
+      severity: "warning",
+      title: "Arxivlangan hisobda pul bor",
+      body: `${names} hisobi noaktiv, shuning uchun undagi ${Math.round(ledgerCheck.excludedBalance).toLocaleString("ru-RU")} ${user.currency} umumiy balansga qo'shilmayapti. Hisoblar bo'limida uni faollashtiring yoki mablag'ni boshqa hisobga o'tkazing.`,
+      refDate: null,
+      amount: ledgerCheck.excludedBalance,
+    });
+  }
+
   const severityOrder = { critical: 0, warning: 1, info: 2, success: 3 } as const;
   alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
-  /* ---- current-month expected income summary (Plans → Daromad) ---- */
+  /* ---- current-month summaries (Plans is monthly-first, §28/§29) ---- */
   const currentMonthIncome = buildCurrentMonthIncome(forecast.planned, today);
+  const currentMonthPlan: MonthPlanSummary = buildCurrentMonthPlan(
+    forecast.planned,
+    txRows.map((t) => ({
+      type: t.type,
+      amount: t.amount,
+      date: t.date,
+      recurringId: t.recurringId,
+      plannedDate: t.plannedDate,
+      isDeleted: t.isDeleted,
+    })),
+    new Map(recurringRows.map((r) => [r.id, r.isMandatory])),
+    today,
+  );
 
   const userView: UserView = {
     id: user.id,
@@ -652,6 +702,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     health,
     monthly,
     currentMonthIncome,
+    currentMonthPlan,
   } as unknown as AppState;
 }
 

@@ -22,6 +22,8 @@ import {
   canRestorePlan,
   occurrenceIdentity,
   resolveEditLifecycle,
+  restoreIncomeState,
+  restoreRecurringState,
   revertIncomeState,
   revertRecurringState,
   togglePlanError,
@@ -103,26 +105,22 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const amount = num(d.amount);
         if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
         const accountId = int(d.accountId) ?? (await defaultAccount(userId));
-        if (!accountId) return { ok: false, message: "Hisob topilmadi" };
+        if (!accountId) {
+          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+        }
 
-        // Ownership: the source account must belong to the current user.
-        const ownsAccount = await db
-          .select({ id: accounts.id })
-          .from(accounts)
-          .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
-          .limit(1);
-        if (!ownsAccount[0]) return { ok: false, message: "Hisob topilmadi" };
+        // Ownership + archived guard: the source account must belong to the
+        // current user AND be active, otherwise the money would land outside
+        // the balance the dashboard shows.
+        const sourceAccount = await accountForPosting(userId, accountId, "source");
+        if (!sourceAccount.ok) return { ok: false, message: sourceAccount.message };
 
         if (type === "transfer") {
           const toId = int(d.toAccountId);
           if (!toId) return { ok: false, message: "Qaysi hisobga o'tkazish kerakligini tanlang" };
           if (toId === accountId) return { ok: false, message: "Bir xil hisobga transfer qilib bo'lmaydi" };
-          const ownsTo = await db
-            .select({ id: accounts.id })
-            .from(accounts)
-            .where(and(eq(accounts.id, toId), eq(accounts.userId, userId)))
-            .limit(1);
-          if (!ownsTo[0]) return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
+          const targetAccount = await accountForPosting(userId, toId, "target");
+          if (!targetAccount.ok) return { ok: false, message: targetAccount.message };
         }
 
         // Ownership: category (if any) must belong to the user.
@@ -231,12 +229,27 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (existing[0].expectedIncomeId && type !== "income") return { ok: false, message: "Qabul qilingan daromad kirim bo'lib qolishi kerak" };
         const amount = d.amount !== undefined ? num(d.amount) : existing[0].amount;
         if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
+        // An existing transaction may legitimately live on an account that was
+        // archived later, so keeping the same account stays allowed; only
+        // MOVING money onto an archived account is rejected.
         const accountId = d.accountId !== undefined ? int(d.accountId) : existing[0].accountId;
-        if (!accountId || !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (!accountId) return { ok: false, message: "Hisob topilmadi" };
+        if (accountId !== existing[0].accountId) {
+          const nextAccount = await accountForPosting(userId, accountId, "source");
+          if (!nextAccount.ok) return { ok: false, message: nextAccount.message };
+        } else if (!(await ownsAnyAccount(userId, accountId))) {
+          return { ok: false, message: "Hisob topilmadi" };
+        }
 
         const toAccountId = type === "transfer" ? (d.toAccountId !== undefined ? int(d.toAccountId) : existing[0].toAccountId) : null;
         if (type === "transfer") {
-          if (!toAccountId || !(await ownsAccount(userId, toAccountId))) return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
+          if (!toAccountId) return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
+          if (toAccountId !== existing[0].toAccountId) {
+            const nextTarget = await accountForPosting(userId, toAccountId, "target");
+            if (!nextTarget.ok) return { ok: false, message: nextTarget.message };
+          } else if (!(await ownsAnyAccount(userId, toAccountId))) {
+            return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
+          }
           if (toAccountId === accountId) return { ok: false, message: "Bir xil hisobga transfer qilib bo'lmaydi" };
         }
 
@@ -438,12 +451,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const exactAmount = num(d.amount);
         const minAmount = num(d.minAmount);
         const maxAmount = num(d.maxAmount);
-        if (certainty === "exact" && (!exactAmount || exactAmount <= 0)) return { ok: false, message: "Summani kiriting" };
-        if (
-          certainty === "estimated" &&
-          (!minAmount || !maxAmount || minAmount <= 0 || maxAmount <= 0 || minAmount > maxAmount)
-        ) {
-          return { ok: false, message: "Taxminiy diapazon noto'g'ri" };
+        if (certainty === "exact" && (!exactAmount || exactAmount <= 0)) {
+          return { ok: false, message: "To'lov summasini kiriting (0 dan katta)" };
+        }
+        if (certainty === "estimated" && (!minAmount || minAmount <= 0)) {
+          return { ok: false, message: "Minimal summani kiriting" };
+        }
+        if (certainty === "estimated" && (!maxAmount || maxAmount <= 0)) {
+          return { ok: false, message: "Maksimal summani kiriting" };
+        }
+        if (certainty === "estimated" && minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
+          return { ok: false, message: "Minimal summa maksimaldan katta bo'lmasligi kerak" };
         }
         const dueDay = Math.min(28, Math.max(1, int(d.dueDay, 1) ?? 1));
         const submittedDate = d.nextDueDate ?? d.dueDate;
@@ -462,8 +480,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           frequency === "once" ? "one_time" : "recurring",
         );
         const installmentCount = planType === "term" ? int(d.installmentCount) : null;
-        if (planType === "term" && (!installmentCount || installmentCount < 1 || installmentCount > 600)) {
-          return { ok: false, message: "Muddatli to'lov uchun bo'lib to'lashlar sonini kiriting (1–600)" };
+        if (planType === "term" && !installmentCount) {
+          return { ok: false, message: "Bo'lib to'lashlar sonini kiriting." };
+        }
+        if (planType === "term" && installmentCount !== null && (installmentCount < 1 || installmentCount > 600)) {
+          return { ok: false, message: "Bo'lib to'lashlar soni 1 dan 600 gacha bo'lishi kerak." };
         }
         const values = {
           userId,
@@ -498,8 +519,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
           .limit(1);
         if (!existingRec[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+        // §24: an edit must never corrupt already fulfilled occurrences —
+        // 5/12 can become 5/24, never 5/4.
         if (planType === "term" && installmentCount !== null && installmentCount < existingRec[0].installmentsPaid) {
-          return { ok: false, message: "Bo'lib to'lashlar soni to'langanlaridan kam bo'lmasligi kerak" };
+          return {
+            ok: false,
+            message: `Bo'lib to'lashlar soni to'langanidan kam bo'lmasligi kerak (allaqachon ${existingRec[0].installmentsPaid} ta to'langan).`,
+          };
         }
         // Lifecycle-safe edit (§11): a cancelled plan is NEVER resurrected by
         // an ordinary Edit → Save (only the explicit `restore` action is);
@@ -542,7 +568,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const amount = num(d.amount) ?? rec[0].amount ?? rec[0].maxAmount ?? 0;
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const paymentAccountId = int(d.accountId) ?? rec[0].accountId ?? (await defaultAccount(userId));
-        if (!paymentAccountId || !(await ownsAccount(userId, paymentAccountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (!paymentAccountId) {
+          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+        }
+        {
+          const guard = await accountForPosting(userId, paymentAccountId, "source");
+          if (!guard.ok) return { ok: false, message: guard.message };
+        }
         // The occurrence being paid is the plan's current scheduled date. The
         // actual transaction date may be earlier (early payment); the planned
         // date is stored separately so deletion can restore the exact schedule.
@@ -635,9 +667,19 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           if (!canRestorePlan(current[0].status)) {
             return { ok: false, message: "Faqat bekor qilingan rejani qayta faollashtirish mumkin" };
           }
+          const planRow = await db
+            .select()
+            .from(recurringExpenses)
+            .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
+            .limit(1);
+          if (!planRow[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+          // §26: reactivating must not silently revive a stale schedule. A plan
+          // cancelled three months ago comes back on its NEXT real occurrence,
+          // not on a due date that already passed while it was inactive.
+          const schedule = restoreRecurringState(planRow[0], today);
           const restored = await db
             .update(recurringExpenses)
-            .set({ isActive: true, status: "active" })
+            .set(schedule)
             .where(
               and(
                 eq(recurringExpenses.id, id),
@@ -647,7 +689,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             )
             .returning({ id: recurringExpenses.id });
           if (!restored[0]) return { ok: false, message: "Reja allaqachon faollashtirilgan" };
-          return { ok: true, id: restored[0].id, message: "Reja qayta faollashtirildi" };
+          return {
+            ok: true,
+            id: restored[0].id,
+            message: `Reja qayta faollashtirildi — keyingi to'lov ${schedule.nextDueDate}`,
+          };
         }
 
         const updated = await db
@@ -684,12 +730,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const exactAmount = num(d.amount);
         const minAmount = num(d.minAmount);
         const maxAmount = num(d.maxAmount);
-        if (certainty === "exact" && (!exactAmount || exactAmount <= 0)) return { ok: false, message: "Summani kiriting" };
-        if (
-          certainty === "estimated" &&
-          (!minAmount || !maxAmount || minAmount <= 0 || maxAmount <= 0 || minAmount > maxAmount)
-        ) {
-          return { ok: false, message: "Taxminiy diapazon noto'g'ri" };
+        if (certainty === "exact" && (!exactAmount || exactAmount <= 0)) {
+          return { ok: false, message: "Daromad summasini kiriting (0 dan katta)" };
+        }
+        if (certainty === "estimated" && (!minAmount || minAmount <= 0)) {
+          return { ok: false, message: "Minimal summani kiriting" };
+        }
+        if (certainty === "estimated" && (!maxAmount || maxAmount <= 0)) {
+          return { ok: false, message: "Maksimal summani kiriting" };
+        }
+        if (certainty === "estimated" && minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
+          return { ok: false, message: "Minimal summa maksimaldan katta bo'lmasligi kerak" };
         }
         const expectedDate = isoDate(d.expectedDate);
         if (!expectedDate) return { ok: false, message: "Kutilayotgan sana noto'g'ri" };
@@ -700,8 +751,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           incomeFrequency === "once" ? "one_time" : "recurring",
         );
         const occurrenceCount = incomePlanType === "term" ? int(d.occurrenceCount) : null;
-        if (incomePlanType === "term" && (!occurrenceCount || occurrenceCount < 1 || occurrenceCount > 600)) {
-          return { ok: false, message: "Muddatli daromad uchun takrorlanishlar sonini kiriting (1–600)" };
+        if (incomePlanType === "term" && !occurrenceCount) {
+          return { ok: false, message: "Takrorlanishlar sonini kiriting." };
+        }
+        if (incomePlanType === "term" && occurrenceCount !== null && (occurrenceCount < 1 || occurrenceCount > 600)) {
+          return { ok: false, message: "Takrorlanishlar soni 1 dan 600 gacha bo'lishi kerak." };
         }
         const values = {
           userId,
@@ -730,6 +784,14 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .from(expectedIncomes)
           .where(and(eq(expectedIncomes.id, updateId!), eq(expectedIncomes.userId, userId)))
           .limit(1);
+        // §24 (income parity): shrinking the schedule below what was already
+        // received would corrupt fulfilled occurrences (3/5 → 3/2).
+        if (incomePlanType === "term" && occurrenceCount !== null && occurrenceCount < (owned[0]?.occurrencesReceived ?? 0)) {
+          return {
+            ok: false,
+            message: `Takrorlanishlar soni qabul qilinganidan kam bo'lmasligi kerak (allaqachon ${owned[0]?.occurrencesReceived ?? 0} ta qabul qilingan).`,
+          };
+        }
         // Lifecycle-safe edit (§11): a cancelled income plan is never
         // resurrected by Edit → Save; a fully-received term/one_time stays
         // completed; otherwise the form's active/paused intent is honoured.
@@ -761,7 +823,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const amount = num(d.amount) ?? row[0].amount ?? row[0].maxAmount ?? 0;
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const incomeAccountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId));
-        if (!incomeAccountId || !(await ownsAccount(userId, incomeAccountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (!incomeAccountId) {
+          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+        }
+        {
+          const guard = await accountForPosting(userId, incomeAccountId, "source");
+          if (!guard.ok) return { ok: false, message: guard.message };
+        }
         // Receive is only valid for an ACTIVE income plan (§12): paused /
         // cancelled / completed plans have no open occurrence to fulfil.
         if (!row[0].isActive || row[0].status === "cancelled" || row[0].status === "paused" || row[0].status === "completed") {
@@ -848,9 +916,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           if (!canRestorePlan(current[0].status)) {
             return { ok: false, message: "Faqat bekor qilingan rejani qayta faollashtirish mumkin" };
           }
+          const incomeRow = await db
+            .select()
+            .from(expectedIncomes)
+            .where(and(eq(expectedIncomes.id, id), eq(expectedIncomes.userId, userId)))
+            .limit(1);
+          if (!incomeRow[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
+          // §26: same rule as payments — restore re-anchors the schedule.
+          const schedule = restoreIncomeState(incomeRow[0], today);
           const restored = await db
             .update(expectedIncomes)
-            .set({ isActive: true, status: "active" })
+            .set(schedule)
             .where(
               and(
                 eq(expectedIncomes.id, id),
@@ -860,7 +936,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             )
             .returning({ id: expectedIncomes.id });
           if (!restored[0]) return { ok: false, message: "Reja allaqachon faollashtirilgan" };
-          return { ok: true, id: restored[0].id, message: "Daromad rejasi qayta faollashtirildi" };
+          return {
+            ok: true,
+            id: restored[0].id,
+            message: `Daromad rejasi qayta faollashtirildi — keyingi qabul ${schedule.expectedDate}`,
+          };
         }
 
         const updated = await db
@@ -992,7 +1072,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!row[0]) return { ok: false, message: "Qarz topilmadi" };
         if (amount > row[0].remainingAmount) return { ok: false, message: "To'lov qolgan qarzdan katta bo'lmasligi kerak" };
         const paymentAccountId = int(d.accountId) ?? (await defaultAccount(userId));
-        if (!paymentAccountId || !(await ownsAccount(userId, paymentAccountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (!paymentAccountId) {
+          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+        }
+        {
+          const guard = await accountForPosting(userId, paymentAccountId, "source");
+          if (!guard.ok) return { ok: false, message: guard.message };
+        }
         const remaining = Math.max(0, row[0].remainingAmount - amount);
         const paid = await db.transaction(async (tx) => {
           // The balance check belongs in the UPDATE predicate, not only in
@@ -1165,9 +1251,58 @@ function thisMonthDate(day: number): string {
   return iso;
 }
 
+/**
+ * The account a transaction lands on when the caller (bot NLP, quick-add,
+ * plan payment) did not choose one.
+ *
+ * It MUST be an active account: the dashboard balance sums active accounts
+ * only, so defaulting to an archived one produced money that showed up in the
+ * History list while the balance never moved. Ordering is fully deterministic
+ * (sortOrder, then id) so the same user always gets the same default.
+ */
 async function defaultAccount(userId: number): Promise<number | null> {
-  const rows = await db.select().from(accounts).where(eq(accounts.userId, userId)).orderBy(accounts.sortOrder).limit(1);
+  const rows = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.isActive, true)))
+    .orderBy(accounts.sortOrder, accounts.id)
+    .limit(1);
   return rows[0]?.id ?? null;
+}
+
+/** Ownership + archived-account guard for a transaction endpoint. */
+async function accountForPosting(
+  userId: number,
+  accountId: number,
+  label: "source" | "target",
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const rows = await db
+    .select({ id: accounts.id, name: accounts.name, isActive: accounts.isActive })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
+    .limit(1);
+  if (!rows[0]) {
+    return { ok: false, message: label === "source" ? "Hisob topilmadi" : "Qabul qiluvchi hisob topilmadi" };
+  }
+  if (!rows[0].isActive) {
+    // Posting into an archived account would silently leave the money out of
+    // the dashboard balance while still showing it in History.
+    return {
+      ok: false,
+      message: `«${rows[0].name}» hisobi arxivlangan — uni Hisoblar bo'limida faollashtiring yoki boshqa hisobni tanlang`,
+    };
+  }
+  return { ok: true };
+}
+
+/** Ownership only — used where an archived account is still a valid target. */
+async function ownsAnyAccount(userId: number, accountId: number): Promise<boolean> {
+  const rows = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
+    .limit(1);
+  return Boolean(rows[0]);
 }
 
 async function ownsAccount(userId: number, accountId: number): Promise<boolean> {

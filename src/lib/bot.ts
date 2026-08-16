@@ -356,12 +356,20 @@ function forecastBlock(s: AppState): string {
 }
 
 function accountsBlock(s: AppState): string {
+  // "Jami" must be the SAME number the Mini App dashboard shows as REAL
+  // BALANCE: active accounts only. Archived accounts are listed, but their
+  // money is reported separately instead of being folded into a total that
+  // no other surface agrees with.
+  const archived = s.accounts.filter((a) => !a.isActive && Math.round(a.currentBalance) !== 0);
   return [
     "💳 Hisoblar",
     "",
     ...s.accounts.map((a) => `${a.isActive ? "•" : "○"} ${a.name}: ${formatAmount(a.currentBalance)} so'm`),
     "",
-    `Jami: ${formatAmount(s.accounts.reduce((t, a) => t + a.currentBalance, 0))} so'm`,
+    `Jami (faol hisoblar): ${formatAmount(s.forecast.currentBalance)} so'm`,
+    ...(archived.length
+      ? [`⚠️ Arxivlangan hisoblarda: ${formatAmount(archived.reduce((t, a) => t + a.currentBalance, 0))} so'm — balansga kirmaydi`]
+      : []),
   ].join("\n");
 }
 

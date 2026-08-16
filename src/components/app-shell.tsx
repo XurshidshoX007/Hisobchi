@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { formatAmount, humanDate } from "@/lib/money";
+import { MENU_ROUTE, showsProfileHeader } from "@/lib/navigation";
 import { useFinance } from "./providers";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
 
@@ -21,6 +22,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [alertsOpen, setAlertsOpen] = useState(false);
 
   const unread = (state?.alerts.length ?? 0) + (state?.notifications.filter((n) => !n.isRead).length ?? 0);
+  // Route-aware header. No data fetching depends on this flag: profile/balance
+  // state stays in the provider, only its render location changes (§10).
+  const profileHeader = showsProfileHeader(pathname);
 
   if (error === "auth") {
     return (
@@ -87,8 +91,21 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <button
-          onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
+          onClick={() => setAlertsOpen(true)}
           className="mt-4 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
+        >
+          <span className="text-base">🔔</span>
+          Eslatmalar
+          {unread > 0 ? (
+            <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-negative px-1.5 text-[10px] font-bold text-negative-fg">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          ) : null}
+        </button>
+
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
+          className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
           <span className="text-base">{theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}</span>
           {theme === "dark" ? "Dark mode" : theme === "light" ? "Light mode" : "Tizim mavzusi"}
@@ -96,51 +113,51 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="min-w-0 flex-1">
-        {/* Mobile header — sticky */}
-        <header className="glass-bar sticky top-0 z-30 -mx-3.5 mb-3 flex items-center justify-between gap-2 border-b border-line px-3.5 py-2.5 sm:-mx-6 sm:mb-4 sm:px-6 lg:hidden">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-[15px] font-bold text-primary-fg">
-              ₮
+        {/*
+         * Mobile profile header — Menu route only.
+         * It is not hidden with CSS: on the other routes the element is never
+         * mounted, so it occupies zero height/margin/padding and the page
+         * content starts at the top of the viewport (§3).
+         */}
+        {profileHeader ? (
+          <header className="glass-bar sticky top-0 z-30 -mx-3.5 mb-3 flex items-center justify-between gap-2 border-b border-line px-3.5 py-2.5 sm:-mx-6 sm:mb-4 sm:px-6 lg:hidden">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-[15px] font-bold text-primary-fg">
+                ₮
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-semibold leading-tight">Salom, {state?.user.firstName ?? "…"} 👋</p>
+                <p className="num truncate text-[11.5px] font-semibold leading-tight">
+                  {formatAmount(state?.forecast.currentBalance ?? 0)}{" "}
+                  <span className="font-normal text-muted">{state?.user.currency ?? "UZS"}</span>
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold leading-tight">Salom, {state?.user.firstName ?? "…"} 👋</p>
-              <p className="num truncate text-[11.5px] font-semibold leading-tight">
-                {formatAmount(state?.forecast.currentBalance ?? 0)}{" "}
-                <span className="font-normal text-muted">{state?.user.currency ?? "UZS"}</span>
-              </p>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
+                className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
+                aria-label="Mavzuni almashtirish"
+              >
+                {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}
+              </button>
+              <button
+                onClick={() => setAlertsOpen(true)}
+                className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
+                aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
+              >
+                🔔
+                {unread > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[9px] font-bold text-negative-fg">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                ) : null}
+              </button>
             </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
-              className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
-              aria-label="Mavzuni almashtirish"
-            >
-              {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}
-            </button>
-            <button
-              onClick={() => setAlertsOpen(true)}
-              className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
-              aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
-            >
-              🔔
-              {unread > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[9px] font-bold text-negative-fg">
-                  {unread > 9 ? "9+" : unread}
-                </span>
-              ) : null}
-            </button>
-          </div>
-        </header>
+          </header>
+        ) : null}
 
         <div className="min-w-0">{children}</div>
-
-        {/* Desktop alerts */}
-        <div className="mt-8 hidden shrink-0 justify-end lg:flex">
-          <Button variant="secondary" size="sm" onClick={() => setAlertsOpen(true)}>
-            🔔 Eslatmalar {unread > 0 ? `(${unread})` : ""}
-          </Button>
-        </div>
       </main>
 
       {/* Bottom nav — mobile only, 5 items, no FAB */}
@@ -153,6 +170,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               label={item.short}
               icon={item.icon}
               active={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))}
+              // The bell now lives in the Menu header only, so the Menu tab
+              // carries the unread indicator — notifications stay discoverable
+              // from every screen without a global header.
+              badge={item.href === MENU_ROUTE ? unread : 0}
             />
           ))}
         </div>
@@ -221,20 +242,28 @@ function NavItem({
   label,
   icon: Icon,
   active,
+  badge = 0,
 }: {
   href: string;
   label: string;
   icon: (p: { active: boolean }) => React.ReactNode;
   active: boolean;
+  badge?: number;
 }) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
+      aria-label={badge > 0 ? `${label}, ${badge} o‘qilmagan eslatma` : undefined}
       className="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1.5 transition-colors active:bg-surface-2 touch-manipulation"
     >
-      <span className={`grid h-7 w-full place-items-center rounded-lg transition-colors ${active ? "bg-accent-soft" : ""}`}>
+      <span className={`relative grid h-7 w-full place-items-center rounded-lg transition-colors ${active ? "bg-accent-soft" : ""}`}>
         <Icon active={active} />
+        {badge > 0 ? (
+          <span className="absolute right-1/2 top-0 translate-x-[14px] grid h-[15px] min-w-[15px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[8px] font-bold leading-none text-negative-fg">
+            {badge > 9 ? "9+" : badge}
+          </span>
+        ) : null}
       </span>
       <span className={`w-full truncate text-center text-[10px] font-medium leading-none ${active ? "text-fg" : "text-muted"}`}>
         {label}

@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
 import { Badge, Button, Card, EmptyState, Money, PageHeader, Segmented, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
@@ -10,7 +12,21 @@ import type { TxView } from "@/lib/finance";
 type Filter = "all" | "income" | "expense" | "transfer";
 
 export default function TransactionsPage() {
+  // useSearchParams needs a Suspense boundary during prerender (Next app router).
+  return (
+    <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <TransactionsView />
+    </Suspense>
+  );
+}
+
+function TransactionsView() {
   const { state, loading, mutate } = useFinance();
+  // Plan ↔ History link (§27): "2 ta to'lov" on a plan card opens exactly the
+  // real transactions that fulfil THAT plan's occurrences.
+  const params = useSearchParams();
+  const planFilter = Number(params.get("plan")) || null;
+  const incomeFilter = Number(params.get("income")) || null;
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
@@ -30,6 +46,8 @@ export default function TransactionsPage() {
 
   const grouped = useMemo(() => {
     const list = (state?.transactions ?? []).filter((t) => {
+      if (planFilter && t.recurringId !== planFilter) return false;
+      if (incomeFilter && t.expectedIncomeId !== incomeFilter) return false;
       if (filter !== "all" && t.type !== filter) return false;
       if (category && String(t.categoryId ?? "") !== category) return false;
       if (query) {
@@ -42,7 +60,7 @@ export default function TransactionsPage() {
     const map = new Map<string, typeof list>();
     for (const t of list) map.set(t.date, [...(map.get(t.date) ?? []), t]);
     return [...map.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [state?.transactions, filter, query, category]);
+  }, [state?.transactions, filter, query, category, planFilter, incomeFilter]);
 
   const totals = useMemo(() => {
     const list = grouped.flatMap(([, v]) => v);
@@ -57,18 +75,33 @@ export default function TransactionsPage() {
   if (!state) return null;
 
   const categories = state.flatCategories.filter((c) => c.isActive);
+  const accountById = new Map(state.accounts.map((a) => [a.id, a]));
+  const linkedPlan = planFilter ? state.recurring.find((r) => r.id === planFilter) ?? null : null;
+  const linkedIncome = incomeFilter ? state.expectedIncomes.find((i) => i.id === incomeFilter) ?? null : null;
+  const planScope = linkedPlan?.name ?? linkedIncome?.sourceName ?? null;
 
   return (
     <div className="animate-fade-up space-y-3.5 sm:space-y-4">
       <PageHeader
         title="Operatsiyalar"
-        subtitle="Real pul harakatlari"
+        subtitle={planScope ? `${planScope} rejasi bo‘yicha to‘lovlar tarixi` : "Real pul harakatlari"}
         action={
           <Button type="button" size="sm" onClick={openCreate}>
             ➕ Qo‘shish
           </Button>
         }
       />
+
+      {planScope ? (
+        <Card className="flex flex-wrap items-center justify-between gap-2.5">
+          <p className="min-w-0 text-[13px]">
+            <span className="text-muted">Filtr:</span> <span className="font-semibold">{planScope}</span>
+          </p>
+          <Link href="/transactions" className="text-[12.5px] font-medium text-accent-text underline-offset-2 hover:underline">
+            Filtrni olib tashlash
+          </Link>
+        </Card>
+      ) : null}
 
       <Card className="space-y-3">
         <Segmented
@@ -138,6 +171,12 @@ export default function TransactionsPage() {
                           </span>
                           {t.recurringId ? <Badge tone="accent">Reja to‘lovi</Badge> : null}
                           {t.expectedIncomeId ? <Badge tone="positive">Kutilgan daromad</Badge> : null}
+                          {/* A confirmed but future-dated ledger event is real, yet it is
+                              deliberately NOT part of today's balance — say so explicitly. */}
+                          {t.date > state.forecast.today ? <Badge tone="warning">Kelajak sana</Badge> : null}
+                          {accountById.get(t.accountId)?.isActive === false ? (
+                            <Badge tone="neutral">arxiv hisob</Badge>
+                          ) : null}
                         </p>
                         <p className="truncate text-[11.5px] text-muted">
                           {t.note ? `${t.note} · ` : ""}

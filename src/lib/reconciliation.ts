@@ -128,6 +128,59 @@ export function rewindPeriod(date: string, frequency: string, periods: number): 
   return addMonths(date, -periods);
 }
 
+/**
+ * The first occurrence of a schedule that is not in the past (§26).
+ *
+ * A plan that was paused/cancelled months ago keeps a stale `nextDueDate`.
+ * Waking it up with that date would silently resurrect an overdue occurrence
+ * that never happened, so a repeating schedule is rolled forward whole periods
+ * until it lands on today or later. A one_time plan has no cadence to roll —
+ * its single date is kept as-is and surfaces honestly as overdue.
+ */
+export function nextScheduleDate(
+  plan: { planType?: string | null; frequency: string; cursor: string },
+  today: string,
+): string {
+  if (plan.planType === "one_time" || plan.frequency === "once") return plan.cursor;
+  if (plan.cursor >= today) return plan.cursor;
+  let cursor = plan.cursor;
+  let guard = 0;
+  while (cursor < today && guard < 100_000) {
+    cursor = advancePeriod(cursor, plan.frequency);
+    guard += 1;
+  }
+  return cursor;
+}
+
+/**
+ * Reactivation of a cancelled plan (§11/§26). Restore is never a blind flag
+ * flip: the schedule is re-anchored to the next real occurrence so the plan
+ * comes back with a date the user can actually pay, and the caller can preview
+ * exactly that date before confirming.
+ */
+export function restoreRecurringState(
+  plan: { planType: string; frequency: string; nextDueDate: string },
+  today: string,
+): { isActive: true; status: "active"; nextDueDate: string } {
+  return {
+    isActive: true,
+    status: "active",
+    nextDueDate: nextScheduleDate({ planType: plan.planType, frequency: plan.frequency, cursor: plan.nextDueDate }, today),
+  };
+}
+
+/** Expected-income twin of {@link restoreRecurringState}. */
+export function restoreIncomeState(
+  plan: { planType: string; frequency: string; expectedDate: string },
+  today: string,
+): { isActive: true; status: "active"; expectedDate: string } {
+  return {
+    isActive: true,
+    status: "active",
+    expectedDate: nextScheduleDate({ planType: plan.planType, frequency: plan.frequency, cursor: plan.expectedDate }, today),
+  };
+}
+
 /** 1-based index of `date` within the schedule seeded at `seedDate`. */
 export function occurrenceIndexOf(seedDate: string, frequency: string, date: string): number {
   let n = 1;

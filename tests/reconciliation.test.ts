@@ -263,8 +263,11 @@ test("deleting a middle installment restores its date without shifting later occ
     installmentCount: 4,
     startDate: "2026-08-20",
   };
-  // Occurrences 1,2,3 paid (Aug/Sep/Oct), occurrence 1 deleted → it returns;
-  // occurrences 2 and 3 stay fulfilled; occurrence 4 (Nov) is the only future unpaid.
+  // Occurrences 1,2,3 paid (Aug/Sep/Oct), occurrence 1 deleted → it returns as an
+  // OVERDUE-but-owed obligation (its date already passed) while occurrences 2 and 3
+  // stay fulfilled and occurrence 4 (Nov) remains the next future one. The restored
+  // installment must NOT silently vanish from the money model: the plan counts
+  // 2/4 paid, so exactly 2 unpaid occurrences have to be projected.
   const txs = [
     { date: "2026-08-20", type: "expense", amount: 1_000_000, recurringId: 1, plannedDate: "2026-08-20", occurrenceNumber: 1, isDeleted: true },
     { date: "2026-09-20", type: "expense", amount: 1_000_000, recurringId: 1, plannedDate: "2026-09-20", occurrenceNumber: 2 },
@@ -273,7 +276,7 @@ test("deleting a middle installment restores its date without shifting later occ
   const planned = buildPlanned([{ ...plan, installmentsPaid: 2, nextDueDate: "2026-08-20" }], [], "2026-11-01", 90, txs);
   assert.deepEqual(
     planned.map((p) => p.date),
-    ["2026-11-20"],
+    ["2026-08-20", "2026-11-20"],
   );
 });
 
