@@ -258,18 +258,29 @@ export function Progress({
   tone = "auto",
   height = 8,
   label,
+  ariaLabel,
 }: {
   value: number;
   tone?: "auto" | "accent";
   height?: number;
   label?: string;
+  /** Names the progressbar for assistive tech — value is never color-only. */
+  ariaLabel?: string;
 }) {
   const pct = Math.max(0, Math.min(1.4, value)) * 100;
   const color =
     tone === "accent" ? "var(--accent)" : pct >= 100 ? "var(--negative)" : pct >= 80 ? "var(--warning)" : "var(--positive)";
   return (
     <div className="w-full">
-      <div className="w-full overflow-hidden rounded-full bg-surface-3" style={{ height }}>
+      <div
+        role="progressbar"
+        aria-valuenow={Math.round(Math.min(100, pct))}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={ariaLabel ?? label}
+        className="w-full overflow-hidden rounded-full bg-surface-3"
+        style={{ height }}
+      >
         <div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
       </div>
       {label ? <p className="mt-1 text-[11px] text-muted">{label}</p> : null}
