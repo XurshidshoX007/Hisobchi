@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ForecastArea } from "@/components/charts";
 import { useFinance } from "@/components/providers";
-import { Badge, Button, Card, EmptyState, Money, SectionTitle, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Money, Section, SectionTitle, Skeleton } from "@/components/ui";
 import { QuickAddSheet } from "@/components/quick-add";
-import { compact, formatAmount, monthLabel, shortDate } from "@/lib/money";
-import type { FinancialTimelineEvent, MonthlyView } from "@/lib/finance";
+import { formatAmount, shortDate } from "@/lib/money";
+import type { FinancialTimelineEvent } from "@/lib/finance";
 
 function change(current: number, previous: number): string {
   if (!previous) return current ? "yangi" : "0%";
@@ -26,16 +26,6 @@ function eventLabel(event: FinancialTimelineEvent): string {
   return event.mandatory ? "REJA · majburiy" : "REJA · ixtiyoriy";
 }
 
-function Metric({ label, value, tone = "default", hint }: { label: string; value: number; tone?: "default" | "positive" | "negative"; hint: string }) {
-  return (
-    <div className="min-w-0 rounded-2xl bg-surface-2 p-3 sm:p-4">
-      <p className="text-[10px] font-semibold uppercase leading-snug tracking-[0.07em] text-muted">{label}</p>
-      <div className="mt-2 min-w-0"><Money value={value} size="lg" tone={tone} signed={tone !== "default"} /></div>
-      <p className="mt-1 text-[10.5px] leading-snug text-muted">{hint}</p>
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   const { state, loading, error, refresh } = useFinance();
   const [addOpen, setAddOpen] = useState(false);
@@ -49,12 +39,14 @@ export default function DashboardPage() {
     [activeKey, months],
   );
 
+  // Dashboard shows the next 1–3 important events only — the FULL schedule
+  // lives on Plans (§7): here it is a reference, not a second list.
   const monthEvents = useMemo(() => {
     if (!month || !state) return [];
     const events = state.forecast.timeline.filter((event) => event.date.startsWith(month.monthKey) && event.kind !== "risk");
-    if (month.isCurrent) return events.filter((event) => event.date >= state.forecast.today).slice(0, 5);
-    if (month.isFuture) return events.slice(0, 5);
-    return events.filter((event) => event.phase === "real").sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+    if (month.isCurrent) return events.filter((event) => event.date >= state.forecast.today).slice(0, 3);
+    if (month.isFuture) return events.slice(0, 3);
+    return events.filter((event) => event.phase === "real").sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
   }, [month, state]);
 
   if (loading && !state) {
@@ -62,7 +54,7 @@ export default function DashboardPage() {
       <div className="space-y-3" aria-label="Dashboard yuklanmoqda" aria-busy="true">
         <Skeleton className="h-12" />
         <Skeleton className="h-56" />
-        <div className="grid grid-cols-2 gap-2"><Skeleton className="h-28" /><Skeleton className="h-28" /></div>
+        <Skeleton className="h-24" />
         <Skeleton className="h-36" />
         <Skeleton className="h-52" />
       </div>
@@ -106,6 +98,7 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-fade-up space-y-3 sm:space-y-5">
+      {/* 1 · Month switcher */}
       <nav className="flex items-center gap-2" aria-label="Oy tanlash">
         <button
           type="button"
@@ -127,6 +120,8 @@ export default function DashboardPage() {
         >→</button>
       </nav>
 
+      {/* 2 · Hero — PRIMARY home of balance, this-month real flow and month-end
+             forecast (§11). No other section repeats these numbers. */}
       <Card className="relative overflow-hidden">
         <div className="absolute -right-20 -top-24 h-56 w-56 rounded-full bg-accent opacity-[0.06]" />
         <div className="relative flex items-start justify-between gap-2">
@@ -145,12 +140,14 @@ export default function DashboardPage() {
           <div><p className="text-[10px] font-semibold uppercase text-muted">Bu oy · daromad</p><div className="mt-1"><Money value={month.realIncome} size="md" tone="positive" signed /></div></div>
           <div><p className="text-[10px] font-semibold uppercase text-muted">Bu oy · xarajat</p><div className="mt-1"><Money value={-month.realExpense} size="md" tone="negative" signed /></div></div>
         </div>
-        <div className="relative mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface-2 p-3">
-          <div><p className="text-[10px] font-semibold uppercase text-muted">PROGNOZ · {closingLabel}</p><div className="mt-1"><Money value={month.forecastClosingBase} size="lg" tone={month.forecastClosingBase < 0 ? "negative" : "default"} /></div></div>
-          {firstRiskDay ? <Badge tone="negative">🔴 {shortDate(firstRiskDay.date)} xavf</Badge> : <Badge tone="positive">Xavf aniqlanmadi</Badge>}
+        <div className="relative mt-3 rounded-xl bg-surface-2 p-3">
+          <p className="text-[10px] font-semibold uppercase text-muted">PROGNOZ · {closingLabel}</p>
+          <div className="mt-1"><Money value={month.forecastClosingBase} size="lg" tone={month.forecastClosingBase < 0 ? "negative" : "default"} /></div>
         </div>
       </Card>
 
+      {/* 3 · ONE risk card — the single home of risk (§5/§12) — or one
+             positive insight line when there is nothing to worry about. */}
       {firstRiskDay ? (
         <Card className="border-negative bg-negative-soft" >
           <div className="flex items-start gap-3">
@@ -165,43 +162,76 @@ export default function DashboardPage() {
               <p className="mt-3 rounded-xl bg-surface/70 p-2.5 text-[12px] leading-relaxed">
                 {recovery ? <><strong>{shortDate(recovery.date)}</strong> kuni +{formatAmount(recoveryIncome)} tushumdan keyin tiklanadi.</> : "Tanlangan davr ichida tiklanish manbasi topilmadi."}
               </p>
+              <Link href="/plans" className="mt-2 inline-block text-[12px] font-semibold text-accent-text">To‘lov jadvali → Rejalar</Link>
             </div>
           </div>
         </Card>
-      ) : null}
-
-      <section aria-labelledby="monthly-summary">
-        <SectionTitle title="Oylik xulosa" hint="REAL, REJA va PROGNOZ alohida" />
-        <h2 id="monthly-summary" className="sr-only">Oylik asosiy ko‘rsatkichlar</h2>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          <Metric label="REAL daromad" value={month.realIncome} tone="positive" hint="actual transaction" />
-          <Metric label="REAL xarajat" value={-month.realExpense} tone="negative" hint="actual transaction" />
-          <Metric label="Kutilayotgan daromad" value={month.expectedIncomeBase} tone="positive" hint="ochiq REJA" />
-          <Metric label="Majburiy to‘lov" value={-month.mandatoryExpenseBase} tone="negative" hint="ochiq REJA" />
-          <Metric label="Prognoz balans" value={month.forecastClosingBase} tone={month.forecastClosingBase < 0 ? "negative" : "default"} hint="REAL + REJA" />
+      ) : (
+        <div className="flex items-center gap-2.5 rounded-2xl bg-positive-soft px-4 py-3">
+          <span aria-hidden="true">🟢</span>
+          <p className="min-w-0 text-[12.5px] leading-snug text-positive-text">
+            {month.isPast ? "Bu oy defitsitsiz yopilgan." : <>Xavf aniqlanmadi — eng past prognoz <strong className="num">{formatAmount(month.lowestProjected)}</strong>.</>}
+          </p>
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-1.5 rounded-2xl border border-line bg-surface p-2.5 text-center">
-          <div className="min-w-0"><p className="text-[9.5px] uppercase text-muted">Ochilish</p><p className="num mt-1 break-words text-[11px] font-semibold sm:text-sm">{formatAmount(month.openingBalance)}</p></div>
-          <div className="min-w-0"><p className="text-[9.5px] uppercase text-muted">Eng past</p><p className={`num mt-1 break-words text-[11px] font-semibold sm:text-sm ${month.lowestProjected < 0 ? "text-negative-text" : ""}`}>{formatAmount(month.lowestProjected)}</p></div>
-          <div className="min-w-0"><p className="text-[9.5px] uppercase text-muted">Eng yuqori</p><p className="num mt-1 break-words text-[11px] font-semibold sm:text-sm">{formatAmount(month.highestProjected)}</p></div>
-        </div>
-      </section>
+      )}
 
+      {/* 4 · Monthly summary — ONE compact grouped block (§13). Only the REJA
+             side lives here: REAL flow and PROGNOZ already have their home in
+             the hero above and are not repeated. */}
+      <Section title="Oylik xulosa" hint="REJA tomoni · to‘liq ro‘yxat Rejalarda" action={<Link href="/plans" className="text-xs font-semibold text-accent-text">Rejalar →</Link>}>
+        <h2 className="sr-only">Oylik asosiy ko‘rsatkichlar</h2>
+        <div className="rounded-2xl border border-line bg-surface">
+          <div className="grid grid-cols-2 divide-x divide-line">
+            <div className="min-w-0 p-3">
+              <p className="text-[10px] font-semibold uppercase leading-snug tracking-[0.07em] text-muted">Kutilayotgan daromad</p>
+              <div className="mt-1.5"><Money value={month.expectedIncomeBase} size="md" tone="positive" signed /></div>
+            </div>
+            <div className="min-w-0 p-3">
+              <p className="text-[10px] font-semibold uppercase leading-snug tracking-[0.07em] text-muted">Majburiy to‘lov</p>
+              <div className="mt-1.5"><Money value={-month.mandatoryExpenseBase} size="md" tone="negative" signed /></div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 border-t border-line p-2.5 text-center">
+            <div className="min-w-0"><p className="text-[9.5px] uppercase text-muted">Ochilish</p><p className="num mt-1 break-words text-[11px] font-semibold sm:text-sm">{formatAmount(month.openingBalance)}</p></div>
+            <div className="min-w-0"><p className="text-[9.5px] uppercase text-muted">Eng past</p><p className={`num mt-1 break-words text-[11px] font-semibold sm:text-sm ${month.lowestProjected < 0 ? "text-negative-text" : ""}`}>{formatAmount(month.lowestProjected)}</p></div>
+            <div className="min-w-0"><p className="text-[9.5px] uppercase text-muted">Eng yuqori</p><p className="num mt-1 break-words text-[11px] font-semibold sm:text-sm">{formatAmount(month.highestProjected)}</p></div>
+          </div>
+        </div>
+      </Section>
+
+      {/* 5 · Safe-to-Spend — one strong card; the formula is secondary and
+             collapsed (§14). */}
       {month.isCurrent ? (
         <Card>
           <SectionTitle title="Safe-to-Spend" hint={`Bugundan ${shortDate(forecast.safeHorizonEnd)} gacha`} action={<Badge tone={forecast.safeToSpend < 0 ? "negative" : "positive"}>{forecast.safeToSpend < 0 ? "Yetishmayapti" : "Xavfsiz"}</Badge>} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div><p className="text-[10px] font-semibold uppercase text-muted">Majburiyatlardan keyin xavfsiz</p><div className="mt-1"><Money value={forecast.safeToSpend} size="xl" tone={forecast.safeToSpend < 0 ? "negative" : "default"} signed /></div></div>
-            <div className="rounded-xl bg-surface-2 p-3"><p className="text-[10px] font-semibold uppercase text-muted">Rejalardan keyin erkin</p><div className="mt-1"><Money value={forecast.freeToSpend} size="lg" tone={forecast.freeToSpend < 0 ? "negative" : "default"} signed /></div><p className="mt-1 text-[11px] text-muted">Ixtiyoriy reja: −{formatAmount(forecast.safeToSpendParts.optionalPlanned)}</p></div>
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase text-muted">Majburiyatlardan keyin xavfsiz</p>
+              <div className="mt-1"><Money value={forecast.safeToSpend} size="xl" tone={forecast.safeToSpend < 0 ? "negative" : "default"} signed /></div>
+            </div>
+            <p className="text-[12px] text-muted">
+              Rejalardan keyin: <span className={`num font-semibold ${forecast.freeToSpend < 0 ? "text-negative-text" : "text-fg"}`}>{formatAmount(forecast.freeToSpend)}</span>
+            </p>
           </div>
-          <p className="mt-3 break-words rounded-xl border border-line p-3 text-[11px] leading-relaxed text-muted">
-            {formatAmount(forecast.safeToSpendParts.balance)} balans + {formatAmount(forecast.safeToSpendParts.confirmedIncome)} aniq tushum + {formatAmount(forecast.safeToSpendParts.estimatedIncomeWeighted)} vaznlangan tushum − {formatAmount(forecast.safeToSpendParts.mandatoryUpcoming)} majburiy to‘lov − {formatAmount(forecast.safeToSpendParts.minReserve)} zaxira = <strong className="text-fg">{formatAmount(forecast.safeToSpend)}</strong>
-          </p>
+          <details className="mt-3 rounded-xl border border-line">
+            <summary className="cursor-pointer select-none px-3 py-2.5 text-[11.5px] font-medium text-muted touch-manipulation">Formulani ko‘rish</summary>
+            <p className="break-words border-t border-line p-3 text-[11px] leading-relaxed text-muted">
+              {formatAmount(forecast.safeToSpendParts.balance)} balans + {formatAmount(forecast.safeToSpendParts.confirmedIncome)} aniq tushum + {formatAmount(forecast.safeToSpendParts.estimatedIncomeWeighted)} vaznlangan tushum − {formatAmount(forecast.safeToSpendParts.mandatoryUpcoming)} majburiy to‘lov − {formatAmount(forecast.safeToSpendParts.minReserve)} zaxira = <strong className="text-fg">{formatAmount(forecast.safeToSpend)}</strong>. Ixtiyoriy reja: −{formatAmount(forecast.safeToSpendParts.optionalPlanned)}.
+            </p>
+          </details>
         </Card>
       ) : null}
 
+      {/* 6 · The ONE main chart (§15). */}
       <Card>
-        <SectionTitle title="Keyingi muhim voqealar" hint={month.isPast ? "Oy ichidagi so‘nggi REAL voqealar" : `${month.label} · 5 tagacha`} action={<Link href="/plans" className="text-xs font-semibold text-accent-text">Rejalar →</Link>} />
+        <SectionTitle title="Balans prognozi" hint={`${month.label} · min / baza / max`} action={<Badge tone={month.deficitDays ? "negative" : "positive"}>{month.deficitDays ? `${month.deficitDays} xavf kuni` : "barqaror"}</Badge>} />
+        <ForecastArea data={chartData} description={chartSummary} />
+        <p className="sr-only">{chartSummary}</p>
+        <div className="mt-3 flex flex-wrap gap-3 text-[10.5px] text-muted"><span>— REAL</span><span className="text-accent-text">— PROGNOZ</span><span>▧ min–max</span><span className="text-negative-text">● xavf</span></div>
+      </Card>
+
+      {/* 7 · Next 3 important events — a reference to Plans, not a list. */}
+      <Section title="Keyingi muhim voqealar" hint={month.isPast ? "Oy ichidagi so‘nggi REAL voqealar" : `${month.label} · 3 tagacha`} action={<Link href="/plans" className="text-xs font-semibold text-accent-text">Barchasi → Rejalar</Link>}>
         {monthEvents.length ? <div className="divide-y divide-line">{monthEvents.map((event) => {
           const amount = eventAmount(event);
           return <div key={event.key} className="flex min-w-0 items-center gap-3 py-3">
@@ -210,22 +240,16 @@ export default function DashboardPage() {
             <div className="max-w-[38%] shrink-0 text-right"><Money value={amount} size="sm" tone={amount >= 0 ? "positive" : "negative"} signed /></div>
           </div>;
         })}</div> : <EmptyState icon="📌" title="Bu davrda muhim voqea yo‘q" description={hasPlan ? "Rejalashtirilgan holat mavjud, ammo tanlangan mezonga tushmadi." : "Daromad yoki to‘lov rejasini qo‘shishingiz mumkin."} />}
-      </Card>
+      </Section>
 
-      <Card>
-        <SectionTitle title="Balans prognozi" hint={`${month.label} · min / baza / max`} action={<Badge tone={month.deficitDays ? "negative" : "positive"}>{month.deficitDays ? `${month.deficitDays} xavf kuni` : "barqaror"}</Badge>} />
-        <ForecastArea data={chartData} description={chartSummary} />
-        <p className="sr-only">{chartSummary}</p>
-        <div className="mt-3 flex flex-wrap gap-3 text-[10.5px] text-muted"><span>— REAL</span><span className="text-accent-text">— PROGNOZ</span><span>▧ min–max</span><span className="text-negative-text">● xavf</span></div>
-      </Card>
-
+      {/* 8 · One compact insight — interpretation itself lives in Analytics. */}
       {trendVisible && previousMonth && previous ? (
-        <Card>
-          <SectionTitle title="Oylik trend" hint="Faqat tarixiy REAL operatsiyalar" />
-          <div className="grid grid-cols-3 gap-2">
-            {[{ label: "Daromad", value: previousMonth.income, delta: change(previousMonth.income, previous.income) }, { label: "Xarajat", value: previousMonth.expense, delta: change(previousMonth.expense, previous.expense) }, { label: "Net", value: previousMonth.net, delta: change(previousMonth.net, previous.net) }].map((item) => <div key={item.label} className="min-w-0 rounded-xl bg-surface-2 p-3"><p className="text-[10px] text-muted">{item.label}</p><p className="num mt-1 break-words text-xs font-semibold">{compact(item.value)}</p><p className="mt-1 text-[11px] font-semibold text-accent-text">{item.delta}</p></div>)}
-          </div>
-        </Card>
+        <Link href="/analytics" className="flex items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3 transition-colors hover:bg-surface-3 touch-manipulation">
+          <p className="min-w-0 text-[12.5px] leading-snug text-fg-soft">
+            📊 Oldingi oyga nisbatan: xarajat <strong>{change(previousMonth.expense, previous.expense)}</strong>, daromad <strong>{change(previousMonth.income, previous.income)}</strong>
+          </p>
+          <span className="shrink-0 text-xs font-semibold text-accent-text">Tahlil →</span>
+        </Link>
       ) : null}
 
       {!hasReal ? <p className="px-2 text-center text-[12px] text-muted">Bu oy hali operatsiya yo‘q.{hasPlan ? " Rejalashtirilgan holat mavjud." : ""}</p> : null}
