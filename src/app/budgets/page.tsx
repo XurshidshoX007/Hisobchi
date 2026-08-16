@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { AmountField, Chip, FormSheet, PreviewCard } from "@/components/form-kit";
+import { AmountField, Chip, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
 import { Badge, Card, EmptyState, Field, Money, PageHeader, Progress, Select, Skeleton } from "@/components/ui";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { addMonths, compact, formatAmount, monthKey, monthLabel, monthStart, todayISO } from "@/lib/money";
@@ -91,7 +91,7 @@ export default function BudgetsPage() {
       </Card>
 
       {budgets.length ? (
-        <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
           {budgets.map((b) => (
             <Card key={b.id}>
               <div className="flex items-start justify-between gap-3">
@@ -243,21 +243,21 @@ function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () =>
       {!editing ? (
         <div>
           <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Oy</span>
-          <div className="flex gap-2">
+          <FormActions>
             <Chip active={month === thisMonth} onClick={() => setMonth(thisMonth)}>
               {monthLabel(thisMonth)}
             </Chip>
             <Chip active={month === nextMonth} onClick={() => setMonth(nextMonth)}>
               {monthLabel(nextMonth)}
             </Chip>
-          </div>
+          </FormActions>
         </div>
       ) : null}
 
       {parsed > 0 ? (
         <PreviewCard>
-          <p className="text-[13px] font-semibold">{categoryName}</p>
-          <p className="num mt-0.5 text-[12.5px] text-muted">
+          <p className="min-w-0 break-words text-[13px] font-semibold">{categoryName}</p>
+          <p className="num mt-0.5 break-words text-[12.5px] text-muted">
             {formatAmount(parsed)} so‘m / {monthLabel(month || thisMonth)} · 80% da ogohlantirish
           </p>
         </PreviewCard>

@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { AdvancedSection, AmountField, Chip, DateField, FormSheet, PreviewCard } from "@/components/form-kit";
+import { AdvancedSection, AmountField, Chip, DateField, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
 import { Badge, Card, EmptyState, Field, Money, PageHeader, Progress, Skeleton, TextInput } from "@/components/ui";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
@@ -73,7 +73,7 @@ export default function GoalsPage() {
       </div>
 
       {state.goals.length ? (
-        <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
           {state.goals.map((g) => (
             <Card key={g.id}>
               <div className="flex items-start justify-between gap-3">
@@ -258,10 +258,10 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
 
       {target > 0 ? (
         <PreviewCard>
-          <p className="text-[13px] font-semibold">
+          <p className="min-w-0 break-words text-[13px] font-semibold">
             {icon} {name.trim() || "Maqsad"}
           </p>
-          <p className="num mt-0.5 text-[12.5px] text-muted">
+          <p className="num mt-0.5 break-words text-[12.5px] text-muted">
             {formatAmount(saved)} / {formatAmount(target)} so‘m
             {targetDate ? ` · ${humanDate(targetDate)} gacha` : ""}
           </p>
@@ -272,7 +272,7 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
       ) : null}
 
       <AdvancedSection>
-        <div className="grid grid-cols-[1fr_88px] gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-3 [&>*]:min-w-0">
           {!editing ? (
             <Field label="Hozirgi summa">
               <TextInput
@@ -352,7 +352,7 @@ function ContributeSheet({ goal, onClose }: { goal: GoalView | null; onClose: ()
         error={touched ? errorMsg : null}
         autoFocus
       />
-      <div className="flex flex-wrap gap-2">
+      <FormActions>
         {[record.monthlyContribution, record.requiredMonthly]
           .filter((v) => v > 0)
           .map((v, i) => (
@@ -360,7 +360,7 @@ function ContributeSheet({ goal, onClose }: { goal: GoalView | null; onClose: ()
               {compact(v)}
             </Chip>
           ))}
-      </div>
+      </FormActions>
     </FormSheet>
   );
 }

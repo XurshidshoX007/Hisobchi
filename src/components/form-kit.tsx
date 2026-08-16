@@ -168,7 +168,9 @@ export function FormSheet({
           onClick={submit}
           disabled={!canSubmit || busy}
           aria-busy={status === "saving"}
-          className="inline-flex min-h-12 w-full select-none items-center justify-center gap-2 rounded-full bg-primary px-5 text-[15px] font-semibold text-primary-fg shadow-sm transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-[0.98] disabled:pointer-events-none disabled:bg-surface-3 disabled:text-muted disabled:shadow-none touch-manipulation"
+          // §15: a long Uzbek CTA ("Kutilayotgan daromadni saqlash") wraps
+          // inside the footer instead of widening it past the viewport.
+          className="inline-flex min-h-12 w-full min-w-0 max-w-full flex-1 select-none items-center justify-center gap-2 break-words rounded-full bg-primary px-5 py-2 text-center text-[15px] font-semibold leading-tight text-primary-fg shadow-sm transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-[0.98] disabled:pointer-events-none disabled:bg-surface-3 disabled:text-muted disabled:shadow-none touch-manipulation"
         >
           {status === "saved" ? <CheckMark /> : null}
           {label}
@@ -178,9 +180,9 @@ export function FormSheet({
       {error ? (
         <div
           role="alert"
-          className="flex items-start justify-between gap-3 rounded-xl border border-negative bg-negative-soft px-3.5 py-2.5"
+          className="flex min-w-0 items-start justify-between gap-3 rounded-xl border border-negative bg-negative-soft px-3.5 py-2.5"
         >
-          <p className="min-w-0 text-[12.5px] leading-snug text-negative-text">{error}</p>
+          <p className="min-w-0 break-words text-[12.5px] leading-snug text-negative-text">{error}</p>
           <button
             type="button"
             onClick={submit}
@@ -194,11 +196,11 @@ export function FormSheet({
       {children}
 
       {confirmClose ? (
-        <div className="absolute inset-0 z-20 flex items-end bg-black/35 px-4 pb-4 sm:items-center sm:justify-center">
-          <div className="w-full rounded-2xl border border-line bg-surface p-4 shadow-xl sm:max-w-xs">
+        <div className="absolute inset-0 z-20 flex items-end overflow-hidden bg-black/35 px-4 pb-4 sm:items-center sm:justify-center">
+          <div className="w-full min-w-0 max-w-full rounded-2xl border border-line bg-surface p-4 shadow-xl sm:max-w-xs">
             <p className="text-[14px] font-semibold">Saqlanmagan ma’lumot bor</p>
             <p className="mt-1 text-[12.5px] leading-snug text-muted">Chiqsangiz kiritilgan ma’lumot yo‘qoladi.</p>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2 [&>*]:min-w-0">
               <button
                 type="button"
                 onClick={() => setConfirmClose(false)}
@@ -247,15 +249,209 @@ export function FormGroup({
   className?: string;
 }) {
   return (
-    <section className={`space-y-2 ${className}`}>
+    <section className={`min-w-0 space-y-2 ${className}`}>
       {label ? (
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
-          {hint ? <span className="text-[11px] text-muted">{hint}</span> : null}
+          <span className="min-w-0 break-words text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+            {label}
+          </span>
+          {hint ? <span className="shrink-0 text-[11px] text-muted">{hint}</span> : null}
         </div>
       ) : null}
       {children}
     </section>
+  );
+}
+
+/** §31: one name for the grouping block used by every add sheet. */
+export const FormSection = FormGroup;
+
+/**
+ * §6/§14/§25: two controls side by side on roomy phones, stacked below 380px.
+ * Both tracks are `minmax(0, 1fr)`, so a long label or a wide input can never
+ * widen the row past the sheet.
+ */
+export function FormRow({
+  children,
+  className = "",
+  align = "start",
+}: {
+  children: ReactNode;
+  className?: string;
+  /** `end` keeps a button visually aligned with the input next to it. */
+  align?: "start" | "end";
+}) {
+  return (
+    <div
+      className={`grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 [&>*]:min-w-0 ${
+        align === "end" ? "min-[380px]:items-end" : ""
+      } ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * §14: a button group that wraps instead of overflowing. Three buttons are
+ * never squeezed into one line — they wrap, each keeping a 44px touch target.
+ */
+export function FormActions({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`flex w-full min-w-0 flex-wrap gap-2 [&>*]:min-w-0 ${className}`}>{children}</div>;
+}
+
+/* ============================ Choice controls ============================ */
+
+export type ChoiceOption<T extends string> = {
+  value: T;
+  label: string;
+  /** Optional second line — only for the card size, never for compact rows. */
+  description?: string;
+  icon?: string;
+};
+
+function useRovingChoice() {
+  return useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const items = Array.from(
+      event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role=radio]") ?? [],
+    );
+    const current = items.indexOf(event.currentTarget);
+    const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+    const next =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? items.length - 1
+          : (current + (forward ? 1 : -1) + items.length) % items.length;
+    items[next]?.focus();
+    items[next]?.click();
+  }, []);
+}
+
+/**
+ * §7/§11/§26/§27 — THE selection control of the add flow.
+ *
+ *   grid-template-columns: repeat(n, minmax(0, 1fr))   → equal, shrinkable
+ *   gap: 8px                                            → own visual box each
+ *   inset ring for the selected state                   → geometry never moves
+ *
+ * There is no horizontal scrolling: a choice set is short by definition, and
+ * a form control that scrolls sideways inside a sheet is the bug this system
+ * exists to prevent (§13). Long Uzbek labels wrap instead of truncating.
+ */
+export function ChoiceGrid<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+  hint,
+  columns,
+  size = "md",
+  error,
+  ariaLabel,
+}: {
+  options: ReadonlyArray<ChoiceOption<T>>;
+  value: T;
+  onChange: (next: T) => void;
+  label?: string;
+  hint?: string;
+  /** Defaults to 3 for compact triples, otherwise 2 (1 when descriptions). */
+  columns?: 1 | 2 | 3;
+  size?: "sm" | "md";
+  error?: string | null;
+  ariaLabel?: string;
+}) {
+  const onKeyDown = useRovingChoice();
+  const hasDescription = options.some((o) => o.description);
+  const resolved: 1 | 2 | 3 =
+    columns ?? (hasDescription ? 1 : options.length === 3 ? 3 : options.length >= 4 ? 2 : (options.length as 1 | 2));
+  const template = { 1: "grid-cols-1", 2: "grid-cols-2", 3: "grid-cols-3" }[resolved];
+
+  // Roving focus: exactly ONE tab stop per group. When nothing is selected yet
+  // the first option owns it, so the group is always reachable by keyboard.
+  const focusIndex = Math.max(0, options.findIndex((o) => o.value === value));
+
+  const body = (
+    <div role="radiogroup" aria-label={ariaLabel ?? label} className={`grid ${template} gap-2 [&>*]:min-w-0`}>
+      {options.map((option, index) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={index === focusIndex ? 0 : -1}
+            onKeyDown={onKeyDown}
+            onClick={() => onChange(option.value)}
+            className={`flex w-full min-w-0 max-w-full touch-manipulation select-none flex-col items-center justify-center gap-0.5 rounded-xl border px-2 text-center transition-colors ${
+              size === "sm" ? "min-h-11 py-1.5 text-[12.5px]" : "min-h-12 py-2 text-[13px]"
+            } ${
+              active
+                ? "border-transparent bg-accent-soft font-semibold text-accent-text ring-2 ring-inset ring-accent"
+                : "border-line bg-surface-2 text-fg-soft hover:border-line-strong hover:text-fg active:bg-surface-3"
+            }`}
+          >
+            <span className="flex w-full min-w-0 items-center justify-center gap-1.5">
+              {option.icon ? (
+                <span className="shrink-0" aria-hidden="true">
+                  {option.icon}
+                </span>
+              ) : null}
+              <span className="min-w-0 break-words leading-tight">{option.label}</span>
+            </span>
+            {option.description ? (
+              <span className="w-full min-w-0 break-words text-[11px] font-normal leading-snug text-muted">
+                {option.description}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (!label && !error && !hint) return body;
+  return (
+    <FormGroup label={label} hint={hint}>
+      {body}
+      <FieldError>{error}</FieldError>
+    </FormGroup>
+  );
+}
+
+/**
+ * §7/§19 — the compact type switch at the top of a form (Chiqim · Kirim ·
+ * Transfer). Same grid contract as ChoiceGrid, tuned to look like a segmented
+ * control. The scrollable `Segmented` in `ui.tsx` stays what it is: a
+ * NAVIGATION control for genuinely long tab sets (Plans tabs, history filter),
+ * where horizontal scrolling is the right answer.
+ */
+export function CompactSegmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+  ariaLabel,
+}: {
+  options: ReadonlyArray<ChoiceOption<T>>;
+  value: T;
+  onChange: (next: T) => void;
+  label?: string;
+  ariaLabel?: string;
+}) {
+  return (
+    <ChoiceGrid
+      options={options}
+      value={value}
+      onChange={onChange}
+      label={label}
+      ariaLabel={ariaLabel}
+      size="sm"
+      columns={options.length >= 3 ? 3 : 2}
+    />
   );
 }
 
@@ -264,7 +460,7 @@ export function AdvancedSection({ label = "Qo‘shimcha", children }: { label?: 
   const [open, setOpen] = useState(false);
   const id = useId();
   return (
-    <div className="border-t border-line pt-3">
+    <div className="min-w-0 border-t border-line pt-3">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -278,7 +474,7 @@ export function AdvancedSection({ label = "Qo‘shimcha", children }: { label?: 
         </span>
       </button>
       {open ? (
-        <div id={id} className="mt-2 space-y-4">
+        <div id={id} className="sheet-form mt-2 space-y-4">
           {children}
         </div>
       ) : null}
@@ -289,7 +485,7 @@ export function AdvancedSection({ label = "Qo‘shimcha", children }: { label?: 
 /** Compact “this is what you are about to save” block (§15/§16/§48). */
 export function PreviewCard({ label = "Ko‘rinishi", children }: { label?: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl bg-surface-2 px-3.5 py-3">
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl bg-surface-2 px-3.5 py-3 [overflow-wrap:anywhere]">
       <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
       {children}
     </div>
@@ -303,16 +499,28 @@ export function FieldError({ children }: { children?: string | null }) {
 
 /* ============================ Chips ============================ */
 
+/**
+ * A single selectable pill. It owns its own visual box: 8px gap, one 1px
+ * border in both states and a same-width inset ring when selected, so
+ * choosing an option NEVER changes the layout geometry (§10/§26/§27).
+ * Long values (account or category names) shrink and ellipsize instead of
+ * pushing the sheet sideways (§8).
+ */
 export function Chip({
   active,
   onClick,
   children,
+  icon,
   ariaLabel,
+  title,
 }: {
   active?: boolean;
   onClick: () => void;
   children: ReactNode;
+  /** Leading emoji/glyph — kept outside the truncating label. */
+  icon?: ReactNode;
   ariaLabel?: string;
+  title?: string;
 }) {
   return (
     <button
@@ -320,19 +528,30 @@ export function Chip({
       onClick={onClick}
       aria-pressed={active}
       aria-label={ariaLabel}
-      className={`inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors ${
+      title={title}
+      className={`inline-flex min-h-11 min-w-0 max-w-full touch-manipulation items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition-colors ${
         active
-          ? "border-transparent bg-primary text-primary-fg"
+          ? "border-transparent bg-accent-soft font-semibold text-accent-text ring-2 ring-inset ring-accent"
           : "border-line bg-surface text-fg-soft hover:border-line-strong hover:text-fg active:bg-surface-3"
       }`}
     >
-      {children}
+      {icon ? (
+        <span className="shrink-0" aria-hidden="true">
+          {icon}
+        </span>
+      ) : null}
+      <span className="min-w-0 truncate">{children}</span>
     </button>
   );
 }
 
+/**
+ * §13: choice rows WRAP, they never scroll sideways. A form sheet has exactly
+ * one scroll axis (vertical) — a nested horizontal scroller inside it is what
+ * made the add flow feel like it was drifting left and right.
+ */
 function ChipRow({ children }: { children: ReactNode }) {
-  return <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 py-0.5">{children}</div>;
+  return <div className="flex w-full min-w-0 max-w-full flex-wrap gap-2 py-0.5">{children}</div>;
 }
 
 /* ============================ Amount ============================ */
@@ -364,7 +583,7 @@ export function AmountField({
   const id = useId();
   const errorId = `${id}-error`;
   return (
-    <div>
+    <div className="min-w-0">
       <label
         htmlFor={id}
         className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted"
@@ -372,11 +591,11 @@ export function AmountField({
         {label}
       </label>
       <div
-        className={`rounded-2xl border bg-surface-2 px-4 py-3 transition-colors ${
+        className={`min-w-0 rounded-2xl border bg-surface-2 px-4 py-3 transition-colors ${
           error ? "border-negative" : "border-line focus-within:border-accent"
         }`}
       >
-        <div className="flex items-baseline gap-2">
+        <div className="flex min-w-0 items-baseline gap-2">
           <input
             id={id}
             value={value}
@@ -388,18 +607,20 @@ export function AmountField({
             aria-describedby={error ? errorId : undefined}
             placeholder={placeholder}
             autoFocus={autoFocus}
-            className="num w-full min-w-0 bg-transparent text-[30px] font-bold leading-none outline-none placeholder:text-faint sm:text-[32px]"
+            className="num w-full min-w-0 max-w-full bg-transparent text-[30px] font-bold leading-none outline-none placeholder:text-faint sm:text-[32px]"
           />
           {currency ? <span className="shrink-0 text-sm font-medium text-muted">{currency}</span> : null}
         </div>
         {quick ? (
-          <div className="no-scrollbar -mx-1 mt-3 flex gap-2 overflow-x-auto px-1">
+          // §13: the quick ladder wraps inside the field instead of becoming a
+          // second horizontal scroller inside the sheet.
+          <div className="mt-3 flex min-w-0 flex-wrap gap-2">
             {QUICK_AMOUNTS.map((amount) => (
               <button
                 key={amount}
                 type="button"
                 onClick={() => onChange(addQuickAmount(value, amount))}
-                className="min-h-9 shrink-0 touch-manipulation rounded-full border border-line bg-surface px-3 text-[12px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:scale-95"
+                className="min-h-9 min-w-0 max-w-full touch-manipulation rounded-full border border-line bg-surface px-3 text-[12px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:scale-95"
               >
                 {quickAmountLabel(amount)}
               </button>
@@ -466,14 +687,15 @@ export function CategoryPicker({
   const filtered = useMemo(() => categories.filter((c) => matchesQuery(c.name, query)), [categories, query]);
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
+        <span className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="text-[12px] font-semibold text-accent-text touch-manipulation"
+          data-hit="expanded"
+          className="relative shrink-0 text-[12px] font-semibold text-accent-text before:absolute before:-inset-y-2.5 before:-inset-x-2 before:content-[''] touch-manipulation"
         >
           {expanded ? "Yopish" : "Barchasi →"}
         </button>
@@ -482,8 +704,13 @@ export function CategoryPicker({
       {!expanded ? (
         <ChipRow>
           {ranked.map((c) => (
-            <Chip key={c.id} active={String(c.id) === value} onClick={() => onChange(String(c.id))}>
-              <span aria-hidden="true">{c.icon}</span>
+            <Chip
+              key={c.id}
+              icon={c.icon}
+              title={c.name}
+              active={String(c.id) === value}
+              onClick={() => onChange(String(c.id))}
+            >
               {c.name}
             </Chip>
           ))}
@@ -497,7 +724,7 @@ export function CategoryPicker({
             placeholder="Qidirish"
             aria-label="Kategoriya qidirish"
           />
-          <div className="max-h-52 space-y-0.5 overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface-2 p-1">
+          <div className="max-h-52 min-w-0 space-y-1 overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl border border-line bg-surface-2 p-1.5">
             {filtered.map((c) => (
               <button
                 key={c.id}
@@ -507,8 +734,10 @@ export function CategoryPicker({
                   setExpanded(false);
                   setQuery("");
                 }}
-                className={`flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[13.5px] transition-colors touch-manipulation ${
-                  String(c.id) === value ? "bg-accent-soft font-semibold text-accent-text" : "hover:bg-surface-3"
+                className={`flex min-h-11 w-full min-w-0 items-center gap-2.5 rounded-lg px-3 text-left text-[13.5px] transition-colors touch-manipulation ${
+                  String(c.id) === value
+                    ? "bg-accent-soft font-semibold text-accent-text ring-2 ring-inset ring-accent"
+                    : "hover:bg-surface-3"
                 }`}
               >
                 <span aria-hidden="true">{c.icon}</span>
@@ -547,7 +776,7 @@ export function DateField({
   const id = useId();
 
   return (
-    <div>
+    <div className="min-w-0">
       <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
       {chips ? (
         <ChipRow>
@@ -563,8 +792,8 @@ export function DateField({
               {chip.label}
             </Chip>
           ))}
-          <Chip active={showCalendar} onClick={() => setShowCalendar(true)} ariaLabel="Boshqa sanani tanlash">
-            📅 Boshqa
+          <Chip icon="📅" active={showCalendar} onClick={() => setShowCalendar(true)} ariaLabel="Boshqa sanani tanlash">
+            Boshqa
           </Chip>
         </ChipRow>
       ) : null}
@@ -632,7 +861,7 @@ export function AccountPicker({
 
   if (options.length === 0) {
     return (
-      <div>
+      <div className="min-w-0">
         <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
         <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12.5px] leading-snug text-muted">
           Boshqa faol hisob yo‘q — Hisoblar bo‘limida yangi hisob qo‘shing.
@@ -645,11 +874,13 @@ export function AccountPicker({
   if (options.length === 1) {
     const only = options[0];
     return (
-      <div>
+      <div className="min-w-0">
         <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
-        <p className="flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 text-[13.5px]">
-          <span aria-hidden="true">{ACCOUNT_TYPE_ICON[only.type] ?? "•"}</span>
-          <span className="min-w-0 truncate font-medium">{only.name}</span>
+        <p className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-[13.5px]">
+          <span className="shrink-0" aria-hidden="true">
+            {ACCOUNT_TYPE_ICON[only.type] ?? "•"}
+          </span>
+          <span className="min-w-0 break-words font-medium">{only.name}</span>
         </p>
         <FieldError>{error}</FieldError>
       </div>
@@ -657,15 +888,20 @@ export function AccountPicker({
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
-        {selected ? <span className="truncate text-[11px] text-muted">{selected.name}</span> : null}
+        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
+        {selected ? <span className="min-w-0 truncate text-[11px] text-muted">{selected.name}</span> : null}
       </div>
       <ChipRow>
         {options.map((a) => (
-          <Chip key={a.id} active={String(a.id) === value} onClick={() => onChange(String(a.id))}>
-            <span aria-hidden="true">{ACCOUNT_TYPE_ICON[a.type] ?? "•"}</span>
+          <Chip
+            key={a.id}
+            icon={ACCOUNT_TYPE_ICON[a.type] ?? "•"}
+            title={a.name}
+            active={String(a.id) === value}
+            onClick={() => onChange(String(a.id))}
+          >
             {a.name}
           </Chip>
         ))}
@@ -705,7 +941,7 @@ export function NoteField({
     );
   }
   return (
-    <div>
+    <div className="min-w-0">
       <label htmlFor={id} className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
         Izoh
       </label>
@@ -732,13 +968,13 @@ export function ChoiceList({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="-mx-1.5 space-y-0.5">
+    <div className="min-w-0 space-y-2">
       {options.map((option) => (
         <button
           key={option.id}
           type="button"
           onClick={() => onSelect(option.id)}
-          className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3.5 text-left text-[14px] font-medium transition-colors hover:bg-surface-2 active:bg-surface-3 touch-manipulation"
+          className="flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium transition-colors hover:border-line-strong hover:bg-surface-3 active:bg-surface-3 touch-manipulation"
         >
           {option.icon ? (
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-3 text-base" aria-hidden="true">
@@ -746,9 +982,11 @@ export function ChoiceList({
             </span>
           ) : null}
           <span className="min-w-0 flex-1">
-            <span className="block truncate">{option.label}</span>
+            <span className="block break-words leading-tight">{option.label}</span>
             {option.description ? (
-              <span className="block truncate text-[11.5px] font-normal text-muted">{option.description}</span>
+              <span className="mt-0.5 block break-words text-[11.5px] font-normal leading-snug text-muted">
+                {option.description}
+              </span>
             ) : null}
           </span>
           <span className="shrink-0 text-muted" aria-hidden="true">

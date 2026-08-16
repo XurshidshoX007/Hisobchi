@@ -322,8 +322,72 @@ body[data-sheet-open] .global-fab {
     transform 180ms ease;
 }
 
-.sheet-layer {
-  z-index: var(--z-sheet);
+/* ============================================================================
+   SHEET / ADD-FLOW GEOMETRY (§2/§3/§5/§32)
+
+   The add flow is horizontally LOCKED: a form sheet scrolls on the y-axis
+   only. Three rules make that true without hiding real layout bugs:
+
+     1. `.sheet-layer` is the fixed modal viewport. On a mobile browser the
+        layout viewport (and therefore every `position: fixed` box) grows to
+        the widest content on the page, so the layer is additionally clamped
+        to the visual viewport width and clips whatever would exceed it.
+     2. `.sheet-dialog` never exceeds the layer: `width: 100%`, `max-width:
+        100vw`, `min-width: 0` — and a readable 520px column from `sm` up.
+     3. `.sheet-body` is the ONLY scroll container of the sheet, and it
+        scrolls vertically only. `overflow-y: auto` alone computes
+        `overflow-x: auto` in CSS, which is exactly how the body used to gain
+        a horizontal scrollbar — so the x-axis is stated explicitly.
+
+   These live in the `components` layer on purpose: a Tailwind utility written
+   on the element must still be able to win.
+   ========================================================================== */
+@layer components {
+  .sheet-layer {
+    z-index: var(--z-sheet);
+    max-width: 100vw;
+    overflow: hidden;
+  }
+
+  .sheet-dialog {
+    width: 100%;
+    min-width: 0;
+    max-width: 100vw;
+  }
+
+  @media (min-width: 640px) {
+    .sheet-dialog {
+      max-width: min(520px, 100vw);
+    }
+  }
+
+  .sheet-body {
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+
+  /*
+   * §5 — ONE shared form layout rule instead of per-component patches.
+   * Every direct child of a sheet form owns the full content width and may
+   * never contribute an intrinsic width larger than the sheet.
+   */
+  .sheet-form {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .sheet-form > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .sheet-footer {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 
 @media (min-width: 1024px) {

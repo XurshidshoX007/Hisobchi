@@ -187,21 +187,25 @@ function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke
       </button>
 
       <Sheet open={open} onClose={() => setOpen(false)} title="Nima qo‘shamiz?">
-        <div id={controlsId} className="-mx-1.5 space-y-0.5">
+        {/* §9/§12: every action owns its own box (8px gap, no shared edges),
+            keeps a 48px touch target and wraps long Uzbek labels. */}
+        <div id={controlsId} className="min-w-0 space-y-2">
           {actions.map((action, index) => (
             <button
               key={`${action.id}-${action.type ?? "default"}-${index}`}
               type="button"
               onClick={() => run(action)}
-              className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3.5 text-left text-[14px] font-medium transition-colors hover:bg-surface-2 active:bg-surface-3 touch-manipulation"
+              className="flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium transition-colors hover:border-line-strong hover:bg-surface-3 active:bg-surface-3 touch-manipulation"
             >
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-3 text-base" aria-hidden="true">
                 {action.icon}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate">{action.label}</span>
+                <span className="block break-words leading-tight">{action.label}</span>
                 {action.description ? (
-                  <span className="block truncate text-[11.5px] font-normal text-muted">{action.description}</span>
+                  <span className="mt-0.5 block break-words text-[11.5px] font-normal leading-snug text-muted">
+                    {action.description}
+                  </span>
                 ) : null}
               </span>
               <span className="shrink-0 text-muted" aria-hidden="true">

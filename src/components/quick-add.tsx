@@ -21,12 +21,14 @@ import {
   AdvancedSection,
   AmountField,
   CategoryPicker,
+  CompactSegmented,
   DateField,
+  FormActions,
   FormSheet,
   NoteField,
   PreviewCard,
 } from "./form-kit";
-import { Button, Money, Segmented, TextInput } from "./ui";
+import { Button, Money, TextInput } from "./ui";
 
 type TxType = "income" | "expense" | "transfer";
 
@@ -185,9 +187,12 @@ export function QuickAddSheet({
       onSubmit={submit}
     >
       {/* The direction is already chosen by the FAB; this stays only as a
-          one-tap correction, not as a first decision (§7). */}
-      <Segmented
+          one-tap correction, not as a first decision (§7/§19). A compact grid
+          of three equal cells — never a horizontally scrolling tab strip
+          inside a form (§13). */}
+      <CompactSegmented
         value={type}
+        ariaLabel="Operatsiya turi"
         onChange={(v) => {
           setType(v);
           setCategoryId("");
@@ -215,8 +220,8 @@ export function QuickAddSheet({
           <AccountPicker value={toAccountId} onChange={setToAccountId} label="Qayerga" excludeId={accountId} error={showError("toAccount")} />
           {fromAccount && toAccount && parsed ? (
             <PreviewCard>
-              <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
-                <span className="font-semibold">
+              <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
+                <span className="min-w-0 break-words font-semibold">
                   {fromAccount.name} → {toAccount.name}
                 </span>
                 <Money value={parsed} size="sm" />
@@ -233,20 +238,21 @@ export function QuickAddSheet({
       <NoteField value={note} onChange={setNote} />
 
       <AdvancedSection label="Tabiiy tilda kiritish">
-        <div className="flex gap-2">
+        {/* §14: input + action wrap instead of being squeezed into one line. */}
+        <FormActions className="items-center gap-2">
           <TextInput
             value={quickText}
             onChange={(e) => setQuickText(e.target.value)}
             placeholder="150 ming ovqatga ketdi"
             aria-label="Tabiiy tilda kiritish"
-            className="min-w-0"
+            className="min-w-0 flex-[3_1_140px]"
           />
-          <Button variant="secondary" onClick={applyDraft} disabled={!nlpDraft?.ok} className="shrink-0">
+          <Button variant="secondary" onClick={applyDraft} disabled={!nlpDraft?.ok} className="flex-[1_1_88px]">
             To‘ldir
           </Button>
-        </div>
+        </FormActions>
         {nlpDraft && nlpDraft.amount ? (
-          <p className="rounded-xl bg-accent-soft px-3 py-2 text-[11.5px] leading-snug text-accent-text">
+          <p className="rounded-xl bg-accent-soft px-3 py-2 text-[11.5px] leading-snug text-accent-text [overflow-wrap:anywhere]">
             {nlpDraft.type === "income" ? "Kirim" : nlpDraft.type === "transfer" ? "Transfer" : "Chiqim"} ·{" "}
             {Math.round(nlpDraft.amount).toLocaleString("ru-RU")} · {nlpDraft.categoryName ?? "kategoriya yo‘q"} ·{" "}
             {humanDate(nlpDraft.date)}
