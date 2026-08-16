@@ -34,6 +34,14 @@ export type DownloadFailure = {
 
 type TelegramFile = { file_id: string; file_path?: string; file_size?: number };
 
+export type DownloadTelegramImageResult = { ok: true; image: DownloadedImage } | DownloadFailure;
+
+/** Injectable contract so the intake pipeline can be tested without Telegram. */
+export type DownloadTelegramImage = (
+  fileId: string,
+  context: { requestId: string; userId: number | null },
+) => Promise<DownloadTelegramImageResult>;
+
 /**
  * file_id → getFile → temporary download → validated buffer.
  * The caller receives bytes in memory; nothing survives on disk.
@@ -41,7 +49,7 @@ type TelegramFile = { file_id: string; file_path?: string; file_size?: number };
 export async function downloadTelegramImage(
   fileId: string,
   context: { requestId: string; userId: number | null },
-): Promise<{ ok: true; image: DownloadedImage } | DownloadFailure> {
+): Promise<DownloadTelegramImageResult> {
   const token = telegramBotToken();
   if (!token) return { ok: false, reason: "unconfigured" };
 
