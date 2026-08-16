@@ -118,7 +118,7 @@ test("monthly summary keeps every level of the hierarchy", () => {
   assert.match(planSummary, /To‘langan/);
   assert.match(planSummary, /Qolgan/);
   assert.match(planSummary, /Eng yaqin to‘lov/);
-  // Global balance / safe-to-spend belong to the Dashboard, never here (§14).
+  // Global balance and forecast-only metrics do not belong in this summary.
   assert.doesNotMatch(planSummary, /Safe-to-spend|Haqiqiy balans|Oy oxiri/i);
 });
 
