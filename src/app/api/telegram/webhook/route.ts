@@ -1,9 +1,10 @@
+import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { pendingDrafts, telegramUpdates } from "@/db/schema";
 import { respondToBotMessage, MAIN_MENU } from "@/lib/bot";
-import { isStartCommand, parseDraftCallback } from "@/lib/bot-routing";
+import { isStartCommand, parseBatchCallback, parseDraftCallback } from "@/lib/bot-routing";
 import { telegramApi } from "@/lib/telegram";
 import { resolveUser } from "@/lib/user";
 import { runMutation } from "@/lib/mutations";
@@ -188,6 +189,146 @@ export async function POST(request: Request) {
 
         await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: ack });
         if (cq.message) {
+          // For a batch member keep the other buttons alive until the whole
+          // batch is resolved; a standalone draft clears its keyboard.
+          let inlineKeyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+          if (draft?.batchId) {
+            const remaining = await db
+              .select({ id: pendingDrafts.id })
+              .from(pendingDrafts)
+              .where(and(eq(pendingDrafts.batchId, draft.batchId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
+              .orderBy(asc(pendingDrafts.id));
+            if (remaining.length) {
+              const siblings = await db
+                .select({ id: pendingDrafts.id })
+                .from(pendingDrafts)
+                .where(and(eq(pendingDrafts.batchId, draft.batchId), eq(pendingDrafts.userId, user.id)))
+                .orderBy(asc(pendingDrafts.id));
+              const pendingIds = new Set(remaining.map((r) => r.id));
+              const itemButtons = siblings
+                .map((row, i) => ({ row, i }))
+                .filter(({ row }) => pendingIds.has(row.id))
+                .map(({ row, i }) => ({ text: `✅ ${i + 1}`, callback_data: `draft:${row.id}:confirm` }));
+              const itemRows: Array<Array<{ text: string; callback_data: string }>> = [];
+              for (let i = 0; i < itemButtons.length; i += 5) itemRows.push(itemButtons.slice(i, i + 5));
+              inlineKeyboard = [
+                [
+                  { text: "✅ Barchasini tasdiqlash", callback_data: `batch:${draft.batchId}:confirm` },
+                  { text: "❌ Bekor qilish", callback_data: `batch:${draft.batchId}:cancel` },
+                ],
+                ...itemRows,
+              ];
+            }
+          }
+          await callTelegram("editMessageReplyMarkup", {
+            chat_id: cq.message.chat.id,
+            message_id: cq.message.message_id,
+            reply_markup: { inline_keyboard: inlineKeyboard },
+          });
+          await callTelegram("sendMessage", {
+            chat_id: cq.message.chat.id,
+            text: ack,
+            reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
+          });
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      const batchCallback = parseBatchCallback(data);
+      if (batchCallback) {
+        const { batchId, action } = batchCallback;
+        const batchRows = await db
+          .select()
+          .from(pendingDrafts)
+          .where(and(eq(pendingDrafts.batchId, batchId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.chatId, chatId)))
+          .orderBy(asc(pendingDrafts.id));
+
+        let ack = "So'rov topilmadi";
+        if (!batchRows.length) {
+          void writeSecurityEvent({
+            userId: user.id,
+            event: "foreign_or_missing_batch_callback",
+            severity: "warning",
+            requestId: sec.requestId,
+            ipHash: sec.ipKey,
+            metadata: { batchId },
+          });
+        } else if (action === "cancel") {
+          const cancelled = await db
+            .update(pendingDrafts)
+            .set({ status: "cancelled", resolvedAt: new Date() })
+            .where(and(eq(pendingDrafts.batchId, batchId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
+            .returning({ id: pendingDrafts.id });
+          ack = cancelled.length ? `❌ ${cancelled.length} ta operatsiya bekor qilindi` : "Bu so'rov avval yakunlangan";
+          await writeAudit({
+            userId: user.id,
+            actorRole: user.role,
+            action: "cancel_batch",
+            entity: "transaction",
+            outcome: cancelled.length ? "success" : "denied",
+            requestId: sec.requestId,
+            ipHash: sec.ipKey,
+            metadata: { batchId, count: cancelled.length },
+          });
+        } else {
+          // Confirm each draft with its own atomic pending→processing claim,
+          // so a duplicate callback can never double-write a transaction.
+          let okCount = 0;
+          let failCount = 0;
+          let alreadyDone = 0;
+          for (const draft of batchRows) {
+            if (draft.status !== "pending") {
+              alreadyDone += 1;
+              continue;
+            }
+            if (draft.expiresAt && draft.expiresAt.getTime() < Date.now()) {
+              await db
+                .update(pendingDrafts)
+                .set({ status: "expired", resolvedAt: new Date() })
+                .where(and(eq(pendingDrafts.id, draft.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")));
+              failCount += 1;
+              continue;
+            }
+            const claimedDraft = await db
+              .update(pendingDrafts)
+              .set({ status: "processing" })
+              .where(and(eq(pendingDrafts.id, draft.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
+              .returning({ id: pendingDrafts.id });
+            if (!claimedDraft[0]) {
+              alreadyDone += 1;
+              continue;
+            }
+            const payload = draft.payload as Record<string, unknown>;
+            const result = await runMutation(user, {
+              entity: "transaction",
+              action: "create",
+              data: { ...payload, source: "bot" },
+            });
+            if (result.ok) okCount += 1;
+            else failCount += 1;
+            await db
+              .update(pendingDrafts)
+              .set({ status: result.ok ? "confirmed" : "cancelled", resolvedAt: new Date() })
+              .where(and(eq(pendingDrafts.id, draft.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
+          }
+          if (okCount && !failCount) ack = `✅ ${okCount} ta operatsiya qayd etildi`;
+          else if (okCount) ack = `✅ ${okCount} ta qayd etildi, ⛔ ${failCount} ta xato`;
+          else if (alreadyDone && !failCount) ack = "Bu so'rov avval qayta ishlangan";
+          else ack = "⛔ Operatsiyalarni saqlab bo'lmadi";
+          await writeAudit({
+            userId: user.id,
+            actorRole: user.role,
+            action: "confirm_batch",
+            entity: "transaction",
+            outcome: okCount ? "success" : "denied",
+            requestId: sec.requestId,
+            ipHash: sec.ipKey,
+            metadata: { batchId, okCount, failCount },
+          });
+        }
+
+        await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: ack.slice(0, 190) });
+        if (cq.message) {
           await callTelegram("editMessageReplyMarkup", {
             chat_id: cq.message.chat.id,
             message_id: cq.message.message_id,
@@ -212,28 +353,30 @@ export async function POST(request: Request) {
     if (text.length > 2_000) return NextResponse.json({ ok: true });
     const reply = await respondToBotMessage(user, text);
 
-    if (reply.draft) {
+    const drafts = reply.drafts ?? (reply.draft ? [reply.draft] : []);
+    if (drafts.length === 1) {
+      const draft = drafts[0];
       const [saved] = await db
         .insert(pendingDrafts)
         .values({
           userId: user.id,
           chatId,
           kind: "transaction",
-          payload: reply.draft,
+          payload: draft,
           expiresAt: new Date(Date.now() + 15 * 60 * 1000),
         })
         .returning();
       const summary = [
         "Quyidagi operatsiyani topdim:",
         "",
-        reply.draft.type === "income" ? "➕ Kirim" : reply.draft.type === "transfer" ? "↔️ Transfer" : "➖ Chiqim",
-        `Summa: ${formatAmount(reply.draft.amount ?? 0)}${
-          reply.draft.estimated && reply.draft.minAmount && reply.draft.maxAmount
-            ? ` (${formatAmount(reply.draft.minAmount)}–${formatAmount(reply.draft.maxAmount)})`
+        draft.type === "income" ? "➕ Kirim" : draft.type === "transfer" ? "↔️ Transfer" : "➖ Chiqim",
+        `Summa: ${formatAmount(draft.amount ?? 0)}${
+          draft.estimated && draft.minAmount && draft.maxAmount
+            ? ` (${formatAmount(draft.minAmount)}–${formatAmount(draft.maxAmount)})`
             : ""
         }`,
-        `Kategoriya: ${reply.draft.categoryName ?? "aniqlanmadi"}`,
-        `Sana: ${humanDate(reply.draft.date)}`,
+        `Kategoriya: ${draft.categoryName ?? "aniqlanmadi"}`,
+        `Sana: ${humanDate(draft.date)}`,
       ].join("\n");
       await callTelegram("sendMessage", {
         chat_id: chatId,
@@ -244,6 +387,57 @@ export async function POST(request: Request) {
               { text: "✅ Tasdiqlash", callback_data: `draft:${saved.id}:confirm` },
               { text: "❌ Bekor qilish", callback_data: `draft:${saved.id}:cancel` },
             ],
+          ],
+        },
+      });
+      return NextResponse.json({ ok: true });
+    }
+    if (drafts.length > 1) {
+      // One message → several drafts sharing a batch id. Confirm-all and
+      // cancel-all act on the whole group; each draft also gets its own
+      // inline button for individual confirmation.
+      const batchId = randomBytes(8).toString("hex");
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      const saved = await db
+        .insert(pendingDrafts)
+        .values(
+          drafts.map((draft) => ({
+            userId: user.id,
+            chatId,
+            kind: "transaction" as const,
+            batchId,
+            payload: draft,
+            expiresAt,
+          })),
+        )
+        .returning();
+      const summary = [
+        `${drafts.length} ta operatsiya topildi:`,
+        "",
+        ...drafts.map(
+          (d, i) =>
+            `${i + 1}. ${d.type === "income" ? "➕" : d.type === "transfer" ? "↔️" : "➖"} ${formatAmount(d.amount ?? 0)} — ${
+              d.categoryName ?? (d.type === "income" ? "Kirim" : d.type === "transfer" ? "Transfer" : "Chiqim")
+            } · ${humanDate(d.date)}`,
+        ),
+        ...(reply.failedSegments?.length ? ["", `⚠️ Tushunilmadi: ${reply.failedSegments.slice(0, 3).join("; ")}`] : []),
+      ].join("\n");
+      const itemButtons = saved.map((row, i) => ({
+        text: `✅ ${i + 1}`,
+        callback_data: `draft:${row.id}:confirm`,
+      }));
+      const itemRows: Array<Array<{ text: string; callback_data: string }>> = [];
+      for (let i = 0; i < itemButtons.length; i += 5) itemRows.push(itemButtons.slice(i, i + 5));
+      await callTelegram("sendMessage", {
+        chat_id: chatId,
+        text: summary,
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "✅ Barchasini tasdiqlash", callback_data: `batch:${batchId}:confirm` },
+              { text: "❌ Bekor qilish", callback_data: `batch:${batchId}:cancel` },
+            ],
+            ...itemRows,
           ],
         },
       });

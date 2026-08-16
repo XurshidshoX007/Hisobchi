@@ -46,10 +46,36 @@ export function percent(value: number, digits = 0): string {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
-/** today (server/local) as YYYY-MM-DD */
+/**
+ * Project timezone model: every financial "day" is a calendar day in the
+ * user's timezone (Uzbekistan by default), never the server's. Railway/CI
+ * servers run in UTC, so between 00:00 and 05:00 Tashkent time a naive
+ * `new Date()` still reports *yesterday* — which used to push fresh
+ * transactions out of "today"/month aggregations. `APP_TIMEZONE` overrides
+ * the zone; in the browser the local zone is already the user's zone.
+ */
+export const DEFAULT_TIMEZONE = "Asia/Tashkent";
+
+function appTimeZone(): string {
+  if (typeof process !== "undefined" && process.env?.APP_TIMEZONE) return process.env.APP_TIMEZONE;
+  return DEFAULT_TIMEZONE;
+}
+
+/** today (in the project timezone) as YYYY-MM-DD */
 export function todayISO(): string {
-  const d = new Date();
-  return toISO(d);
+  // In the browser the device clock already reflects the user's zone.
+  if (typeof window !== "undefined") return toISO(new Date());
+  try {
+    // en-CA yields YYYY-MM-DD directly.
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: appTimeZone(),
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return toISO(new Date());
+  }
 }
 
 export function toISO(d: Date): string {

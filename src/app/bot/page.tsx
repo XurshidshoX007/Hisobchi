@@ -44,7 +44,7 @@ export default function BotPage() {
     },
   ]);
   const [input, setInput] = useState("");
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [drafts, setDrafts] = useState<Draft[]>([]);
   const [busy, setBusy] = useState(false);
   const counter = useRef(2);
 
@@ -88,7 +88,7 @@ export default function BotPage() {
     if (!value && !confirm) return;
     setMessages((prev) => [...prev, { id: counter.current++, role: "user", text: value || "✅ Ha, qo'sh" }]);
     setInput("");
-    setDraft(null);
+    setDrafts([]);
     setBusy(true);
     try {
       const res = await fetch("/api/bot", {
@@ -96,9 +96,10 @@ export default function BotPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: value, confirm }),
       });
-      const reply = (await res.json()) as { text: string; draft?: Draft };
+      const reply = (await res.json()) as { text: string; draft?: Draft; drafts?: Draft[] };
       setMessages((prev) => [...prev, { id: counter.current++, role: "bot", text: reply.text }]);
-      if (reply.draft) setDraft(reply.draft);
+      if (reply.drafts?.length) setDrafts(reply.drafts);
+      else if (reply.draft) setDrafts([reply.draft]);
       if (confirm) await refresh();
     } catch {
       setMessages((prev) => [...prev, { id: counter.current++, role: "bot", text: "⚠️ Ulanish xatosi." }]);
@@ -132,23 +133,34 @@ export default function BotPage() {
             ) : null}
           </div>
 
-          {draft ? (
+          {drafts.length ? (
             <div className="border-t border-line bg-surface-2 p-3.5 sm:p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Tasdiqlash</p>
-              <p className="mt-1 text-[13px] leading-snug">
-                {draft.type === "income" ? "Kirim" : draft.type === "transfer" ? "Transfer" : "Chiqim"} ·{" "}
-                {draft.amount?.toLocaleString("ru-RU")} · {draft.categoryName ?? "kategoriya yo‘q"}
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+                {drafts.length > 1 ? `${drafts.length} ta operatsiyani tasdiqlash` : "Tasdiqlash"}
               </p>
+              <div className="mt-1 space-y-1">
+                {drafts.map((d, i) => (
+                  <p key={i} className="text-[13px] leading-snug">
+                    {drafts.length > 1 ? `${i + 1}. ` : ""}
+                    {d.type === "income" ? "➕ Kirim" : d.type === "transfer" ? "↔️ Transfer" : "➖ Chiqim"} ·{" "}
+                    {d.amount?.toLocaleString("ru-RU")} · {d.categoryName ?? "kategoriya yo‘q"} · {d.date}
+                  </p>
+                ))}
+              </div>
               <div className="mt-3 flex gap-2">
                 <Button
                   type="button"
                   size="sm"
                   variant="positive"
-                  onClick={() => send("ha", { ...draft, note: draft.note || draft.categoryName || "operatsiya" })}
+                  onClick={() =>
+                    send("ha", {
+                      drafts: drafts.map((d) => ({ ...d, note: d.note || d.categoryName || "operatsiya" })),
+                    })
+                  }
                 >
-                  ✅ Ha, qo‘sh
+                  ✅ {drafts.length > 1 ? "Barchasini tasdiqlash" : "Ha, qo‘sh"}
                 </Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setDraft(null)}>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setDrafts([])}>
                   Bekor qilish
                 </Button>
               </div>

@@ -36,6 +36,7 @@ Configure these in Railway Variables (never commit values):
 | `DISABLE_DEMO` | yes | `true` |
 | `ALLOW_DEMO_IN_PRODUCTION` | yes | `false` |
 | `DATABASE_SSL` | usually no | `false` for Railway private Postgres |
+| `APP_TIMEZONE` | no | IANA zone for financial "today" (default `Asia/Tashkent`) |
 
 Do **not** set test users or demo credentials. `start-production.sh` refuses to
 start if demo is enabled or a required secret is missing.

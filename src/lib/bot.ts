@@ -1,39 +1,57 @@
 import type { User } from "@/db/schema";
 import { buildAppState } from "./state";
 import { quickAdd } from "./mutations";
-import { parseDraft } from "./nlp";
+import { parseDrafts } from "./nlp";
 import { compact, formatAmount, humanDate, shortDate } from "./money";
 import type { AppState } from "./types";
 import { botIntent } from "./bot-routing";
 
+export type BotDraft = {
+  type: "income" | "expense" | "transfer";
+  amount: number | null;
+  minAmount: number | null;
+  maxAmount: number | null;
+  categoryName: string | null;
+  date: string;
+  note: string;
+  estimated: boolean;
+  confidence: number;
+  accountId?: number;
+  toAccountId?: number;
+};
+
 export type BotReply = {
   text: string;
   keyboard: string[][];
-  draft?: {
-    type: "income" | "expense" | "transfer";
-    amount: number | null;
-    minAmount: number | null;
-    maxAmount: number | null;
-    categoryName: string | null;
-    date: string;
-    note: string;
-    estimated: boolean;
-    confidence: number;
-    accountId?: number;
-    toAccountId?: number;
-  };
+  /** Single-draft compatibility view (first item of `drafts`). */
+  draft?: BotDraft;
+  /** One message can carry several operations — all of them are kept. */
+  drafts?: BotDraft[];
+  /** Segments that contained a number but could not be parsed. */
+  failedSegments?: string[];
 };
 
+/**
+ * Telegram main keyboard: the most frequent actions come first, secondary
+ * modules live behind "Boshqa bo'limlar" so the primary keyboard stays
+ * compact and readable on mobile.
+ */
 export const MAIN_MENU: string[][] = [
   ["➕ Kirim", "➖ Chiqim", "↔️ Transfer"],
   ["📊 Hisobot", "📅 Reja va prognoz"],
-  ["💳 Hisoblar", "📂 Kategoriyalar"],
   ["📌 Majburiy to'lovlar", "💰 Kutilayotgan daromadlar"],
-  ["🎯 Budjet", "📋 Qarzdorlik", "🏆 Maqsadlar"],
-  ["🔔 Eslatmalar", "⚙️ Sozlamalar"],
+  ["📂 Boshqa bo'limlar"],
 ];
 
-const mon = (n: number) => `${Math.round(n / 1000)} ming`;
+export const MORE_MENU: string[][] = [
+  ["💳 Hisoblar", "📂 Kategoriyalar"],
+  ["🎯 Budjet", "📋 Qarzdorlik"],
+  ["🏆 Maqsadlar", "🔔 Eslatmalar"],
+  ["⚙️ Sozlamalar", "⬅️ Asosiy menyu"],
+];
+
+/** "14 299 000" -> "14,3 mln", "300 000" -> "300 ming" — always readable. */
+const mon = (n: number) => (n < 0 ? `-${compact(Math.abs(n))}` : compact(n));
 
 export async function respondToBotMessage(
   user: User,
@@ -44,13 +62,22 @@ export async function respondToBotMessage(
   const intent = botIntent(text);
   const state = await buildAppState(user);
 
-  if (confirm && confirm.amount && confirm.type) {
-    const result = await quickAdd(user, `${confirm.amount} ${confirm.note ?? ""}`, confirm);
+  if (confirm && (Array.isArray(confirm.drafts) || (confirm.amount && confirm.type))) {
+    const items = Array.isArray(confirm.drafts)
+      ? (confirm.drafts as Array<Record<string, unknown>>)
+      : [confirm];
+    let okCount = 0;
+    let lastMessage = "";
+    for (const item of items) {
+      if (!item || !item.amount || !item.type) continue;
+      const result = await quickAdd(user, `${item.amount} ${item.note ?? ""}`, item);
+      if (result.ok) okCount += 1;
+      lastMessage = result.message;
+    }
     const after = await buildAppState(user);
+    if (!okCount) return { text: `❌ ${lastMessage || "Operatsiyani saqlab bo'lmadi"}`, keyboard: MAIN_MENU };
     return {
-      text: result.ok
-        ? `✅ ${result.message}\n\n${summaryBlock(after)}`
-        : `❌ ${result.message}`,
+      text: `✅ ${okCount > 1 ? `${okCount} ta operatsiya qayd etildi` : lastMessage}\n\n${summaryBlock(after)}`,
       keyboard: MAIN_MENU,
     };
   }
@@ -98,10 +125,10 @@ export async function respondToBotMessage(
     return { text: forecastBlock(state), keyboard: MAIN_MENU };
   }
   if (intent === "accounts") {
-    return { text: accountsBlock(state), keyboard: MAIN_MENU };
+    return { text: accountsBlock(state), keyboard: MORE_MENU };
   }
   if (intent === "categories") {
-    return { text: categoriesBlock(state), keyboard: MAIN_MENU };
+    return { text: categoriesBlock(state), keyboard: MORE_MENU };
   }
   if (intent === "payments") {
     return { text: paymentsBlock(state), keyboard: MAIN_MENU };
@@ -110,16 +137,28 @@ export async function respondToBotMessage(
     return { text: incomeBlock(state), keyboard: MAIN_MENU };
   }
   if (intent === "budget") {
-    return { text: budgetBlock(state), keyboard: MAIN_MENU };
+    return { text: budgetBlock(state), keyboard: MORE_MENU };
   }
   if (intent === "debts") {
-    return { text: debtsBlock(state), keyboard: MAIN_MENU };
+    return { text: debtsBlock(state), keyboard: MORE_MENU };
   }
   if (intent === "goals") {
-    return { text: goalsBlock(state), keyboard: MAIN_MENU };
+    return { text: goalsBlock(state), keyboard: MORE_MENU };
   }
   if (intent === "alerts") {
-    return { text: alertsBlock(state), keyboard: MAIN_MENU };
+    return { text: alertsBlock(state), keyboard: MORE_MENU };
+  }
+  if (intent === "more-menu") {
+    return {
+      text: "📂 Qo'shimcha bo'limlar: hisoblar, kategoriyalar, budjet, qarzdorlik, maqsadlar va sozlamalar.",
+      keyboard: MORE_MENU,
+    };
+  }
+  if (intent === "main-menu") {
+    return {
+      text: "⬅️ Asosiy menyu. Operatsiyani tabiiy tilda yozing yoki tugmalardan foydalaning.",
+      keyboard: MAIN_MENU,
+    };
   }
   if (intent === "settings" || intent === "help") {
     return {
@@ -137,44 +176,39 @@ export async function respondToBotMessage(
         `• Xavf: ${state.user.notifyRisk ? "yoqilgan" : "o'chirilgan"}`,
         "",
         "Buyruqlar:",
+        "/start — asosiy menyu",
         "/report — bugun va oylik hisobot",
         "/forecast — reja, xavf va Safe-to-Spend",
         "/help — yordam",
         "",
-        "Operatsiya uchun summani tabiiy tilda yozing. Mini App tugmasi grafiklar va batafsil boshqaruvni ochadi.",
+        "Operatsiyani tabiiy tilda yozing:",
+        "• „150 ming ovqatga ketdi“",
+        "• „kecha 150 ming ovqat, 70 ming taksi“ — bitta xabarda bir nechta operatsiya",
+        "• „15-avgust 500 ming ijara to'ladim“ — sana bilan",
+        "",
+        "Mini App tugmasi grafiklar va batafsil boshqaruvni ochadi.",
       ].join("\n"),
       keyboard: MAIN_MENU,
     };
   }
 
-  // default: natural language parse
-  const draft = parseDraft(text);
-  if (!draft.ok || draft.amount === null) {
+  // default: natural language parse — one message may hold several operations
+  const batch = parseDrafts(text);
+  if (!batch.drafts.length) {
     return {
-      text: "🤔 Summani tushunmadim. Misol: „150 ming ovqatga ketdi“ yoki „8 mln maosh keldi“.",
+      text: "🤔 Summani tushunmadim. Misol: „150 ming ovqatga ketdi“ yoki „8 mln maosh keldi“.\nBir nechta operatsiyani vergul yoki yangi qator bilan ajratib yozishingiz mumkin.",
       keyboard: MAIN_MENU,
     };
   }
-  const transferAccounts = draft.type === "transfer" ? matchTransferAccounts(text, state) : null;
-  if (draft.type === "transfer" && !transferAccounts) {
-    return {
-      text: "Transfer uchun manba va qabul qiluvchi hisob nomlarini yozing. Misol: „Naqd puldan Humo hisobiga 200 ming o'tkazdim“.",
-      keyboard: MAIN_MENU,
-    };
-  }
-  return {
-    text: [
-      "Quyidagi operatsiyani topdim:",
-      "",
-      `Summa: ${formatAmount(draft.amount)}${draft.estimated && draft.minAmount && draft.maxAmount ? ` (${formatAmount(draft.minAmount)}–${formatAmount(draft.maxAmount)})` : ""}`,
-      `Turi: ${draft.type === "income" ? "Kirim" : draft.type === "transfer" ? "Transfer" : "Chiqim"}`,
-      `Kategoriya: ${draft.categoryName ?? "aniqlanmadi"}`,
-      `Sana: ${humanDate(draft.date)}`,
-      "",
-      "Tasdiqlaysizmi? „ha“ deb yozing.",
-    ].join("\n"),
-    keyboard: [["✅ Ha, qo'sh", "❌ Bekor qilish"], ...MAIN_MENU],
-    draft: {
+
+  const drafts: BotDraft[] = [];
+  for (const draft of batch.drafts) {
+    const transferAccounts = draft.type === "transfer" ? matchTransferAccounts(draft.note, state) : null;
+    if (draft.type === "transfer" && !transferAccounts) {
+      batch.failed.push(draft.note);
+      continue;
+    }
+    drafts.push({
       type: draft.type,
       amount: draft.amount,
       minAmount: draft.minAmount,
@@ -186,8 +220,49 @@ export async function respondToBotMessage(
       confidence: draft.confidence,
       accountId: transferAccounts?.accountId,
       toAccountId: transferAccounts?.toAccountId,
-    },
+    });
+  }
+
+  if (!drafts.length) {
+    return {
+      text: "Transfer uchun manba va qabul qiluvchi hisob nomlarini yozing. Misol: „Naqd puldan Humo hisobiga 200 ming o'tkazdim“.",
+      keyboard: MAIN_MENU,
+    };
+  }
+
+  const lines =
+    drafts.length === 1
+      ? [
+          "Quyidagi operatsiyani topdim:",
+          "",
+          `Summa: ${formatAmount(drafts[0].amount ?? 0)}${drafts[0].estimated && drafts[0].minAmount && drafts[0].maxAmount ? ` (${formatAmount(drafts[0].minAmount)}–${formatAmount(drafts[0].maxAmount)})` : ""}`,
+          `Turi: ${typeLabel(drafts[0].type)}`,
+          `Kategoriya: ${drafts[0].categoryName ?? "aniqlanmadi"}`,
+          `Sana: ${humanDate(drafts[0].date)}`,
+        ]
+      : [
+          `${drafts.length} ta operatsiya topildi:`,
+          "",
+          ...drafts.map(
+            (d, i) =>
+              `${i + 1}. ${d.type === "income" ? "➕" : d.type === "transfer" ? "↔️" : "➖"} ${formatAmount(d.amount ?? 0)} — ${d.categoryName ?? typeLabel(d.type)}${d.date !== state.forecast.today ? ` (${shortDate(d.date)})` : ""}`,
+          ),
+        ];
+  if (batch.failed.length) {
+    lines.push("", `⚠️ Tushunilmagan qismlar: ${batch.failed.slice(0, 3).join("; ")}`);
+  }
+
+  return {
+    text: lines.join("\n"),
+    keyboard: [["✅ Ha, qo'sh", "❌ Bekor qilish"], ...MAIN_MENU],
+    draft: drafts[0],
+    drafts,
+    failedSegments: batch.failed,
   };
+}
+
+function typeLabel(type: BotDraft["type"]): string {
+  return type === "income" ? "Kirim" : type === "transfer" ? "Transfer" : "Chiqim";
 }
 
 function matchTransferAccounts(text: string, state: AppState): { accountId: number; toAccountId: number } | null {

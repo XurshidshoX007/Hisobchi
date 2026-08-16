@@ -5,6 +5,10 @@ import { addDays, todayISO } from "./money";
  * "150 ming ovqatga ketdi"  ->  expense 150000 / Oziq-ovqat
  * "1,5 mln maosh keldi"     ->  income 1500000 / Ish haqi
  * "2.5 mln ijara to'ladim"  ->  expense 2500000 / Ijara
+ *
+ * A single message may contain several operations:
+ * "150 ming ovqat, 200 ming taksi, 1 mln maosh keldi" -> 3 drafts.
+ * `parseDrafts` is the batch entry point; `parseDraft` parses one segment.
  */
 
 const MULTIPLIERS: Array<[RegExp, number]> = [
@@ -28,14 +32,17 @@ export const CATEGORY_KEYWORDS: Array<{ name: string; words: string[] }> = [
   { name: "Uy / Ta'mirlash", words: ["uy", "mebel", "tamin", "ta'mirlash", "remont", "texnika"] },
   { name: "Ish haqi", words: ["maosh", "ish haqi", "oylik", "zarplata", "salary", "ishxona"] },
   { name: "Biznes", words: ["biznes", "savdo", "tadbirkorlik", "do'kon", "dokon", "kassa", "client", "mijoz"] },
-  { name: "Bonus", words: ["bonus", "mukofot", "premiya", "mukofotlar"] },
+  { name: "Bonus", words: ["bonus", "mukofot", "premiya", "mukofotlar", "keshbek", "cashback", "kesh bek"] },
   { name: "Qo'shimcha daromad", words: ["qo'shimcha", "freelance", "frilans", "qoshimcha", "yordam puli"] },
-  { name: "Qarz qaytishi", words: ["qarz qaytdi", "qaytardi", "qarzini qaytardi", "oldim qarzni"] },
+  { name: "Qarz qaytishi", words: ["qarz qaytdi", "qaytardi", "qarzini qaytardi", "oldim qarzni", "qarzdorlik qaytdi"] },
 ];
+
+/** Categories that imply an income even without an explicit income verb. */
+const INCOME_CATEGORIES = new Set(["Ish haqi", "Bonus", "Qo'shimcha daromad", "Qarz qaytishi"]);
 
 const INCOME_WORDS = [
   "kirim", "daromad", "keldi", "oldim", "maosh", "oylik", "bonus", "tushdi", "qabul qildim",
-  "daromadim", "kirdi", "olindi", "kirim qildim",
+  "daromadim", "kirdi", "olindi", "kirim qildim", "qaytdi", "cashback", "keshbek",
 ];
 const EXPENSE_WORDS = [
   "chiqim", "xarajat", "ketdi", "sarfladim", "sarf", "to'ladim", "toladim", "harid", "sotib oldim",
@@ -55,6 +62,12 @@ export type ParsedDraft = {
   note: string;
   confidence: number;
   missing: string[];
+};
+
+export type ParsedBatch = {
+  drafts: ParsedDraft[];
+  /** Segments that contained a number but could not be parsed into an operation. */
+  failed: string[];
 };
 
 function parseNumberToken(raw: string): number | null {
@@ -118,26 +131,103 @@ export function detectCategory(text: string): string | null {
   return best?.name ?? null;
 }
 
+/* ------------------------------ dates ------------------------------ */
+
+const UZ_MONTH_TOKENS: Array<[RegExp, number]> = [
+  [/yanvar/, 1],
+  [/fevral/, 2],
+  [/mart/, 3],
+  [/aprel/, 4],
+  [/may/, 5],
+  [/iyun/, 6],
+  [/iyul/, 7],
+  [/avgust/, 8],
+  [/sent[iy]?abr/, 9],
+  [/okt[iy]?abr/, 10],
+  [/noyabr/, 11],
+  [/dekabr/, 12],
+];
+
+/**
+ * Extracts an explicit date phrase from Uzbek text.
+ * Supported: "kecha", "bugun", "ertaga", "15-avgust", "15 avgust", "2026-08-15".
+ * The matched token is removed from the returned text so it cannot be
+ * mistaken for an amount ("15-avgust 500 ming" must parse 500 000, not 15).
+ */
+export function extractDate(
+  input: string,
+  baseDate = todayISO(),
+): { date: string; cleaned: string; explicit: boolean } {
+  const normalized = input.replace(/[’‘]/g, "'");
+  const lower = normalized.toLowerCase();
+
+  const relative: Array<[RegExp, number]> = [
+    [/\bkechagi\b|\bkecha\b/, -1],
+    [/\bbugungi\b|\bbugun\b/, 0],
+    [/\bertangi\b|\bertaga\b/, 1],
+  ];
+  for (const [re, offset] of relative) {
+    const m = lower.match(re);
+    if (m) {
+      const cleaned = (normalized.slice(0, m.index) + normalized.slice((m.index ?? 0) + m[0].length)).trim();
+      return { date: addDays(baseDate, offset), cleaned, explicit: true };
+    }
+  }
+
+  // ISO date: 2026-08-15
+  const iso = lower.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) {
+    const cleaned = (normalized.slice(0, iso.index) + normalized.slice((iso.index ?? 0) + iso[0].length)).trim();
+    return { date: iso[0], cleaned, explicit: true };
+  }
+
+  // "15-avgust", "15 avgustda", "15avgust"
+  for (const [re, month] of UZ_MONTH_TOKENS) {
+    const m = lower.match(new RegExp(`\\b(\\d{1,2})\\s*[-–]?\\s*(${re.source})[a-z']*`));
+    if (m) {
+      const day = Number(m[1]);
+      if (day >= 1 && day <= 31) {
+        const year = Number(baseDate.slice(0, 4));
+        const date = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const cleaned = (normalized.slice(0, m.index) + normalized.slice((m.index ?? 0) + m[0].length)).trim();
+        return { date, cleaned, explicit: true };
+      }
+    }
+  }
+
+  return { date: baseDate, cleaned: normalized, explicit: false };
+}
+
+/* ------------------------------ single draft ------------------------------ */
+
 export function parseDraft(input: string, baseDate = todayISO()): ParsedDraft {
   const text = input.trim();
-  const normalized = text.toLowerCase().replace(/[’']/g, "'");
-  const range = parseAmountRange(text);
+  const { date, cleaned, explicit } = extractDate(text, baseDate);
+  const normalized = cleaned.toLowerCase().replace(/[’']/g, "'");
+  // Amount is parsed from the date-free text: "15-avgust 500 ming ijara"
+  // must yield 500 000, never 15.
+  const range = parseAmountRange(cleaned);
 
+  const categoryName = detectCategory(cleaned);
+
+  // Longest keyword wins: "sotib oldim" (expense) must beat "oldim" (income).
+  const longestHit = (words: string[]) =>
+    words.reduce((best, w) => (normalized.includes(w) && w.length > best ? w.length : best), 0);
   let type: ParsedDraft["type"] = "expense";
-  if (TRANSFER_WORDS.some((w) => normalized.includes(w))) type = "transfer";
-  else if (INCOME_WORDS.some((w) => normalized.includes(w))) type = "income";
-  else if (EXPENSE_WORDS.some((w) => normalized.includes(w))) type = "expense";
-
-  let date = baseDate;
-  if (/kecha/.test(normalized)) date = addDays(baseDate, -1);
-  else if (/ertaga|ertaga/.test(normalized)) date = addDays(baseDate, 1);
+  if (TRANSFER_WORDS.some((w) => normalized.includes(w))) {
+    type = "transfer";
+  } else {
+    const incomeScore = longestHit(INCOME_WORDS);
+    const expenseScore = longestHit(EXPENSE_WORDS);
+    if (incomeScore > expenseScore) type = "income";
+    else if (expenseScore > 0) type = "expense";
+    else if (categoryName && INCOME_CATEGORIES.has(categoryName)) type = "income";
+  }
 
   const missing: string[] = [];
   if (range.amount === null) missing.push("summa");
-  if (!range.estimated && range.amount === null) missing.push("summa");
 
-  const categoryName = type === "income" ? detectCategory(text) : detectCategory(text);
-
+  void explicit;
   return {
     ok: range.amount !== null,
     type,
@@ -151,4 +241,58 @@ export function parseDraft(input: string, baseDate = todayISO()): ParsedDraft {
     confidence: range.amount !== null ? (categoryName ? 0.9 : 0.65) : 0.2,
     missing,
   };
+}
+
+/* ------------------------------ batch ------------------------------ */
+
+/**
+ * Splits one Telegram message into operation segments.
+ * Boundaries: newlines, semicolons, "," (except decimal commas like "1,5 mln"),
+ * and " va "/" hamda " when followed by a number.
+ * Segments without any digit are appended to the previous segment as context.
+ */
+export function splitOperations(input: string): string[] {
+  const parts = input
+    .split(/\n+|;+|,(?!\d)|\s+(?:va|hamda)\s+(?=\d)/i)
+    .map((s) => s.trim().replace(/^[-•–]\s*/, ""))
+    .filter(Boolean);
+  const out: string[] = [];
+  for (const p of parts) {
+    if (/\d/.test(p) || out.length === 0) out.push(p);
+    else out[out.length - 1] += `, ${p}`;
+  }
+  return out;
+}
+
+/**
+ * Batch entry point: one message -> list of drafts.
+ * Partial success: a malformed segment lands in `failed` and never blocks
+ * the other operations. A leading date phrase ("kecha ...") applies to all
+ * items unless an item carries its own explicit date.
+ */
+export function parseDrafts(input: string, baseDate = todayISO()): ParsedBatch {
+  const text = input.trim();
+  if (!text) return { drafts: [], failed: [] };
+
+  const segments = splitOperations(text);
+  if (segments.length === 0) return { drafts: [], failed: [] };
+
+  // A date phrase in the first segment sets the default date for the batch.
+  // The phrase is consumed so it is not applied twice to the first item.
+  const lead = extractDate(segments[0], baseDate);
+  const batchBase = lead.explicit ? lead.date : baseDate;
+  if (lead.explicit) segments[0] = lead.cleaned;
+
+  const drafts: ParsedDraft[] = [];
+  const failed: string[] = [];
+  for (const segment of segments) {
+    if (!segment.trim()) continue;
+    // A per-item explicit date ("bugun", "15-avgust") is resolved against the
+    // real base date; items without one inherit the batch date.
+    const own = extractDate(segment, baseDate);
+    const draft = parseDraft(own.explicit ? segment : segment, own.explicit ? baseDate : batchBase);
+    if (draft.ok && draft.amount !== null && draft.amount > 0) drafts.push(draft);
+    else if (/\d/.test(segment)) failed.push(segment);
+  }
+  return { drafts, failed };
 }

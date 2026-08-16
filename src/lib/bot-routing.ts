@@ -15,6 +15,8 @@ export type BotIntent =
   | "add-income"
   | "add-expense"
   | "add-transfer"
+  | "more-menu"
+  | "main-menu"
   | "natural";
 
 /**
@@ -36,6 +38,8 @@ export function botIntent(message: string): BotIntent {
   if (lower === "➕ kirim" || lower === "kirim") return "add-income";
   if (lower === "➖ chiqim" || lower === "chiqim") return "add-expense";
   if (lower === "↔️ transfer" || lower === "↔ transfer" || lower === "transfer") return "add-transfer";
+  if (lower === "📂 boshqa bo'limlar" || lower === "boshqa bo'limlar" || lower === "boshqa bolimlar") return "more-menu";
+  if (lower === "⬅️ asosiy menyu" || lower === "asosiy menyu" || lower === "menyu" || lower === "menu") return "main-menu";
   // Amount-bearing prose is a transaction draft even if it contains words
   // such as “daromad”, “qarz” or “to‘lov”.
   if (/\d/.test(lower)) return "natural";
@@ -64,4 +68,12 @@ export function parseDraftCallback(data: string): { draftId: number; action: "co
   const draftId = Number(match[1]);
   if (!Number.isSafeInteger(draftId) || draftId <= 0) return null;
   return { draftId, action: match[2] as "confirm" | "cancel" };
+}
+
+/** Batch callbacks: `batch:<batchId>:confirm` or `batch:<batchId>:cancel`. */
+export function parseBatchCallback(data: string): { batchId: string; action: "confirm" | "cancel" } | null {
+  if (data.length > 64) return null;
+  const match = data.match(/^batch:([a-zA-Z0-9_-]{4,32}):(confirm|cancel)$/);
+  if (!match) return null;
+  return { batchId: match[1], action: match[2] as "confirm" | "cancel" };
 }

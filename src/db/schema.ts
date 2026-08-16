@@ -69,6 +69,8 @@ export const pendingDrafts = pgTable(
     chatId: bigint("chat_id", { mode: "number" }),
     messageId: integer("message_id"),
     kind: text("kind").notNull().default("transaction"),
+    /** One Telegram message can produce several drafts; they share a batch id. */
+    batchId: text("batch_id"),
     payload: jsonb("payload").notNull(),
     status: text("status").notNull().default("pending"), // pending | confirmed | cancelled | expired
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -77,6 +79,7 @@ export const pendingDrafts = pgTable(
   },
   (t) => [
     index("pending_drafts_user_idx").on(t.userId, t.status),
+    index("pending_drafts_batch_idx").on(t.batchId),
     check("pending_drafts_status_check", sql`${t.status} in ('pending', 'processing', 'confirmed', 'cancelled', 'expired')`),
   ],
 );
@@ -154,6 +157,18 @@ export const recurringExpenses = pgTable(
     nextDueDate: date("next_due_date", { mode: "string" }).notNull(),
     reminderDaysBefore: integer("reminder_days_before").notNull().default(1),
     paidThrough: date("paid_through", { mode: "string" }),
+    /**
+     * Payment plan model:
+     *  one_time  — a single scheduled payment (frequency effectively "once")
+     *  recurring — indefinite (rent, internet, subscriptions)
+     *  term      — fixed duration: N installments (credit, installment purchase)
+     */
+    planType: text("plan_type").notNull().default("recurring"),
+    startDate: date("start_date", { mode: "string" }),
+    /** term: total number of installments; null for recurring/one_time */
+    installmentCount: integer("installment_count"),
+    /** term: how many installments were already paid */
+    installmentsPaid: integer("installments_paid").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -162,6 +177,8 @@ export const recurringExpenses = pgTable(
     check("recurring_due_day_check", sql`${t.dueDay} between 1 and 28`),
     check("recurring_certainty_check", sql`${t.certainty} in ('exact', 'estimated')`),
     check("recurring_frequency_check", sql`${t.frequency} in ('once', 'weekly', 'monthly', 'yearly')`),
+    check("recurring_plan_type_check", sql`${t.planType} in ('one_time', 'recurring', 'term')`),
+    check("recurring_term_check", sql`${t.planType} <> 'term' or (${t.installmentCount} > 0 and ${t.installmentsPaid} >= 0)`),
     check("recurring_amount_check", sql`(${t.certainty} = 'exact' and ${t.amount} > 0) or (${t.certainty} = 'estimated' and ${t.minAmount} > 0 and ${t.maxAmount} >= ${t.minAmount})`),
   ],
 );
@@ -180,6 +197,12 @@ export const expectedIncomes = pgTable(
     certainty: text("certainty").notNull().default("exact"), // exact | estimated
     accountId: integer("account_id").references(() => accounts.id, { onDelete: "set null" }),
     categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),
+    /** one_time | recurring | term — mirrors the payment plan model. */
+    planType: text("plan_type").notNull().default("recurring"),
+    /** term: total number of expected occurrences (e.g. a 3-month contract). */
+    occurrenceCount: integer("occurrence_count"),
+    /** term: how many occurrences were already received. */
+    occurrencesReceived: integer("occurrences_received").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -188,6 +211,8 @@ export const expectedIncomes = pgTable(
     index("expected_income_user_idx").on(t.userId),
     check("expected_certainty_check", sql`${t.certainty} in ('exact', 'estimated')`),
     check("expected_frequency_check", sql`${t.frequency} in ('once', 'weekly', 'monthly', 'yearly')`),
+    check("expected_plan_type_check", sql`${t.planType} in ('one_time', 'recurring', 'term')`),
+    check("expected_term_check", sql`${t.planType} <> 'term' or (${t.occurrenceCount} > 0 and ${t.occurrencesReceived} >= 0)`),
     check("expected_amount_check", sql`(${t.certainty} = 'exact' and ${t.amount} > 0) or (${t.certainty} = 'estimated' and ${t.minAmount} > 0 and ${t.maxAmount} >= ${t.minAmount})`),
   ],
 );
