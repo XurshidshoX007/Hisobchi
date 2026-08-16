@@ -37,7 +37,7 @@ import {
   type TxView,
   type MonthlyView,
 } from "./finance";
-import { addDays, dayDiff, formatAmount, formatCompactAmount, monthKey, monthStart, round2, todayISO } from "./money";
+import { addDays, dayDiff, monthKey, monthStart, round2, todayISO } from "./money";
 import { nextScheduleDate } from "./reconciliation";
 import type { AppState, LiveAlert, UserView } from "./types";
 
@@ -454,23 +454,23 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         icon: "📌",
         tone: "neutral",
         title: `Kelasi 12 kunda ${upcoming.length} ta majburiy to'lov`,
-        body: `Jami ${formatCompactAmount(upcoming.reduce((sum, plan) => sum + plan.base, 0))} so‘m rejalashtirilgan.`,
+        body: `Jami ${Math.round(upcoming.reduce((s, p) => s + p.base, 0) / 1000)} ming so'm rejalashtirilgan.`,
       });
     }
     if (forecast.riskDates.length) {
       const first = forecast.riskDates[0];
-      const recov = first.recoveryDate ? ` ${first.recoveryDate.slice(8, 10)}-avgustda ${formatCompactAmount(first.recoveryAmount ?? 0)} kutilmoqda.` : "";
+      const recov = first.recoveryDate ? ` ${first.recoveryDate.slice(8, 10)}-avgustda ${Math.round((first.recoveryAmount ?? 0) / 1000)} ming kutilmoqda.` : "";
       analytics.insights.push({
         icon: "🚨",
         tone: "negative",
         title: "Balans minimal darajaga tushishi mumkin",
-        body: `${shortDate(first.date)} kuni taxminiy ${formatCompactAmount(first.deficit)} so‘m taqchillik kutilmoqda.${recov}`,
+        body: `${shortDate(first.date)} kuni taxminiy ${Math.round(first.deficit / 1000)} ming so'm taqchillik kutilmoqda.${recov}`,
       });
     }
     analytics.insights.push({
       icon: "✨",
       tone: forecast.safeToSpend < 0 ? "warning" : "positive",
-      title: `Safe-to-Spend bugun: ${formatAmount(forecast.safeToSpend)}`,
+      title: `Safe-to-Spend bugun: ${Math.round(forecast.safeToSpend / 1000)} ming`,
       body:
         forecast.safeToSpend < 0
           ? "Majburiy to'lovlar va zaxira hisobga olinganda hozircha erkin mablag' yo'q."
@@ -481,7 +481,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         icon: "🎲",
         tone: "neutral",
         title: "Taxminiy daromadlar",
-        body: `Jami prognoz ${formatCompactAmount(forecast.income.base)}, shundan faqat ${formatCompactAmount(forecast.income.exactBase)} aniq.`,
+        body: `Jami prognoz ${Math.round(forecast.income.base / 1000)} ming, shundan faqat ${Math.round(forecast.income.exactBase / 1000)} ming aniq.`,
       });
     }
   }
@@ -548,7 +548,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         type: "budget",
         severity: "critical",
         title: `${b.categoryName} budjeti oshdi`,
-        body: `Limit ${formatAmount(b.amount)}, sarflandi ${formatAmount(b.spent)}.`,
+        body: `Limit ${Math.round(b.amount / 1000)} ming, sarflandi ${Math.round(b.spent / 1000)} ming.`,
         refDate: null,
         amount: b.spent - b.amount,
       });
@@ -558,7 +558,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         type: "budget",
         severity: "warning",
         title: `${b.categoryName} budjetining ${(b.usage * 100).toFixed(0)}% ishlatildi`,
-        body: `Qoldi ${formatAmount(b.amount - b.spent)} so‘m.`,
+        body: `Qoldi ${Math.round((b.amount - b.spent) / 1000)} ming so'm.`,
         refDate: null,
         amount: b.amount - b.spent,
       });
@@ -581,23 +581,23 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         `🔴 ${shortDate(first.date)} kuni ${causeExpense.label} to'lovi bor`,
         "",
         "To'lov:",
-        `${formatAmount(causeExpense.base)} UZS`,
+        `${Math.round(causeExpense.base).toLocaleString("ru-RU")} UZS`,
         "",
         `${shortDate(first.date)} dagi taxminiy balans:`,
-        `${formatAmount(projectedBalance)} UZS`,
+        `${Math.round(projectedBalance).toLocaleString("ru-RU")} UZS`,
         "",
-        nextInc ? `Kutilayotgan daromad:\n${formatAmount(nextInc.base)} UZS\n${shortDate(nextInc.date)}` : "",
+        nextInc ? `Kutilayotgan daromad:\n${Math.round(nextInc.base).toLocaleString("ru-RU")} UZS\n${shortDate(nextInc.date)}` : "",
         "",
-        `Tavsiya:\n${shortDate(first.date)} gacha kamida ${formatAmount(first.deficit)} UZS qo'shimcha mablag' kerak.`,
+        `Tavsiya:\n${shortDate(first.date)} gacha kamida ${Math.round(first.deficit).toLocaleString("ru-RU")} UZS qo'shimcha mablag' kerak.`,
         nextInc ? `Keyin ${shortDate(nextInc.date)} kuni balans tiklanadi.` : "",
       ]
         .filter(Boolean)
         .join("\n");
     } else {
       const nextIncomeText = nextInc
-        ? ` Kutilayotgan daromad: ${nextInc.label} ${formatAmount(nextInc.base)} so‘m ${shortDate(nextInc.date)}.`
+        ? ` Kutilayotgan daromad: ${nextInc.label} ${Math.round(nextInc.base / 1000)} ming ${shortDate(nextInc.date)}.`
         : "";
-      detailedBody = `${shortDate(first.date)} kuni ${first.cause ? `${first.cause} tufayli ` : ""}balans ${formatAmount(first.balance)} so‘mgacha tushishi mumkin (taqchillik ${formatAmount(first.deficit)} so‘m).${nextIncomeText} ${
+      detailedBody = `${shortDate(first.date)} kuni ${first.cause ? `${first.cause} tufayli ` : ""}balans ${Math.round(Math.abs(first.balance) / 1000)} mingga tushishi mumkin (taqchillik ${Math.round(first.deficit / 1000)} ming).${nextIncomeText} ${
         first.recoveryDate ? `Tuzalish: ${shortDate(first.recoveryDate)}.` : ""
       }`.trim();
     }
@@ -629,7 +629,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       type: "insight",
       severity: "warning",
       title: "Arxivlangan hisobda pul bor",
-      body: `${names} hisobi noaktiv, shuning uchun undagi ${formatAmount(ledgerCheck.excludedBalance)} ${user.currency} umumiy balansga qo'shilmayapti. Hisoblar bo'limida uni faollashtiring yoki mablag'ni boshqa hisobga o'tkazing.`,
+      body: `${names} hisobi noaktiv, shuning uchun undagi ${Math.round(ledgerCheck.excludedBalance).toLocaleString("ru-RU")} ${user.currency} umumiy balansga qo'shilmayapti. Hisoblar bo'limida uni faollashtiring yoki mablag'ni boshqa hisobga o'tkazing.`,
       refDate: null,
       amount: ledgerCheck.excludedBalance,
     });
@@ -708,9 +708,9 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
 
 function formatRange(p: { min: number; max: number; base: number; certainty: string }): string {
   if (p.certainty === "estimated" && p.min !== p.max) {
-    return `${formatAmount(p.min)}–${formatAmount(p.max)} so‘m (taxminiy)`;
+    return `${Math.round(p.min / 1000)}–${Math.round(p.max / 1000)} ming (taxminiy)`;
   }
-  return `${formatAmount(p.base)} so‘m`;
+  return `${Math.round(p.base / 1000)} ming so'm`;
 }
 
 function shortDate(iso: string): string {

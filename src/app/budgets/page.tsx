@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, PrimaryFinancialCard, Progress, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
-import { formatCompactAmount, formatAmount, monthLabel } from "@/lib/money";
+import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { compact, formatAmount, monthLabel } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
 
 export default function BudgetsPage() {
@@ -44,7 +44,7 @@ export default function BudgetsPage() {
         }
       />
 
-      <PrimaryFinancialCard>
+      <Card>
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy limit</p>
@@ -80,7 +80,7 @@ export default function BudgetsPage() {
             <p className="num mt-0.5 text-sm font-semibold">{exceeded}</p>
           </div>
         </div>
-      </PrimaryFinancialCard>
+      </Card>
 
       {budgets.length ? (
         <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
@@ -100,14 +100,14 @@ export default function BudgetsPage() {
               </div>
               <div className="mt-4">
                 <Progress value={b.usage} />
-                <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[12px]">
-                  <span className="num break-words font-medium text-fg-soft">{formatAmount(b.spent)}</span>
-                  <span className="num break-words text-right text-muted">limit {formatAmount(b.amount)}</span>
+                <div className="mt-2 flex items-baseline justify-between text-[12px]">
+                  <span className="num font-medium text-fg-soft">{formatAmount(b.spent)}</span>
+                  <span className="num text-muted">limit {formatAmount(b.amount)}</span>
                 </div>
                 <p className="mt-1.5 text-[11.5px] leading-snug text-muted">
                   {b.spent > b.amount
-                    ? `Limit ${formatCompactAmount(b.spent - b.amount)} oshdi`
-                    : `Qoldi ${formatCompactAmount(b.amount - b.spent)} · kuniga ${formatCompactAmount(Math.max(0, b.amount - b.spent) / Math.max(1, daysLeft))}`}
+                    ? `Limit ${compact(b.spent - b.amount)} oshdi`
+                    : `Qoldi ${compact(b.amount - b.spent)} · kuniga ${compact(Math.max(0, b.amount - b.spent) / Math.max(1, daysLeft))}`}
                 </p>
               </div>
               <div className="mt-3 flex gap-2">

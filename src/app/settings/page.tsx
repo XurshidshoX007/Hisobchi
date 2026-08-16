@@ -104,25 +104,25 @@ export default function SettingsPage() {
         </div>
         <Divider />
         <div className="mt-4 space-y-2 text-[12.5px]">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex justify-between gap-2">
             <span className="truncate text-muted">Joriy balans</span>
-            <span className="num max-w-[55%] break-words text-right font-medium">{formatAmount(state.forecast.currentBalance)}</span>
+            <span className="num shrink-0 font-medium">{formatAmount(state.forecast.currentBalance)}</span>
           </div>
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex justify-between gap-2">
             <span className="truncate text-muted">Aniq kutilayotgan</span>
-            <span className="num max-w-[55%] break-words text-right font-medium">{formatAmount(state.forecast.income.exactBase)}</span>
+            <span className="num shrink-0 font-medium">{formatAmount(state.forecast.income.exactBase)}</span>
           </div>
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex justify-between gap-2">
             <span className="truncate text-muted">Taxminiy (hisobga olingan)</span>
-            <span className="num max-w-[55%] break-words text-right font-medium">{formatAmount(state.forecast.safeToSpendParts.estimatedIncomeWeighted)}</span>
+            <span className="num shrink-0 font-medium">{formatAmount(state.forecast.safeToSpendParts.estimatedIncomeWeighted)}</span>
           </div>
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex justify-between gap-2">
             <span className="truncate text-muted">Majburiy to‘lovlar</span>
-            <span className="num max-w-[55%] break-words text-right font-medium">{formatAmount(-state.forecast.expense.mandatoryBase)}</span>
+            <span className="num shrink-0 font-medium">−{formatAmount(state.forecast.expense.mandatoryBase)}</span>
           </div>
           <div className="flex justify-between gap-2 border-t border-line pt-2 font-semibold">
             <span>Safe-to-Spend</span>
-            <span className="num max-w-[55%] break-words text-right">{formatAmount(state.forecast.safeToSpend)}</span>
+            <span className="num">{formatAmount(state.forecast.safeToSpend)}</span>
           </div>
         </div>
       </Card>

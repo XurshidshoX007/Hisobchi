@@ -9,7 +9,6 @@ import {
   Card,
   EmptyState,
   Field,
-  MetricGrid,
   Money,
   PageHeader,
   Progress,
@@ -19,7 +18,7 @@ import {
   Skeleton,
   TextInput,
 } from "@/components/ui";
-import { formatAmount, humanDate } from "@/lib/money";
+import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { DebtView } from "@/lib/finance";
 
 export default function DebtsPage() {
@@ -58,23 +57,29 @@ export default function DebtsPage() {
         }
       />
 
-      <MetricGrid className="sm:grid-cols-3">
-        <div className="min-w-0 p-4">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
+        <Card className="p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Men qarzdorman</p>
-          <div className="mt-1.5"><Money value={iOweTotal} size="lg" tone="negative" /></div>
+          <div className="mt-1.5">
+            <Money value={iOweTotal} size="lg" tone="negative" />
+          </div>
           <p className="mt-1 text-[11.5px] text-muted">{iOwe.length} ta yozuv</p>
-        </div>
-        <div className="min-w-0 p-4">
+        </Card>
+        <Card className="p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Menga qarzdor</p>
-          <div className="mt-1.5"><Money value={toMeTotal} size="lg" tone="positive" /></div>
+          <div className="mt-1.5">
+            <Money value={toMeTotal} size="lg" tone="positive" />
+          </div>
           <p className="mt-1 text-[11.5px] text-muted">{toMe.length} ta yozuv</p>
-        </div>
-        <div className="min-w-0 p-4">
+        </Card>
+        <Card className="p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Sof holat</p>
-          <div className="mt-1.5"><Money value={toMeTotal - iOweTotal} size="lg" tone={toMeTotal - iOweTotal >= 0 ? "positive" : "negative"} /></div>
+          <div className="mt-1.5">
+            <Money value={toMeTotal - iOweTotal} size="lg" tone={toMeTotal - iOweTotal >= 0 ? "positive" : "negative"} />
+          </div>
           <p className="mt-1 text-[11.5px] text-muted">farqi</p>
-        </div>
-      </MetricGrid>
+        </Card>
+      </div>
 
       {(["i_owe", "owed_to_me"] as const).map((dir) => {
         const list = dir === "i_owe" ? iOwe : toMe;
@@ -103,9 +108,9 @@ export default function DebtsPage() {
                     </div>
                     <div className="mt-3">
                       <Progress value={d.progress} height={6} />
-                      <div className="mt-2 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <span className="num break-words text-[11.5px] text-muted">to‘langan {formatAmount(d.paidAmount)}</span>
-                        <div className="flex flex-wrap gap-2 sm:justify-end">
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-[11.5px] text-muted">to‘langan {compact(d.paidAmount)}</span>
+                        <div className="flex flex-wrap justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => setPayFor(d)}

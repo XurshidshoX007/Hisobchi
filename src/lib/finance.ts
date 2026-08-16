@@ -1,4 +1,4 @@
-import { addDays, addMonths, clamp, dayDiff, formatCompactAmount, monthEnd, monthKey, monthStart, round2, todayISO, UZ_MONTHS } from "./money";
+import { addDays, addMonths, clamp, dayDiff, monthEnd, monthKey, monthStart, round2, todayISO, UZ_MONTHS } from "./money";
 import { advancePeriod, rewindPeriod } from "./reconciliation";
 
 /* ============================ Shared view types ============================ */
@@ -1795,7 +1795,7 @@ export function buildAnalytics(params: {
       icon: diff >= 0 ? "📈" : "📉",
       tone: diff >= 0 ? "positive" : "neutral",
       title: `Daromad ${diff >= 0 ? "+" : ""}${(diff * 100).toFixed(0)}%`,
-      body: `Bu oy daromad ${formatCompactAmount(income)}, oldingi oy ${formatCompactAmount(prevIncome)} edi.`,
+      body: `Bu oy daromad ${Math.round(income / 1000)} ming, oldingi oy ${Math.round(prevIncome / 1000)} ming edi.`,
     });
   }
   if (prevExpense > 0) {
@@ -1815,7 +1815,7 @@ export function buildAnalytics(params: {
       icon: "🔥",
       tone: "warning",
       title: `Eng tez o'sish: ${fastest.name}`,
-      body: `${formatCompactAmount(fastest.change)} so‘mga oshdi (${(fastest.changePct * 100).toFixed(0)}%).`,
+      body: `${round2(fastest.change / 1000)} ming so'mga oshdi (${(fastest.changePct * 100).toFixed(0)}%).`,
     });
   }
   if (topCategory && topCategory.amount > 0) {
@@ -1823,14 +1823,14 @@ export function buildAnalytics(params: {
       icon: "🥇",
       tone: "neutral",
       title: `Eng katta toifa: ${topCategory.name}`,
-      body: `Bu oy xarajatning ${(topCategory.share * 100).toFixed(0)}% (${formatCompactAmount(topCategory.amount)}) shu toifaga ketdi.`,
+      body: `Bu oy xarajatning ${(topCategory.share * 100).toFixed(0)}% (${round2(topCategory.amount / 1000)} ming) shu toifaga ketdi.`,
     });
   }
   if (income > expense && income > 0) {
     insights.push({
       icon: "💎",
       tone: "positive",
-      title: `Daromad xarajatdan ${formatCompactAmount(income - expense)} yuqori`,
+      title: `Daromad xarajatdan ${round2((income - expense) / 1_000_000) >= 1 ? `${round2((income - expense) / 1_000_000)} mln` : `${round2((income - expense) / 1000)} ming`} yuqori`,
       body: "Ijobiy cash-flow — jamg'arma yoki maqsadlarga yo'naltirish mumkin.",
     });
   }
