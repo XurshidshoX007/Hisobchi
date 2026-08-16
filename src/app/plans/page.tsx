@@ -8,6 +8,7 @@ import { CashFlowStrip, ForecastArea } from "@/components/charts";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { PlanStatusFilter } from "@/components/plan-status-filter";
+import { MonthlyPlanSummary, SecondaryPlanMetrics } from "@/components/plan-summary";
 import {
   Badge,
   Button,
@@ -283,27 +284,34 @@ export default function PlansPage() {
 
       {tab === "payments" ? (
         <div className="space-y-3.5 sm:space-y-4">
-          {/* §28/§29: monthly planning first — the annual figures are secondary. */}
-          <MonthLoadCard month={month} nearest={nearest}>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
-              <StatCard
-                label="Ixtiyoriy / oy"
-                value={monthlyOptional}
-                context={`${optionalCount} ta reja`}
-              />
-              <StatCard label="Faol rejalar" value={activePlans.length} plain context={`${pausedPlans.length} ta pauzada`} />
-              <StatCard
-                label="Yillik yuklama"
-                value={yearlyLoad}
-                context={recurringPlans.length ? "faqat doimiy rejalar" : "doimiy reja yo‘q"}
-              />
-              <StatCard
-                label="Muddatli qoldiq"
-                value={termRemaining}
-                context={termPlans.length ? `${termPlans.length} ta reja` : "muddatli reja yo‘q"}
-              />
-            </div>
-          </MonthLoadCard>
+          {/* §28/§29: ONE monthly surface + ONE flat metrics strip — no nested cards. */}
+          <MonthlyPlanSummary
+            monthLabel={month.label}
+            mandatory={month.mandatoryTotal}
+            paid={month.paid}
+            remaining={month.remaining}
+            progress={month.progress}
+            paidCount={month.paidCount}
+            remainingCount={month.remainingCount}
+            overdueCount={month.overdueCount}
+            overdueAmount={month.overdueAmount}
+            activeCount={activePlans.length}
+            nearestPayment={nearest}
+            onNearestClick={nearest ? () => router.push(`/transactions?plan=${nearest.id}`) : undefined}
+          />
+
+          {loadPlans.length ? (
+            <SecondaryPlanMetrics
+              optional={monthlyOptional}
+              optionalCount={optionalCount}
+              active={activePlans.length}
+              pausedCount={pausedPlans.length}
+              yearly={yearlyLoad}
+              recurringCount={recurringPlans.length}
+              termRemaining={termRemaining}
+              termCount={termPlans.length}
+            />
+          ) : null}
 
           <div className="flex min-h-11 items-center justify-between gap-3">
             <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">To‘lovlar</h2>
@@ -553,111 +561,6 @@ export default function PlansPage() {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p className="px-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{children}</p>
-  );
-}
-
-/**
- * "BU OY" — the primary card of the page (§28/§29). It answers the three
- * questions of monthly planning in one glance: how much is due this month, how
- * much of it is already paid, what is still open, and what is next.
- */
-function MonthLoadCard({
-  month,
-  nearest,
-  children,
-}: {
-  month: {
-    label: string;
-    mandatoryTotal: number;
-    optionalTotal: number;
-    paid: number;
-    paidMandatory: number;
-    remaining: number;
-    remainingMandatory: number;
-    progress: number;
-    remainingCount: number;
-    paidCount: number;
-    overdueCount: number;
-    overdueAmount: number;
-  };
-  nearest: {
-    id: number;
-    name: string;
-    date: string;
-    daysLeft: number;
-    base: number;
-    mandatory: boolean;
-    status: "overdue" | "today" | "upcoming";
-  } | null;
-  children?: React.ReactNode;
-}) {
-  return (
-    <Card className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Bu oy · {month.label}</p>
-          <div className="mt-1">
-            <Money value={month.mandatoryTotal} size="xl" />
-          </div>
-          <p className="mt-0.5 text-[11.5px] text-muted">majburiy yuk</p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Ixtiyoriy</p>
-          <p className="num mt-1 text-[15px] font-semibold">{compact(month.optionalTotal)}</p>
-        </div>
-      </div>
-
-      <div>
-        <Progress value={month.progress} tone="accent" height={8} />
-        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p className="text-[12px] text-muted">
-            To‘langan: <span className="num font-semibold text-positive-text">{formatAmount(month.paid)}</span>
-            {month.paidCount ? <span className="text-muted"> · {month.paidCount} ta</span> : null}
-          </p>
-          <p className="text-[12px] text-muted">
-            Qolgan: <span className="num font-semibold text-fg">{formatAmount(month.remaining)}</span>
-            {month.remainingCount ? <span className="text-muted"> · {month.remainingCount} ta</span> : null}
-          </p>
-        </div>
-      </div>
-
-      {month.overdueCount ? (
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-negative-soft px-3.5 py-2.5">
-          <p className="min-w-0 text-[12.5px] font-semibold text-negative-text">
-            🔴 {month.overdueCount} ta kechikkan to‘lov
-          </p>
-          <span className="num shrink-0 text-[13px] font-semibold text-negative-text">
-            {compact(month.overdueAmount)}
-          </span>
-        </div>
-      ) : null}
-
-      <div className="border-t border-line pt-3">
-        <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Eng yaqin to‘lov</p>
-        {nearest ? (
-          <div className="mt-1.5 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-[14.5px] font-semibold">{nearest.name}</p>
-              <p
-                className={`mt-0.5 text-[12px] font-medium ${
-                  nearest.status === "overdue" ? "text-negative-text" : nearest.status === "today" ? "text-warning-text" : "text-muted"
-                }`}
-              >
-                {dayMonth(nearest.date)} · {relativeDayShort(nearest.daysLeft)}
-              </p>
-            </div>
-            <div className="shrink-0 text-right">
-              <Money value={nearest.base} size="md" tone={nearest.status === "overdue" ? "negative" : "default"} />
-              <p className="mt-0.5 text-[11px] text-muted">{nearest.mandatory ? "majburiy" : "ixtiyoriy"}</p>
-            </div>
-          </div>
-        ) : (
-          <p className="mt-1.5 text-[13px] text-muted">Bu oyda ochiq to‘lov qolmadi. 🎉</p>
-        )}
-      </div>
-
-      {children ? <div className="border-t border-line pt-3">{children}</div> : null}
-    </Card>
   );
 }
 

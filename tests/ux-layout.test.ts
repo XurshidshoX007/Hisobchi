@@ -45,3 +45,65 @@ test("plans share one compact single-select status filter", () => {
   assert.match(planFilter, /aria-expanded=\{open\}/);
   assert.doesNotMatch(planFilter, /Apply|Qo‘llash/);
 });
+
+/* ==================== Plans → To‘lovlar: ONE compact monthly surface ==================== */
+
+const planSummary = readFileSync(new URL("../src/components/plan-summary.tsx", import.meta.url), "utf8");
+const ui = readFileSync(new URL("../src/components/ui.tsx", import.meta.url), "utf8");
+
+test("payments tab renders one monthly summary plus one flat metrics strip", () => {
+  assert.equal((plans.match(/<MonthlyPlanSummary/g) ?? []).length, 1);
+  assert.equal((plans.match(/<SecondaryPlanMetrics/g) ?? []).length, 1);
+  // The old heavy composition is gone: no MonthLoadCard, no StatCard grid on payments.
+  assert.doesNotMatch(plans, /MonthLoadCard/);
+  assert.doesNotMatch(plans, /Ixtiyoriy \/ oy|Yillik yuklama|Muddatli qoldiq|label="Faol rejalar"/);
+});
+
+test("monthly summary is a single surface — no nested Card and no per-metric frames", () => {
+  assert.doesNotMatch(planSummary, /<Card\b/);
+  assert.doesNotMatch(planSummary, /flat-card/);
+  // Exactly one framed surface (`card`), the metrics strip stays borderless.
+  assert.equal((planSummary.match(/className="card /g) ?? []).length, 2); // primary + empty state variant
+  assert.doesNotMatch(planSummary, /border border-line/);
+  assert.match(planSummary, /rounded-2xl bg-surface-2/);
+});
+
+test("secondary metrics degrade to 2x2 on narrow screens and 4 columns from 390px", () => {
+  // Container query: 362px == a 390px viewport minus the shell's page gutters.
+  assert.match(planSummary, /@container/);
+  assert.match(planSummary, /grid-cols-2[\s\S]*@min-\[362px\]:grid-cols-4/);
+  for (const label of ["Ixtiyoriy", "Faol", "Yillik", "Muddatli"]) {
+    assert.match(planSummary, new RegExp(`label: "${label}"`));
+  }
+});
+
+test("monthly summary keeps every level of the hierarchy", () => {
+  assert.match(planSummary, /Bu oy · \{monthLabel\}/);
+  assert.match(planSummary, /majburiy yuk/);
+  assert.match(planSummary, /To‘langan/);
+  assert.match(planSummary, /Qolgan/);
+  assert.match(planSummary, /Eng yaqin to‘lov/);
+  // Global balance / safe-to-spend belong to the Dashboard, never here (§14).
+  assert.doesNotMatch(planSummary, /Safe-to-spend|Haqiqiy balans|Oy oxiri/i);
+});
+
+test("compact states live inside the same summary card", () => {
+  assert.match(planSummary, /Faol to‘lov rejasi yo‘q\./); // empty
+  assert.match(planSummary, /✓ Reja yakunlangan/); // completed
+  assert.match(planSummary, /Kechikkan/); // overdue nearest row
+  assert.match(planSummary, /ta kechikkan to‘lov/); // overdue rollup, still inline
+});
+
+test("progress exposes accessible values and stays visually light", () => {
+  assert.match(ui, /role="progressbar"/);
+  assert.match(ui, /aria-valuenow=/);
+  assert.match(ui, /aria-valuemin=\{0\}/);
+  assert.match(ui, /aria-valuemax=\{100\}/);
+  assert.match(planSummary, /height=\{5\}/);
+  assert.match(planSummary, /ariaLabel=\{`Bu oy majburiy to‘lovlar bajarildi: \$\{pct\}%`\}/);
+});
+
+test("plans page keeps the global FAB as the only creation entry point", () => {
+  assert.doesNotMatch(plans, /Yangi to‘lov rejasi/);
+  assert.match(plans, /pastdagi \+ tugmasi/);
+});
