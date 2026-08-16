@@ -107,16 +107,82 @@ clearer re-send is allowed; a successful one stays idempotent.
 * 5 MB size cap, ≤10 images/minute/user, ≤40 extracted rows per image
 * drafts are scoped to `(userId, chatId)`; foreign callbacks are security events
 
-## 9. Rollout
+## 9. Activation & rollout
+
+The feature has **two independent gates**, and neither is ever bypassed in
+code (no hardcoded `true`, no deleted flag check):
+
+1. `imageIntelligenceEnabled(telegramId)` — the feature flag / test-user list.
+2. `visionProviderConfigured()` — an actual vision provider key.
+
+`src/lib/image/access.ts` is the single place that combines them, so the two
+failure modes can never be confused:
+
+| Situation | User sees | Audit action |
+| --- | --- | --- |
+| Flag off, user not allowlisted | "Rasm tahlili hozircha yoqilmagan…" | `image_rejected` |
+| Flag on, no `VISION_API_KEY` | "Rasm tahlil xizmati vaqtincha mavjud emas…" | `image_provider_unconfigured` |
+| Flag on + provider configured | the analysis result | `image_extraction_success` |
+
+Reporting a missing key as "feature disabled" would hide a production incident
+behind a product message, so those messages are deliberately different and a
+regression test asserts they never converge.
+
+### Steps
 
 1. `IMAGE_INTELLIGENCE_ENABLED=false` (default) — feature invisible.
 2. Set `IMAGE_INTELLIGENCE_TEST_USERS=<your telegram id>` and configure
-   `VISION_API_KEY` / `VISION_MODEL`.
+   `VISION_API_KEY` (+ optional `VISION_BASE_URL` / `VISION_MODEL`).
 3. Run the migration `drizzle/0006_image_intelligence.sql`
    (`node scripts/migrate.mjs`, already wired as Railway `preDeployCommand`).
-4. QA the acceptance list with real photos (shopping list, credit schedule,
+4. Check `GET /api/health` → `imageIntelligence.state == "test-users-only"`
+   and `providerConfigured == true`.
+5. QA the acceptance list with real photos (shopping list, credit schedule,
    expected income, debt table, mixed image).
-5. Flip `IMAGE_INTELLIGENCE_ENABLED=true` for everyone.
+6. Flip `IMAGE_INTELLIGENCE_ENABLED=true` for everyone.
 
-Without a provider key the bot degrades gracefully: the user gets the
-"send a clearer photo or type the amounts" fallback, never a raw AI error.
+## 10. Vision provider & model
+
+The provider speaks the OpenAI-compatible `/chat/completions` dialect, so it
+also fits Azure OpenAI, vLLM, Groq and similar gateways.
+
+* `VISION_MODEL` must accept **image input** on `/chat/completions`. The default
+  is `gpt-5.4-mini`; verify any override against the provider's current model
+  catalogue, since retired or text-only ids make every photo fail.
+* Request parameters adapt to the model automatically: GPT-5 / o-series models
+  get `max_completion_tokens` (and no `temperature`, which they reject), older
+  chat models get `max_tokens` + `temperature: 0`.
+* A `400` that names a rejected parameter triggers exactly **one** corrective
+  retry, so a stricter gateway self-heals instead of failing the user.
+
+### Failure handling (§25)
+
+A raw provider status, body, model name or key is never shown or logged.
+
+| Provider outcome | User message | Event |
+| --- | --- | --- |
+| 401 / 403 | "Rasm tahlil xizmati vaqtincha mavjud emas…" | `image_provider_unconfigured` |
+| 429 | "Rasm tahliliga vaqtincha navbat ko'p…" | `image_provider_rate_limited` |
+| timeout | "Rasmni tahlil qilish uzoq davom etdi…" | `image_processing_failed` |
+| 5xx / network | "Rasm tahlil xizmati vaqtincha mavjud emas…" | `image_processing_failed` |
+| unreadable / non-JSON | "Rasm sifati past yoki matnni o'qib bo'lmadi." | `image_extraction_failed` |
+| no financial rows | "Rasmda moliyaviy ma'lumot topilmadi." | `image_extraction_failed` |
+
+## 11. Tests
+
+| Suite | Needs a database | Covers |
+| --- | --- | --- |
+| `tests/image-intelligence.test.ts` | no | extraction, normalization, categories, validation, UX |
+| `tests/image-activation.test.ts` | no | feature flag, test-user rollout, provider config, request payload, failure mapping, E2E scenarios via `StaticVisionProvider` |
+| `tests/image-provider-http.test.ts` | no | real HTTP against a local mock endpoint: success, 401/403/429/5xx, timeout, malformed JSON, retry |
+| `tests/image-pipeline-db.test.ts` | **yes** | drafts → confirmation → PostgreSQL, plan vs real balance, duplicates, rate limit, orphan states, Mini App state |
+
+The database suite skips automatically when no database is configured:
+
+```bash
+node scripts/migrate.mjs                       # against a throwaway database
+TEST_DATABASE_URL=postgresql://... npm run test:db
+```
+
+No test ever calls a live vision API — `StaticVisionProvider` and
+`FailingVisionProvider` make every path deterministic.

@@ -15,9 +15,10 @@ import { telegramApi } from "@/lib/telegram";
 import { resolveUser } from "@/lib/user";
 import { applyDraft, editDraftPayload, isImageDraft } from "@/lib/drafts";
 import { processImageMessage, renderBatchMessage } from "@/lib/image/pipeline";
-import { buildCategoryKeyboard, buildItemMenu, IMAGE_DISABLED_TEXT, IMAGE_RECEIVED_TEXT } from "@/lib/image/ux";
+import { buildCategoryKeyboard, buildItemMenu, IMAGE_RECEIVED_TEXT } from "@/lib/image/ux";
+import { imageAccessDecision } from "@/lib/image/access";
 import type { ImageDraft } from "@/lib/image/types";
-import { appUrl, demoModeEnabled, imageIntelligenceEnabled, isProduction, telegramWebhookSecret } from "@/lib/env";
+import { appUrl, demoModeEnabled, isProduction, telegramWebhookSecret } from "@/lib/env";
 import { writeAudit, writeSecurityEvent } from "@/lib/audit";
 import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from "@/lib/security";
 import { formatAmount, humanDate } from "@/lib/money";
@@ -480,20 +481,27 @@ export async function POST(request: Request) {
     const document = update.message?.document;
     const isImageDocument = Boolean(document?.mime_type?.toLowerCase().startsWith("image/"));
     if ((photo && photo.length) || isImageDocument) {
-      if (!imageIntelligenceEnabled(from.id)) {
+      // §12/§33: one gate decides. The flag covers ONLY image handling —
+      // text messages below are untouched — and a missing provider is
+      // reported as a service problem, never as "feature disabled".
+      const access = imageAccessDecision(from.id);
+      if (!access.allowed) {
+        if (access.reason === "provider_unconfigured") {
+          securityLog("error", "image_provider_unconfigured", { requestId: sec.requestId, userId: user.id, ipKey: sec.ipKey });
+        }
         void writeAudit({
           userId: user.id,
           actorRole: user.role,
-          action: "image_rejected",
+          action: access.event,
           entity: "image",
-          outcome: "denied",
+          outcome: access.outcome,
           requestId: sec.requestId,
           ipHash: sec.ipKey,
-          metadata: { reason: "feature_disabled" },
+          metadata: { reason: access.reason },
         });
         await callTelegram("sendMessage", {
           chat_id: chatId,
-          text: IMAGE_DISABLED_TEXT,
+          text: access.text,
           reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
         });
         return NextResponse.json({ ok: true });

@@ -89,19 +89,24 @@ export function normalizeAmount(input: string): NormalizedAmount {
 
 export type NormalizedDate = { date: string | null; confidence: number; explicit: boolean; raw: string | null };
 
+/**
+ * Month vocabulary (§19): Uzbek (full + the abbreviations the bot itself
+ * renders, e.g. "17-avg"), Russian (Cyrillic) and English. Cyrillic
+ * alternatives must not use `\b`, which only knows ASCII word characters.
+ */
 const MONTH_PATTERNS: Array<[RegExp, number]> = [
-  [/yanvar|january|jan\b/, 1],
-  [/fevral|february|feb\b/, 2],
-  [/mart|march|mar\b/, 3],
-  [/aprel|april|apr\b/, 4],
-  [/\bmay\b/, 5],
-  [/iyun|june|jun\b/, 6],
-  [/iyul|july|jul\b/, 7],
-  [/avgust|august|aug\b/, 8],
-  [/sent[iy]?abr|september|sep\b/, 9],
-  [/okt[iy]?abr|october|oct\b/, 10],
-  [/noyabr|november|nov\b/, 11],
-  [/dekabr|december|dec\b/, 12],
+  [/yanvar|январ|january|yan\b|jan\b/, 1],
+  [/fevral|феврал|february|fev\b|feb\b/, 2],
+  [/mart|март|march|mar\b/, 3],
+  [/aprel|апрел|april|apr\b/, 4],
+  [/\bmay\b|мая|май/, 5],
+  [/iyun|июн|june|jun\b/, 6],
+  [/iyul|июл|july|jul\b/, 7],
+  [/avgust|август|august|avg\b|aug\b/, 8],
+  [/sent[iy]?abr|сентябр|september|sen\b|sep\b/, 9],
+  [/okt[iy]?abr|октябр|october|okt\b|oct\b/, 10],
+  [/noyabr|ноябр|november|noy\b|nov\b/, 11],
+  [/dekabr|декабр|december|dek\b|dec\b/, 12],
 ];
 
 function iso(year: number, month: number, day: number): string | null {

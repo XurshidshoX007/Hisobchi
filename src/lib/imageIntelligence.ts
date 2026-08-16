@@ -3,7 +3,12 @@ import { extractFromLines, MAX_EXTRACTED_ROWS } from "./image/extract";
 import { classifyCategory, type UserCategory } from "./image/categories";
 import { clarificationsFor, validateExtraction } from "./image/validate";
 import { nextDueDateFor } from "./image/normalize";
-import { resolveVisionProvider, type VisionProvider, type VisionResult } from "./image/provider";
+import {
+  resolveVisionProvider,
+  type VisionFailureReason,
+  type VisionProvider,
+  type VisionResult,
+} from "./image/provider";
 import type { DownloadedImage } from "./image/telegram-file";
 import type { DocumentClass, ExtractedEntity, ImageDraft } from "./image/types";
 
@@ -30,9 +35,11 @@ export type AnalyzeOptions = {
   maxRows?: number;
 };
 
+export type AnalysisFailureReason = VisionFailureReason | "no_content";
+
 export type AnalysisFailure = {
   ok: false;
-  reason: "unconfigured" | "provider_error" | "timeout" | "unreadable" | "too_large" | "no_content";
+  reason: AnalysisFailureReason;
 };
 
 export type AnalysisSuccess = {

@@ -6,6 +6,8 @@
  * identity or accept unverified Telegram init-data.
  */
 
+import { visionProviderInfo } from "./image/provider";
+
 export function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }
@@ -83,6 +85,50 @@ export function visionProviderConfigured(): boolean {
   return Boolean(process.env.VISION_API_KEY ?? process.env.OPENAI_API_KEY);
 }
 
+/**
+ * Non-secret health signal for image intelligence (§13).
+ *
+ * Reports whether the feature is reachable and by whom, plus the provider and
+ * model NAMES. It never returns the API key, and never a full endpoint URL
+ * that could carry a token in a query string.
+ */
+export type ImageIntelligenceStatus = {
+  /** Flag state for everyone. Test users can still be enabled while false. */
+  enabled: boolean;
+  /** Number of Telegram ids allowlisted while the global flag is off. */
+  testUserCount: number;
+  providerConfigured: boolean;
+  providerName: string | null;
+  model: string | null;
+  endpointHost: string | null;
+  /** "configured" | "test-users-only" | "provider-missing" | "disabled". */
+  state: "configured" | "test-users-only" | "provider-missing" | "disabled";
+};
+
+export function imageIntelligenceStatus(): ImageIntelligenceStatus {
+  const enabled = process.env.IMAGE_INTELLIGENCE_ENABLED === "true";
+  const testUserCount = imageIntelligenceTestUsers().length;
+  const info = visionProviderInfo();
+  const reachable = enabled || testUserCount > 0;
+  const state: ImageIntelligenceStatus["state"] = !reachable
+    ? "disabled"
+    : !info.configured
+      ? "provider-missing"
+      : enabled
+        ? "configured"
+        : "test-users-only";
+
+  return {
+    enabled,
+    testUserCount,
+    providerConfigured: info.configured,
+    providerName: info.provider,
+    model: info.model,
+    endpointHost: info.endpointHost,
+    state,
+  };
+}
+
 
 export type EnvReport = {
   ok: boolean;
@@ -93,6 +139,7 @@ export type EnvReport = {
   hasWebhookSecret: boolean;
   hasAppUrl: boolean;
   hasDatabaseUrl: boolean;
+  imageIntelligence: ImageIntelligenceStatus;
   warnings: string[];
 };
 
@@ -113,6 +160,11 @@ export function inspectEnv(): EnvReport {
   if (isProduction() && !process.env.REDIS_URL) warnings.push("REDIS_URL missing in production");
   if (isProduction() && !process.env.LOG_HASH_SECRET) warnings.push("LOG_HASH_SECRET missing in production");
   if (isProduction() && !process.env.NOTIFICATION_CRON_SECRET) warnings.push("NOTIFICATION_CRON_SECRET missing in production");
+  // A reachable image feature without a provider key produces user-visible
+  // failures, so it is a health warning rather than a silent misconfiguration.
+  if (imageIntelligenceStatus().state === "provider-missing") {
+    warnings.push("Image intelligence is enabled but VISION_API_KEY is missing");
+  }
 
   return {
     ok: warnings.length === 0,
@@ -123,6 +175,7 @@ export function inspectEnv(): EnvReport {
     hasWebhookSecret,
     hasAppUrl,
     hasDatabaseUrl,
+    imageIntelligence: imageIntelligenceStatus(),
     warnings,
   };
 }

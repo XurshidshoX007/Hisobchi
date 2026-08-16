@@ -32,6 +32,8 @@ export async function GET() {
         webhookUrlMatches: telegram.webhookUrlMatches,
         pendingTelegramUpdates: telegram.pendingUpdates,
         hasLastWebhookError: telegram.hasLastWebhookError,
+        // §13: capability signal only — provider/model names, never a key.
+        imageIntelligence: env.imageIntelligence,
         warnings,
         time: new Date().toISOString(),
       },

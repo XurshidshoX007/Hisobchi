@@ -38,7 +38,59 @@ Configure these in Railway Variables (never commit values):
 | `DATABASE_SSL` | usually no | `false` for Railway private Postgres |
 | `APP_TIMEZONE` | no | IANA zone for financial "today" (default `Asia/Tashkent`) |
 
-Do **not** set test users or demo credentials. `start-production.sh` refuses to
+### Image intelligence (Telegram photo/document analysis)
+
+Feature-flagged and **OFF by default**. Both the flag *and* a vision provider
+key are required — neither is bypassed in code.
+
+| Variable | Required | Value |
+|---|---:|---|
+| `IMAGE_INTELLIGENCE_ENABLED` | no | `false` until QA passes, then `true`. Only the exact string `true` enables it. |
+| `IMAGE_INTELLIGENCE_TEST_USERS` | no | Comma-separated Telegram user ids enabled while the flag is `false` |
+| `VISION_API_KEY` | for images | Vision provider key (secret). `OPENAI_API_KEY` is an accepted fallback name. |
+| `VISION_BASE_URL` | no | OpenAI-compatible base URL (default `https://api.openai.com/v1`) |
+| `VISION_MODEL` | no | Vision-capable chat model (default `gpt-5.4-mini`) |
+| `VISION_REASONING_EFFORT` | no | `none` \| `low` \| `medium` \| `high` for GPT-5 class models |
+| `IMAGE_MAX_BYTES` | no | Per-image cap in bytes (default `5242880`) |
+
+`VISION_MODEL` **must accept image input on `/chat/completions`**. Verify the
+model in the provider's current catalogue before deploying — a text-only or
+retired model id makes every photo fail. The provider adapts its request
+parameters automatically (`max_completion_tokens` for GPT-5/o-series,
+`max_tokens` + `temperature` for older chat models).
+
+Rollout (each stage is independently verifiable):
+
+1. **Stage 1** — `IMAGE_INTELLIGENCE_ENABLED=false`,
+   `IMAGE_INTELLIGENCE_TEST_USERS=<your Telegram id>`, `VISION_API_KEY=<secret>`.
+2. **Stage 2** — deploy, then check `GET /api/health` →
+   `imageIntelligence.state` is `test-users-only` and `providerConfigured` is
+   `true`.
+3. **Stage 3** — send real photos from the allowlisted account: shopping list,
+   credit schedule, expected income, debt list, mixed image. Confirm each batch
+   and verify the result in the Mini App (History, Plans, Debts, Dashboard).
+4. **Stage 4** — set `IMAGE_INTELLIGENCE_ENABLED=true` for everyone.
+5. **Stage 5** — monitor the audit actions `image_classified`,
+   `image_extraction_success`, `image_extraction_partial`,
+   `image_processing_failed`, `image_duplicate`, `image_rate_limited`,
+   `image_provider_unconfigured`, `image_provider_rate_limited`.
+
+Health reports the image capability **without secrets** — provider name, model
+name and endpoint host only, never the API key:
+
+```json
+"imageIntelligence": {
+  "enabled": true, "testUserCount": 0, "providerConfigured": true,
+  "providerName": "openai-compatible", "model": "gpt-5.4-mini",
+  "endpointHost": "api.openai.com", "state": "configured"
+}
+```
+
+If `state` is `provider-missing` the flag is on but the key is absent: users
+receive "Rasm tahlil xizmati vaqtincha mavjud emas" (never a misleading
+"feature disabled"), and health raises a warning.
+
+Do **not** set demo credentials. `start-production.sh` refuses to
 start if demo is enabled or a required secret is missing.
 
 Generate secrets locally without printing them into shell history where

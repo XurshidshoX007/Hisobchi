@@ -1,6 +1,7 @@
 import { formatAmount } from "../money";
 import type { ImageDraft } from "./types";
 import type { UserCategory } from "./categories";
+import type { AnalysisFailureReason } from "../imageIntelligence";
 
 /**
  * Telegram confirmation UX for image intelligence (§21, §22, §23, §25, §30).
@@ -34,6 +35,70 @@ export const IMAGE_DUPLICATE_TEXT =
   "♻️ Bu rasm avval qayta ishlangan — takroriy yozuvlar yaratilmadi. Yangi ma'lumot bo'lsa, boshqa rasm yuboring.";
 
 export const IMAGE_RATE_LIMITED_TEXT = "⏳ Juda ko'p rasm yuborildi. Bir daqiqadan so'ng qayta urinib ko'ring.";
+
+/**
+ * Provider/analysis failure → user message (§12, §14, §25).
+ *
+ * Two rules:
+ *   • a configuration problem is NEVER reported as “feature disabled”
+ *   • a raw provider error (status, body, model name, key) is NEVER shown
+ */
+export const IMAGE_SERVICE_UNAVAILABLE_TEXT = [
+  "🛠 Rasm tahlil xizmati vaqtincha mavjud emas.",
+  "Keyinroq qayta urinib ko'ring yoki summani matn ko'rinishida yozing.",
+].join("\n");
+
+export const IMAGE_PROVIDER_BUSY_TEXT =
+  "⏳ Rasm tahliliga vaqtincha navbat ko'p. Bir necha daqiqadan so'ng qayta urinib ko'ring.";
+
+export const IMAGE_TIMEOUT_TEXT =
+  "⌛️ Rasmni tahlil qilish uzoq davom etdi. Aniqroq (yorug' va tekis) rasm yuborib ko'ring.";
+
+export const IMAGE_UNREADABLE_TEXT = [
+  "🔍 Rasm sifati past yoki matnni o'qib bo'lmadi.",
+  "",
+  "Yorug'roq va to'g'ri burchakdan olingan rasm yuboring yoki asosiy summalarni yozib yuboring.",
+  "Masalan: „Non 30 ming, Go'sht 120 ming“.",
+].join("\n");
+
+export const IMAGE_NO_FINANCE_TEXT = [
+  "🤔 Rasmda moliyaviy ma'lumot topilmadi.",
+  "",
+  "Summalar ko'rinib turgan rasm yuboring yoki operatsiyani matn bilan yozing.",
+].join("\n");
+
+const FAILURE_TEXTS: Record<AnalysisFailureReason, string> = {
+  unconfigured: IMAGE_SERVICE_UNAVAILABLE_TEXT,
+  auth_error: IMAGE_SERVICE_UNAVAILABLE_TEXT,
+  provider_error: IMAGE_SERVICE_UNAVAILABLE_TEXT,
+  rate_limited: IMAGE_PROVIDER_BUSY_TEXT,
+  timeout: IMAGE_TIMEOUT_TEXT,
+  unreadable: IMAGE_UNREADABLE_TEXT,
+  unsupported_image: IMAGE_UNSUPPORTED_TEXT,
+  too_large: IMAGE_TOO_LARGE_TEXT,
+  no_content: IMAGE_NO_FINANCE_TEXT,
+};
+
+/** Monitoring event name per failure reason (§32). Never carries secrets. */
+const FAILURE_EVENTS: Record<AnalysisFailureReason, string> = {
+  unconfigured: "image_provider_unconfigured",
+  auth_error: "image_provider_unconfigured",
+  provider_error: "image_processing_failed",
+  rate_limited: "image_provider_rate_limited",
+  timeout: "image_processing_failed",
+  unreadable: "image_extraction_failed",
+  unsupported_image: "image_rejected",
+  too_large: "image_rejected",
+  no_content: "image_extraction_failed",
+};
+
+export function failureTextFor(reason: AnalysisFailureReason): string {
+  return FAILURE_TEXTS[reason] ?? IMAGE_FAILURE_TEXT;
+}
+
+export function failureEventFor(reason: AnalysisFailureReason): string {
+  return FAILURE_EVENTS[reason] ?? "image_processing_failed";
+}
 
 const KIND_TITLES: Record<string, { icon: string; singular: string }> = {
   expense: { icon: "💸", singular: "xarajat" },
@@ -111,7 +176,7 @@ export function buildBatchMessage(
 export function buildBatchKeyboard(items: Array<{ id: number }>, batchId: string): InlineKeyboard {
   const keyboard: InlineKeyboard = [
     [
-      { text: "✅ Barchasini tasdiqlash", callback_data: `batch:${batchId}:confirm` },
+      { text: "✅ Hammasini tasdiqlash", callback_data: `batch:${batchId}:confirm` },
       { text: "❌ Bekor qilish", callback_data: `batch:${batchId}:cancel` },
     ],
   ];
