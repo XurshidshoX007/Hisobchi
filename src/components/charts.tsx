@@ -73,9 +73,18 @@ export function IncomeExpenseBars({
 export function ForecastArea({
   data,
   height = 160,
+  description = "Balansning real va prognoz qismi, minimum, bazaviy va maksimum ssenariylar.",
 }: {
-  data: Array<{ date: string; projectedMin: number; projectedBase: number; projectedMax: number }>;
+  data: Array<{
+    date: string;
+    projectedMin: number;
+    projectedBase: number;
+    projectedMax: number;
+    actual?: boolean;
+    events?: Array<{ label: string; base: number }>;
+  }>;
   height?: number;
+  description?: string;
 }) {
   const W = 320;
   const H = height;
@@ -99,7 +108,7 @@ export function ForecastArea({
     .filter((d) => d.projectedMin < 0);
 
   return (
-    <ForecastAreaInteractive data={data} W={W} H={H} pad={pad} x={x} y={y} innerH={innerH}>
+    <ForecastAreaInteractive data={data} description={description} W={W} H={H} pad={pad} x={x} y={y} innerH={innerH}>
       <defs>
         <linearGradient id="fa-fill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
@@ -114,7 +123,17 @@ export function ForecastArea({
       {min < 0 ? (
         <line x1={pad.left} x2={W - pad.right} y1={zeroY} y2={zeroY} stroke="var(--negative)" strokeWidth="1" strokeDasharray="3 3" />
       ) : null}
-      <path d={line(base)} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
+      {(() => {
+        const lastActual = data.reduce((last, item, index) => (item.actual ? index : last), -1);
+        const actual = lastActual >= 0 ? base.slice(0, lastActual + 1) : [];
+        const projected = lastActual >= 0 ? base.slice(Math.max(0, lastActual)) : base;
+        return (
+          <>
+            {actual.length > 1 ? <path d={line(actual)} fill="none" stroke="var(--fg)" strokeWidth="2" strokeLinecap="round" /> : null}
+            {projected.length > 1 ? <path d={line(projected)} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeDasharray={lastActual >= 0 ? "4 2" : undefined} /> : null}
+          </>
+        );
+      })()}
       {risks.map((r) => (
         <circle key={r.date} cx={x(r.i)} cy={y(r.projectedMin)} r="2.6" fill="var(--negative)" />
       ))}
@@ -130,6 +149,7 @@ export function ForecastArea({
 /** Hover/tap layer: crosshair + tooltip (date, min/base/max) for the forecast. */
 function ForecastAreaInteractive({
   data,
+  description,
   W,
   H,
   pad,
@@ -138,7 +158,15 @@ function ForecastAreaInteractive({
   innerH,
   children,
 }: {
-  data: Array<{ date: string; projectedMin: number; projectedBase: number; projectedMax: number }>;
+  data: Array<{
+    date: string;
+    projectedMin: number;
+    projectedBase: number;
+    projectedMax: number;
+    actual?: boolean;
+    events?: Array<{ label: string; base: number }>;
+  }>;
+  description: string;
   W: number;
   H: number;
   pad: { top: number; bottom: number; left: number; right: number };
@@ -166,6 +194,15 @@ function ForecastAreaInteractive({
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full touch-pan-y"
         role="img"
+        aria-label={description}
+        tabIndex={0}
+        onFocus={() => setActive((value) => value ?? Math.max(0, data.length - 1))}
+        onBlur={() => setActive(null)}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          setActive((value) => Math.max(0, Math.min(data.length - 1, (value ?? 0) + (event.key === "ArrowRight" ? 1 : -1))));
+        }}
         onMouseMove={(e) => pick(e.clientX)}
         onMouseLeave={() => setActive(null)}
         onTouchStart={(e) => pick(e.touches[0]?.clientX ?? 0)}
@@ -187,6 +224,7 @@ function ForecastAreaInteractive({
           <span className="ml-2 text-muted">
             {compact(d.projectedMin)}–{compact(d.projectedMax)}
           </span>
+          {d.events?.length ? <span className="mt-0.5 block max-w-56 truncate text-muted">Sabab: {d.events.map((event) => event.label).join(", ")}</span> : null}
         </div>
       ) : null}
     </div>

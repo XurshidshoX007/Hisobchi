@@ -33,7 +33,7 @@ import {
 import { addDays, dayDiff, monthKey, monthStart, round2, todayISO } from "./money";
 import type { AppState, LiveAlert, UserView } from "./types";
 
-const FORECAST_HORIZON_DAYS = 120;
+const FORECAST_HORIZON_DAYS = 180;
 
 export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const today = todayISO();
@@ -384,7 +384,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       cashflow: forecast.cashflow,
       analytics,
       forecast,
-      monthsBefore: 1,
+      monthsBefore: 5,
       monthsAfter: 4,
     });
   } catch {
@@ -415,7 +415,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     analytics.insights.push({
       icon: "✨",
       tone: forecast.safeToSpend < 0 ? "warning" : "positive",
-      title: `Safe-to-Spend bugun: ${Math.round(Math.max(0, forecast.safeToSpend) / 1000)} ming`,
+      title: `Safe-to-Spend bugun: ${Math.round(forecast.safeToSpend / 1000)} ming`,
       body:
         forecast.safeToSpend < 0
           ? "Majburiy to'lovlar va zaxira hisobga olinganda hozircha erkin mablag' yo'q."
