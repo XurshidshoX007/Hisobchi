@@ -2,13 +2,22 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { pendingDrafts, telegramUpdates } from "@/db/schema";
+import { categories as categoriesTable, pendingDrafts, telegramUpdates } from "@/db/schema";
 import { respondToBotMessage, MAIN_MENU } from "@/lib/bot";
-import { isStartCommand, parseBatchCallback, parseDraftCallback } from "@/lib/bot-routing";
+import {
+  isStartCommand,
+  parseBatchCallback,
+  parseCategoryPickCallback,
+  parseDraftCallback,
+  parseDraftEditCallback,
+} from "@/lib/bot-routing";
 import { telegramApi } from "@/lib/telegram";
 import { resolveUser } from "@/lib/user";
-import { runMutation } from "@/lib/mutations";
-import { appUrl, demoModeEnabled, isProduction, telegramWebhookSecret } from "@/lib/env";
+import { applyDraft, editDraftPayload, isImageDraft } from "@/lib/drafts";
+import { processImageMessage, renderBatchMessage } from "@/lib/image/pipeline";
+import { buildCategoryKeyboard, buildItemMenu, IMAGE_DISABLED_TEXT, IMAGE_RECEIVED_TEXT } from "@/lib/image/ux";
+import type { ImageDraft } from "@/lib/image/types";
+import { appUrl, demoModeEnabled, imageIntelligenceEnabled, isProduction, telegramWebhookSecret } from "@/lib/env";
 import { writeAudit, writeSecurityEvent } from "@/lib/audit";
 import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from "@/lib/security";
 import { formatAmount, humanDate } from "@/lib/money";
@@ -19,8 +28,12 @@ type TelegramUpdate = {
   update_id: number;
   message?: {
     chat: { id: number };
+    message_id?: number;
     from?: { id: number; first_name?: string; last_name?: string; username?: string };
     text?: string;
+    caption?: string;
+    photo?: Array<{ file_id: string; file_unique_id: string; file_size?: number; width?: number; height?: number }>;
+    document?: { file_id: string; file_unique_id: string; mime_type?: string; file_size?: number; file_name?: string };
   };
   callback_query?: {
     id: string;
@@ -146,11 +159,7 @@ export async function POST(request: Request) {
             ack = "Bu so'rov avval qayta ishlangan";
           } else {
             const payload = draft.payload as Record<string, unknown>;
-            const result = await runMutation(user, {
-              entity: "transaction",
-              action: "create",
-              data: { ...payload, source: "bot" },
-            });
+            const result = await applyDraft(user, payload);
             ack = result.ok ? `✅ ${result.message}` : `⛔ ${result.message}`;
             await db
               .update(pendingDrafts)
@@ -159,8 +168,8 @@ export async function POST(request: Request) {
             await writeAudit({
               userId: user.id,
               actorRole: user.role,
-              action: "confirm_draft",
-              entity: "transaction",
+              action: isImageDraft(payload) ? "image_confirmation" : "confirm_draft",
+              entity: draft.kind ?? "transaction",
               entityId: result.id ?? null,
               outcome: result.ok ? "success" : "denied",
               requestId: sec.requestId,
@@ -299,20 +308,18 @@ export async function POST(request: Request) {
               continue;
             }
             const payload = draft.payload as Record<string, unknown>;
-            const result = await runMutation(user, {
-              entity: "transaction",
-              action: "create",
-              data: { ...payload, source: "bot" },
-            });
+            const result = await applyDraft(user, payload);
             if (result.ok) okCount += 1;
             else failCount += 1;
+            // A row that could not be saved stays PENDING (never silently
+            // dropped, §23): the user can still edit and confirm it.
             await db
               .update(pendingDrafts)
-              .set({ status: result.ok ? "confirmed" : "cancelled", resolvedAt: new Date() })
+              .set({ status: result.ok ? "confirmed" : "pending", resolvedAt: result.ok ? new Date() : null })
               .where(and(eq(pendingDrafts.id, draft.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
           }
           if (okCount && !failCount) ack = `✅ ${okCount} ta operatsiya qayd etildi`;
-          else if (okCount) ack = `✅ ${okCount} ta qayd etildi, ⛔ ${failCount} ta xato`;
+          else if (okCount) ack = `✅ ${okCount} ta qayd etildi, ❓ ${failCount} ta aniqlashtirish kutmoqda`;
           else if (alreadyDone && !failCount) ack = "Bu so'rov avval qayta ishlangan";
           else ack = "⛔ Operatsiyalarni saqlab bo'lmadi";
           await writeAudit({
@@ -329,10 +336,13 @@ export async function POST(request: Request) {
 
         await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: ack.slice(0, 190) });
         if (cq.message) {
+          // Rows that still need clarification keep their buttons so nothing
+          // silently disappears from the batch (§23, §30).
+          const remaining = await renderBatchMessage(user.id, batchId);
           await callTelegram("editMessageReplyMarkup", {
             chat_id: cq.message.chat.id,
             message_id: cq.message.message_id,
-            reply_markup: { inline_keyboard: [] },
+            reply_markup: { inline_keyboard: remaining?.keyboard ?? [] },
           });
           await callTelegram("sendMessage", {
             chat_id: cq.message.chat.id,
@@ -343,8 +353,202 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      /* ------- item-level edit of an image draft (§22) ------- */
+      const editCallback = parseDraftEditCallback(data);
+      const pickCallback = editCallback ? null : parseCategoryPickCallback(data);
+      if (editCallback || pickCallback) {
+        const draftId = editCallback?.draftId ?? pickCallback!.draftId;
+        const rows = await db
+          .select()
+          .from(pendingDrafts)
+          .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.chatId, chatId)))
+          .limit(1);
+        const draft = rows[0];
+        if (!draft || draft.status !== "pending" || !isImageDraft(draft.payload as Record<string, unknown>)) {
+          void writeSecurityEvent({
+            userId: user.id,
+            event: "foreign_or_missing_draft_callback",
+            severity: "warning",
+            requestId: sec.requestId,
+            ipHash: sec.ipKey,
+            metadata: { draftId },
+          });
+          await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: "So'rov topilmadi" });
+          return NextResponse.json({ ok: true });
+        }
+        const payload = draft.payload as unknown as ImageDraft;
+
+        if (editCallback?.action === "menu") {
+          const menu = buildItemMenu(draftId, payload);
+          await callTelegram("answerCallbackQuery", { callback_query_id: cq.id });
+          await callTelegram("sendMessage", {
+            chat_id: chatId,
+            text: menu.text,
+            reply_markup: { inline_keyboard: menu.keyboard },
+          });
+          return NextResponse.json({ ok: true });
+        }
+
+        if (editCallback?.action === "cat") {
+          const type = (payload.data as { type?: string }).type === "income" || payload.kind === "expected_income" ? "income" : "expense";
+          const catRows = await db
+            .select({
+              id: categoriesTable.id,
+              name: categoriesTable.name,
+              type: categoriesTable.type,
+              isActive: categoriesTable.isActive,
+            })
+            .from(categoriesTable)
+            .where(and(eq(categoriesTable.userId, user.id), eq(categoriesTable.isActive, true)))
+            .orderBy(asc(categoriesTable.sortOrder), asc(categoriesTable.id));
+          const keyboard = buildCategoryKeyboard(
+            draftId,
+            catRows.map((row) => ({ ...row, type: row.type === "income" ? "income" : "expense" })),
+            type,
+          );
+          await callTelegram("answerCallbackQuery", { callback_query_id: cq.id });
+          await callTelegram("sendMessage", {
+            chat_id: chatId,
+            text: "📁 Mavjud kategoriyalaringizdan birini tanlang:",
+            reply_markup: { inline_keyboard: keyboard },
+          });
+          return NextResponse.json({ ok: true });
+        }
+
+        if (editCallback?.action === "drop") {
+          await db
+            .update(pendingDrafts)
+            .set({ status: "cancelled", resolvedAt: new Date() })
+            .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")));
+          await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: "Yozuv olib tashlandi" });
+          await callTelegram("sendMessage", { chat_id: chatId, text: "🗑 Yozuv ro'yxatdan olib tashlandi." });
+          return NextResponse.json({ ok: true });
+        }
+
+        let categoryName: string | null = null;
+        if (pickCallback) {
+          const owned = await db
+            .select({ id: categoriesTable.id, name: categoriesTable.name })
+            .from(categoriesTable)
+            .where(and(eq(categoriesTable.id, pickCallback.categoryId), eq(categoriesTable.userId, user.id), eq(categoriesTable.isActive, true)))
+            .limit(1);
+          if (!owned[0]) {
+            await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: "Kategoriya topilmadi" });
+            return NextResponse.json({ ok: true });
+          }
+          categoryName = owned[0].name;
+        }
+
+        const edit = pickCallback
+          ? editDraftPayload(draft.payload as Record<string, unknown>, "cat", String(pickCallback.categoryId), { categoryName })
+          : editDraftPayload(draft.payload as Record<string, unknown>, editCallback!.action as "type" | "date" | "dir", "value" in editCallback! ? editCallback!.value : "");
+        if (!edit.ok) {
+          await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: edit.ack });
+          return NextResponse.json({ ok: true });
+        }
+        await db
+          .update(pendingDrafts)
+          .set({ payload: edit.payload })
+          .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")));
+        await writeAudit({
+          userId: user.id,
+          actorRole: user.role,
+          action: "image_draft_edited",
+          entity: draft.kind ?? "transaction",
+          outcome: "success",
+          requestId: sec.requestId,
+          ipHash: sec.ipKey,
+          metadata: { draftId, field: pickCallback ? "category" : editCallback!.action },
+        });
+        const updatedMenu = buildItemMenu(draftId, edit.payload as unknown as ImageDraft);
+        await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: edit.ack.slice(0, 190) });
+        await callTelegram("sendMessage", {
+          chat_id: chatId,
+          text: `✏️ ${edit.ack}\n\n${updatedMenu.text}`,
+          reply_markup: { inline_keyboard: updatedMenu.keyboard },
+        });
+        return NextResponse.json({ ok: true });
+      }
+
       void writeSecurityEvent({ userId: user.id, event: "unknown_callback", requestId: sec.requestId, ipHash: sec.ipKey });
       await callTelegram("answerCallbackQuery", { callback_query_id: cq.id });
+      return NextResponse.json({ ok: true });
+    }
+
+    /* ---------------- IMAGE / DOCUMENT MESSAGES ---------------- */
+    const photo = update.message?.photo;
+    const document = update.message?.document;
+    const isImageDocument = Boolean(document?.mime_type?.toLowerCase().startsWith("image/"));
+    if ((photo && photo.length) || isImageDocument) {
+      if (!imageIntelligenceEnabled(from.id)) {
+        void writeAudit({
+          userId: user.id,
+          actorRole: user.role,
+          action: "image_rejected",
+          entity: "image",
+          outcome: "denied",
+          requestId: sec.requestId,
+          ipHash: sec.ipKey,
+          metadata: { reason: "feature_disabled" },
+        });
+        await callTelegram("sendMessage", {
+          chat_id: chatId,
+          text: IMAGE_DISABLED_TEXT,
+          reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
+        });
+        return NextResponse.json({ ok: true });
+      }
+
+      void writeAudit({
+        userId: user.id,
+        actorRole: user.role,
+        action: "image_received",
+        entity: "image",
+        outcome: "success",
+        requestId: sec.requestId,
+        ipHash: sec.ipKey,
+        metadata: { kind: photo?.length ? "photo" : "document" },
+      });
+      await callTelegram("sendMessage", { chat_id: chatId, text: IMAGE_RECEIVED_TEXT });
+
+      const outcome = await processImageMessage({
+        user,
+        chatId,
+        messageId: update.message?.message_id ?? null,
+        photo,
+        document: isImageDocument ? document : undefined,
+        requestId: sec.requestId,
+        ipHash: sec.ipKey,
+      });
+
+      if (!outcome.ok) {
+        void writeAudit({
+          userId: user.id,
+          actorRole: user.role,
+          action: outcome.event,
+          entity: "image",
+          outcome: "denied",
+          requestId: sec.requestId,
+          ipHash: sec.ipKey,
+        });
+        // Never surface a raw AI/provider error to the user (§25).
+        await callTelegram("sendMessage", {
+          chat_id: chatId,
+          text: outcome.text,
+          reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
+        });
+        return NextResponse.json({ ok: true });
+      }
+
+      await callTelegram("sendMessage", {
+        chat_id: chatId,
+        text: `✅ ${outcome.count} ta yozuv topildi.`,
+      });
+      await callTelegram("sendMessage", {
+        chat_id: chatId,
+        text: outcome.text,
+        reply_markup: { inline_keyboard: outcome.keyboard },
+      });
       return NextResponse.json({ ok: true });
     }
 

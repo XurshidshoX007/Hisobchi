@@ -97,6 +97,37 @@ export const telegramUpdates = pgTable(
   },
 );
 
+/**
+ * Duplicate protection + audit trail for Telegram image intelligence (§24).
+ *
+ * This table stores NO financial data and NO image bytes — only an irreversible
+ * fingerprint (file_unique_id + content hash) so the same picture cannot create
+ * the same transactions twice. Confirmed money always lives in the shared
+ * finance tables below.
+ */
+export const imageIntakes = pgTable(
+  "image_intakes",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    /** sha256(file_unique_id : content hash) — never the image itself. */
+    fingerprint: text("fingerprint").notNull(),
+    chatId: bigint("chat_id", { mode: "number" }),
+    messageId: integer("message_id"),
+    /** Links every draft produced by this image (pending_drafts.batch_id). */
+    batchId: text("batch_id"),
+    documentClass: text("document_class"),
+    entityCount: integer("entity_count").notNull().default(0),
+    status: text("status").notNull().default("processing"), // processing | extracted | failed | rejected
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("image_intakes_user_fingerprint_key").on(t.userId, t.fingerprint),
+    index("image_intakes_batch_idx").on(t.batchId),
+    check("image_intakes_status_check", sql`${t.status} in ('processing', 'extracted', 'failed', 'rejected')`),
+  ],
+);
+
 export const accounts = pgTable(
   "accounts",
   {
@@ -489,5 +520,6 @@ export type Debt = typeof debts.$inferSelect;
 export type Goal = typeof goals.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type PendingDraft = typeof pendingDrafts.$inferSelect;
+export type ImageIntake = typeof imageIntakes.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type SecurityEvent = typeof securityEvents.$inferSelect;

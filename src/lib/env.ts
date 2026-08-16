@@ -58,6 +58,32 @@ export function requireVerifiedIdentity(): boolean {
 /** Init-data expiration window (seconds). Telegram recommends <= 24h. */
 export const INIT_DATA_MAX_AGE_SECONDS = 60 * 60 * 24;
 
+/**
+ * Feature flag for Telegram image / document finance intelligence (§39).
+ *
+ * Default OFF. Roll out per Telegram user id first
+ * (`IMAGE_INTELLIGENCE_TEST_USERS=11111,22222`), flip
+ * `IMAGE_INTELLIGENCE_ENABLED=true` only after QA.
+ */
+export function imageIntelligenceEnabled(telegramId?: number | null): boolean {
+  if (process.env.IMAGE_INTELLIGENCE_ENABLED === "true") return true;
+  if (!telegramId) return false;
+  return imageIntelligenceTestUsers().includes(telegramId);
+}
+
+export function imageIntelligenceTestUsers(): number[] {
+  return (process.env.IMAGE_INTELLIGENCE_TEST_USERS ?? "")
+    .split(",")
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isSafeInteger(value) && value > 0);
+}
+
+/** True when a vision provider is actually configured. */
+export function visionProviderConfigured(): boolean {
+  return Boolean(process.env.VISION_API_KEY ?? process.env.OPENAI_API_KEY);
+}
+
+
 export type EnvReport = {
   ok: boolean;
   mode: "production" | "development";
