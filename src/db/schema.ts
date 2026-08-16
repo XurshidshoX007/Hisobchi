@@ -169,6 +169,19 @@ export const recurringExpenses = pgTable(
     installmentCount: integer("installment_count"),
     /** term: how many installments were already paid */
     installmentsPaid: integer("installments_paid").notNull().default(0),
+    /**
+     * Lifecycle state, semantically distinct from `isActive`:
+     *   active    — producing future occurrences
+     *   paused    — user paused it (isActive=false, resumable)
+     *   cancelled — user cancelled/deleted the plan (isActive=false, NOT
+     *               resurrected by transaction reconciliation)
+     *   completed — term/one_time reached its final occurrence naturally
+     *
+     * `isActive` remains the "produces occurrences" flag used by forecast;
+     * `status` records *why* a plan is inactive so that deleting a historical
+     * payment can reactivate a completed plan but never a cancelled one.
+     */
+    status: text("status").notNull().default("active"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -180,6 +193,7 @@ export const recurringExpenses = pgTable(
     check("recurring_plan_type_check", sql`${t.planType} in ('one_time', 'recurring', 'term')`),
     check("recurring_term_check", sql`${t.planType} <> 'term' or (${t.installmentCount} > 0 and ${t.installmentsPaid} >= 0)`),
     check("recurring_amount_check", sql`(${t.certainty} = 'exact' and ${t.amount} > 0) or (${t.certainty} = 'estimated' and ${t.minAmount} > 0 and ${t.maxAmount} >= ${t.minAmount})`),
+    check("recurring_status_check", sql`${t.status} in ('active', 'paused', 'cancelled', 'completed')`),
   ],
 );
 
@@ -205,6 +219,8 @@ export const expectedIncomes = pgTable(
     occurrencesReceived: integer("occurrences_received").notNull().default(0),
     /** Seed date of the occurrence schedule (mirrors recurring_expenses.start_date). */
     startDate: date("start_date", { mode: "string" }),
+    /** Lifecycle state — mirrors recurring_expenses.status (active|paused|cancelled|completed). */
+    status: text("status").notNull().default("active"),
     isActive: boolean("is_active").notNull().default(true),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -216,6 +232,7 @@ export const expectedIncomes = pgTable(
     check("expected_plan_type_check", sql`${t.planType} in ('one_time', 'recurring', 'term')`),
     check("expected_term_check", sql`${t.planType} <> 'term' or (${t.occurrenceCount} > 0 and ${t.occurrencesReceived} >= 0)`),
     check("expected_amount_check", sql`(${t.certainty} = 'exact' and ${t.amount} > 0) or (${t.certainty} = 'estimated' and ${t.minAmount} > 0 and ${t.maxAmount} >= ${t.minAmount})`),
+    check("expected_status_check", sql`${t.status} in ('active', 'paused', 'cancelled', 'completed')`),
   ],
 );
 

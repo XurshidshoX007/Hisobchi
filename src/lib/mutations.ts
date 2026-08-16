@@ -480,6 +480,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           planType,
           startDate: isoDate(d.startDate, nextDueDate),
           installmentCount,
+          // New plans start active (or paused if explicitly created paused).
+          status: bool(d.isActive, true) ? "active" : "paused",
         };
         if (input.action === "create") {
           const [row] = await db.insert(recurringExpenses).values({ ...values, installmentsPaid: 0 }).returning();
@@ -496,9 +498,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (planType === "term" && installmentCount !== null && installmentCount < existingRec[0].installmentsPaid) {
           return { ok: false, message: "Bo'lib to'lashlar soni to'langanlaridan kam bo'lmasligi kerak" };
         }
+        // A term whose final installment is already paid stays "completed"
+        // even when the edit leaves it inactive (e.g. only the name changed);
+        // otherwise the active/paused intent is honoured. A cancelled plan is
+        // not silently resurrected here — the user is explicitly re-saving it.
+        const nextIsActive = bool(d.isActive, existingRec[0].isActive);
+        const termAlreadyFinished =
+          planType === "term" && installmentCount !== null && existingRec[0].installmentsPaid >= installmentCount;
+        const status = !nextIsActive && termAlreadyFinished ? "completed" : nextIsActive ? "active" : "paused";
         const updated = await db
           .update(recurringExpenses)
-          .set(values)
+          .set({ ...values, isActive: nextIsActive, status })
           .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
           .returning({ id: recurringExpenses.id });
         if (!updated[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
@@ -578,13 +588,32 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "toggle" || input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
+        // Semantics:
+        //   toggle → pause / resume (active ↔ paused)
+        //   delete → CANCEL the plan (future occurrences only). Historical
+        //            transactions are deliberately untouched — financial
+        //            history must never be destroyed by a plan cancellation.
+        const set =
+          input.action === "delete"
+            ? { isActive: false as boolean, status: "cancelled" as const }
+            : {
+                // Flip the active flag and keep the status in sync. A plan that
+                // was completed/cancelled is only re-activated by an explicit
+                // resume (isActive was false → becomes active).
+                isActive: sql<boolean>`not ${recurringExpenses.isActive}`,
+                status: sql<string>`case when ${recurringExpenses.isActive} then 'paused' else 'active' end`,
+              };
         const updated = await db
           .update(recurringExpenses)
-          .set({ isActive: input.action === "toggle" ? sql`not ${recurringExpenses.isActive}` : false })
+          .set(set)
           .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
           .returning({ id: recurringExpenses.id });
         if (!updated[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
-        return { ok: true, id: updated[0].id, message: input.action === "toggle" ? "Holati o'zgartirildi" : "Reja o'chirildi" };
+        return {
+          ok: true,
+          id: updated[0].id,
+          message: input.action === "toggle" ? "Holati o'zgartirildi" : "Reja bekor qilindi",
+        };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
@@ -647,14 +676,24 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           planType: incomePlanType,
           occurrenceCount,
           startDate: isoDate(d.startDate, expectedDate),
+          status: bool(d.isActive, true) ? "active" : "paused",
         };
         if (input.action === "create") {
           const [row] = await db.insert(expectedIncomes).values({ ...values, occurrencesReceived: 0 }).returning();
           return { ok: true, id: row.id, message: `${sourceName} kutilayotgan daromadga qo'shildi` };
         }
+        const owned = await db
+          .select({ isActive: expectedIncomes.isActive, occurrencesReceived: expectedIncomes.occurrencesReceived })
+          .from(expectedIncomes)
+          .where(and(eq(expectedIncomes.id, updateId!), eq(expectedIncomes.userId, userId)))
+          .limit(1);
+        const nextIsActive = bool(d.isActive, owned[0]?.isActive ?? true);
+        const termAlreadyFinished =
+          incomePlanType === "term" && occurrenceCount !== null && (owned[0]?.occurrencesReceived ?? 0) >= occurrenceCount;
+        const status = !nextIsActive && termAlreadyFinished ? "completed" : nextIsActive ? "active" : "paused";
         const updated = await db
           .update(expectedIncomes)
-          .set(values)
+          .set({ ...values, isActive: nextIsActive, status })
           .where(and(eq(expectedIncomes.id, updateId!), eq(expectedIncomes.userId, userId)))
           .returning({ id: expectedIncomes.id });
         if (!updated[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
@@ -725,13 +764,22 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "toggle" || input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
+        // toggle → pause/resume; delete → cancel future occurrences only
+        // (historical received-income transactions are preserved).
+        const set =
+          input.action === "delete"
+            ? { isActive: false as boolean, status: "cancelled" as const }
+            : {
+                isActive: sql<boolean>`not ${expectedIncomes.isActive}`,
+                status: sql<string>`case when ${expectedIncomes.isActive} then 'paused' else 'active' end`,
+              };
         const updated = await db
           .update(expectedIncomes)
-          .set({ isActive: input.action === "toggle" ? sql`not ${expectedIncomes.isActive}` : false })
+          .set(set)
           .where(and(eq(expectedIncomes.id, id), eq(expectedIncomes.userId, userId)))
           .returning({ id: expectedIncomes.id });
         if (!updated[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
-        return { ok: true, id: updated[0].id, message: "Yangilandi" };
+        return { ok: true, id: updated[0].id, message: input.action === "delete" ? "Daromad rejasi bekor qilindi" : "Yangilandi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
