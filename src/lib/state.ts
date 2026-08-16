@@ -673,6 +673,9 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   return {
     user: userView,
     generatedAt: new Date().toISOString(),
+    // Expose the ledger result directly so factual surfaces do not need to
+    // reach through forecast state or repeat the account-summing calculation.
+    currentBalance,
     accounts: accountViews,
     categories: tree,
     flatCategories: catViews.map(({ children, ...rest }) => {

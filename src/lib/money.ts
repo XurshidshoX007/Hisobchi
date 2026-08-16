@@ -13,6 +13,11 @@ export const UZ_MONTHS = [
   "dekabr",
 ];
 
+/** User-facing currency label shared by every dashboard amount. */
+export function currencyLabel(currency: string): string {
+  return currency === "UZS" ? "so‘m" : currency;
+}
+
 /** 12480000 -> "12 480 000" */
 export function formatAmount(value: number | null | undefined): string {
   const n = Number(value ?? 0);

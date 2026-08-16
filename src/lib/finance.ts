@@ -63,8 +63,8 @@ export type AccountLedger = {
 /**
  * THE single real-balance calculation of the product.
  *
- * Every surface (dashboard REAL balance, accounts page, forecast start, bot
- * report) must derive its number from this function so a balance can never
+ * Every factual surface (dashboard, accounts page, forecast start, bot report)
+ * must derive its number from this function so a balance can never
  * disagree with the transaction history that produced it.
  *
  * Eligibility rules — deliberately identical to the History list, except for
@@ -1632,7 +1632,13 @@ export type Analytics = {
     isEssential: boolean;
     txCount: number;
   }>;
-  incomeSources: Array<{ name: string; amount: number; share: number }>;
+  incomeSources: Array<{
+    id: number | null;
+    name: string;
+    icon: string;
+    amount: number;
+    share: number;
+  }>;
   topCategory: { name: string; amount: number; share: number } | null;
   fastestGrowing: { name: string; changePct: number; change: number } | null;
   recurringTotal: number;
@@ -1695,24 +1701,30 @@ export function buildAnalytics(params: {
   }
 
   const prevKey = monthKey(addMonths(start, -1));
-  const byCat = new Map<string, { amount: number; prev: number; count: number; cat: (typeof params.categories)[number] | null }>();
+  const byCat = new Map<number | "uncategorized", {
+    amount: number;
+    prev: number;
+    count: number;
+    cat: (typeof params.categories)[number] | null;
+  }>();
   for (const t of active) {
     if (t.type !== "expense") continue;
     const key = monthKey(t.date);
     if (key !== mk && key !== prevKey) continue;
-    const cat = t.categoryId ? catById.get(t.categoryId) ?? null : null;
-    const entry = byCat.get(cat?.name ?? "Boshqa") ?? { amount: 0, prev: 0, count: 0, cat };
+    const cat = t.categoryId !== null ? catById.get(t.categoryId) ?? null : null;
+    const categoryKey = cat?.id ?? "uncategorized";
+    const entry = byCat.get(categoryKey) ?? { amount: 0, prev: 0, count: 0, cat };
     if (key === mk) {
       entry.amount += t.amount;
       entry.count += 1;
     } else entry.prev += t.amount;
-    byCat.set(cat?.name ?? "Boshqa", entry);
+    byCat.set(categoryKey, entry);
   }
 
-  const categoriesOut: Analytics["categories"] = [...byCat.entries()]
-    .map(([name, v]) => ({
+  const categoriesOut: Analytics["categories"] = [...byCat.values()]
+    .map((v) => ({
       id: v.cat?.id ?? null,
-      name,
+      name: v.cat?.name ?? "Boshqa",
       icon: v.cat?.icon ?? "•",
       amount: round2(v.amount),
       share: expense > 0 ? v.amount / expense : 0,
@@ -1724,14 +1736,31 @@ export function buildAnalytics(params: {
     }))
     .sort((a, b) => b.amount - a.amount);
 
-  const incomeMap = new Map<string, number>();
+  const incomeMap = new Map<number | "uncategorized", {
+    id: number | null;
+    name: string;
+    icon: string;
+    amount: number;
+  }>();
   for (const t of active) {
     if (t.type !== "income" || !t.date.startsWith(mk)) continue;
-    const name = t.categoryId ? catById.get(t.categoryId)?.name ?? "Daromad" : "Daromad";
-    incomeMap.set(name, (incomeMap.get(name) ?? 0) + t.amount);
+    const cat = t.categoryId !== null ? catById.get(t.categoryId) ?? null : null;
+    const categoryKey = cat?.id ?? "uncategorized";
+    const source = incomeMap.get(categoryKey) ?? {
+      id: cat?.id ?? null,
+      name: cat?.name ?? "Daromad",
+      icon: cat?.icon ?? "•",
+      amount: 0,
+    };
+    source.amount += t.amount;
+    incomeMap.set(categoryKey, source);
   }
-  const incomeSources = [...incomeMap.entries()]
-    .map(([name, amount]) => ({ name, amount: round2(amount), share: income > 0 ? amount / income : 0 }))
+  const incomeSources: Analytics["incomeSources"] = [...incomeMap.values()]
+    .map((source) => ({
+      ...source,
+      amount: round2(source.amount),
+      share: income > 0 ? source.amount / income : 0,
+    }))
     .sort((a, b) => b.amount - a.amount);
 
   const mandatoryAmount = categoriesOut.filter((c) => c.isEssential).reduce((s, c) => s + c.amount, 0);
