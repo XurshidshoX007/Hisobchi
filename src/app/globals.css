@@ -303,6 +303,25 @@ input::placeholder {
   box-shadow: 0 2px 5px rgba(12, 18, 34, 0.18), 0 10px 24px -10px rgba(12, 18, 34, 0.42);
 }
 
+/*
+ * §39 layer order: page → FAB → bottom nav → sheet overlay → sheet.
+ * While ANY sheet is open the FAB recedes (it never floats over a modal) and
+ * stops receiving taps, so a double tap cannot open a second sheet behind the
+ * overlay.
+ */
+body[data-sheet-open] .global-fab {
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+}
+
+.global-fab {
+  transition:
+    background-color 200ms ease,
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
 .sheet-layer {
   z-index: var(--z-sheet);
 }
@@ -367,7 +386,8 @@ input::placeholder {
   animation: pop-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .animate-sheet {
-  animation: sheet-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* §34: 180–240ms — present, never theatrical. */
+  animation: sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .animate-shimmer {
   animation: shimmer 1.6s ease-in-out infinite;

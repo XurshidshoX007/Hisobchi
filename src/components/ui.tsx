@@ -288,35 +288,58 @@ export function Progress({
   );
 }
 
+/**
+ * Number of sheets currently mounted. The count (not a boolean) is what makes
+ * a stacked confirm-over-form case safe: the FAB only returns once the LAST
+ * overlay is gone.
+ */
+let openSheetCount = 0;
+
 export function Sheet({
   open,
   onClose,
   title,
+  subtitle,
   children,
   footer,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Optional one-line context under the title — same grammar in every sheet. */
+  subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const subtitleId = useId();
   useEffect(() => {
     if (!open) return;
     // Remember the element that opened the sheet so focus can return to it.
     const opener = document.activeElement as HTMLElement | null;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // §39: while a sheet is open the FAB visually recedes instead of floating
+    // above the modal layer.
+    openSheetCount += 1;
+    document.body.dataset.sheetOpen = "1";
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    // Move focus into the dialog for keyboard/screen-reader users.
-    const focusTimer = window.setTimeout(() => dialogRef.current?.focus(), 40);
+    // Move focus into the dialog for keyboard/screen-reader users — but never
+    // steal it from a field that already autofocused (§36: the amount input
+    // must keep the numeric keypad it just opened).
+    const focusTimer = window.setTimeout(() => {
+      const node = dialogRef.current;
+      if (!node || node.contains(document.activeElement)) return;
+      node.focus();
+    }, 40);
     return () => {
       document.body.style.overflow = prev;
+      openSheetCount = Math.max(0, openSheetCount - 1);
+      if (openSheetCount === 0) delete document.body.dataset.sheetOpen;
       window.removeEventListener("keydown", onKey);
       window.clearTimeout(focusTimer);
       opener?.focus?.();
@@ -331,16 +354,24 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
         className="animate-sheet relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88vh] sm:max-w-lg sm:rounded-[20px]"
       >
         <div className="shrink-0 px-5 pt-3 sm:hidden">
           <div className="mx-auto h-1.5 w-10 rounded-full bg-line-strong" />
         </div>
-        <div className="flex shrink-0 items-center justify-between gap-3 px-5 pb-3 pt-3">
-          <h3 id={titleId} className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight sm:text-base">
-            {title}
-          </h3>
+        <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-3">
+          <div className="min-w-0 flex-1">
+            <h3 id={titleId} className="truncate text-[15px] font-semibold tracking-tight sm:text-base">
+              {title}
+            </h3>
+            {subtitle ? (
+              <p id={subtitleId} className="mt-0.5 truncate text-[11.5px] leading-snug text-muted">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={onClose}
