@@ -67,13 +67,14 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
         { id: "transaction", label: "Transfer", icon: "↔️", description: "Hisoblar orasida", type: "transfer" },
       ];
 
-    case "/transactions": {
-      // History — the active filter becomes the default, so the user is never
-      // asked twice. Neutral "Operatsiya" defaults to last-used / expense.
-      const t = ctx.txFilter && ctx.txFilter !== "all" ? ctx.txFilter : undefined;
-      const label = t === "income" ? "Kirim" : t === "transfer" ? "Transfer" : t === "expense" ? "Chiqim" : "Operatsiya";
-      return [{ id: "transaction", label, icon: t === "income" ? "➕" : t === "transfer" ? "↔️" : t === "expense" ? "➖" : "➕", type: t }];
-    }
+    case "/transactions":
+      // History exposes every real ledger direction. The list filter must not
+      // silently remove creation choices from the global entry point.
+      return [
+        { id: "transaction", label: "Kirim", icon: "➕", description: "Pul keldi", type: "income" },
+        { id: "transaction", label: "Chiqim", icon: "➖", description: "Pul ketdi", type: "expense" },
+        { id: "transaction", label: "Transfer", icon: "↔️", description: "Hisoblar orasida", type: "transfer" },
+      ];
 
     case "/plans":
       if (ctx.tab === "income") {
@@ -86,14 +87,8 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
       return [{ id: "payment_plan", label: "To‘lov rejasi", icon: "📌" }];
 
     case "/analytics":
-      // Analytics is interpretation. The FAB stays visible for consistency but
-      // only exposes the meaningful global create entries — never a fake
-      // "analytics" action.
-      return [
-        { id: "transaction", label: "Operatsiya", icon: "➕" },
-        { id: "payment_plan", label: "To‘lov rejasi", icon: "📌" },
-        { id: "expected_income", label: "Kutilayotgan daromad", icon: "💵" },
-      ];
+      // Analytics is interpretation only. No create control is rendered here.
+      return [];
 
     case "/more":
       // Menu = secondary tools. Only entities that actually live here.
@@ -124,8 +119,8 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
   }
 }
 
-/** Routes that own at least one create action (FAB is rendered here only). */
-const FAB_ROUTES = new Set(["/", "/transactions", "/plans", "/analytics", "/more", "/accounts", "/debts", "/goals", "/budgets"]);
+/** Routes that may own a create action; contextual empty lists still hide it. */
+const FAB_ROUTES = new Set(["/", "/transactions", "/plans", "/more", "/accounts", "/debts", "/goals", "/budgets"]);
 
 export function supportsFab(pathname: string): boolean {
   return FAB_ROUTES.has(normalizePath(pathname));

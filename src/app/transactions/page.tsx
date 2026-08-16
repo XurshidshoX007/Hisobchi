@@ -38,12 +38,11 @@ function TransactionsView() {
   const [editing, setEditing] = useState<TxView | null>(null);
   const [deleting, setDeleting] = useState<TxView | null>(null);
 
-  // Global FAB: the active filter becomes the QuickAddSheet default so the
-  // user is never asked to re-choose the obvious direction (§6/§27).
+  // Global FAB exposes Kirim / Chiqim / Transfer and opens the existing shared
+  // QuickAddSheet with that direction preselected.
   useFabPage({ txFilter: filter }, { transaction: (a) => { setDefaultType(a.type ?? lastTxType()); openCreate(); } });
 
-  // Routed creates (e.g. Analytics → "+ Operatsiya") land here via the FAB
-  // provider and open the same shared QuickAddSheet.
+  // Any routed transaction action opens the same shared QuickAddSheet.
   const { consume } = useFab();
   useEffect(() => {
     const routed = consume();
@@ -153,18 +152,7 @@ function TransactionsView() {
         <EmptyState
           icon="🔍"
           title="Operatsiya topilmadi"
-          description="Filtr yoki qidiruv shartlarini o‘zgartiring."
-          action={
-            <Button
-              type="button"
-              onClick={() => {
-                setDefaultType("expense");
-                openCreate();
-              }}
-            >
-              ➕ Operatsiya qo‘shish
-            </Button>
-          }
+          description="Filtr yoki qidiruv shartlarini o‘zgartiring. Yangi operatsiya uchun pastdagi + tugmasidan foydalaning."
         />
       ) : (
         <div className="space-y-4 sm:space-y-5">

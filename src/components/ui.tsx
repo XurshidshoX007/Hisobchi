@@ -313,7 +313,7 @@ export function Sheet({
   }, [open, onClose]);
   if (!open || typeof document === "undefined") return null;
   const sheet = (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-4">
+    <div className="sheet-layer fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden />
       <div
         ref={dialogRef}
@@ -343,11 +343,11 @@ export function Sheet({
           <div className="space-y-4 pb-2">{children}</div>
         </div>
         {footer ? (
-          <div className="safe-b sticky bottom-0 shrink-0 border-t border-line bg-surface px-5 py-4">
+          <div className="sheet-footer-safe sticky bottom-0 shrink-0 border-t border-line bg-surface px-5 pt-4">
             <div className="flex gap-2.5">{footer}</div>
           </div>
         ) : (
-          <div className="safe-b shrink-0 pb-[max(env(safe-area-inset-bottom),8px)]" />
+          <div className="sheet-bottom-safe shrink-0" />
         )}
       </div>
     </div>
