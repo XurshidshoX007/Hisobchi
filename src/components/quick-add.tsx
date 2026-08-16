@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseDraft } from "@/lib/nlp";
-import { humanDate, todayISO } from "@/lib/money";
+import { formatAmount, humanDate, todayISO } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
 import { rememberTxType } from "@/lib/fab";
 import { TX_LABEL } from "@/lib/copy";
@@ -138,7 +138,9 @@ export function QuickAddSheet({
   function applyDraft() {
     if (!nlpDraft || nlpDraft.amount === null) return;
     setType(nlpDraft.type);
-    setAmount(formatAmountInput(String(Math.round(nlpDraft.amount))));
+    // Preserve the parser's numeric(18,2) value exactly; rounding here used to
+    // make the NLP preview, edit form and persisted transaction disagree.
+    setAmount(formatAmountInput(String(nlpDraft.amount)));
     setDate(nlpDraft.date);
     setNote(nlpDraft.note);
     const match = categories.find((c) => c.name === nlpDraft.categoryName);
@@ -255,7 +257,7 @@ export function QuickAddSheet({
         {nlpDraft && nlpDraft.amount ? (
           <p className="rounded-xl bg-accent-soft px-3 py-2 text-[11.5px] leading-snug text-accent-text [overflow-wrap:anywhere]">
             {TX_LABEL[nlpDraft.type]} ·{" "}
-            {Math.round(nlpDraft.amount).toLocaleString("ru-RU")} · {nlpDraft.categoryName ?? "kategoriya yo‘q"} ·{" "}
+            {formatAmount(nlpDraft.amount)} · {nlpDraft.categoryName ?? "kategoriya yo‘q"} ·{" "}
             {humanDate(nlpDraft.date)}
           </p>
         ) : null}

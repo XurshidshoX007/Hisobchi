@@ -14,7 +14,7 @@ import {
   transactions,
 } from "@/db/schema";
 import type { User } from "@/db/schema";
-import { addMonths, monthKey, todayISO } from "./money";
+import { addMonths, monthKey, roundMoney, todayISO } from "./money";
 import { parseDraft } from "./nlp";
 import {
   advanceIncomeState,
@@ -45,7 +45,7 @@ const num = (v: unknown, fallback: number | null = null): number | null => {
   if (!/^-?\d+(?:\.\d{1,2})?$/.test(raw)) return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n) || Math.abs(n) > MAX_MONEY) return fallback;
-  return Math.round(n * 100) / 100;
+  return roundMoney(n);
 };
 const str = (v: unknown, fallback: string | null = null): string | null => {
   if (v === null || v === undefined || v === "") return fallback;

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { formatAmount, roundMoney } from "../src/lib/money";
 import {
   addQuickAmount,
   amountError,
@@ -32,13 +33,23 @@ test("amount input tolerates human typing", () => {
   assert.equal(formatAmountInput("abc"), "");
   assert.equal(formatAmountInput("0"), "0");
   assert.equal(formatAmountInput("007"), "7");
-  assert.equal(formatAmountInput("1500,75"), "1 500.75");
-  assert.equal(formatAmountInput("1.2.3"), "1.23");
+  assert.equal(formatAmountInput("1500,75"), "1 500,75");
+  assert.equal(formatAmountInput("1.2.3"), "1,23");
   assert.equal(formatAmountInput("12 345"), "12 345");
   assert.equal(parseAmountInput("1 500,75"), 1500.75);
   assert.equal(parseAmountInput(""), null);
   assert.equal(parseAmountInput("   "), null);
   assert.equal(parseAmountInput("abc"), null);
+});
+
+test("7532,96 stays identical across input, numeric boundary and shared display", () => {
+  const input = formatAmountInput("7532,96");
+  const parsed = parseAmountInput(input);
+  assert.equal(input, "7 532,96");
+  assert.equal(parsed, 7532.96);
+  assert.equal(roundMoney(parsed!), 7532.96);
+  assert.equal(formatAmount(parsed), "7 532,96");
+  assert.equal(formatAmount(0.1 + 0.2), "0,3");
 });
 
 test("amount validation speaks in specific sentences, never “Xatolik”", () => {
