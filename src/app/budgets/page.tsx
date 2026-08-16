@@ -47,48 +47,42 @@ export default function BudgetsPage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
+      {/* §22: back + title only. The month context is one muted line, not a
+          second header block. */}
       <PageHeader
         title="Budjetlar"
         subtitle={`${monthLabel(state.analytics.month)} · ${daysLeft} kun qoldi`}
+        back={{ href: "/more", label: "Menyu" }}
       />
 
-      <Card>
-        <div className="flex items-end justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy limit</p>
-            <div className="mt-1.5">
-              <Money value={totalLimit} size="xl" />
+      {/* §15: Budgets owns limits + usage — ONE summary card, no Dashboard
+          balance and no per-status count grid (statuses already live on each
+          budget row as a badge). */}
+      {budgets.length ? (
+        <Card>
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy limit</p>
+              <div className="mt-1.5">
+                <Money value={totalLimit} size="xl" />
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Sarflandi</p>
+              <div className="mt-1.5">
+                <Money value={totalSpent} size="lg" />
+              </div>
             </div>
           </div>
-          <div className="shrink-0 text-right">
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Sarflandi</p>
-            <div className="mt-1.5">
-              <Money value={totalSpent} size="lg" />
+          <div className="mt-3.5">
+            <Progress value={totalLimit > 0 ? totalSpent / totalLimit : 0} height={10} ariaLabel="Umumiy budjet ishlatilishi" />
+            <div className="mt-2 flex items-center justify-between text-[11.5px] text-muted">
+              <span>{totalLimit > 0 ? ((totalSpent / totalLimit) * 100).toFixed(0) : 0}% ishlatildi</span>
+              <span>{exceeded > 0 ? `${exceeded} ta limit oshdi` : warning > 0 ? `${warning} ta ogohlantirish` : "hammasi normal"}</span>
             </div>
           </div>
-        </div>
-        <div className="mt-3.5">
-          <Progress value={totalLimit > 0 ? totalSpent / totalLimit : 0} height={10} />
-          <div className="mt-2 flex items-center justify-between text-[11.5px] text-muted">
-            <span>{totalLimit > 0 ? ((totalSpent / totalLimit) * 100).toFixed(0) : 0}% ishlatildi</span>
-            <span>{exceeded > 0 ? `${exceeded} oshdi` : warning > 0 ? `${warning} ogohlantirish` : "normal"}</span>
-          </div>
-        </div>
-        <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center text-[11px] sm:mt-4 sm:gap-3 sm:pt-4">
-          <div>
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Normal</p>
-            <p className="num mt-0.5 text-sm font-semibold">{budgets.filter((b) => b.status === "normal").length}</p>
-          </div>
-          <div>
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-warning-text">Warning</p>
-            <p className="num mt-0.5 text-sm font-semibold">{warning}</p>
-          </div>
-          <div>
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-negative-text">Exceeded</p>
-            <p className="num mt-0.5 text-sm font-semibold">{exceeded}</p>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      ) : null}
 
       {budgets.length ? (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
@@ -141,11 +135,7 @@ export default function BudgetsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState
-          icon="🎯"
-          title="Budjet belgilanmagan"
-          description="Pastdagi + tugmasi orqali oylik limit kiriting — tizim 80% da ogohlantiradi."
-        />
+        <EmptyState icon="🎯" title="Budjet yo‘q" description="Pastdagi + tugmasi orqali budjet yarating." />
       )}
 
       <BudgetSheet open={sheet} onClose={closeSheet} editing={editing} />

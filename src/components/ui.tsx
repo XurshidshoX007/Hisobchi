@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { formatAmount } from "@/lib/money";
@@ -467,14 +468,40 @@ export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-shimmer rounded-xl bg-surface-3 ${className}`} />;
 }
 
-export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+  back,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+  /**
+   * Compact back affordance for internal pages (§11/§22): a small `‹ Menyu`
+   * link above the title. Never a second profile/balance header.
+   */
+  back?: { href: string; label: string };
+}) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-3 sm:mb-5">
-      <div className="min-w-0 flex-1">
-        <h1 className="truncate text-xl font-bold tracking-tight sm:text-[22px]">{title}</h1>
-        {subtitle ? <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-muted">{subtitle}</p> : null}
+    <div className="mb-4 sm:mb-5">
+      {back ? (
+        <Link
+          href={back.href}
+          aria-label={`Orqaga: ${back.label}`}
+          className="-ml-1.5 mb-0.5 inline-flex min-h-11 items-center gap-0.5 rounded-full px-1.5 text-[12.5px] font-medium text-muted transition-colors hover:text-fg active:text-fg touch-manipulation"
+        >
+          <span aria-hidden="true" className="text-[15px] leading-none">‹</span>
+          {back.label}
+        </Link>
+      ) : null}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-xl font-bold tracking-tight sm:text-[22px]">{title}</h1>
+          {subtitle ? <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-muted">{subtitle}</p> : null}
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }

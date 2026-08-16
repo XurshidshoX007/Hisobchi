@@ -113,12 +113,17 @@ test("form type switches use the compact grid, navigation keeps the scrollable S
   // Forms: grid-based, non-scrolling.
   assert.match(quickAdd, /<CompactSegmented/);
   assert.doesNotMatch(quickAdd, /<Segmented/);
-  assert.doesNotMatch(FORM_SOURCES.debts, /<Segmented/);
+  // The debt FORM switches direction with ChoiceGrid, never Segmented.
+  assert.match(FORM_SOURCES.debts, /<ChoiceGrid/);
   assert.equal((FORM_SOURCES.plans.match(/<CompactSegmented/g) ?? []).length, 2);
-  // Navigation: Plans main tabs and the Accounts tabs still use the scrollable
-  // Segmented — long tab sets are the ONE place where x-scroll is correct.
+  // Navigation: Plans main tabs, the Accounts tabs and the Debts direction
+  // FILTER still use the scrollable Segmented — long tab sets are the ONE
+  // place where x-scroll is correct.
   assert.match(FORM_SOURCES.plans, /<Segmented\s+value=\{tab\}/);
   assert.match(FORM_SOURCES.accounts, /<Segmented\s+value=\{tab\}/);
+  assert.match(FORM_SOURCES.debts, /<Segmented\s+value=\{filter\}/);
+  // …and the filter is the ONLY Segmented on the Debts page.
+  assert.equal((FORM_SOURCES.debts.match(/<Segmented/g) ?? []).length, 1);
   assert.match(ui, /data-segmented-scroll/);
 });
 

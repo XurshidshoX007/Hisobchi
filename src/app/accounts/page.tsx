@@ -8,7 +8,6 @@ import { AdvancedSection, AmountField, ChoiceGrid, CompactSegmented, FormRow, Fo
 import {
   Badge,
   Card,
-  Divider,
   EmptyState,
   Field,
   Money,
@@ -19,7 +18,6 @@ import {
   TextInput,
 } from "@/components/ui";
 import { formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
-import { compact, formatAmount } from "@/lib/money";
 import type { AccountView, CategoryView } from "@/lib/finance";
 
 const TYPES = [
@@ -82,14 +80,11 @@ export default function AccountsPage() {
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
 
-  // §35: ONE canonical balance source — the same ledger-based figure the
-  // Dashboard hero shows; never re-summed independently in the UI.
-  const total = state.forecast.currentBalance;
-  const max = Math.max(1, ...state.accounts.map((a) => Math.abs(a.currentBalance)));
-
   return (
     <div className="animate-fade-up space-y-4">
-      <PageHeader title="Hisoblar va kategoriyalar" subtitle="Pul qayerda turgani" />
+      {/* §22: internal page = compact back + title. No profile/balance header —
+          the global real balance lives on the Dashboard only (§12/§26). */}
+      <PageHeader title="Hisoblar" back={{ href: "/more", label: "Menyu" }} />
 
       <div className="max-w-md">
         <Segmented
@@ -103,69 +98,39 @@ export default function AccountsPage() {
       </div>
 
       {tab === "accounts" ? (
-        <div className="space-y-4">
-          <Card>
-            <div className="flex items-end justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Joriy balans · taqsimot</p>
-                <div className="mt-1.5 flex flex-wrap items-baseline gap-2">
-                  <Money value={total} size="lg" />
-                  <span className="text-sm text-muted">{state.user.currency}</span>
-                </div>
-              </div>
-            </div>
-            <Divider />
-            <div className="mt-4 space-y-3">
-              {state.accounts.map((a) => (
-                <div key={a.id}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2">
-                    <span className="truncate text-[13px] font-medium">
-                      {TYPE_ICON[a.type] ?? "•"} {a.name}
-                    </span>
-                    <span className="num shrink-0 text-[13px]">{formatAmount(a.currentBalance)}</span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-surface-3">
-                    <div
-                      className="h-full rounded-full transition-[width] duration-700"
-                      style={{ width: `${(Math.abs(a.currentBalance) / max) * 100}%`, background: "var(--fg)", opacity: 0.8 }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
+        state.accounts.length ? (
+          /* §13: one account = one compact row. Per-account balance has its
+             single home here — no extra distribution hero above the list. */
+          <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
             {state.accounts.map((a) => (
-              <Card key={a.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-3 text-lg">
-                      {TYPE_ICON[a.type] ?? "•"}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-[15px] font-medium">{a.name}</p>
-                      <p className="truncate text-[11.5px] text-muted">
-                        {TYPES.find((t) => t.value === a.type)?.label ?? a.type} · {a.txCount} ta
-                      </p>
-                    </div>
+              <div key={a.id} className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
+                    {TYPE_ICON[a.type] ?? "•"}
                   </div>
-                  {!a.isActive ? <Badge tone="neutral">noaktiv</Badge> : null}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14.5px] font-medium">{a.name}</p>
+                    <p className="truncate text-[11.5px] text-muted">
+                      {TYPES.find((t) => t.value === a.type)?.label ?? a.type} · {a.txCount} ta operatsiya
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <Money value={a.currentBalance} size="md" tone={a.currentBalance < 0 ? "negative" : "default"} />
+                    {!a.isActive ? (
+                      <div className="mt-0.5 flex justify-end">
+                        <Badge tone="neutral">noaktiv</Badge>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="mt-3">
-                  <Money value={a.currentBalance} size="lg" tone={a.currentBalance < 0 ? "negative" : "default"} />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-[11.5px] text-muted">
-                  <span>tushum {compact(a.inflow)}</span>
-                  <span>chiqim {compact(a.outflow)}</span>
-                </div>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-2 flex justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setEditingAccount(a);
                       setSheet(true);
                     }}
+                    aria-label={`${a.name} hisobini tahrirlash`}
                     className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
                   >
                     Tahrir
@@ -173,15 +138,18 @@ export default function AccountsPage() {
                   <button
                     type="button"
                     onClick={() => mutate("account", "update", { id: a.id, isActive: !a.isActive })}
+                    aria-label={`${a.name} hisobini ${a.isActive ? "noaktiv qilish" : "faollashtirish"}`}
                     className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
                   >
                     {a.isActive ? "Noaktiv" : "Faol"}
                   </button>
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
-        </div>
+        ) : (
+          <EmptyState icon="💳" title="Hisoblar yo‘q" description="Pastdagi + tugmasi orqali hisobingizni qo‘shing." />
+        )
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
