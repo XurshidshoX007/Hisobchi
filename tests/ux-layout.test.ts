@@ -7,6 +7,9 @@ const shell = readFileSync(new URL("../src/components/app-shell.tsx", import.met
 const fab = readFileSync(new URL("../src/components/fab.tsx", import.meta.url), "utf8");
 const plans = readFileSync(new URL("../src/app/plans/page.tsx", import.meta.url), "utf8");
 const planFilter = readFileSync(new URL("../src/components/plan-status-filter.tsx", import.meta.url), "utf8");
+const filterControls = readFileSync(new URL("../src/components/filter-controls.tsx", import.meta.url), "utf8");
+const transactionFilter = readFileSync(new URL("../src/components/transaction-filter.tsx", import.meta.url), "utf8");
+const history = readFileSync(new URL("../src/app/transactions/page.tsx", import.meta.url), "utf8");
 
 test("mobile chrome uses shared geometry instead of magic FAB offsets", () => {
   for (const variable of ["--bottom-nav-height", "--fab-size", "--fab-gap"]) {
@@ -42,8 +45,32 @@ test("plans share one compact single-select status filter", () => {
     assert.match(planFilter, new RegExp(label));
   }
   assert.match(planFilter, /To‘lovlarni filtrlash/);
-  assert.match(planFilter, /aria-expanded=\{open\}/);
-  assert.doesNotMatch(planFilter, /Apply|Qo‘llash/);
+  assert.match(planFilter, /<FilterButton/);
+  assert.match(filterControls, /aria-expanded=\{open\}/);
+  assert.match(filterControls, /aria-haspopup="dialog"/);
+  assert.doesNotMatch(planFilter + transactionFilter, /Apply|Qo‘llash/);
+});
+
+test("History is list-first and composes all local filters in one shared sheet", () => {
+  assert.match(history, /action=\{/);
+  assert.match(history, /<TransactionFilter/);
+  assert.match(transactionFilter, /title="Tarixni filtrlash"/);
+  assert.match(transactionFilter, /Operatsiya turi/);
+  assert.match(transactionFilter, /Kategoriya/);
+  assert.match(transactionFilter, /Qidiruv/);
+  assert.match(transactionFilter, /Filtrlarni tozalash/);
+  assert.match(transactionFilter, /status=\{localCount \|\| undefined\}/);
+  assert.doesNotMatch(transactionFilter, /localCount \+ contexts\.length/);
+  assert.doesNotMatch(history, /<Segmented|<Select|<TextInput/);
+  assert.doesNotMatch(history, /pastdagi \+ tugmasi/);
+});
+
+test("History filter controls expose dialog, radio and labelled-search semantics", () => {
+  assert.match(transactionFilter, /ariaLabel="Tarixni filtrlash"/);
+  assert.match(filterControls, /aria-haspopup="dialog"/);
+  assert.match(filterControls, /role="radiogroup"/);
+  assert.match(transactionFilter, /htmlFor=\{searchId\}/);
+  assert.match(transactionFilter, /overflow-y-auto overflow-x-hidden/);
 });
 
 /* ==================== Plans → To‘lovlar: ONE compact monthly surface ==================== */

@@ -1,0 +1,76 @@
+import type { TxView } from "./finance";
+
+export type TransactionFilters = {
+  type: "all" | "income" | "expense" | "transfer";
+  categoryId: string;
+  query: string;
+};
+
+export type TransactionRouteContext = {
+  planId: number | null;
+  incomeId: number | null;
+};
+
+export const DEFAULT_TRANSACTION_FILTERS: TransactionFilters = {
+  type: "all",
+  categoryId: "",
+  query: "",
+};
+
+type FilterableTransaction = Pick<
+  TxView,
+  "type" | "categoryId" | "note" | "categoryName" | "accountName" | "amount" | "recurringId" | "expectedIncomeId"
+>;
+
+type FilterableCategory = {
+  id: number;
+  name: string;
+  type: "income" | "expense";
+  isActive: boolean;
+};
+
+/**
+ * The single client-side transaction filter pipeline. Route-owned plan/income
+ * context and user-owned controls are combined with AND semantics, without a
+ * fetch or a second filtering pass in the UI.
+ */
+export function filterTransactions<T extends FilterableTransaction>(
+  transactions: readonly T[],
+  filters: TransactionFilters,
+  context: TransactionRouteContext,
+): T[] {
+  return transactions.filter((transaction) => {
+    if (context.planId && transaction.recurringId !== context.planId) return false;
+    if (context.incomeId && transaction.expectedIncomeId !== context.incomeId) return false;
+    if (filters.type !== "all" && transaction.type !== filters.type) return false;
+    if (filters.categoryId && String(transaction.categoryId ?? "") !== filters.categoryId) return false;
+    if (filters.query) {
+      const query = filters.query.toLowerCase();
+      const haystack = `${transaction.note ?? ""} ${transaction.categoryName ?? ""} ${transaction.accountName}`.toLowerCase();
+      if (!haystack.includes(query) && !String(transaction.amount).includes(query)) return false;
+    }
+    return true;
+  });
+}
+
+/** Active, type-compatible category options; duplicate names are shown once. */
+export function transactionCategoryOptions<T extends FilterableCategory>(
+  categories: readonly T[],
+  type: TransactionFilters["type"],
+): T[] {
+  if (type === "transfer") return [];
+
+  const seenNames = new Set<string>();
+  return categories.filter((category) => {
+    if (!category.isActive) return false;
+    if (type !== "all" && category.type !== type) return false;
+    const key = category.name.trim().toLocaleLowerCase();
+    if (seenNames.has(key)) return false;
+    seenNames.add(key);
+    return true;
+  });
+}
+
+export function localTransactionFilterCount(filters: TransactionFilters): number {
+  return Number(filters.type !== "all") + Number(Boolean(filters.categoryId)) + Number(Boolean(filters.query));
+}

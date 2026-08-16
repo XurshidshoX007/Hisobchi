@@ -25,8 +25,6 @@ export type FabContext = {
   pathname: string;
   /** `/plans` active tab. */
   tab?: "payments" | "income" | "cashflow";
-  /** `/transactions` active type filter. */
-  txFilter?: "all" | FabTransactionType;
   /** `/accounts` active sub-tab. */
   accountsTab?: "accounts" | "categories";
 };
@@ -68,13 +66,8 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
       ];
 
     case "/transactions":
-      // History exposes every real ledger direction. The list filter must not
-      // silently remove creation choices from the global entry point.
-      return [
-        { id: "transaction", label: "Kirim", icon: "➕", description: "Pul keldi", type: "income" },
-        { id: "transaction", label: "Chiqim", icon: "➖", description: "Pul ketdi", type: "expense" },
-        { id: "transaction", label: "Transfer", icon: "↔️", description: "Hisoblar orasida", type: "transfer" },
-      ];
+      // History is read/filter/edit/delete. Dashboard owns transaction create.
+      return [];
 
     case "/plans":
       if (ctx.tab === "income") {
@@ -120,7 +113,7 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
 }
 
 /** Routes that may own a create action; contextual empty lists still hide it. */
-const FAB_ROUTES = new Set(["/", "/transactions", "/plans", "/more", "/accounts", "/debts", "/goals", "/budgets"]);
+const FAB_ROUTES = new Set(["/", "/plans", "/more", "/accounts", "/debts", "/goals", "/budgets"]);
 
 export function supportsFab(pathname: string): boolean {
   return FAB_ROUTES.has(normalizePath(pathname));
