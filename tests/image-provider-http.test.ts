@@ -99,28 +99,126 @@ test("a trailing slash in VISION_BASE_URL does not produce a double slash", asyn
 });
 
 test("provider error statuses map to friendly reasons without leaking the body", async () => {
-  const cases: Array<[number, string]> = [
+  const cases: Array<[number, string, string?]> = [
     [401, "auth_error"],
     [403, "auth_error"],
     [429, "rate_limited"],
     [500, "provider_error"],
+    [502, "provider_error"],
     [503, "provider_error"],
+    [404, "model_error", JSON.stringify({ error: { message: "The model does not exist", code: "model_not_found" } })],
   ];
-  for (const [status, expected] of cases) {
+  for (const [status, expected, body] of cases) {
     await withServer(
       (_req, res) => {
-        res.writeHead(status, { "content-type": "application/json" });
-        res.end(JSON.stringify({ error: { message: "sk-leaky-secret should never surface", code: status } }));
+        res.writeHead(status, { "content-type": "application/json", "x-request-id": `req-${status}` });
+        res.end(body ?? JSON.stringify({ error: { message: "sk-leaky-secret should never surface", code: status } }));
       },
       async (baseUrl) => {
         const result = await provider(baseUrl).readFinancialImage(request());
         assert.equal(result.ok, false, `status ${status}`);
         if (result.ok) return;
         assert.equal(result.reason, expected, `status ${status}`);
+        assert.equal(result.diagnostics?.status, status);
         assert.ok(!JSON.stringify(result).includes("sk-leaky-secret"), "provider body must not propagate");
       },
     );
   }
+});
+
+test("429 with insufficient_quota is quota_exhausted, not rate_limited", async () => {
+  await withServer(
+    (_req, res) => {
+      res.writeHead(429, {
+        "content-type": "application/json",
+        "x-request-id": "quota-req-1",
+        "retry-after": "60",
+      });
+      res.end(
+        JSON.stringify({
+          error: {
+            message: "You exceeded your current quota, please check your plan and billing details.",
+            type: "insufficient_quota",
+            code: "insufficient_quota",
+          },
+        }),
+      );
+    },
+    async (baseUrl) => {
+      const result = await provider(baseUrl).readFinancialImage(request());
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.reason, "quota_exhausted");
+      assert.equal(result.diagnostics?.errorClass, "quota_exhausted");
+      assert.equal(result.diagnostics?.status, 429);
+      assert.equal(result.diagnostics?.requestId, "quota-req-1");
+      // Quota is NOT retryable — one attempt only.
+      assert.equal(result.diagnostics?.attempts, 1);
+    },
+  );
+});
+
+test("transient 429 rate_limit is retried with backoff then succeeds", async () => {
+  let calls = 0;
+  await withServer(
+    (_req, res) => {
+      calls += 1;
+      if (calls < 3) {
+        res.writeHead(429, {
+          "content-type": "application/json",
+          "retry-after": "0",
+          "x-request-id": `rate-${calls}`,
+        });
+        res.end(JSON.stringify({ error: { code: "rate_limit_exceeded", message: "Rate limit reached for rpm" } }));
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(ocrAnswer(["Non 10 000"]));
+    },
+    async (baseUrl) => {
+      const result = await provider(baseUrl).readFinancialImage(request());
+      assert.equal(result.ok, true);
+      if (result.ok) assert.deepEqual(result.lines, ["Non 10 000"]);
+    },
+  );
+  assert.equal(calls, 3, "original + 2 retries");
+});
+
+test("401 is never retried", async () => {
+  let calls = 0;
+  await withServer(
+    (_req, res) => {
+      calls += 1;
+      res.writeHead(401, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: { message: "Incorrect API key provided", code: "invalid_api_key" } }));
+    },
+    async (baseUrl) => {
+      const result = await provider(baseUrl).readFinancialImage(request());
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.equal(result.reason, "auth_error");
+        assert.equal(result.diagnostics?.attempts, 1);
+      }
+    },
+  );
+  assert.equal(calls, 1);
+});
+
+test("empty content is unreadable with diagnostics, never rate_limited", async () => {
+  await withServer(
+    (_req, res) => {
+      res.writeHead(200, { "content-type": "application/json", "x-request-id": "empty-1" });
+      res.end(JSON.stringify({ choices: [{ message: { content: "" } }] }));
+    },
+    async (baseUrl) => {
+      const result = await provider(baseUrl).readFinancialImage(request());
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.equal(result.reason, "unreadable");
+        assert.equal(result.diagnostics?.errorClass, "empty_content");
+      }
+    },
+  );
 });
 
 test("a 400 about max_tokens is retried once with the corrected dialect", async () => {

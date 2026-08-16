@@ -5,6 +5,7 @@ import { clarificationsFor, validateExtraction } from "./image/validate";
 import { nextDueDateFor } from "./image/normalize";
 import {
   resolveVisionProvider,
+  type VisionFailureDiagnostics,
   type VisionFailureReason,
   type VisionProvider,
   type VisionResult,
@@ -40,6 +41,8 @@ export type AnalysisFailureReason = VisionFailureReason | "no_content";
 export type AnalysisFailure = {
   ok: false;
   reason: AnalysisFailureReason;
+  /** Non-secret provider diagnostics for audit / server logs. */
+  diagnostics?: VisionFailureDiagnostics;
 };
 
 export type AnalysisSuccess = {
@@ -213,15 +216,19 @@ export async function analyzeFinancialImage(
     mimeType: image.mimeType,
     hints: { today, categoryNames: options.categories.map((c) => c.name) },
   });
-  if (!vision.ok) return { ok: false, reason: vision.reason };
+  if (!vision.ok) {
+    return { ok: false, reason: vision.reason, diagnostics: vision.diagnostics };
+  }
 
   const extraction = extractFinanceData(vision.lines, today, options.maxRows ?? MAX_EXTRACTED_ROWS);
   if (!extraction.entities.length) {
-    return { ok: false, reason: "no_content" };
+    return { ok: false, reason: "no_content", diagnostics: { errorClass: "no_finance_rows" } };
   }
 
   const { valid, rejected } = validateExtraction(extraction.entities, today);
-  if (!valid.length) return { ok: false, reason: "no_content" };
+  if (!valid.length) {
+    return { ok: false, reason: "no_content", diagnostics: { errorClass: "all_rows_rejected" } };
+  }
 
   const documentClass = vision.documentHint && extraction.documentClass === "UNKNOWN" ? vision.documentHint : extraction.documentClass;
   const drafts = normalizeFinanceData(valid, { categories: options.categories, today, documentClass });

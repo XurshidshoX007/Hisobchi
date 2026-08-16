@@ -309,8 +309,8 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
     });
     assert.equal(failed.ok, false);
     if (failed.ok) return;
-    assert.equal(failed.event, "image_processing_failed");
-    assert.match(failed.text, /uzoq davom etdi/);
+    assert.equal(failed.event, "image_processing_timeout");
+    assert.match(failed.text, /vaqt oldi|uzoq davom etdi/);
 
     const intakesAfter = await db.select().from(imageIntakes).where(eq(imageIntakes.userId, user.id));
     assert.equal(intakesAfter.length, intakesBefore[0].count, "the failed intake row is released");
@@ -326,18 +326,49 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
     assert.equal(retry.ok, true, "a failed image is not permanently blacklisted");
   });
 
-  await t.test("a rate-limited provider produces a friendly queue message", async () => {
+  await t.test("a rate-limited provider produces a friendly temporary-load message", async () => {
     nextContentHash = "hash-429";
     const outcome = await processImageMessage({
       ...baseInput,
       messageId: 8,
-      provider: new FailingVisionProvider("rate_limited"),
+      provider: new FailingVisionProvider("rate_limited", { status: 429, errorClass: "rate_limit" }),
     });
     assert.equal(outcome.ok, false);
     if (outcome.ok) return;
     assert.equal(outcome.event, "image_provider_rate_limited");
-    assert.match(outcome.text, /navbat ko'p/);
-    assert.doesNotMatch(outcome.text, /429|error/i);
+    assert.match(outcome.text, /yuklama yuqori/);
+    assert.doesNotMatch(outcome.text, /429|error|limiti tugagan/i);
+  });
+
+  await t.test("a quota-exhausted provider is NOT labelled as queue high", async () => {
+    nextContentHash = "hash-quota";
+    const outcome = await processImageMessage({
+      ...baseInput,
+      messageId: 9,
+      provider: new FailingVisionProvider("quota_exhausted", {
+        status: 429,
+        errorClass: "quota_exhausted",
+      }),
+    });
+    assert.equal(outcome.ok, false);
+    if (outcome.ok) return;
+    assert.equal(outcome.event, "vision_quota_exhausted");
+    assert.match(outcome.text, /limiti tugagan/);
+    assert.doesNotMatch(outcome.text, /navbat|yuklama yuqori|429/i);
+  });
+
+  await t.test("an auth failure tells the user the service key is wrong, not that the feature is off", async () => {
+    nextContentHash = "hash-auth";
+    const outcome = await processImageMessage({
+      ...baseInput,
+      messageId: 10,
+      provider: new FailingVisionProvider("auth_error", { status: 401, errorClass: "invalid_api_key" }),
+    });
+    assert.equal(outcome.ok, false);
+    if (outcome.ok) return;
+    assert.equal(outcome.event, "image_provider_auth_error");
+    assert.match(outcome.text, /API kalit/i);
+    assert.doesNotMatch(outcome.text, /hozircha yoqilmagan/i);
   });
 
   /* ============== 7. RATE LIMIT STOPS BEFORE THE PROVIDER (§23) ============== */

@@ -48,11 +48,37 @@ export const IMAGE_SERVICE_UNAVAILABLE_TEXT = [
   "Keyinroq qayta urinib ko'ring yoki summani matn ko'rinishida yozing.",
 ].join("\n");
 
-export const IMAGE_PROVIDER_BUSY_TEXT =
-  "⏳ Rasm tahliliga vaqtincha navbat ko'p. Bir necha daqiqadan so'ng qayta urinib ko'ring.";
+/**
+ * 401 / invalid key — the feature is on, but the operator key is wrong.
+ * Distinct from "feature disabled" and from temporary overload.
+ */
+export const IMAGE_AUTH_ERROR_TEXT = [
+  "🔐 Rasm tahlil xizmati sozlanmagan yoki API kalit noto'g'ri.",
+  "Operator sozlamalarini tekshirib, keyinroq qayta urinib ko'ring yoki summani matn bilan yozing.",
+].join("\n");
 
-export const IMAGE_TIMEOUT_TEXT =
-  "⌛️ Rasmni tahlil qilish uzoq davom etdi. Aniqroq (yorug' va tekis) rasm yuborib ko'ring.";
+/** Temporary 429 / upstream throttle — NOT quota, NOT app rate-limit. */
+export const IMAGE_PROVIDER_BUSY_TEXT = [
+  "⏳ Rasm tahliliga vaqtincha yuklama yuqori.",
+  "Bir necha daqiqadan so'ng qayta urinib ko'ring yoki summani matn bilan yozing.",
+].join("\n");
+
+/** Billing / project quota exhausted (also often returned as HTTP 429). */
+export const IMAGE_QUOTA_EXHAUSTED_TEXT = [
+  "📉 Rasm tahlil limiti tugagan yoki vaqtincha mavjud emas.",
+  "Keyinroq qayta urinib ko'ring yoki operatsiyani matn ko'rinishida yozing.",
+].join("\n");
+
+/** Model missing / not vision-capable / not available on this account. */
+export const IMAGE_MODEL_ERROR_TEXT = [
+  "🛠 Rasm tahlil modeli mavjud emas yoki noto'g'ri sozlangan.",
+  "Operator sozlamalarini tekshirib, keyinroq qayta urinib ko'ring yoki summani matn bilan yozing.",
+].join("\n");
+
+export const IMAGE_TIMEOUT_TEXT = [
+  "⌛️ Rasm tahlili vaqt oldi.",
+  "Aniqroq rasm yuboring yoki keyinroq qayta urinib ko'ring.",
+].join("\n");
 
 export const IMAGE_UNREADABLE_TEXT = [
   "🔍 Rasm sifati past yoki matnni o'qib bo'lmadi.",
@@ -69,9 +95,11 @@ export const IMAGE_NO_FINANCE_TEXT = [
 
 const FAILURE_TEXTS: Record<AnalysisFailureReason, string> = {
   unconfigured: IMAGE_SERVICE_UNAVAILABLE_TEXT,
-  auth_error: IMAGE_SERVICE_UNAVAILABLE_TEXT,
+  auth_error: IMAGE_AUTH_ERROR_TEXT,
   provider_error: IMAGE_SERVICE_UNAVAILABLE_TEXT,
   rate_limited: IMAGE_PROVIDER_BUSY_TEXT,
+  quota_exhausted: IMAGE_QUOTA_EXHAUSTED_TEXT,
+  model_error: IMAGE_MODEL_ERROR_TEXT,
   timeout: IMAGE_TIMEOUT_TEXT,
   unreadable: IMAGE_UNREADABLE_TEXT,
   unsupported_image: IMAGE_UNSUPPORTED_TEXT,
@@ -82,10 +110,12 @@ const FAILURE_TEXTS: Record<AnalysisFailureReason, string> = {
 /** Monitoring event name per failure reason (§32). Never carries secrets. */
 const FAILURE_EVENTS: Record<AnalysisFailureReason, string> = {
   unconfigured: "image_provider_unconfigured",
-  auth_error: "image_provider_unconfigured",
+  auth_error: "image_provider_auth_error",
   provider_error: "image_processing_failed",
   rate_limited: "image_provider_rate_limited",
-  timeout: "image_processing_failed",
+  quota_exhausted: "vision_quota_exhausted",
+  model_error: "image_provider_model_error",
+  timeout: "image_processing_timeout",
   unreadable: "image_extraction_failed",
   unsupported_image: "image_rejected",
   too_large: "image_rejected",
