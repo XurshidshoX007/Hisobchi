@@ -12,14 +12,13 @@ import {
   Field,
   Money,
   PageHeader,
-  PrimaryFinancialCard,
   Segmented,
   Select,
   Sheet,
   Skeleton,
   TextInput,
 } from "@/components/ui";
-import { formatCompactAmount, formatAmount } from "@/lib/money";
+import { compact, formatAmount } from "@/lib/money";
 import type { AccountView, CategoryView } from "@/lib/finance";
 
 const TYPES = [
@@ -71,7 +70,7 @@ export default function AccountsPage() {
 
       {tab === "accounts" ? (
         <div className="space-y-4">
-          <PrimaryFinancialCard>
+          <Card>
             <div className="flex items-end justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy balans</p>
@@ -99,7 +98,7 @@ export default function AccountsPage() {
                     <span className="truncate text-[13px] font-medium">
                       {TYPE_ICON[a.type] ?? "•"} {a.name}
                     </span>
-                    <span className="num max-w-[52%] break-words text-right text-[13px]">{formatAmount(a.currentBalance)}</span>
+                    <span className="num shrink-0 text-[13px]">{formatAmount(a.currentBalance)}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-surface-3">
                     <div
@@ -110,7 +109,7 @@ export default function AccountsPage() {
                 </div>
               ))}
             </div>
-          </PrimaryFinancialCard>
+          </Card>
 
           <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
             {state.accounts.map((a) => (
@@ -132,9 +131,9 @@ export default function AccountsPage() {
                 <div className="mt-3">
                   <Money value={a.currentBalance} size="lg" tone={a.currentBalance < 0 ? "negative" : "default"} />
                 </div>
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11.5px] text-muted">
-                  <span>tushum {formatCompactAmount(a.inflow)}</span>
-                  <span>chiqim {formatCompactAmount(a.outflow)}</span>
+                <div className="mt-2 flex items-center justify-between text-[11.5px] text-muted">
+                  <span>tushum {compact(a.inflow)}</span>
+                  <span>chiqim {compact(a.outflow)}</span>
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button

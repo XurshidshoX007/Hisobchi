@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { Badge, Button, Card, PageHeader, Skeleton, TextInput } from "@/components/ui";
-import { formatAmount } from "@/lib/money";
 
 type Msg = { id: number; role: "user" | "bot"; text: string };
 type Draft = {
@@ -144,7 +143,7 @@ export default function BotPage() {
                   <p key={i} className="text-[13px] leading-snug">
                     {drafts.length > 1 ? `${i + 1}. ` : ""}
                     {d.type === "income" ? "➕ Kirim" : d.type === "transfer" ? "↔️ Transfer" : "➖ Chiqim"} ·{" "}
-                    {formatAmount(d.amount)} so‘m · {d.categoryName ?? "kategoriya yo‘q"} · {d.date}
+                    {d.amount?.toLocaleString("ru-RU")} · {d.categoryName ?? "kategoriya yo‘q"} · {d.date}
                   </p>
                 ))}
               </div>

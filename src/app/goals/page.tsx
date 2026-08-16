@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Badge, Button, Card, EmptyState, Field, MetricGrid, Money, PageHeader, Progress, Sheet, Skeleton, TextInput } from "@/components/ui";
-import { formatCompactAmount, formatAmount, humanDate } from "@/lib/money";
+import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { GoalView } from "@/lib/finance";
 
 export default function GoalsPage() {
@@ -42,22 +42,30 @@ export default function GoalsPage() {
         }
       />
 
-      <MetricGrid className="sm:grid-cols-3">
-        <div className="min-w-0 p-4">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
+        <Card className="p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Jami maqsad</p>
-          <div className="mt-1.5"><Money value={totalTarget} size="lg" /></div>
-        </div>
-        <div className="min-w-0 p-4">
+          <div className="mt-1.5">
+            <Money value={totalTarget} size="lg" />
+          </div>
+        </Card>
+        <Card className="p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Yig‘ilgan</p>
-          <div className="mt-1.5"><Money value={totalSaved} size="lg" tone="positive" /></div>
-          <div className="mt-2"><Progress value={totalTarget > 0 ? totalSaved / totalTarget : 0} height={6} /></div>
-        </div>
-        <div className="min-w-0 p-4">
+          <div className="mt-1.5">
+            <Money value={totalSaved} size="lg" tone="positive" />
+          </div>
+          <div className="mt-2">
+            <Progress value={totalTarget > 0 ? totalSaved / totalTarget : 0} height={6} />
+          </div>
+        </Card>
+        <Card className="p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Kerakli oylik</p>
-          <div className="mt-1.5"><Money value={monthly} size="lg" /></div>
+          <div className="mt-1.5">
+            <Money value={monthly} size="lg" />
+          </div>
           <p className="mt-1 text-[11.5px] text-muted">barcha maqsadlar uchun</p>
-        </div>
-      </MetricGrid>
+        </Card>
+      </div>
 
       {state.goals.length ? (
         <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
@@ -79,23 +87,23 @@ export default function GoalsPage() {
 
               <div className="mt-4 flex items-baseline justify-between gap-2">
                 <Money value={g.savedAmount} size="lg" tone="positive" />
-                <span className="num max-w-[48%] break-words text-right text-[12px] text-muted">/ {formatAmount(g.targetAmount)}</span>
+                <span className="num shrink-0 text-[12px] text-muted">/ {formatAmount(g.targetAmount)}</span>
               </div>
               <div className="mt-2">
                 <Progress value={g.progress} />
                 <p className="mt-1.5 text-[11.5px] text-muted">
-                  {(g.progress * 100).toFixed(0)}% · qolgan {formatCompactAmount(g.remaining)}
+                  {(g.progress * 100).toFixed(0)}% · qolgan {compact(g.remaining)}
                 </p>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-3 text-[11.5px]">
                 <div className="min-w-0">
                   <p className="text-muted">Oylik</p>
-                  <p className="num mt-0.5 break-words text-[13px] font-medium">{formatAmount(g.monthlyContribution)}</p>
+                  <p className="num mt-0.5 truncate text-[13px] font-medium">{formatAmount(g.monthlyContribution)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-muted">Kerakli oylik</p>
-                  <p className="num mt-0.5 break-words text-[13px] font-medium">{formatAmount(g.requiredMonthly)}</p>
+                  <p className="num mt-0.5 truncate text-[13px] font-medium">{formatAmount(g.requiredMonthly)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-muted">Taxminiy tugash</p>
@@ -305,7 +313,7 @@ function ContributeSheet({ goal, onClose }: { goal: GoalView | null; onClose: ()
             onClick={() => setAmount(String(Math.round(v)))}
             className="min-h-9 rounded-full border border-line bg-surface px-3 text-xs font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
           >
-            {formatCompactAmount(v)}
+            {compact(v)}
           </button>
         ))}
       </div>

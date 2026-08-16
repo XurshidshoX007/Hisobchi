@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { parseDraft } from "@/lib/nlp";
-import { addDays, formatAmount, formatShortAmount, humanDate, todayISO } from "@/lib/money";
+import { addDays, humanDate, todayISO } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
 import { useFinance } from "./providers";
 import { Button, Field, Segmented, Select, Sheet, TextInput } from "./ui";
@@ -52,7 +52,6 @@ export function QuickAddSheet({
   );
 
   const draft = useMemo(() => (quickText.trim() ? parseDraft(quickText) : null), [quickText]);
-  const amountPreview = Number(amount.replace(/\s/g, "").replace(",", "."));
 
   function applyDraft() {
     if (!draft || draft.amount === null) return;
@@ -130,11 +129,6 @@ export function QuickAddSheet({
           />
           <span className="shrink-0 text-sm font-medium text-muted">{state?.user.currency ?? "UZS"}</span>
         </div>
-        {Number.isFinite(amountPreview) && amountPreview > 0 ? (
-          <p className="num mt-2 break-words text-sm font-medium text-fg-soft" aria-live="polite">
-            {formatAmount(amountPreview)} {state?.user.currency ?? "UZS"}
-          </p>
-        ) : null}
         <div className="no-scrollbar -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
           {CHIPS.map((c) => (
             <button
@@ -143,7 +137,7 @@ export function QuickAddSheet({
               onClick={() => setAmount(String((Number(amount.replace(/\s/g, "") || 0) || 0) + c))}
               className="min-h-9 shrink-0 touch-manipulation rounded-full border border-line bg-surface px-3 text-xs font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:scale-95 active:bg-surface-3"
             >
-              +{formatShortAmount(c)}
+              +{c >= 1_000_000 ? `${c / 1_000_000} mln` : `${c / 1000} ming`}
             </button>
           ))}
         </div>
@@ -164,7 +158,7 @@ export function QuickAddSheet({
         {draft && draft.amount ? (
           <p className="mt-2 rounded-xl bg-accent-soft px-3 py-2 text-[11.5px] leading-snug text-accent-text">
             {draft.type === "income" ? "Kirim" : draft.type === "transfer" ? "Transfer" : "Chiqim"} ·{" "}
-            {formatAmount(draft.amount)} {state?.user.currency ?? "UZS"} · {draft.categoryName ?? "kategoriya yo‘q"} ·{" "}
+            {Math.round(draft.amount).toLocaleString("ru-RU")} · {draft.categoryName ?? "kategoriya yo‘q"} ·{" "}
             {humanDate(draft.date)}
           </p>
         ) : null}
