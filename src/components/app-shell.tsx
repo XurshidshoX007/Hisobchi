@@ -84,14 +84,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="text-base">🤖</span> Telegram bot
         </Link>
 
-        {/* Balance is OWNED by the Dashboard hero — the sidebar carries only a
-            one-line reference to it (§4), never a second hero. */}
-        <Link href="/" className="mt-6 block rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2">
-          <p className="text-[11.5px] text-muted">
-            Joriy balans: <span className="num font-semibold text-fg">{formatAmount(state?.forecast.currentBalance ?? 0)}</span>
-          </p>
-          <p className="text-[10.5px] text-muted">{state?.accounts.length ?? 0} hisob · Dashboard →</p>
-        </Link>
+        <div className="mt-6 px-2">
+          <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy balans</p>
+          <p className="num mt-1 text-xl font-semibold">{formatAmount(state?.forecast.currentBalance ?? 0)}</p>
+          <p className="text-[11px] text-muted">{state?.accounts.length ?? 0} hisob</p>
+        </div>
 
         <button
           onClick={() => setAlertsOpen(true)}
@@ -211,18 +208,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               {a.amount ? <Money value={a.amount} size="sm" tone={a.severity === "critical" ? "negative" : "default"} /> : null}
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-muted">{a.body}</p>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              {a.refDate ? <p className="text-[11px] text-muted">{humanDate(a.refDate)}</p> : <span />}
-              {/* Notification = event; the full context lives at its primary
-                  home (§23) — link there instead of reproducing the card. */}
-              <Link
-                href={a.severity === "critical" ? "/" : "/plans"}
-                onClick={() => setAlertsOpen(false)}
-                className="shrink-0 text-[11.5px] font-semibold text-accent-text touch-manipulation"
-              >
-                {a.severity === "critical" ? "Dashboard →" : "Rejalar →"}
-              </Link>
-            </div>
+            {a.refDate ? <p className="mt-2 text-[11px] text-muted">{humanDate(a.refDate)}</p> : null}
           </div>
         ))}
         {state?.notifications.map((n) => (

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
-import { Badge, Button, EmptyState, Money, PageHeader, Segmented, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Money, PageHeader, Segmented, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, humanDate } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
 
@@ -93,18 +93,17 @@ function TransactionsView() {
       />
 
       {planScope ? (
-        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl bg-accent-soft px-4 py-2.5">
+        <Card className="flex flex-wrap items-center justify-between gap-2.5">
           <p className="min-w-0 text-[13px]">
             <span className="text-muted">Filtr:</span> <span className="font-semibold">{planScope}</span>
           </p>
           <Link href="/transactions" className="text-[12.5px] font-medium text-accent-text underline-offset-2 hover:underline">
             Filtrni olib tashlash
           </Link>
-        </div>
+        </Card>
       ) : null}
 
-      {/* Filter / search — the page's control strip, not a card (§16/§27). */}
-      <div className="space-y-3">
+      <Card className="space-y-3">
         <Segmented
           value={filter}
           onChange={setFilter}
@@ -132,7 +131,7 @@ function TransactionsView() {
           <Badge tone="accent">{totals.count} ta</Badge>
           <Badge tone="neutral">sof {compact(totals.income - totals.expense)}</Badge>
         </div>
-      </div>
+      </Card>
 
       {grouped.length === 0 ? (
         <EmptyState
@@ -146,22 +145,20 @@ function TransactionsView() {
           }
         />
       ) : (
-        <div className="space-y-4 sm:space-y-5">
-          {/* LIST FIRST (§16): date groups are separated by spacing and a
-              divider — no frame around every day, no card around every row. */}
+        <div className="space-y-3 sm:space-y-4">
           {grouped.map(([date, items]) => {
             const dayIn = items.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
             const dayOut = items.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
             return (
-              <section key={date}>
-                <div className="flex items-center justify-between gap-3 border-b border-line px-1 pb-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-muted">{humanDate(date)}</span>
+              <Card key={date} padded={false} className="overflow-hidden">
+                <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5 sm:py-3">
+                  <span className="text-[12px] font-medium text-muted">{humanDate(date)}</span>
                   <span className="num flex items-center gap-2 text-[12px]">
                     {dayIn > 0 ? <span className="font-medium text-positive-text">+{compact(dayIn)}</span> : null}
                     {dayOut > 0 ? <span className="text-fg-soft">−{compact(dayOut)}</span> : null}
                   </span>
                 </div>
-                <div className="divide-y divide-line px-1">
+                <div className="divide-y divide-line px-4 sm:px-5">
                   {items.map((t) => (
                     <div key={t.id} className="group flex items-center gap-3 py-3">
                       <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">
@@ -216,7 +213,7 @@ function TransactionsView() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </Card>
             );
           })}
         </div>

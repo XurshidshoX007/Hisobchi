@@ -1,7 +1,6 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- planning form drafts synchronize to editing/open state */
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CashFlowStrip, ForecastArea } from "@/components/charts";
@@ -297,21 +296,15 @@ export default function PlansPage() {
           {planTab === "open" ? (
             activePlans.length || pausedPlans.length ? (
               <div className="space-y-3">
-                {activePlans.length ? (
-                  <PlanRowList>
-                    {activePlans.map((r) => (
-                      <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
-                    ))}
-                  </PlanRowList>
-                ) : null}
+                {activePlans.map((r) => (
+                  <PaymentPlanCard key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
+                ))}
                 {pausedPlans.length ? (
                   <>
                     <SectionLabel>Pauzadagi rejalar · {pausedPlans.length} ta</SectionLabel>
-                    <PlanRowList>
-                      {pausedPlans.map((r) => (
-                        <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
-                      ))}
-                    </PlanRowList>
+                    {pausedPlans.map((r) => (
+                      <PaymentPlanCard key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
+                    ))}
                   </>
                 ) : null}
               </div>
@@ -334,11 +327,11 @@ export default function PlansPage() {
               />
             )
           ) : tabbedPlans && tabbedPlans.length ? (
-            <PlanRowList>
+            <div className="space-y-3">
               {tabbedPlans.map((r) => (
-                <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
+                <PaymentPlanCard key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
               ))}
-            </PlanRowList>
+            </div>
           ) : (
             <EmptyState
               icon={planTab === "cancelled" ? "🚫" : planTab === "completed" ? "🏁" : "❚❚"}
@@ -405,21 +398,15 @@ export default function PlansPage() {
           {incomeTab === "open" ? (
             activeIncomePlans.length || pausedIncomePlans.length ? (
               <div className="space-y-3">
-                {activeIncomePlans.length ? (
-                  <PlanRowList>
-                    {activeIncomePlans.map((i) => (
-                      <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
-                    ))}
-                  </PlanRowList>
-                ) : null}
+                {activeIncomePlans.map((i) => (
+                  <IncomePlanCard key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
+                ))}
                 {pausedIncomePlans.length ? (
                   <>
                     <SectionLabel>Pauzadagi rejalar · {pausedIncomePlans.length} ta</SectionLabel>
-                    <PlanRowList>
-                      {pausedIncomePlans.map((i) => (
-                        <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
-                      ))}
-                    </PlanRowList>
+                    {pausedIncomePlans.map((i) => (
+                      <IncomePlanCard key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
+                    ))}
                   </>
                 ) : null}
               </div>
@@ -442,11 +429,11 @@ export default function PlansPage() {
               />
             )
           ) : tabbedIncomePlans && tabbedIncomePlans.length ? (
-            <PlanRowList>
+            <div className="space-y-3">
               {tabbedIncomePlans.map((i) => (
-                <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
+                <IncomePlanCard key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
               ))}
-            </PlanRowList>
+            </div>
           ) : (
             <EmptyState
               icon={incomeTab === "cancelled" ? "🚫" : incomeTab === "completed" ? "🏁" : "❚❚"}
@@ -706,20 +693,16 @@ function StatCard({
   );
 }
 
-/* ============================ Payment plan rows ============================ */
-
-/** ONE bordered container per list — rows inside carry no frame of their own (§17/§24). */
-function PlanRowList({ children }: { children: React.ReactNode }) {
-  return <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">{children}</div>;
-}
+/* ============================ Payment plan card ============================ */
 
 /**
- * One payment plan as a LIGHTWEIGHT row (§17): name + amount, one meta line
- * (exact date · human distance · cadence/term), a thin term progress when
- * relevant, then exactly ONE primary action + "•••". Payment history, pausing
- * and cancelling live behind "•••" — no frame, no badge wall, no nested boxes.
+ * One payment plan (§6/§7/§8). Structure is fixed for every status:
+ *   TOP    — name + lifecycle status
+ *   MIDDLE — amount, exact date + human relative date, cadence, progress
+ *   BOTTOM — exactly ONE primary action + a "•••" menu + history link
+ * Four competing buttons per row are never rendered.
  */
-function PaymentPlanRow({
+function PaymentPlanCard({
   plan: r,
   onAction,
   onMenu,
@@ -735,88 +718,117 @@ function PaymentPlanRow({
   const total = r.installmentCount ?? 0;
   const progress = isTerm && total > 0 ? r.installmentsPaid / total : 0;
 
-  const metaBits: string[] = [];
-  if (isTerm) metaBits.push(`${r.installmentsPaid}/${total}`);
-  else if (r.planType === "recurring") metaBits.push(frequencyLabel(r.frequency));
-  else metaBits.push("Bir martalik");
-  metaBits.push(r.isMandatory ? "majburiy" : "ixtiyoriy");
-  if (r.certainty === "estimated") metaBits.push("taxminiy");
-
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center gap-3">
+    <Card className={`space-y-3 ${due.overdue ? "border-negative/40" : ""}`}>
+      {/* TOP: what is it, and in which lifecycle state */}
+      <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <p className="truncate text-[14px] font-semibold leading-tight">{r.name}</p>
-            {status !== "active" ? <Badge tone={meta.tone}>{meta.label}</Badge> : null}
-            {status === "active" && r.paidThisMonth ? <span className="shrink-0 text-[11px] font-medium text-positive-text">✓ bu oy</span> : null}
-          </div>
-          <p className="mt-0.5 truncate text-[11.5px] text-muted">
-            <span className={TONE_TEXT[due.tone]}>{due.overdue ? "🔴 " : ""}{due.text}</span>
-            {" · "}
-            {metaBits.join(" · ")}
+          <p className="truncate text-[15px] font-semibold leading-tight">{r.name}</p>
+          <p className="mt-1 truncate text-[11.5px] text-muted">
+            {r.categoryName ?? "kategoriya yo‘q"}
+            {r.planType === "recurring" ? ` · ${frequencyLabel(r.frequency)} · ${r.dueDay}-sana` : ""}
+            {r.planType === "one_time" ? " · Bir martalik" : ""}
+            {isTerm ? ` · ${frequencyLabel(r.frequency)}` : ""}
           </p>
         </div>
-        <div className="shrink-0 text-right">
-          {r.certainty === "estimated" && r.minAmount && r.maxAmount ? (
-            <p className="num text-[14px] font-semibold">{compact(r.minAmount)}–{compact(r.maxAmount)}</p>
-          ) : (
-            <Money value={r.baseAmount} size="md" tone={due.overdue ? "negative" : "default"} />
-          )}
-        </div>
+        <Badge tone={meta.tone}>{meta.label}</Badge>
       </div>
 
-      {isTerm && status !== "cancelled" ? (
-        <div className="mt-2">
-          <Progress
-            value={progress}
-            tone="accent"
-            height={4}
-            label={
-              status === "completed"
-                ? `Jami to‘langan: ${formatAmount(r.planTotal ?? 0)} so‘m`
-                : `Qolgan: ${formatAmount(r.remainingTotal ?? 0)} so‘m · ${r.remainingInstallments ?? 0} ta`
-            }
-          />
+      {/* MIDDLE: how much, when */}
+      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1.5">
+        <div className="min-w-0">
+          {r.certainty === "estimated" && r.minAmount && r.maxAmount ? (
+            <p className="num text-lg font-semibold sm:text-xl">
+              {compact(r.minAmount)}–{compact(r.maxAmount)}
+            </p>
+          ) : (
+            <Money value={r.baseAmount} size="lg" tone={due.overdue ? "negative" : "default"} />
+          )}
+          <span className="ml-1 text-[11.5px] text-muted">so‘m</span>
         </div>
+        <p className={`text-[12.5px] font-medium ${TONE_TEXT[due.tone]}`}>
+          {due.overdue ? "🔴 Kechikkan · " : ""}
+          {due.text}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        <Badge tone={r.isMandatory ? "negative" : "neutral"}>{r.isMandatory ? "Majburiy" : "Ixtiyoriy"}</Badge>
+        {r.certainty === "estimated" ? <Badge tone="warning">Taxminiy</Badge> : null}
+        {status === "active" && r.paidThisMonth ? <Badge tone="positive">✓ Bu oy to‘langan</Badge> : null}
+      </div>
+
+      {/* Term progress (§19) — a bar answers "how much is left" instantly. */}
+      {isTerm ? (
+        <div className="rounded-xl bg-surface-2 px-3 py-2.5">
+          <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[12px]">
+            <span className="font-semibold">
+              {r.installmentsPaid} / {total} to‘lov
+            </span>
+            <span className="num text-muted">{Math.round(progress * 100)}%</span>
+          </div>
+          <Progress value={progress} tone="accent" height={6} />
+          <p className="mt-1.5 text-[11.5px] leading-snug text-muted">
+            {status === "completed"
+              ? `Jami to‘langan: ${formatAmount(r.planTotal ?? 0)} so‘m`
+              : status === "cancelled"
+                ? `Reja jami: ${formatAmount(r.planTotal ?? 0)} so‘m · qolgan to‘lovlar bekor qilindi`
+                : `Qolgan: ${formatAmount(r.remainingTotal ?? 0)} so‘m · ${r.remainingInstallments ?? 0} ta to‘lov`}
+          </p>
+        </div>
+      ) : r.planType === "recurring" && status !== "cancelled" ? (
+        <p className="text-[11.5px] text-muted">
+          Yillik yuklama: <span className="num font-medium text-fg-soft">{formatAmount(r.yearlyTotal)}</span> so‘m
+        </p>
       ) : null}
 
-      <div className="mt-2.5 flex items-center gap-2">
-        {status === "active" ? (
-          <Button variant="positive" size="sm" className="min-w-0 flex-1 sm:max-w-44" onClick={() => onAction("pay", r)}>
-            To‘landi
-          </Button>
-        ) : status === "paused" ? (
-          <Button variant="secondary" size="sm" className="min-w-0 flex-1 sm:max-w-44" onClick={() => onAction("toggle", r)}>
-            Yoqish
-          </Button>
-        ) : status === "cancelled" ? (
-          <Button variant="secondary" size="sm" className="min-w-0 flex-1 sm:max-w-56" onClick={() => onAction("restore", r)}>
-            Qayta faollashtirish
-          </Button>
-        ) : (
-          <p className="min-w-0 flex-1 text-[11.5px] leading-snug text-muted">Yakunlangan — yangi to‘lov yo‘q.</p>
-        )}
+      {status === "paused" ? (
+        <p className="rounded-xl bg-warning-soft px-3 py-2 text-[11.5px] leading-snug text-warning-text">
+          Kelajakdagi to‘lovlar vaqtincha to‘xtatilgan — prognoz va oylik yukka qo‘shilmaydi.
+        </p>
+      ) : null}
+      {status === "cancelled" ? (
+        <p className="rounded-xl bg-surface-2 px-3 py-2 text-[11.5px] leading-snug text-muted">
+          Kelajakdagi to‘lovlar bekor qilingan. Tarixdagi haqiqiy to‘lovlar saqlanadi.
+        </p>
+      ) : null}
+
+      {/* BOTTOM: history link, then exactly ONE primary action + more menu.
+          The link owns its own line so a long CTA label can never collide with
+          it at 320px (§33). */}
+      <div className="space-y-2 border-t border-line pt-3">
         {r.paymentsCount ? (
-          <button type="button" className={`${LINK_BTN} hidden sm:inline-flex`} onClick={() => onAction("history", r)}>
-            🧾 {r.paymentsCount} ta
+          <button type="button" className={`${LINK_BTN} -ml-2`} onClick={() => onAction("history", r)}>
+            🧾 {r.paymentsCount} ta to‘lov · tarixni ko‘rish
           </button>
         ) : null}
-        <button
-          type="button"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation"
-          aria-label={`${r.name} — boshqa amallar`}
-          onClick={() => onMenu(r)}
-        >
-          •••
-        </button>
+        <div className="flex items-center gap-2">
+          {status === "active" ? (
+            <Button variant="positive" className="min-w-0 flex-1" onClick={() => onAction("pay", r)}>
+              To‘landi
+            </Button>
+          ) : status === "paused" ? (
+            <Button variant="secondary" className="min-w-0 flex-1" onClick={() => onAction("toggle", r)}>
+              Yoqish
+            </Button>
+          ) : status === "cancelled" ? (
+            <Button variant="secondary" className="min-w-0 flex-1" onClick={() => onAction("restore", r)}>
+              Qayta faollashtirish
+            </Button>
+          ) : (
+            <p className="min-w-0 flex-1 text-[12px] leading-snug text-muted">Reja yakunlangan — yangi to‘lov yo‘q.</p>
+          )}
+          <button type="button" className={ICON_BTN} aria-label={`${r.name} — boshqa amallar`} onClick={() => onMenu(r)}>
+            •••
+          </button>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
-/** Expected income — deliberately the SAME row system as payments (§30). */
-function IncomePlanRow({
+/** Expected income — deliberately the SAME card system as payments (§30). */
+function IncomePlanCard({
   plan: i,
   onAction,
   onMenu,
@@ -832,84 +844,100 @@ function IncomePlanRow({
   const total = i.occurrenceCount ?? 0;
   const progress = isTerm && total > 0 ? i.occurrencesReceived / total : 0;
 
-  const metaBits: string[] = [];
-  if (isTerm) metaBits.push(`${i.occurrencesReceived}/${total}`);
-  else if (i.planType === "recurring") metaBits.push(frequencyLabel(i.frequency));
-  else metaBits.push("Bir martalik");
-  metaBits.push(i.certainty === "estimated" ? "taxminiy" : "aniq");
-
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center gap-3">
+    <Card className="space-y-3">
+      <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <p className="truncate text-[14px] font-semibold leading-tight">{i.sourceName}</p>
-            {status !== "active" ? <Badge tone={meta.tone}>{meta.label}</Badge> : null}
-            {status === "active" && i.received ? <span className="shrink-0 text-[11px] font-medium text-positive-text">✓ bu oy</span> : null}
-          </div>
-          <p className="mt-0.5 truncate text-[11.5px] text-muted">
-            <span className={TONE_TEXT[due.tone]}>{due.overdue ? "⏳ " : ""}{due.text}</span>
-            {" · "}
-            {metaBits.join(" · ")}
+          <p className="truncate text-[15px] font-semibold leading-tight">{i.sourceName}</p>
+          <p className="mt-1 truncate text-[11.5px] text-muted">
+            {frequencyLabel(i.frequency)}
+            {i.planType === "one_time" ? " · Bir martalik" : ""}
           </p>
         </div>
-        <div className="shrink-0 text-right">
-          {i.certainty === "estimated" && i.minAmount && i.maxAmount ? (
-            <p className="num text-[14px] font-semibold text-positive-text">{compact(i.minAmount)}–{compact(i.maxAmount)}</p>
-          ) : (
-            <Money value={i.baseAmount} size="md" tone="positive" />
-          )}
-        </div>
+        <Badge tone={meta.tone}>{meta.label}</Badge>
       </div>
 
-      {isTerm && status !== "cancelled" ? (
-        <div className="mt-2">
-          <Progress
-            value={progress}
-            tone="accent"
-            height={4}
-            label={
-              status === "completed"
-                ? `Jami qabul qilindi: ${formatAmount(i.planTotal ?? 0)} so‘m`
-                : `Reja jami: ${formatAmount(i.planTotal ?? 0)} so‘m · qolgan ${i.remainingOccurrences ?? 0} ta`
-            }
-          />
+      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1.5">
+        <div className="min-w-0">
+          {i.certainty === "estimated" && i.minAmount && i.maxAmount ? (
+            <p className="num text-lg font-semibold text-positive-text sm:text-xl">
+              {compact(i.minAmount)}–{compact(i.maxAmount)}
+            </p>
+          ) : (
+            <Money value={i.baseAmount} size="lg" tone="positive" />
+          )}
+          <span className="ml-1 text-[11.5px] text-muted">so‘m</span>
+        </div>
+        <p className={`text-[12.5px] font-medium ${TONE_TEXT[due.tone]}`}>
+          {due.overdue ? "⏳ Kutilmoqda · " : ""}
+          {due.text}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {i.certainty === "estimated" ? <Badge tone="warning">Taxminiy</Badge> : <Badge tone="accent">Aniq</Badge>}
+        {status === "active" && i.received ? <Badge tone="positive">✓ Bu oy qabul qilindi</Badge> : null}
+      </div>
+
+      {isTerm ? (
+        <div className="rounded-xl bg-surface-2 px-3 py-2.5">
+          <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[12px]">
+            <span className="font-semibold">
+              {i.occurrencesReceived} / {total} qabul
+            </span>
+            <span className="num text-muted">{Math.round(progress * 100)}%</span>
+          </div>
+          <Progress value={progress} tone="accent" height={6} />
+          <p className="mt-1.5 text-[11.5px] leading-snug text-muted">
+            {status === "completed"
+              ? `Jami qabul qilindi: ${formatAmount(i.planTotal ?? 0)} so‘m`
+              : `Reja jami: ${formatAmount(i.planTotal ?? 0)} so‘m · qolgan ${i.remainingOccurrences ?? 0} ta`}
+          </p>
         </div>
       ) : null}
 
-      <div className="mt-2.5 flex items-center gap-2">
-        {status === "active" ? (
-          <Button variant="positive" size="sm" className="min-w-0 flex-1 sm:max-w-44" onClick={() => onAction("receive", i)}>
-            Qabul
-          </Button>
-        ) : status === "paused" ? (
-          <Button variant="secondary" size="sm" className="min-w-0 flex-1 sm:max-w-44" onClick={() => onAction("toggle", i)}>
-            Yoqish
-          </Button>
-        ) : status === "cancelled" ? (
-          <Button variant="secondary" size="sm" className="min-w-0 flex-1 sm:max-w-56" onClick={() => onAction("restore", i)}>
-            Qayta faollashtirish
-          </Button>
-        ) : (
-          <p className="min-w-0 flex-1 text-[11.5px] leading-snug text-muted">Yakunlangan — yangi qabul yo‘q.</p>
-        )}
+      {status === "paused" ? (
+        <p className="rounded-xl bg-warning-soft px-3 py-2 text-[11.5px] leading-snug text-warning-text">
+          Kelajakdagi qabullar vaqtincha to‘xtatilgan — prognozga qo‘shilmaydi.
+        </p>
+      ) : null}
+
+      <div className="space-y-2 border-t border-line pt-3">
         {i.receiptsCount ? (
-          <button type="button" className={`${LINK_BTN} hidden sm:inline-flex`} onClick={() => onAction("history", i)}>
-            🧾 {i.receiptsCount} ta
+          <button type="button" className={`${LINK_BTN} -ml-2`} onClick={() => onAction("history", i)}>
+            🧾 {i.receiptsCount} ta qabul · tarixni ko‘rish
           </button>
         ) : null}
-        <button
-          type="button"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation"
-          aria-label={`${i.sourceName} — boshqa amallar`}
-          onClick={() => onMenu(i)}
-        >
-          •••
-        </button>
+        <div className="flex items-center gap-2">
+          {status === "active" ? (
+            <Button variant="positive" className="min-w-0 flex-1" onClick={() => onAction("receive", i)}>
+              Qabul
+            </Button>
+          ) : status === "paused" ? (
+            <Button variant="secondary" className="min-w-0 flex-1" onClick={() => onAction("toggle", i)}>
+              Yoqish
+            </Button>
+          ) : status === "cancelled" ? (
+            <Button variant="secondary" className="min-w-0 flex-1" onClick={() => onAction("restore", i)}>
+              Qayta faollashtirish
+            </Button>
+          ) : (
+            <p className="min-w-0 flex-1 text-[12px] leading-snug text-muted">Reja yakunlangan — yangi qabul yo‘q.</p>
+          )}
+          <button
+            type="button"
+            className={ICON_BTN}
+            aria-label={`${i.sourceName} — boshqa amallar`}
+            onClick={() => onMenu(i)}
+          >
+            •••
+          </button>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }
+
 /* ============================ Secondary actions ============================ */
 
 type MenuTarget = {
@@ -1178,31 +1206,14 @@ function CashflowTab({
 
         {days.length ? (
           <>
-            {/* ONE contextual month strip (§20): opening → in/out → closing.
-                Mandatory load and expected income belong to the To‘lovlar /
-                Daromad tabs and are not repeated here. */}
-            <div className="grid grid-cols-2 divide-x divide-line rounded-xl border border-line sm:grid-cols-4">
-              <div className="min-w-0 p-3">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">{isCurrent ? "Bugungi balans" : "Ochilish"}</p>
-                <p className="num mt-1 break-words text-[13.5px] font-semibold">{formatAmount(opening)}</p>
-              </div>
-              <div className="min-w-0 p-3">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Kirim</p>
-                <p className="num mt-1 break-words text-[13.5px] font-semibold text-positive-text">+{formatAmount(inflow)}</p>
-              </div>
-              <div className="min-w-0 border-t border-line p-3 sm:border-t-0">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Chiqim</p>
-                <p className="num mt-1 break-words text-[13.5px] font-semibold">−{formatAmount(outflow)}</p>
-              </div>
-              <div className="min-w-0 border-t border-line p-3 sm:border-t-0">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Yopilish</p>
-                <p className={`num mt-1 break-words text-[13.5px] font-semibold ${closing < 0 ? "text-negative-text" : ""}`}>{formatAmount(closing)}</p>
-              </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <StatCard label={isCurrent ? "Bugungi balans" : "Boshlang‘ich balans"} value={opening} context="oy boshidagi holat" />
+              <StatCard label="Kirim" value={inflow} context="rejalashtirilgan" tone="positive" />
+              <StatCard label="Chiqim" value={outflow} context="rejalashtirilgan" />
+              <StatCard label="Majburiy" value={mandatory} context="to‘lash shart" />
+              <StatCard label="Kutilayotgan" value={expectedIncome} context="daromad rejalari" tone="positive" />
+              <StatCard label="Oy oxiri prognoz" value={closing} context={closing < 0 ? "manfiy — xavf bor" : "prognoz balans"} />
             </div>
-            <p className="text-[11px] text-muted">
-              Majburiy: <span className="num font-medium text-fg-soft">{compact(mandatory)}</span> · Kutilayotgan daromad:{" "}
-              <span className="num font-medium text-fg-soft">{compact(expectedIncome)}</span> — to‘liq ro‘yxat To‘lovlar / Daromad tablarida.
-            </p>
 
             <div>
               <ForecastArea data={chartData} />
@@ -1259,24 +1270,17 @@ function CashflowTab({
       <Card>
         <p className="mb-2 text-[15px] font-semibold">⚠️ Xavf kunlari · {monthLabel}</p>
         {risks.length ? (
-          <>
-            {/* Timeline context only — the full risk explanation is OWNED by
-                the Dashboard risk card (§5); here each date is one thin row. */}
-            <div className="divide-y divide-line">
-              {risks.slice(0, 5).map((r) => (
-                <div key={r.date} className="flex items-center justify-between gap-3 py-2">
-                  <div className="min-w-0">
-                    <span className="num text-[12.5px] font-semibold text-negative-text">{shortDate(r.date)}</span>
-                    <span className="ml-2 truncate text-[11.5px] text-muted">{r.cause}</span>
-                  </div>
-                  <span className="num shrink-0 text-[12.5px] font-semibold text-negative-text">−{compact(r.deficit)}</span>
+          <div className="space-y-2">
+            {risks.slice(0, 8).map((r) => (
+              <div key={r.date} className="flex items-center justify-between gap-3 rounded-xl bg-negative-soft px-3.5 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-semibold text-negative-text">{shortDate(r.date)}</p>
+                  <p className="truncate text-[11.5px] text-negative-text/80">{r.cause}</p>
                 </div>
-              ))}
-            </div>
-            <Link href="/" className="mt-2 inline-block text-[12px] font-semibold text-accent-text">
-              To‘liq izoh → Dashboard
-            </Link>
-          </>
+                <span className="num shrink-0 text-[13px] font-semibold text-negative-text">−{compact(r.deficit)}</span>
+              </div>
+            ))}
+          </div>
         ) : (
           <p className="text-[13px] leading-relaxed text-muted">
             Bu oyda pul yetishmasligi xavfi aniqlanmadi (butun {forecast.horizonDays} kunlik prognoz tekshirildi).

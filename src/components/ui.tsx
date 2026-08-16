@@ -382,33 +382,6 @@ export function Divider() {
   return <div className="h-px w-full bg-line" />;
 }
 
-/**
- * Frameless grouping block (§24: Page → Section → Row). Use it instead of a
- * Card whenever the border adds no meaning — lists, secondary metrics and
- * references live in Sections; Cards are reserved for PRIMARY financial
- * concepts (hero balance, risk, Safe-to-Spend, main chart).
- */
-export function Section({
-  title,
-  hint,
-  action,
-  children,
-  className = "",
-}: {
-  title?: string;
-  hint?: string;
-  action?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section className={className}>
-      {title ? <SectionTitle title={title} hint={hint} action={action} /> : null}
-      {children}
-    </section>
-  );
-}
-
 export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-shimmer rounded-xl bg-surface-3 ${className}`} />;
 }
