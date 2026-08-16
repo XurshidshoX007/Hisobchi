@@ -1,8 +1,12 @@
 import type { TxView } from "./finance";
 
-export type TransactionFilters = {
+export type TransactionFilterState = {
   type: "all" | "income" | "expense" | "transfer";
   categoryId: string;
+};
+
+/** The filtering pipeline still receives one composed value; UI state does not. */
+export type TransactionFilters = TransactionFilterState & {
   query: string;
 };
 
@@ -11,11 +15,23 @@ export type TransactionRouteContext = {
   incomeId: number | null;
 };
 
-export const DEFAULT_TRANSACTION_FILTERS: TransactionFilters = {
+export const DEFAULT_TRANSACTION_FILTER_STATE: TransactionFilterState = {
   type: "all",
   categoryId: "",
+};
+
+export const DEFAULT_TRANSACTION_FILTERS: TransactionFilters = {
+  ...DEFAULT_TRANSACTION_FILTER_STATE,
   query: "",
 };
+
+/** Compose independent UI state only at the established filtering boundary. */
+export function composeTransactionFilters(
+  filterState: TransactionFilterState,
+  searchQuery: string,
+): TransactionFilters {
+  return { ...filterState, query: searchQuery };
+}
 
 type FilterableTransaction = Pick<
   TxView,
@@ -71,6 +87,6 @@ export function transactionCategoryOptions<T extends FilterableCategory>(
   });
 }
 
-export function localTransactionFilterCount(filters: TransactionFilters): number {
-  return Number(filters.type !== "all") + Number(Boolean(filters.categoryId)) + Number(Boolean(filters.query));
+export function localTransactionFilterCount(filters: TransactionFilterState): number {
+  return Number(filters.type !== "all") + Number(Boolean(filters.categoryId));
 }

@@ -6,14 +6,16 @@ import { Suspense, useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
 import { TransactionFilter, type TransactionFilterContext } from "@/components/transaction-filter";
-import { Badge, Button, EmptyState, Money, PageHeader, Sheet, Skeleton } from "@/components/ui";
+import { Badge, Button, EmptyState, Money, PageHeader, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, humanDate } from "@/lib/money";
 import { LOADING } from "@/lib/copy";
 import type { TxView } from "@/lib/finance";
 import {
-  DEFAULT_TRANSACTION_FILTERS,
+  DEFAULT_TRANSACTION_FILTER_STATE,
+  composeTransactionFilters,
   filterTransactions,
-  type TransactionFilters,
+  localTransactionFilterCount,
+  type TransactionFilterState,
 } from "@/lib/transaction-filters";
 
 export default function TransactionsPage() {
@@ -32,12 +34,16 @@ function TransactionsView() {
   const params = useSearchParams();
   const planFilter = Number(params.get("plan")) || null;
   const incomeFilter = Number(params.get("income")) || null;
-  const [filters, setFilters] = useState<TransactionFilters>({ ...DEFAULT_TRANSACTION_FILTERS });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterState, setFilterState] = useState<TransactionFilterState>({ ...DEFAULT_TRANSACTION_FILTER_STATE });
   const [editing, setEditing] = useState<TxView | null>(null);
   const [deleting, setDeleting] = useState<TxView | null>(null);
 
   const grouped = useMemo(() => {
-    const list = filterTransactions(state?.transactions ?? [], filters, {
+    // Keep the established filtering pipeline and compose its input here. The
+    // independently-owned search and filter states therefore combine with AND
+    // semantics without either clear action resetting the other.
+    const list = filterTransactions(state?.transactions ?? [], composeTransactionFilters(filterState, searchQuery), {
       planId: planFilter,
       incomeId: incomeFilter,
     });
@@ -46,7 +52,7 @@ function TransactionsView() {
       map.set(transaction.date, [...(map.get(transaction.date) ?? []), transaction]);
     }
     return [...map.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [state?.transactions, filters, planFilter, incomeFilter]);
+  }, [state?.transactions, filterState, searchQuery, planFilter, incomeFilter]);
 
   const totals = useMemo(() => {
     const list = grouped.flatMap(([, transactions]) => transactions);
@@ -90,19 +96,49 @@ function TransactionsView() {
   }
 
   const net = totals.income - totals.expense;
+  const hasSearch = Boolean(searchQuery.trim());
+  const hasActiveFilters = localTransactionFilterCount(filterState) > 0 || contexts.length > 0;
 
   return (
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
-      <PageHeader
-        title="Tarix"
-        action={
-          <TransactionFilter
-            filters={filters}
-            onChange={setFilters}
-            categories={state.flatCategories}
-            contexts={contexts}
-          />
-        }
+      <PageHeader title="Tarix" />
+
+      <div className="relative min-w-0">
+        <label htmlFor="history-search" className="sr-only">
+          Tarixdan qidirish
+        </label>
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m16.5 16.5 4 4" strokeLinecap="round" />
+          </svg>
+        </span>
+        <TextInput
+          id="history-search"
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Kategoriya, izoh yoki summa"
+          autoComplete="off"
+          className="pl-10 pr-11"
+        />
+        {searchQuery ? (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            aria-label="Qidiruvni tozalash"
+            className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 touch-manipulation"
+          >
+            ✕
+          </button>
+        ) : null}
+      </div>
+
+      <TransactionFilter
+        filters={filterState}
+        onChange={setFilterState}
+        categories={state.flatCategories}
+        contexts={contexts}
       />
 
       {contexts.length ? (
@@ -145,11 +181,21 @@ function TransactionsView() {
       {grouped.length === 0 ? (
         <EmptyState
           icon="🔍"
-          title={state.transactions.length === 0 ? "Tarix hozircha bo‘sh." : "Operatsiya topilmadi"}
+          title={
+            state.transactions.length === 0
+              ? "Tarix hozircha bo‘sh."
+              : hasSearch
+                ? "Hech narsa topilmadi."
+                : "Tanlangan filtrlar bo‘yicha ma'lumot yo‘q."
+          }
           description={
             state.transactions.length === 0
               ? "Operatsiyalar Asosiy sahifada kiritiladi."
-              : "Filtrni o‘zgartirib ko‘ring."
+              : hasSearch && hasActiveFilters
+                ? "Qidiruv so‘rovi va faol filtrlarni tekshirib ko‘ring."
+                : hasSearch
+                  ? "Boshqa kategoriya, izoh yoki summani qidiring."
+                  : "Filtrlarni o‘zgartirib ko‘ring."
           }
         />
       ) : (
