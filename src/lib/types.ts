@@ -9,6 +9,7 @@ import type {
   GoalView,
   Health,
   MonthIncomeSummary,
+  MonthPlanSummary,
   NotificationView,
   RecurringView,
   TxView,
@@ -61,6 +62,8 @@ export type AppState = {
   monthly?: MonthlyView[];
   /** Current-month-only expected income summary (see Plans → Daromad). */
   currentMonthIncome: MonthIncomeSummary;
+  /** Current-month payment load: mandatory/optional, paid, remaining, nearest. */
+  currentMonthPlan: MonthPlanSummary;
 };
 
 export type MutateResult = { ok: true; message?: string; state?: AppState } | { ok: false; error: string };

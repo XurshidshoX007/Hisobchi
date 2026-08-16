@@ -159,16 +159,25 @@ export function Field({
   label,
   children,
   hint,
+  error,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
+  /** Inline, field-specific validation message — never a generic "Xatolik". */
+  error?: string | null;
 }) {
   return (
     <label className="block w-full">
       <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
-      {children}
-      {hint ? <span className="mt-1.5 block text-[11.5px] leading-snug text-muted">{hint}</span> : null}
+      <div className={error ? "[&_input]:border-negative [&_select]:border-negative [&_textarea]:border-negative" : undefined}>
+        {children}
+      </div>
+      {error ? (
+        <span className="mt-1.5 block text-[11.5px] font-medium leading-snug text-negative-text">{error}</span>
+      ) : hint ? (
+        <span className="mt-1.5 block text-[11.5px] leading-snug text-muted">{hint}</span>
+      ) : null}
     </label>
   );
 }

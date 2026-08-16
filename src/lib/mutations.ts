@@ -22,6 +22,8 @@ import {
   canRestorePlan,
   occurrenceIdentity,
   resolveEditLifecycle,
+  restoreIncomeState,
+  restoreRecurringState,
   revertIncomeState,
   revertRecurringState,
   togglePlanError,
@@ -438,12 +440,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const exactAmount = num(d.amount);
         const minAmount = num(d.minAmount);
         const maxAmount = num(d.maxAmount);
-        if (certainty === "exact" && (!exactAmount || exactAmount <= 0)) return { ok: false, message: "Summani kiriting" };
-        if (
-          certainty === "estimated" &&
-          (!minAmount || !maxAmount || minAmount <= 0 || maxAmount <= 0 || minAmount > maxAmount)
-        ) {
-          return { ok: false, message: "Taxminiy diapazon noto'g'ri" };
+        if (certainty === "exact" && (!exactAmount || exactAmount <= 0)) {
+          return { ok: false, message: "To'lov summasini kiriting (0 dan katta)" };
+        }
+        if (certainty === "estimated" && (!minAmount || minAmount <= 0)) {
+          return { ok: false, message: "Minimal summani kiriting" };
+        }
+        if (certainty === "estimated" && (!maxAmount || maxAmount <= 0)) {
+          return { ok: false, message: "Maksimal summani kiriting" };
+        }
+        if (certainty === "estimated" && minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
+          return { ok: false, message: "Minimal summa maksimaldan katta bo'lmasligi kerak" };
         }
         const dueDay = Math.min(28, Math.max(1, int(d.dueDay, 1) ?? 1));
         const submittedDate = d.nextDueDate ?? d.dueDate;
@@ -462,8 +469,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           frequency === "once" ? "one_time" : "recurring",
         );
         const installmentCount = planType === "term" ? int(d.installmentCount) : null;
-        if (planType === "term" && (!installmentCount || installmentCount < 1 || installmentCount > 600)) {
-          return { ok: false, message: "Muddatli to'lov uchun bo'lib to'lashlar sonini kiriting (1–600)" };
+        if (planType === "term" && !installmentCount) {
+          return { ok: false, message: "Bo'lib to'lashlar sonini kiriting." };
+        }
+        if (planType === "term" && installmentCount !== null && (installmentCount < 1 || installmentCount > 600)) {
+          return { ok: false, message: "Bo'lib to'lashlar soni 1 dan 600 gacha bo'lishi kerak." };
         }
         const values = {
           userId,
@@ -498,8 +508,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
           .limit(1);
         if (!existingRec[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+        // §24: an edit must never corrupt already fulfilled occurrences —
+        // 5/12 can become 5/24, never 5/4.
         if (planType === "term" && installmentCount !== null && installmentCount < existingRec[0].installmentsPaid) {
-          return { ok: false, message: "Bo'lib to'lashlar soni to'langanlaridan kam bo'lmasligi kerak" };
+          return {
+            ok: false,
+            message: `Bo'lib to'lashlar soni to'langanidan kam bo'lmasligi kerak (allaqachon ${existingRec[0].installmentsPaid} ta to'langan).`,
+          };
         }
         // Lifecycle-safe edit (§11): a cancelled plan is NEVER resurrected by
         // an ordinary Edit → Save (only the explicit `restore` action is);
@@ -635,9 +650,19 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           if (!canRestorePlan(current[0].status)) {
             return { ok: false, message: "Faqat bekor qilingan rejani qayta faollashtirish mumkin" };
           }
+          const planRow = await db
+            .select()
+            .from(recurringExpenses)
+            .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
+            .limit(1);
+          if (!planRow[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+          // §26: reactivating must not silently revive a stale schedule. A plan
+          // cancelled three months ago comes back on its NEXT real occurrence,
+          // not on a due date that already passed while it was inactive.
+          const schedule = restoreRecurringState(planRow[0], today);
           const restored = await db
             .update(recurringExpenses)
-            .set({ isActive: true, status: "active" })
+            .set(schedule)
             .where(
               and(
                 eq(recurringExpenses.id, id),
@@ -647,7 +672,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             )
             .returning({ id: recurringExpenses.id });
           if (!restored[0]) return { ok: false, message: "Reja allaqachon faollashtirilgan" };
-          return { ok: true, id: restored[0].id, message: "Reja qayta faollashtirildi" };
+          return {
+            ok: true,
+            id: restored[0].id,
+            message: `Reja qayta faollashtirildi — keyingi to'lov ${schedule.nextDueDate}`,
+          };
         }
 
         const updated = await db
@@ -684,12 +713,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const exactAmount = num(d.amount);
         const minAmount = num(d.minAmount);
         const maxAmount = num(d.maxAmount);
-        if (certainty === "exact" && (!exactAmount || exactAmount <= 0)) return { ok: false, message: "Summani kiriting" };
-        if (
-          certainty === "estimated" &&
-          (!minAmount || !maxAmount || minAmount <= 0 || maxAmount <= 0 || minAmount > maxAmount)
-        ) {
-          return { ok: false, message: "Taxminiy diapazon noto'g'ri" };
+        if (certainty === "exact" && (!exactAmount || exactAmount <= 0)) {
+          return { ok: false, message: "Daromad summasini kiriting (0 dan katta)" };
+        }
+        if (certainty === "estimated" && (!minAmount || minAmount <= 0)) {
+          return { ok: false, message: "Minimal summani kiriting" };
+        }
+        if (certainty === "estimated" && (!maxAmount || maxAmount <= 0)) {
+          return { ok: false, message: "Maksimal summani kiriting" };
+        }
+        if (certainty === "estimated" && minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
+          return { ok: false, message: "Minimal summa maksimaldan katta bo'lmasligi kerak" };
         }
         const expectedDate = isoDate(d.expectedDate);
         if (!expectedDate) return { ok: false, message: "Kutilayotgan sana noto'g'ri" };
@@ -700,8 +734,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           incomeFrequency === "once" ? "one_time" : "recurring",
         );
         const occurrenceCount = incomePlanType === "term" ? int(d.occurrenceCount) : null;
-        if (incomePlanType === "term" && (!occurrenceCount || occurrenceCount < 1 || occurrenceCount > 600)) {
-          return { ok: false, message: "Muddatli daromad uchun takrorlanishlar sonini kiriting (1–600)" };
+        if (incomePlanType === "term" && !occurrenceCount) {
+          return { ok: false, message: "Takrorlanishlar sonini kiriting." };
+        }
+        if (incomePlanType === "term" && occurrenceCount !== null && (occurrenceCount < 1 || occurrenceCount > 600)) {
+          return { ok: false, message: "Takrorlanishlar soni 1 dan 600 gacha bo'lishi kerak." };
         }
         const values = {
           userId,
@@ -730,6 +767,14 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .from(expectedIncomes)
           .where(and(eq(expectedIncomes.id, updateId!), eq(expectedIncomes.userId, userId)))
           .limit(1);
+        // §24 (income parity): shrinking the schedule below what was already
+        // received would corrupt fulfilled occurrences (3/5 → 3/2).
+        if (incomePlanType === "term" && occurrenceCount !== null && occurrenceCount < (owned[0]?.occurrencesReceived ?? 0)) {
+          return {
+            ok: false,
+            message: `Takrorlanishlar soni qabul qilinganidan kam bo'lmasligi kerak (allaqachon ${owned[0]?.occurrencesReceived ?? 0} ta qabul qilingan).`,
+          };
+        }
         // Lifecycle-safe edit (§11): a cancelled income plan is never
         // resurrected by Edit → Save; a fully-received term/one_time stays
         // completed; otherwise the form's active/paused intent is honoured.
@@ -848,9 +893,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           if (!canRestorePlan(current[0].status)) {
             return { ok: false, message: "Faqat bekor qilingan rejani qayta faollashtirish mumkin" };
           }
+          const incomeRow = await db
+            .select()
+            .from(expectedIncomes)
+            .where(and(eq(expectedIncomes.id, id), eq(expectedIncomes.userId, userId)))
+            .limit(1);
+          if (!incomeRow[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
+          // §26: same rule as payments — restore re-anchors the schedule.
+          const schedule = restoreIncomeState(incomeRow[0], today);
           const restored = await db
             .update(expectedIncomes)
-            .set({ isActive: true, status: "active" })
+            .set(schedule)
             .where(
               and(
                 eq(expectedIncomes.id, id),
@@ -860,7 +913,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             )
             .returning({ id: expectedIncomes.id });
           if (!restored[0]) return { ok: false, message: "Reja allaqachon faollashtirilgan" };
-          return { ok: true, id: restored[0].id, message: "Daromad rejasi qayta faollashtirildi" };
+          return {
+            ok: true,
+            id: restored[0].id,
+            message: `Daromad rejasi qayta faollashtirildi — keyingi qabul ${schedule.expectedDate}`,
+          };
         }
 
         const updated = await db

@@ -88,6 +88,69 @@ export function isActivePlanLoad(status: PlanLifecycle): boolean {
   return status === "active";
 }
 
+/**
+ * THE authoritative lifecycle selector (§10/§39).
+ *
+ * Every surface — state builder views, forecast/planned occurrences, monthly
+ * load, notifications and the Plans UI — must derive a plan's status from this
+ * single function instead of mixing `isActive`, `termCompleted` and `status`
+ * as independent concepts. Precedence:
+ *   1. an exhausted term (or a finished one_time) is COMPLETED;
+ *   2. an explicit stored status wins (cancelled / paused / completed);
+ *   3. legacy rows fall back to the `isActive` flag.
+ */
+export function resolvePlanLifecycle(plan: {
+  status?: string | null;
+  isActive: boolean;
+  planType?: string | null;
+  frequency?: string | null;
+  installmentCount?: number | null;
+  installmentsPaid?: number | null;
+  occurrenceCount?: number | null;
+  occurrencesReceived?: number | null;
+}): PlanLifecycle {
+  const planType =
+    plan.planType === "term"
+      ? "term"
+      : plan.planType === "one_time" || plan.frequency === "once"
+        ? "one_time"
+        : "recurring";
+  if (planType === "term") {
+    const total = plan.installmentCount ?? plan.occurrenceCount ?? 0;
+    const done = plan.installmentsPaid ?? plan.occurrencesReceived ?? 0;
+    // A cancelled term stays cancelled even when its counters are exhausted:
+    // the user's intent outranks the natural end of the schedule.
+    if (total > 0 && done >= total && plan.status !== "cancelled") return "completed";
+  }
+  if (plan.status === "cancelled" || plan.status === "paused" || plan.status === "completed") {
+    return plan.status;
+  }
+  return plan.isActive ? "active" : "paused";
+}
+
+/** True when the plan still produces future occurrences (forecast/load rule). */
+export function producesFutureOccurrences(plan: Parameters<typeof resolvePlanLifecycle>[0]): boolean {
+  return isActivePlanLoad(resolvePlanLifecycle(plan));
+}
+
+/**
+ * List order for payment/income plans (§16): overdue first, then today, then
+ * the nearest upcoming date. Never alphabetical — the question the page must
+ * answer is "what do I pay next", not "what starts with A".
+ */
+export function comparePlansByDue(
+  a: { status: PlanLifecycle; daysLeft: number; name?: string; sourceName?: string },
+  b: { status: PlanLifecycle; daysLeft: number; name?: string; sourceName?: string },
+): number {
+  const rank = (status: PlanLifecycle): number =>
+    status === "active" ? 0 : status === "paused" ? 1 : status === "completed" ? 2 : 3;
+  if (rank(a.status) !== rank(b.status)) return rank(a.status) - rank(b.status);
+  if (a.daysLeft !== b.daysLeft) return a.daysLeft - b.daysLeft;
+  const an = a.name ?? a.sourceName ?? "";
+  const bn = b.name ?? b.sourceName ?? "";
+  return an.localeCompare(bn);
+}
+
 export type RecurringView = {
   id: number;
   name: string;
@@ -118,6 +181,16 @@ export type RecurringView = {
   /** Total value of the whole plan: term → count × amount, one_time → amount. */
   planTotal: number | null;
   termCompleted: boolean;
+  /** Real (non-deleted) payments ever recorded for this plan — history link. */
+  paymentsCount: number;
+  /** Money actually paid into this plan's occurrences in the current month. */
+  paidThisMonthAmount: number;
+  /** Date of the newest real payment, or null when nothing was paid yet. */
+  lastPaymentDate: string | null;
+  /** First occurrence that is not in the past — restore/resume preview (§26). */
+  nextOccurrenceDate: string;
+  /** Scheduled date already passed and its occurrence is still unfulfilled. */
+  isOverdue: boolean;
 };
 
 export type ExpectedIncomeView = {
@@ -146,6 +219,14 @@ export type ExpectedIncomeView = {
   /** Total value of the whole plan: term → count × amount, one_time → amount. */
   planTotal: number | null;
   termCompleted: boolean;
+  /** Real (non-deleted) receipts ever recorded for this plan — history link. */
+  receiptsCount: number;
+  /** Money actually received for this plan's occurrences in the current month. */
+  receivedThisMonthAmount: number;
+  lastReceiptDate: string | null;
+  /** First occurrence that is not in the past — restore/resume preview (§26). */
+  nextOccurrenceDate: string;
+  isOverdue: boolean;
 };
 
 export type BudgetView = {
@@ -250,8 +331,11 @@ function planOccurrences(
   const cursorDate = plan.nextDueDate ?? plan.expectedDate;
 
   if (planType === "one_time" || freq === "once") {
+    // An unpaid one-time payment does not stop existing when its date passes:
+    // it becomes OVERDUE and is still owed (§17). Only the caller's fulfilment
+    // check (occurrence identity) removes it.
     const d = cursorDate;
-    return d !== undefined && d >= today && d <= horizonEnd ? [d] : [];
+    return d !== undefined && d <= horizonEnd ? [d] : [];
   }
 
   if (planType === "term") {
@@ -267,23 +351,31 @@ function planOccurrences(
     let total = 0;
     while (total < count && cursor !== undefined && cursor <= horizonEnd && guard < 100_000) {
       total += 1;
-      if (cursor >= today) out.push(cursor);
+      // Future occurrences plus the plan's own cursor when it is already
+      // overdue — a missed installment is still owed money (§17).
+      if (cursor >= today || cursor === cursorDate) out.push(cursor);
       cursor = advancePeriod(cursor, freq);
       guard += 1;
     }
     return out;
   }
 
-  // recurring (indefinite): keep the cursor-based fast-forward semantics.
+  // recurring (indefinite): the cursor IS the plan's outstanding occurrence.
+  // When it sits in the past the payment is overdue and must stay visible in
+  // the money model (§17) — exactly one backlog item per plan, never a
+  // months-long phantom backlog, because the schedule is then fast-forwarded.
   let cursor = cursorDate;
-  let guard = 0;
-  while (cursor !== undefined && cursor < today && guard < 100_000) {
-    cursor = advancePeriod(cursor, freq);
-    guard += 1;
-  }
-  if (cursor === undefined || cursor < today) return [];
-
   const out: string[] = [];
+  let guard = 0;
+  if (cursor !== undefined && cursor < today) {
+    if (cursor <= horizonEnd) out.push(cursor);
+    while (cursor < today && guard < 100_000) {
+      cursor = advancePeriod(cursor, freq);
+      guard += 1;
+    }
+  }
+  if (cursor === undefined || cursor < today) return out;
+
   guard = 0;
   while (cursor <= horizonEnd && guard < 200) {
     out.push(cursor);
@@ -430,6 +522,8 @@ type RecurringLike = {
   isMandatory: boolean;
   certainty: string;
   isActive: boolean;
+  /** Lifecycle status column; see resolvePlanLifecycle. */
+  status?: string | null;
   categoryId: number | null;
   planType?: string;
   installmentCount?: number | null;
@@ -458,6 +552,8 @@ type ExpectedLike = {
   frequency: string;
   certainty: string;
   isActive: boolean;
+  /** Lifecycle status column; see resolvePlanLifecycle. */
+  status?: string | null;
   linkedTransactionId: number | null;
   planType?: string;
   occurrenceCount?: number | null;
@@ -494,7 +590,11 @@ export function buildPlanned(
   const items: PlannedItem[] = [];
 
   for (const r of recurring) {
-    if (!r.isActive) continue;
+    // §14/§39: only ACTIVE plans produce future occurrences. Paused, cancelled
+    // and completed plans contribute nothing to forecast, cash-flow or load —
+    // and the rule is evaluated from the authoritative lifecycle selector, not
+    // from the raw `isActive` flag, so a drifted row cannot leak into money.
+    if (!producesFutureOccurrences(r)) continue;
     const remaining = remainingOccurrences(r);
     if (remaining !== null && remaining <= 0) continue;
     const { base, min, max } = rangeValue(r.amount, r.minAmount, r.maxAmount);
@@ -522,7 +622,7 @@ export function buildPlanned(
   }
 
   for (const inc of incomes) {
-    if (!inc.isActive) continue;
+    if (!producesFutureOccurrences(inc)) continue;
     const remaining = remainingOccurrences(inc);
     if (remaining !== null && remaining <= 0) continue;
     const { base, min, max } = rangeValue(inc.amount, inc.minAmount, inc.maxAmount);
@@ -714,7 +814,9 @@ export function buildForecast(params: {
   let runningMax = balance;
   for (let i = 0; i <= horizonDays; i++) {
     const date = addDays(today, i);
-    const events = planned.filter((p) => p.date === date);
+    // Overdue obligations still have to be paid, so they hit the projection on
+    // day 0 while keeping their true (past) planned date for labels (§17).
+    const events = planned.filter((p) => p.date === date || (i === 0 && p.date < today));
     const inflow = events.filter((e) => e.kind === "income").reduce((s, e) => s + e.base, 0);
     const outflow = events.filter((e) => e.kind === "expense").reduce((s, e) => s + e.base, 0);
     runningBase += inflow - outflow;
@@ -1216,6 +1318,120 @@ export function buildCurrentMonthIncome(planned: PlannedItem[], today: string): 
     base: round2(base),
     min: round2(min),
     max: round2(max),
+  };
+}
+
+export type MonthPlanSummary = {
+  month: string;
+  label: string;
+  /** Mandatory obligations scheduled in this month (paid + still open). */
+  mandatoryTotal: number;
+  optionalTotal: number;
+  total: number;
+  /** Real money already paid into this month's plan occurrences. */
+  paid: number;
+  paidMandatory: number;
+  /** Still open (unfulfilled) occurrences of this month. */
+  remaining: number;
+  remainingMandatory: number;
+  /** Progress of the mandatory load, 0..1 (1 = everything paid). */
+  progress: number;
+  planCount: number;
+  paidCount: number;
+  remainingCount: number;
+  overdueCount: number;
+  overdueAmount: number;
+  /** The next thing to pay: overdue first, then today, then nearest (§15). */
+  nearest: {
+    id: number;
+    name: string;
+    date: string;
+    daysLeft: number;
+    base: number;
+    mandatory: boolean;
+    certainty: "exact" | "estimated";
+    status: "overdue" | "today" | "upcoming";
+  } | null;
+};
+
+/**
+ * CURRENT-MONTH payment load — the primary metric of the Plans page (§28/§29).
+ *
+ * The product is monthly planning, so the page leads with "what does this month
+ * cost, how much of it is already paid, what is left" instead of an annual
+ * total. Both halves come from the SAME reconciled sources the forecast uses:
+ *   paid      → real, non-deleted transactions linked to a plan whose
+ *               *occurrence* (plannedDate) falls in this month;
+ *   remaining → open planned occurrences of this month (fulfilled ones were
+ *               already removed by buildPlanned's occurrence reconciliation).
+ * Cancelled / paused / completed plans contribute nothing on either side of
+ * the equation, because neither source can contain them.
+ */
+export function buildCurrentMonthPlan(
+  planned: PlannedItem[],
+  transactions: Array<{
+    type: string;
+    amount: number;
+    date: string;
+    recurringId?: number | null;
+    plannedDate?: string | null;
+    isDeleted?: boolean;
+  }>,
+  mandatoryByPlanId: Map<number, boolean>,
+  today: string,
+): MonthPlanSummary {
+  const mk = monthKey(today);
+  const open = planned.filter((p) => p.kind === "expense" && p.source === "recurring" && monthKey(p.date) === mk);
+  const paidTx = transactions.filter(
+    (t) =>
+      !t.isDeleted &&
+      t.type === "expense" &&
+      t.recurringId !== null &&
+      t.recurringId !== undefined &&
+      monthKey(t.plannedDate ?? t.date) === mk,
+  );
+
+  const paidMandatory = paidTx
+    .filter((t) => mandatoryByPlanId.get(Number(t.recurringId)) === true)
+    .reduce((s, t) => s + t.amount, 0);
+  const paid = paidTx.reduce((s, t) => s + t.amount, 0);
+  const remainingMandatory = open.filter((p) => p.mandatory).reduce((s, p) => s + p.base, 0);
+  const remaining = open.reduce((s, p) => s + p.base, 0);
+  const overdue = open.filter((p) => p.date < today);
+
+  const mandatoryTotal = paidMandatory + remainingMandatory;
+  const optionalTotal = paid - paidMandatory + (remaining - remainingMandatory);
+  const nearestItem = [...open].sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
+  const monthName = UZ_MONTHS[Number(mk.slice(5, 7)) - 1] ?? "";
+
+  return {
+    month: mk,
+    label: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${mk.slice(0, 4)}`,
+    mandatoryTotal: round2(mandatoryTotal),
+    optionalTotal: round2(optionalTotal),
+    total: round2(mandatoryTotal + optionalTotal),
+    paid: round2(paid),
+    paidMandatory: round2(paidMandatory),
+    remaining: round2(remaining),
+    remainingMandatory: round2(remainingMandatory),
+    progress: mandatoryTotal > 0 ? clamp(paidMandatory / mandatoryTotal, 0, 1) : remaining === 0 && paid > 0 ? 1 : 0,
+    planCount: new Set([...open.map((p) => p.refId), ...paidTx.map((t) => Number(t.recurringId))]).size,
+    paidCount: paidTx.length,
+    remainingCount: open.length,
+    overdueCount: overdue.length,
+    overdueAmount: round2(overdue.reduce((s, p) => s + p.base, 0)),
+    nearest: nearestItem
+      ? {
+          id: nearestItem.refId,
+          name: nearestItem.label,
+          date: nearestItem.date,
+          daysLeft: dayDiff(today, nearestItem.date),
+          base: round2(nearestItem.base),
+          mandatory: nearestItem.mandatory,
+          certainty: nearestItem.certainty,
+          status: nearestItem.date < today ? "overdue" : nearestItem.date === today ? "today" : "upcoming",
+        }
+      : null,
   };
 }
 

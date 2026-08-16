@@ -148,6 +148,33 @@ export function monthLabel(key: string): string {
   return `${UZ_MONTHS[(m ?? 1) - 1].slice(0, 3)} ${String(y).slice(2)}`;
 }
 
+/**
+ * Human relative day (§9). Cryptic counters like "17k" are never information:
+ * a date is only useful next to a plain-language distance from today.
+ *   0 → "Bugun", 1 → "Ertaga", 4 → "4 kundan keyin", -3 → "3 kun kechikdi".
+ */
+export function relativeDayLabel(daysLeft: number): string {
+  if (daysLeft === 0) return "Bugun";
+  if (daysLeft === 1) return "Ertaga";
+  if (daysLeft === -1) return "Kecha";
+  if (daysLeft > 1) return `${daysLeft} kundan keyin`;
+  return `${Math.abs(daysLeft)} kun kechikdi`;
+}
+
+/** Short, dense variant used inside chips: "Bugun", "3 kun qoldi", "2 kun kech". */
+export function relativeDayShort(daysLeft: number): string {
+  if (daysLeft === 0) return "Bugun";
+  if (daysLeft === 1) return "Ertaga";
+  if (daysLeft > 1) return `${daysLeft} kun qoldi`;
+  return `${Math.abs(daysLeft)} kun kechikdi`;
+}
+
+/** "2026-08-17" → "17 avg" (day + short month, no year noise). */
+export function dayMonth(iso: string): string {
+  const d = parseISO(iso);
+  return `${d.getDate()} ${UZ_MONTHS[d.getMonth()].slice(0, 3)}`;
+}
+
 export function clamp(n: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, n));
 }
