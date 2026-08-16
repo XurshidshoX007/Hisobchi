@@ -21,8 +21,10 @@ import {
   StaticVisionProvider,
   adjustPayloadForError,
   buildChatPayload,
+  classifyProviderError,
   failureReasonForStatus,
   parseProviderPayload,
+  parseRetryAfterSeconds,
   resolveVisionProvider,
   usesCompletionTokenParams,
   visionProviderInfo,
@@ -30,8 +32,11 @@ import {
   type VisionRequest,
 } from "../src/lib/image/provider";
 import {
+  IMAGE_AUTH_ERROR_TEXT,
   IMAGE_DISABLED_TEXT,
+  IMAGE_MODEL_ERROR_TEXT,
   IMAGE_PROVIDER_BUSY_TEXT,
+  IMAGE_QUOTA_EXHAUSTED_TEXT,
   IMAGE_SERVICE_UNAVAILABLE_TEXT,
   IMAGE_TIMEOUT_TEXT,
   IMAGE_UNREADABLE_TEXT,
@@ -315,9 +320,56 @@ test("HTTP statuses map onto the failure taxonomy", () => {
   assert.equal(failureReasonForStatus(429), "rate_limited");
   assert.equal(failureReasonForStatus(500), "provider_error");
   assert.equal(failureReasonForStatus(502), "provider_error");
+  assert.equal(failureReasonForStatus(503), "provider_error");
   assert.equal(failureReasonForStatus(504), "timeout");
   assert.equal(failureReasonForStatus(413), "too_large");
   assert.equal(failureReasonForStatus(415), "unsupported_image");
+  assert.equal(failureReasonForStatus(404), "model_error");
+});
+
+test("429 is classified as quota vs temporary rate limit from the body", () => {
+  const quota = classifyProviderError(
+    429,
+    JSON.stringify({ error: { code: "insufficient_quota", message: "You exceeded your current quota" } }),
+  );
+  assert.equal(quota.reason, "quota_exhausted");
+  assert.equal(quota.retryable, false);
+  assert.equal(quota.errorClass, "quota_exhausted");
+
+  const rate = classifyProviderError(
+    429,
+    JSON.stringify({ error: { code: "rate_limit_exceeded", type: "tokens", message: "Rate limit reached for rpm" } }),
+  );
+  assert.equal(rate.reason, "rate_limited");
+  assert.equal(rate.retryable, true);
+
+  const bare = classifyProviderError(429, "");
+  assert.equal(bare.reason, "rate_limited");
+  assert.equal(bare.retryable, true);
+});
+
+test("401/403 and model errors are never retryable", () => {
+  assert.equal(classifyProviderError(401, '{"error":{"message":"Incorrect API key"}}').retryable, false);
+  assert.equal(classifyProviderError(403, "").retryable, false);
+  assert.equal(
+    classifyProviderError(404, JSON.stringify({ error: { message: "The model `gpt-4o-mini` does not exist" } })).reason,
+    "model_error",
+  );
+  assert.equal(
+    classifyProviderError(400, JSON.stringify({ error: { code: "model_not_found", message: "model not found" } })).reason,
+    "model_error",
+  );
+  assert.equal(classifyProviderError(502, "").retryable, true);
+  assert.equal(classifyProviderError(503, "").retryable, true);
+});
+
+test("Retry-After header is parsed as seconds or HTTP-date", () => {
+  assert.equal(parseRetryAfterSeconds("3"), 3);
+  assert.equal(parseRetryAfterSeconds("0"), 0);
+  assert.equal(parseRetryAfterSeconds("not-a-date"), null);
+  const future = new Date(Date.now() + 2_500).toUTCString();
+  const parsed = parseRetryAfterSeconds(future);
+  assert.ok(parsed !== null && parsed >= 2 && parsed <= 5, `got ${parsed}`);
 });
 
 test("every failure reason has a friendly Uzbek message and a monitoring event", () => {
@@ -325,6 +377,8 @@ test("every failure reason has a friendly Uzbek message and a monitoring event",
     "unconfigured",
     "auth_error",
     "rate_limited",
+    "quota_exhausted",
+    "model_error",
     "provider_error",
     "timeout",
     "unreadable",
@@ -336,22 +390,33 @@ test("every failure reason has a friendly Uzbek message and a monitoring event",
     assert.ok(text.length > 10, reason);
     // No raw provider vocabulary may reach the user.
     assert.doesNotMatch(text, /error|status|http|401|403|429|500|token|api[_ ]?key|openai|gpt-/i, reason);
-    assert.ok(failureEventFor(reason).startsWith("image_"), reason);
+    const event = failureEventFor(reason);
+    assert.ok(event.startsWith("image_") || event.startsWith("vision_"), reason);
   }
 
   assert.equal(failureTextFor("rate_limited"), IMAGE_PROVIDER_BUSY_TEXT);
+  assert.equal(failureTextFor("quota_exhausted"), IMAGE_QUOTA_EXHAUSTED_TEXT);
   assert.equal(failureTextFor("timeout"), IMAGE_TIMEOUT_TEXT);
   assert.equal(failureTextFor("unreadable"), IMAGE_UNREADABLE_TEXT);
   assert.equal(failureTextFor("unconfigured"), IMAGE_SERVICE_UNAVAILABLE_TEXT);
-  assert.equal(failureTextFor("auth_error"), IMAGE_SERVICE_UNAVAILABLE_TEXT);
+  assert.equal(failureTextFor("auth_error"), IMAGE_AUTH_ERROR_TEXT);
+  assert.equal(failureTextFor("model_error"), IMAGE_MODEL_ERROR_TEXT);
   assert.equal(failureEventFor("unconfigured"), "image_provider_unconfigured");
-  assert.equal(failureEventFor("auth_error"), "image_provider_unconfigured");
+  assert.equal(failureEventFor("auth_error"), "image_provider_auth_error");
   assert.equal(failureEventFor("rate_limited"), "image_provider_rate_limited");
+  assert.equal(failureEventFor("quota_exhausted"), "vision_quota_exhausted");
+  assert.equal(failureEventFor("timeout"), "image_processing_timeout");
+
+  // Quota must never be labelled as "queue high".
+  assert.doesNotMatch(IMAGE_QUOTA_EXHAUSTED_TEXT, /navbat|yuklama yuqori/i);
+  // Temporary 429 must never be labelled as quota.
+  assert.doesNotMatch(IMAGE_PROVIDER_BUSY_TEXT, /limiti tugagan/i);
 });
 
 test("an auth failure is never reported to the user as a disabled feature", () => {
   assert.notEqual(failureTextFor("auth_error"), IMAGE_DISABLED_TEXT);
   assert.notEqual(failureTextFor("unconfigured"), IMAGE_DISABLED_TEXT);
+  assert.match(failureTextFor("auth_error"), /API kalit/i);
 });
 
 /* ================= ANALYSIS WITH DETERMINISTIC PROVIDERS (§30) ================= */
@@ -365,14 +430,25 @@ test("analysis without a configured provider reports 'unconfigured', not a crash
 });
 
 test("every provider failure propagates its reason to the analysis layer", async () => {
-  for (const reason of ["timeout", "rate_limited", "auth_error", "provider_error", "unreadable"] as VisionFailureReason[]) {
+  for (const reason of [
+    "timeout",
+    "rate_limited",
+    "quota_exhausted",
+    "auth_error",
+    "provider_error",
+    "unreadable",
+    "model_error",
+  ] as VisionFailureReason[]) {
     const result = await analyzeFinancialImage(IMAGE, {
       today: TODAY,
       categories: CATEGORIES,
-      provider: new FailingVisionProvider(reason),
+      provider: new FailingVisionProvider(reason, { status: 429, errorClass: reason }),
     });
     assert.equal(result.ok, false, reason);
-    if (!result.ok) assert.equal(result.reason, reason);
+    if (!result.ok) {
+      assert.equal(result.reason, reason);
+      assert.equal(result.diagnostics?.errorClass, reason);
+    }
   }
 });
 

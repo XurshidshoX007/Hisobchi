@@ -159,8 +159,10 @@ export async function processImageMessage(input: ImageIntakeInput): Promise<Imag
     // orphan `processing` row is ever left behind (§25 lifecycle).
     await db.delete(imageIntakes).where(eq(imageIntakes.id, intakeId)).catch(() => undefined);
     const event = failureEventFor(analysis.reason);
-    // Configuration failures are operator problems, not user problems: they
-    // are surfaced as a service message and logged WITHOUT any secret (§12).
+    // Configuration / provider failures are operator problems: surface a
+    // friendly message and log ONLY non-secret diagnostics (status, class,
+    // request id) — never keys, bodies or image bytes (§12, §25).
+    const diagnostics = analysis.diagnostics ?? {};
     await writeAudit({
       userId: user.id,
       actorRole: user.role,
@@ -169,7 +171,14 @@ export async function processImageMessage(input: ImageIntakeInput): Promise<Imag
       outcome: "failed",
       requestId,
       ipHash: input.ipHash ?? null,
-      metadata: { reason: analysis.reason },
+      metadata: {
+        reason: analysis.reason,
+        status: diagnostics.status ?? null,
+        errorClass: diagnostics.errorClass ?? null,
+        providerRequestId: diagnostics.requestId ?? null,
+        retryAfterSec: diagnostics.retryAfterSec ?? null,
+        attempts: diagnostics.attempts ?? null,
+      },
     });
     return { ok: false, text: failureTextFor(analysis.reason), event };
   }
