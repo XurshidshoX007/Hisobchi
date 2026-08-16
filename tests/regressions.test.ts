@@ -269,8 +269,8 @@ test("exact/estimated income representations do not leak stale values into forec
   assert.equal(estimated.income.exactBase, 0);
   assert.equal(estimated.income.estimatedBase, 2_000_000);
   assert.equal(estimated.income.estimatedMin, 1_000_000);
-  // MIN scenario counts only confirmed income; estimated may not arrive.
-  assert.equal(estimated.income.min, 0);
+  // MIN scenario uses the configured lower bound for estimated income.
+  assert.equal(estimated.income.min, 1_000_000);
   assert.equal(estimated.income.max, 3_000_000);
 });
 
@@ -428,8 +428,8 @@ test("min/base/max scenarios order correctly with mixed certainty", () => {
   });
   assert.ok(f.scenarios.min.balance <= f.scenarios.base.balance);
   assert.ok(f.scenarios.base.balance <= f.scenarios.max.balance);
-  // MIN uses only exact income and max expenses.
-  assert.equal(f.income.min, f.income.exactMin);
+  // MIN includes the declared lower bound of estimated income.
+  assert.equal(f.income.min, f.income.exactMin + f.income.estimatedMin);
 });
 
 /* ============================ SECURITY REGRESSION ============================ */

@@ -352,9 +352,10 @@ test("Safe-to-spend conservative: includes optional and weighted estimated", () 
     today,
     horizonDays: 30,
   });
-  // Balance 1m + weighted estimated 600k*0.5=300k - mandatory 500k - optional 200k - reserve 100k = 500k
-  // 1_000_000 + 300_000 - 500_000 -200_000 -100_000 = 500_000
-  assert.equal(f.safeToSpend, 500_000);
+  // Safe excludes optional plans: 1m + 300k - 500k - 100k = 700k.
+  // Free-to-spend then subtracts the 200k optional plan.
+  assert.equal(f.safeToSpend, 700_000);
+  assert.equal(f.freeToSpend, 500_000);
 });
 
 test("Monthly series builds 6 months", () => {

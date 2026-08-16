@@ -282,7 +282,7 @@ function summaryBlock(s: AppState): string {
     m ? `📅 ${m.label.toUpperCase()}` : "",
     m ? `💵 Kutilayotgan daromad: ${compact(m.expectedIncomeBase)}` : `💵 Kutilayotgan: ${compact(f.income.base)}`,
     m ? `📌 Majburiy: -${compact(m.mandatoryExpenseBase)}` : `📌 Majburiy: -${compact(f.expense.mandatoryBase)}`,
-    `✨ Safe-to-Spend: ${formatAmount(Math.max(0, f.safeToSpend))} so'm`,
+    `✨ Safe-to-Spend: ${formatAmount(f.safeToSpend)} so'm${f.safeToSpend < 0 ? " (yetishmayapti)" : ""}`,
     `📊 Bu oy: +${mon(s.analytics.monthTotals.income)} / -${mon(s.analytics.monthTotals.expense)}`,
     m ? `🔮 Prognoz balans: ${formatAmount(m.forecastClosingBase)}` : "",
   ]

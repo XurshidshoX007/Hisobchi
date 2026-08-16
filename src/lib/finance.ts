@@ -213,6 +213,33 @@ function nextOccurrences(
   return maxOccurrences !== null ? unique.slice(0, Math.max(0, maxOccurrences)) : unique;
 }
 
+export type TimelineKind =
+  | "real_income"
+  | "real_expense"
+  | "planned_income"
+  | "planned_expense"
+  | "mandatory"
+  | "optional"
+  | "transfer"
+  | "risk";
+
+/** Canonical event consumed by forecast, monthly cards, chart and dashboard. */
+export type FinancialTimelineEvent = {
+  key: string;
+  occurrenceId: string;
+  date: string;
+  kind: TimelineKind;
+  phase: "real" | "plan" | "forecast" | "risk";
+  label: string;
+  min: number;
+  base: number;
+  max: number;
+  certainty: "exact" | "estimated";
+  mandatory: boolean;
+  source: "transaction" | "recurring" | "expected" | "system";
+  refId: number;
+};
+
 export type PlannedItem = {
   key: string;
   date: string;
@@ -285,6 +312,7 @@ export type Forecast = {
   }>;
   riskDates: Array<{ date: string; balance: number; deficit: number; cause: string; recoveryDate?: string | null; recoveryAmount?: number | null }>;
   planned: PlannedItem[];
+  timeline: FinancialTimelineEvent[];
   upcomingPayments: Array<{
     id: number;
     name: string;
@@ -450,26 +478,68 @@ export function buildForecast(params: {
   const horizonDays = params.horizonDays ?? 90; // extended for monthly planning
   const horizonEnd = addDays(today, horizonDays);
   const planned = buildPlanned(params.recurring, params.incomes, today, horizonDays, params.transactions ?? []);
-  // Future-dated real transactions are confirmed ledger events, not plans.
-  // Include them in the same timeline so forecast, calendar and monthly views
-  // cannot disagree. Today and past events are already reflected in balance.
-  for (const tx of params.transactions ?? []) {
-    if (tx.isDeleted || tx.date <= today || tx.type === "transfer" || tx.date > horizonEnd) continue;
-    planned.push({
+  const timeline: FinancialTimelineEvent[] = (params.transactions ?? [])
+    .filter((tx) => !tx.isDeleted && tx.date <= today)
+    .map((tx) => ({
       key: `tx-${tx.id}`,
+      occurrenceId: `transaction:${tx.id}`,
       date: tx.date,
-      kind: tx.type === "income" ? "income" : "expense",
-      label: tx.note ?? "Qayd etilgan operatsiya",
+      kind: tx.type === "income" ? "real_income" : tx.type === "expense" ? "real_expense" : "transfer",
+      phase: "real",
+      label: tx.note ?? (tx.type === "income" ? "Daromad" : tx.type === "expense" ? "Xarajat" : "O'tkazma"),
       min: tx.amount,
       base: tx.amount,
       max: tx.amount,
       certainty: "exact",
       mandatory: false,
+      source: "transaction",
+      refId: tx.id,
+    }));
+  // Future-dated real transactions are confirmed ledger events, not plans.
+  // Include them in the same timeline so forecast, calendar and monthly views
+  // cannot disagree. Today and past events are already reflected in balance.
+  for (const tx of params.transactions ?? []) {
+    if (tx.isDeleted || tx.date <= today || tx.type === "transfer" || tx.date > horizonEnd) continue;
+    const linkedRecurring = tx.recurringId ? params.recurring.find((item) => item.id === tx.recurringId) : undefined;
+    planned.push({
+      key: `tx-${tx.id}`,
+      date: tx.date,
+      kind: tx.type === "income" ? "income" : "expense",
+      label: tx.note ?? linkedRecurring?.name ?? "Qayd etilgan operatsiya",
+      min: tx.amount,
+      base: tx.amount,
+      max: tx.amount,
+      certainty: "exact",
+      // A future ledger expense that fulfils a mandatory occurrence remains a
+      // mandatory commitment for safe-to-spend; only its source changes.
+      mandatory: Boolean(linkedRecurring?.isMandatory),
       source: "real",
       refId: tx.id,
     });
   }
   planned.sort((a, b) => a.date.localeCompare(b.date));
+  timeline.push(
+    ...planned.map((item): FinancialTimelineEvent => ({
+      key: item.key,
+      occurrenceId: `${item.source}:${item.refId}:${item.date}`,
+      date: item.date,
+      kind:
+        item.kind === "income"
+          ? "planned_income"
+          : item.mandatory
+            ? "mandatory"
+            : "optional",
+      phase: item.source === "real" ? "forecast" : "plan",
+      label: item.label,
+      min: item.min,
+      base: item.base,
+      max: item.max,
+      certainty: item.certainty,
+      mandatory: item.mandatory,
+      source: item.source === "real" ? "transaction" : item.source,
+      refId: item.refId,
+    })),
+  );
 
   const income = {
     exactBase: 0,
@@ -569,14 +639,16 @@ export function buildForecast(params: {
       // Try to find recovery date (next income)
       let recoveryDate: string | null = null;
       let recoveryAmount: number | null = null;
-      let probeBase = runningBase;
+      let probeBalance = runningMin;
       for (let j = i + 1; j <= horizonDays; j++) {
         const d2 = addDays(today, j);
         const ev2 = planned.filter((p) => p.date === d2);
         const in2 = ev2.filter((e) => e.kind === "income").reduce((s, e) => s + e.base, 0);
         const out2 = ev2.filter((e) => e.kind === "expense").reduce((s, e) => s + e.base, 0);
-        probeBase += in2 - out2;
-        if (probeBase >= 0 && in2 > 0) {
+        const minIn2 = ev2.filter((e) => e.kind === "income").reduce((s, e) => s + e.min, 0);
+        const maxOut2 = ev2.filter((e) => e.kind === "expense").reduce((s, e) => s + e.max, 0);
+        probeBalance += minIn2 - maxOut2;
+        if (probeBalance >= 0 && in2 > 0) {
           recoveryDate = d2;
           recoveryAmount = in2;
           break;
@@ -593,54 +665,62 @@ export function buildForecast(params: {
     }
   }
 
-  const upcomingPayments = params.recurring
-    .filter((r) => r.isActive)
-    .filter((r) => {
-      const remaining = remainingOccurrences(r);
-      return remaining === null || remaining > 0;
-    })
-    .map((r) => {
-      const { base, min, max } = rangeValue(r.amount, r.minAmount, r.maxAmount);
-      const daysLeft = dayDiff(today, r.nextDueDate);
-      return {
-        id: r.id,
-        name: r.name,
-        categoryName: null,
-        date: r.nextDueDate,
-        daysLeft,
-        base,
-        min,
-        max,
-        certainty: (r.certainty === "estimated" ? "estimated" : "exact") as "exact" | "estimated",
-        mandatory: r.isMandatory,
-        status: daysLeft < 0 ? ("overdue" as const) : daysLeft === 0 ? ("today" as const) : ("upcoming" as const),
-      };
-    })
-    .filter((p) => p.daysLeft <= 45)
+  // Upcoming lists are projections of the reconciled timeline, never raw
+  // plan rows. A fulfilled occurrence therefore cannot reappear here.
+  const upcomingPayments = planned
+    .filter((p) => p.kind === "expense")
+    .filter((p, index, all) => all.findIndex((x) => x.source === p.source && x.refId === p.refId) === index)
+    .filter((p) => dayDiff(today, p.date) <= 45)
+    .map((p) => ({
+      id: p.refId,
+      name: p.label,
+      categoryName: p.categoryName ?? null,
+      date: p.date,
+      daysLeft: dayDiff(today, p.date),
+      base: p.base,
+      min: p.min,
+      max: p.max,
+      certainty: p.certainty,
+      mandatory: p.mandatory,
+      status: dayDiff(today, p.date) < 0 ? ("overdue" as const) : dayDiff(today, p.date) === 0 ? ("today" as const) : ("upcoming" as const),
+    }))
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
-  const upcomingIncome = params.incomes
-    .filter((i) => i.isActive)
-    .filter((i) => {
-      const remaining = remainingOccurrences(i);
-      return remaining === null || remaining > 0;
-    })
-    .map((i) => {
-      const { base, min, max } = rangeValue(i.amount, i.minAmount, i.maxAmount);
-      return {
-        id: i.id,
-        sourceName: i.sourceName,
-        date: i.expectedDate,
-        daysLeft: dayDiff(today, i.expectedDate),
-        base,
-        min,
-        max,
-        certainty: (i.certainty === "estimated" ? "estimated" : "exact") as "exact" | "estimated",
-        received: Boolean(i.linkedTransactionId),
-      };
-    })
-    .filter((i) => i.daysLeft <= 45)
+  const upcomingIncome = planned
+    .filter((p) => p.kind === "income")
+    .filter((p, index, all) => all.findIndex((x) => x.source === p.source && x.refId === p.refId) === index)
+    .filter((p) => dayDiff(today, p.date) <= 45)
+    .map((p) => ({
+      id: p.refId,
+      sourceName: p.label,
+      date: p.date,
+      daysLeft: dayDiff(today, p.date),
+      base: p.base,
+      min: p.min,
+      max: p.max,
+      certainty: p.certainty,
+      received: false,
+    }))
     .sort((a, b) => a.daysLeft - b.daysLeft);
+
+  timeline.push(
+    ...riskDates.map((risk, index): FinancialTimelineEvent => ({
+      key: `risk-${risk.date}-${index}`,
+      occurrenceId: `risk:${risk.date}`,
+      date: risk.date,
+      kind: "risk",
+      phase: "risk",
+      label: risk.cause,
+      min: risk.balance,
+      base: risk.balance,
+      max: risk.balance,
+      certainty: "exact",
+      mandatory: false,
+      source: "system",
+      refId: index,
+    })),
+  );
+  timeline.sort((a, b) => a.date.localeCompare(b.date) || a.key.localeCompare(b.key));
 
   return {
     today,
@@ -664,6 +744,7 @@ export function buildForecast(params: {
     cashflow,
     riskDates,
     planned,
+    timeline,
     upcomingPayments,
     upcomingIncome,
   };
@@ -681,6 +762,7 @@ export type MonthlyDay = {
   projectedMin: number;
   projectedMax: number;
   events: PlannedItem[];
+  timelineEvents: FinancialTimelineEvent[];
   isToday: boolean;
   isPast: boolean;
   isRisk: boolean;
@@ -728,13 +810,14 @@ export function buildMonthlyView(params: {
   monthKey: string;
   today: string;
   currentBalance: number;
-  transactions: Array<{ date: string; type: string; amount: number }>; // real transactions <= today
+  transactions: Array<{ date: string; type: string; amount: number }>; // ledger rows; engine enforces date semantics
   planned: PlannedItem[];
   cashflow: Forecast["cashflow"];
   analytics: Analytics;
   forecast: Forecast;
 }): MonthlyView {
-  const { monthKey: mk, today, currentBalance, transactions, planned, cashflow, analytics, forecast } = params;
+  const { monthKey: mk, today, currentBalance, planned, cashflow, analytics, forecast } = params;
+  const transactions = params.transactions.filter((t) => t.date <= today);
   const mStart = monthStart(mk + "-01");
   const mEnd = monthEnd(mStart);
   const { full, short } = monthLabelFull(mk);
@@ -823,8 +906,8 @@ export function buildMonthlyView(params: {
   let runningBase = openingBalance;
   let runningMin = openingBalance;
   let runningMax = openingBalance;
-  let lowest = openingBalance;
-  let highest = openingBalance;
+  let lowest = isCurrent ? Number.POSITIVE_INFINITY : openingBalance;
+  let highest = isCurrent ? Number.NEGATIVE_INFINITY : openingBalance;
   let deficitDays = 0;
   let maxDeficit = 0;
 
@@ -842,6 +925,7 @@ export function buildMonthlyView(params: {
     const isToday = d === today;
     const isPastDay = d < today;
     const events = planned.filter((p) => p.date === d);
+    const timelineEvents = forecast.timeline.filter((event) => event.date === d && event.kind !== "risk");
     const plannedIncome = events.filter((e) => e.kind === "income").reduce((s, e) => s + e.base, 0);
     const plannedExpense = events.filter((e) => e.kind === "expense").reduce((s, e) => s + e.base, 0);
     const plannedIncomeMin = events.filter((e) => e.kind === "income").reduce((s, e) => s + e.min, 0);
@@ -884,12 +968,17 @@ export function buildMonthlyView(params: {
       runningMax += plannedIncomeMax - plannedExpenseMin;
     }
 
-    // For current month past days already processed, ensure final running after last past day equals currentBalance minus remaining planned? We'll later adjust closing via forecast.
-    lowest = Math.min(lowest, runningBase, runningMin);
-    highest = Math.max(highest, runningBase, runningMax);
-    if (runningMin < 0) {
-      deficitDays += 1;
-      maxDeficit = Math.max(maxDeficit, Math.abs(runningMin));
+    // Historical dips are useful for a past-month audit, but must not be
+    // presented as a current forecast risk. Current-month projection starts
+    // today; future-month projection starts at that month's opening.
+    const projectionDay = isPast || isFuture || d >= today;
+    if (projectionDay) {
+      lowest = Math.min(lowest, runningBase, runningMin);
+      highest = Math.max(highest, runningBase, runningMax);
+      if (runningMin < 0) {
+        deficitDays += 1;
+        maxDeficit = Math.max(maxDeficit, Math.abs(runningMin));
+      }
     }
 
     daily.push({
@@ -902,6 +991,7 @@ export function buildMonthlyView(params: {
       projectedMin: round2(runningMin),
       projectedMax: round2(runningMax),
       events,
+      timelineEvents,
       isToday,
       isPast: isPastDay,
       isRisk: runningMin < 0,
@@ -948,8 +1038,8 @@ export function buildMonthlyView(params: {
     forecastClosingBase: round2(finalClosingBase),
     forecastClosingMin: round2(finalClosingMin),
     forecastClosingMax: round2(finalClosingMax),
-    lowestProjected: round2(lowest),
-    highestProjected: round2(highest),
+    lowestProjected: round2(Number.isFinite(lowest) ? lowest : openingBalance),
+    highestProjected: round2(Number.isFinite(highest) ? highest : openingBalance),
     deficitDays,
     deficitAmount: round2(maxDeficit),
     safeToSpend: isCurrent ? forecast.safeToSpend : undefined,
