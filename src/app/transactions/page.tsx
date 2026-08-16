@@ -8,6 +8,7 @@ import { QuickAddSheet } from "@/components/quick-add";
 import { TransactionFilter, type TransactionFilterContext } from "@/components/transaction-filter";
 import { Badge, Button, EmptyState, Money, PageHeader, Sheet, Skeleton } from "@/components/ui";
 import { compact, humanDate } from "@/lib/money";
+import { LOADING } from "@/lib/copy";
 import type { TxView } from "@/lib/finance";
 import {
   DEFAULT_TRANSACTION_FILTERS,
@@ -93,8 +94,7 @@ function TransactionsView() {
   return (
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
       <PageHeader
-        title="Operatsiyalar"
-        subtitle="Real pul harakatlari"
+        title="Tarix"
         action={
           <TransactionFilter
             filters={filters}
@@ -128,7 +128,7 @@ function TransactionsView() {
 
       <div
         className="num flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[11.5px] text-fg-soft sm:text-[12px]"
-        aria-label={`Kirim ${totals.income}, chiqim ${totals.expense}, ${totals.count} ta operatsiya, sof ${net}`}
+        aria-label={`Daromad ${totals.income}, xarajat ${totals.expense}, ${totals.count} ta operatsiya, sof ${net}`}
         aria-live="polite"
       >
         <span className="font-semibold text-positive-text">+{compact(totals.income)}</span>
@@ -138,18 +138,18 @@ function TransactionsView() {
         <span>{totals.count} ta</span>
         <span aria-hidden="true" className="text-muted">·</span>
         <span className={net > 0 ? "font-medium text-positive-text" : net < 0 ? "font-medium text-negative-text" : ""}>
-          sof {net > 0 ? "+" : net < 0 ? "−" : ""}{compact(net)}
+          Sof {net > 0 ? "+" : net < 0 ? "−" : ""}{compact(net)}
         </span>
       </div>
 
       {grouped.length === 0 ? (
         <EmptyState
           icon="🔍"
-          title="Operatsiya topilmadi"
+          title={state.transactions.length === 0 ? "Tarix hozircha bo‘sh." : "Operatsiya topilmadi"}
           description={
             state.transactions.length === 0
-              ? "Yangi operatsiyalarni Dashboard orqali kiriting."
-              : "Filtr yoki qidiruv shartlarini o‘zgartiring."
+              ? "Operatsiyalar Asosiy sahifada kiritiladi."
+              : "Filtrni o‘zgartirib ko‘ring."
           }
         />
       ) : (
@@ -179,11 +179,11 @@ function TransactionsView() {
                               ? `${transaction.accountName} → ${transaction.toAccountName ?? ""}`
                               : transaction.categoryName ?? "Boshqa"}
                           </span>
-                          {transaction.recurringId ? <Badge tone="accent">Reja to‘lovi</Badge> : null}
-                          {transaction.expectedIncomeId ? <Badge tone="positive">Kutilgan daromad</Badge> : null}
-                          {transaction.date > state.forecast.today ? <Badge tone="warning">Kelajak sana</Badge> : null}
+                          {transaction.recurringId ? <Badge tone="accent">To‘lov</Badge> : null}
+                          {transaction.expectedIncomeId ? <Badge tone="positive">Reja</Badge> : null}
+                          {transaction.date > state.forecast.today ? <Badge tone="warning">Kelajak</Badge> : null}
                           {accountById.get(transaction.accountId)?.isActive === false ? (
-                            <Badge tone="neutral">arxiv hisob</Badge>
+                            <Badge tone="neutral">Arxiv</Badge>
                           ) : null}
                         </p>
                         <p className="truncate text-[11.5px] text-muted">
@@ -224,10 +224,6 @@ function TransactionsView() {
         </div>
       )}
 
-      <p className="px-1 text-center text-[11px] leading-snug text-muted">
-        Muhim operatsiyalar o‘chirilmaydi — belgilanadi va tarix saqlanadi.
-      </p>
-
       <QuickAddSheet open={Boolean(editing)} onClose={() => setEditing(null)} editing={editing} />
       <DeleteConfirm tx={deleting} onClose={() => setDeleting(null)} />
     </div>
@@ -261,18 +257,18 @@ function DeleteConfirm({ tx, onClose }: { tx: TxView | null; onClose: () => void
   // plan never re-appears — only its historical payment is removed.
   const revertNote = linkedPlan
     ? linkedPlan.planType === "term" && linkedPlan.installmentCount !== null
-      ? `Reja hisobidagi occurrence qayta tiklanadi: ${linkedPlan.installmentsPaid}/${linkedPlan.installmentCount} → ${Math.max(
+      ? `Reja qayta ochiladi: ${linkedPlan.installmentsPaid}/${linkedPlan.installmentCount} → ${Math.max(
           0,
           linkedPlan.installmentsPaid - 1,
         )}/${linkedPlan.installmentCount}.`
-      : "Reja hisobidagi occurrence qayta tiklanadi."
+      : "Reja qayta ochiladi."
     : linkedIncome
-      ? "Daromad rejasidagi occurrence qayta tiklanadi."
+      ? "Daromad rejasi qayta ochiladi."
       : null;
 
   const cancelledNote =
     linkedPlan?.status === "cancelled" || linkedIncome?.status === "cancelled"
-      ? " Reja bekor qilinganligi uchun kelajakdagi to‘lovlar qaytmaydi — faqat shu tarixiy to‘lov o‘chiriladi."
+      ? " Reja bekor qilingan — faqat shu to‘lov o‘chiriladi."
       : "";
 
   return (
@@ -286,7 +282,7 @@ function DeleteConfirm({ tx, onClose }: { tx: TxView | null; onClose: () => void
             Bekor qilish
           </Button>
           <Button variant="danger" className="flex-[2]" onClick={confirm} disabled={saving}>
-            {saving ? "O‘chirilmoqda…" : "O‘chirish"}
+            {saving ? LOADING.deleting : "O‘chirish"}
           </Button>
         </>
       }
@@ -301,9 +297,7 @@ function DeleteConfirm({ tx, onClose }: { tx: TxView | null; onClose: () => void
         )}
       </p>
       <p className="text-[13px] leading-relaxed text-muted">
-        {linked
-          ? `Bu to‘lov tarixdan o‘chiriladi. ${revertNote ?? ""}${cancelledNote}`
-          : "Operatsiya tarixdan olib tashlanadi."}
+        {linked ? `${revertNote ?? ""}${cancelledNote}`.trim() : "Tarixdan olib tashlanadi."}
       </p>
     </Sheet>
   );

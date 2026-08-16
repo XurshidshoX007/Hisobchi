@@ -78,7 +78,7 @@ export default function BudgetsPage() {
             <Progress value={totalLimit > 0 ? totalSpent / totalLimit : 0} height={10} ariaLabel="Umumiy budjet ishlatilishi" />
             <div className="mt-2 flex items-center justify-between text-[11.5px] text-muted">
               <span>{totalLimit > 0 ? ((totalSpent / totalLimit) * 100).toFixed(0) : 0}% ishlatildi</span>
-              <span>{exceeded > 0 ? `${exceeded} ta limit oshdi` : warning > 0 ? `${warning} ta ogohlantirish` : "hammasi normal"}</span>
+              <span>{exceeded > 0 ? `${exceeded} ta limit oshdi` : warning > 0 ? `${warning} ta ogohlantirish` : "Limitlar normal"}</span>
             </div>
           </div>
         </Card>
@@ -135,7 +135,7 @@ export default function BudgetsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon="🎯" title="Budjet yo‘q" description="Pastdagi + tugmasi orqali budjet yarating." />
+        <EmptyState icon="🎯" title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
       )}
 
       <BudgetSheet open={sheet} onClose={closeSheet} editing={editing} />
@@ -203,9 +203,9 @@ function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () =>
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Budjetni tahrirlash" : "Yangi budjet"}
+      title={editing ? "Budjetni tahrirlash" : "+ Budjet"}
       subtitle={editing ? undefined : "Qaysi kategoriyaga oylik limit?"}
-      submitLabel="Budjetni saqlash"
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
       onSubmit={submit}

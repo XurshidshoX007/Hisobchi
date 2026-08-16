@@ -78,10 +78,10 @@ export function MonthlyPlanSummary({
             Majburiy <span className="num text-[17px] font-semibold text-fg">0</span>
           </p>
           <p className="text-[12px] text-muted">
-            Faol rejalar <span className="num text-[17px] font-semibold text-fg">0</span>
+            Faol <span className="num text-[17px] font-semibold text-fg">0</span>
           </p>
         </div>
-        <p className="mt-2 text-[12.5px] leading-snug text-muted">Faol to‘lov rejasi yo‘q.</p>
+        <p className="mt-2 text-[12.5px] leading-snug text-muted">Rejalashtirilgan to‘lovlar yo‘q.</p>
       </section>
     );
   }
@@ -131,7 +131,7 @@ export function MonthlyPlanSummary({
           ) : remaining === 0 && paid > 0 ? (
             <p className="mt-1.5 text-[13px] font-medium text-positive-text">✓ Reja yakunlangan</p>
           ) : (
-            <p className="mt-1.5 text-[13px] text-muted">Bu oyda ochiq to‘lov qolmadi.</p>
+            <p className="mt-1.5 text-[13px] text-muted">Ochiq to‘lov yo‘q.</p>
           )}
 
           {/* §27: overdue stays INSIDE this surface — no separate warning card. */}
@@ -159,7 +159,7 @@ function NearestPaymentRow({ payment, onClick }: { payment: NearestPaymentView; 
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[14px] font-semibold leading-tight">{payment.name}</p>
-        <p className="mt-0.5 text-[11px] leading-tight text-muted">{payment.mandatory ? "majburiy" : "ixtiyoriy"}</p>
+        <p className="mt-0.5 text-[11px] leading-tight text-muted">{payment.mandatory ? "Majburiy" : "Ixtiyoriy"}</p>
       </div>
       <div className="shrink-0 text-right">
         <Money value={payment.base} size="md" tone={overdue ? "negative" : "default"} />
@@ -213,7 +213,7 @@ export function SecondaryPlanMetrics({
   const items = [
     { label: "Ixtiyoriy", value: formatAmount(optional), context: optionalCount ? `${optionalCount} ta reja` : "reja yo‘q" },
     { label: "Faol", value: String(active), context: pausedCount ? `${pausedCount} ta pauzada` : "pauzada yo‘q" },
-    { label: "Yillik", value: formatAmount(yearly), context: recurringCount ? "doimiy rejalar" : "doimiy reja yo‘q" },
+    { label: "Yillik", value: formatAmount(yearly), context: recurringCount ? "doimiy" : "doimiy reja yo‘q" },
     {
       label: "Muddatli",
       value: formatAmount(termRemaining),

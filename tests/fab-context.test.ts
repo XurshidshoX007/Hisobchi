@@ -18,8 +18,8 @@ test("normalizePath strips query/hash and normalizes root", () => {
 test("Dashboard resolves to the three transaction directions", () => {
   const actions = getFabActions({ pathname: "/" });
   assert.deepEqual(ids({ pathname: "/" }), ["transaction:income", "transaction:expense", "transaction:transfer"]);
-  assert.equal(actions[0].label, "Kirim");
-  assert.equal(actions[1].label, "Chiqim");
+  assert.equal(actions[0].label, "Daromad");
+  assert.equal(actions[1].label, "Xarajat");
   assert.equal(actions[2].label, "Transfer");
 });
 

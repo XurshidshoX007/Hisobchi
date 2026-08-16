@@ -143,9 +143,9 @@ test("only meaningful changes count as unsaved data", () => {
 /* ============================ §27 SUCCESS FEEDBACK ============================ */
 
 test("success copy names the amount and the direction", () => {
-  assert.equal(savedMessage("expense", 150_000), "150 000 so‘mlik chiqim saqlandi");
-  assert.equal(savedMessage("income", 3_000_000), "3 000 000 so‘mlik kirim saqlandi");
+  assert.equal(savedMessage("expense", 150_000), "150 000 so‘mlik xarajat saqlandi");
+  assert.equal(savedMessage("income", 3_000_000), "3 000 000 so‘mlik daromad saqlandi");
   assert.equal(savedMessage("transfer", 500_000), "500 000 so‘mlik transfer saqlandi");
-  assert.equal(savedMessage("expense", null), "Chiqim saqlandi");
-  assert.equal(savedMessage("expense", 0), "Chiqim saqlandi");
+  assert.equal(savedMessage("expense", null), "Xarajat saqlandi");
+  assert.equal(savedMessage("expense", 0), "Xarajat saqlandi");
 });

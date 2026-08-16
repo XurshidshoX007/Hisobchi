@@ -441,7 +441,7 @@ export function Divider() {
  * Frameless grouping block (§24: Page → Section → Row). Use it instead of a
  * Card whenever the border adds no meaning — lists, secondary metrics and
  * references live in Sections; Cards are reserved for PRIMARY financial
- * concepts (hero balance, risk, Safe-to-Spend, main chart).
+ * concepts (hero balance, risk, “Sarflash mumkin”, main chart).
  */
 export function Section({
   title,

@@ -463,25 +463,25 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       analytics.insights.push({
         icon: "🚨",
         tone: "negative",
-        title: "Balans minimal darajaga tushishi mumkin",
-        body: `${shortDate(first.date)} kuni taxminiy ${Math.round(first.deficit / 1000)} ming so'm taqchillik kutilmoqda.${recov}`,
+        title: "Balans pasayishi mumkin",
+        body: `${shortDate(first.date)} kuni ${Math.round(first.deficit / 1000)} ming so'm yetishmasligi mumkin.${recov}`,
       });
     }
     analytics.insights.push({
       icon: "✨",
       tone: forecast.safeToSpend < 0 ? "warning" : "positive",
-      title: `Safe-to-Spend bugun: ${Math.round(forecast.safeToSpend / 1000)} ming`,
+      title: `Sarflash mumkin: ${Math.round(forecast.safeToSpend / 1000)} ming`,
       body:
         forecast.safeToSpend < 0
-          ? "Majburiy to'lovlar va zaxira hisobga olinganda hozircha erkin mablag' yo'q."
-          : `Oy oxirigacha xavfsiz sarflash mumkin bo'lgan summa.`,
+          ? "Majburiy to'lov va zaxiradan keyin erkin mablag' yo'q."
+          : "Oy oxirigacha sarflash mumkin bo'lgan summa.",
     });
     if (forecast.income.estimatedBase > 0) {
       analytics.insights.push({
         icon: "🎲",
         tone: "neutral",
-        title: "Taxminiy daromadlar",
-        body: `Jami prognoz ${Math.round(forecast.income.base / 1000)} ming, shundan faqat ${Math.round(forecast.income.exactBase / 1000)} ming aniq.`,
+        title: "Taxminiy daromad",
+        body: `Prognoz ${Math.round(forecast.income.base / 1000)} ming, shundan ${Math.round(forecast.income.exactBase / 1000)} ming aniq.`,
       });
     }
   }
@@ -534,8 +534,8 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         id: `inc-late-${i.id}`,
         type: "income",
         severity: "warning",
-        title: "Kutilgan daromad qayd etilmadi",
-        body: `${i.sourceName} (${formatRange(i)}) hali ro'yxatga olinmadi.`,
+        title: "Daromad qayd etilmadi",
+        body: `${i.sourceName} (${formatRange(i)}) hali kiritilmagan.`,
         refDate: i.date,
         amount: i.base,
       });
@@ -588,8 +588,8 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         "",
         nextInc ? `Kutilayotgan daromad:\n${Math.round(nextInc.base).toLocaleString("ru-RU")} UZS\n${shortDate(nextInc.date)}` : "",
         "",
-        `Tavsiya:\n${shortDate(first.date)} gacha kamida ${Math.round(first.deficit).toLocaleString("ru-RU")} UZS qo'shimcha mablag' kerak.`,
-        nextInc ? `Keyin ${shortDate(nextInc.date)} kuni balans tiklanadi.` : "",
+        `Tavsiya:\n${shortDate(first.date)} gacha kamida ${Math.round(first.deficit).toLocaleString("ru-RU")} UZS kerak.`,
+        nextInc ? `${shortDate(nextInc.date)} kuni balans tiklanadi.` : "",
       ]
         .filter(Boolean)
         .join("\n");
@@ -598,7 +598,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         ? ` Kutilayotgan daromad: ${nextInc.label} ${Math.round(nextInc.base / 1000)} ming ${shortDate(nextInc.date)}.`
         : "";
       detailedBody = `${shortDate(first.date)} kuni ${first.cause ? `${first.cause} tufayli ` : ""}balans ${Math.round(Math.abs(first.balance) / 1000)} mingga tushishi mumkin (taqchillik ${Math.round(first.deficit / 1000)} ming).${nextIncomeText} ${
-        first.recoveryDate ? `Tuzalish: ${shortDate(first.recoveryDate)}.` : ""
+        first.recoveryDate ? `Tiklanish: ${shortDate(first.recoveryDate)}.` : ""
       }`.trim();
     }
 
@@ -606,7 +606,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       id: "risk-cash",
       type: "risk",
       severity,
-      title: causeExpense ? `${shortDate(first.date)} da ${causeExpense.label} xavfi` : first.deficit > 0 && first.balance < 0 ? "Pul yetishmasligi xavfi" : "Balans pasayishi kutilmoqda",
+      title: causeExpense ? `${shortDate(first.date)} · ${causeExpense.label} xavfi` : "Balans yetishmasligi mumkin",
       body: detailedBody,
       refDate: first.date,
       amount: first.deficit,
@@ -628,8 +628,8 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       id: "ledger-archived-balance",
       type: "insight",
       severity: "warning",
-      title: "Arxivlangan hisobda pul bor",
-      body: `${names} hisobi noaktiv, shuning uchun undagi ${Math.round(ledgerCheck.excludedBalance).toLocaleString("ru-RU")} ${user.currency} umumiy balansga qo'shilmayapti. Hisoblar bo'limida uni faollashtiring yoki mablag'ni boshqa hisobga o'tkazing.`,
+      title: "Arxiv hisobda pul bor",
+      body: `${names} hisobi noaktiv — undagi ${Math.round(ledgerCheck.excludedBalance).toLocaleString("ru-RU")} ${user.currency} balansga kirmaydi. Hisoblar bo'limida faollashtiring.`,
       refDate: null,
       amount: ledgerCheck.excludedBalance,
     });

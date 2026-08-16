@@ -91,7 +91,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
     notification: ["read", "readAll"],
   };
   if (!contracts[input.entity]?.includes(input.action)) {
-    return { ok: false, message: "Noma'lum yoki ruxsat etilmagan amal" };
+    return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
   }
 
   switch (input.entity) {
@@ -106,7 +106,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
         const accountId = int(d.accountId) ?? (await defaultAccount(userId));
         if (!accountId) {
-          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+          return { ok: false, message: "Faol hisob yo'q. Hisoblar bo'limida bitta hisobni faollashtiring." };
         }
 
         // Ownership + archived guard: the source account must belong to the
@@ -208,12 +208,12 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         return {
           ok: true,
           id: row.id,
-          message: `${type === "income" ? "Kirim" : type === "expense" ? "Chiqim" : "Transfer"} qo'shildi`,
+          message: `${type === "income" ? "Daromad" : type === "expense" ? "Xarajat" : "Transfer"} qo'shildi`,
         };
       }
       if (input.action === "update") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const existing = await db
           .select()
           .from(transactions)
@@ -225,8 +225,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           | "income"
           | "expense"
           | "transfer";
-        if (existing[0].recurringId && type !== "expense") return { ok: false, message: "Reja to'lovi chiqim bo'lib qolishi kerak" };
-        if (existing[0].expectedIncomeId && type !== "income") return { ok: false, message: "Qabul qilingan daromad kirim bo'lib qolishi kerak" };
+        if (existing[0].recurringId && type !== "expense") return { ok: false, message: "Reja to'lovi xarajat bo'lib qolishi kerak" };
+        if (existing[0].expectedIncomeId && type !== "income") return { ok: false, message: "Qabul qilingan reja daromad bo'lib qolishi kerak" };
         const amount = d.amount !== undefined ? num(d.amount) : existing[0].amount;
         if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
         // An existing transaction may legitimately live on an account that was
@@ -277,7 +277,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "delete") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         // Business rule: soft delete / reversal instead of hard delete.
         // A plan-linked transaction (recurring payment or received expected
         // income) must also reconcile its parent plan: the fulfilled
@@ -333,7 +333,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!deleted) return { ok: false, message: "Operatsiya topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: deleted.id, message: "Operatsiya bekor qilindi" };
       }
-      return { ok: false, message: "Noma'lum amal" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }
 
     /* ------------------------- accounts ------------------------- */
@@ -356,7 +356,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "update") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const existing = await db.select().from(accounts).where(and(eq(accounts.id, id), eq(accounts.userId, userId))).limit(1);
         if (!existing[0]) return { ok: false, message: "Hisob topilmadi yoki ruxsat yo'q" };
         const name = d.name !== undefined ? str(d.name) : existing[0].name;
@@ -376,7 +376,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!updated[0]) return { ok: false, message: "Hisob topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: updated[0].id, message: "Hisob yangilandi" };
       }
-      return { ok: false, message: "Noma'lum amal" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }
 
     /* ------------------------- categories ------------------------- */
@@ -404,7 +404,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "update") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const existing = await db.select().from(categories).where(and(eq(categories.id, id), eq(categories.userId, userId))).limit(1);
         if (!existing[0]) return { ok: false, message: "Kategoriya topilmadi yoki ruxsat yo'q" };
         const name = d.name !== undefined ? str(d.name) : existing[0].name;
@@ -435,7 +435,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!updated[0]) return { ok: false, message: "Kategoriya topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: updated[0].id, message: "Kategoriya yangilandi" };
       }
-      return { ok: false, message: "Noma'lum amal" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }
 
     /* ------------------------- recurring expenses ------------------------- */
@@ -512,7 +512,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           return { ok: true, id: row.id, message: `${name} to'lov rejasiga qo'shildi` };
         }
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const existingRec = await db
           .select()
           .from(recurringExpenses)
@@ -550,7 +550,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "pay") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const rec = await db
           .select()
           .from(recurringExpenses)
@@ -569,7 +569,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const paymentAccountId = int(d.accountId) ?? rec[0].accountId ?? (await defaultAccount(userId));
         if (!paymentAccountId) {
-          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+          return { ok: false, message: "Faol hisob yo'q. Hisoblar bo'limida bitta hisobni faollashtiring." };
         }
         {
           const guard = await accountForPosting(userId, paymentAccountId, "source");
@@ -631,7 +631,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "toggle" || input.action === "restore" || input.action === "delete") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         // Semantics:
         //   toggle  → pause / resume (active ↔ paused). It must NEVER wake up
         //             a cancelled or completed plan (§13).
@@ -704,7 +704,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!updated[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: updated[0].id, message: "Reja bekor qilindi" };
       }
-      return { ok: false, message: "Noma'lum amal" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }
 
     /* ------------------------- expected income ------------------------- */
@@ -712,7 +712,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "create" || input.action === "update") {
         const updateId = input.action === "update" ? int(d.id) : null;
         if (input.action === "update") {
-          if (!updateId) return { ok: false, message: "ID kerak" };
+          if (!updateId) return { ok: false, message: "Yozuv tanlanmadi" };
           const owned = await db
             .select({ id: expectedIncomes.id })
             .from(expectedIncomes)
@@ -813,7 +813,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "receive") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const row = await db
           .select()
           .from(expectedIncomes)
@@ -824,7 +824,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const incomeAccountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId));
         if (!incomeAccountId) {
-          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+          return { ok: false, message: "Faol hisob yo'q. Hisoblar bo'limida bitta hisobni faollashtiring." };
         }
         {
           const guard = await accountForPosting(userId, incomeAccountId, "source");
@@ -885,7 +885,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "toggle" || input.action === "restore" || input.action === "delete") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         // Same lifecycle semantics as payment plans: toggle = pause/resume
         // (never wakes up cancelled/completed, §13); restore = the only way
         // back from cancelled (§11); delete = cancel future occurrences only
@@ -951,7 +951,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!updated[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: updated[0].id, message: "Daromad rejasi bekor qilindi" };
       }
-      return { ok: false, message: "Noma'lum amal" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }
 
     /* ------------------------- budgets ------------------------- */
@@ -983,7 +983,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "delete") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const deleted = await db
           .update(budgets)
           .set({ isDeleted: true })
@@ -992,7 +992,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!deleted[0]) return { ok: false, message: "Budjet topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: deleted[0].id, message: "Budjet o'chirildi" };
       }
-      return { ok: false, message: "Noma'lum amal" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }
 
     /* ------------------------- debts ------------------------- */
@@ -1000,7 +1000,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "create") {
         const personName = str(d.personName);
         const amount = num(d.amount);
-        if (!personName || !amount || amount <= 0) return { ok: false, message: "Ma'lumot to'liq emas" };
+        if (!personName || !amount || amount <= 0) return { ok: false, message: "Ma'lumot to'liq emas. Barcha maydonlarni to'ldiring." };
         const remainingAmount = num(d.remainingAmount, amount) ?? amount;
         if (remainingAmount < 0 || remainingAmount > amount) return { ok: false, message: "Qolgan qarz summasi noto'g'ri" };
         const direction = allowed(str(d.direction, "i_owe"), ["i_owe", "owed_to_me"], "i_owe");
@@ -1025,7 +1025,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "update") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const existing = await db
           .select()
           .from(debts)
@@ -1034,7 +1034,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!existing[0]) return { ok: false, message: "Qarz topilmadi yoki ruxsat yo'q" };
         const personName = str(d.personName);
         const amount = num(d.amount);
-        if (!personName || !amount || amount <= 0) return { ok: false, message: "Ma'lumot to'liq emas" };
+        if (!personName || !amount || amount <= 0) return { ok: false, message: "Ma'lumot to'liq emas. Barcha maydonlarni to'ldiring." };
         const paidAmount = existing[0].amount - existing[0].remainingAmount;
         if (amount < paidAmount) return { ok: false, message: "Jami summa avval to'langan summadan kam bo'lmasligi kerak" };
         const direction = allowed(str(d.direction, existing[0].direction), ["i_owe", "owed_to_me"], existing[0].direction);
@@ -1063,7 +1063,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "pay") {
         const id = int(d.id);
         const amount = num(d.amount);
-        if (!id || !amount || amount <= 0) return { ok: false, message: "Ma'lumot noto'g'ri" };
+        if (!id || !amount || amount <= 0) return { ok: false, message: "Ma'lumot noto'g'ri. Tekshirib qayta urinib ko'ring." };
         const row = await db
           .select()
           .from(debts)
@@ -1073,7 +1073,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (amount > row[0].remainingAmount) return { ok: false, message: "To'lov qolgan qarzdan katta bo'lmasligi kerak" };
         const paymentAccountId = int(d.accountId) ?? (await defaultAccount(userId));
         if (!paymentAccountId) {
-          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+          return { ok: false, message: "Faol hisob yo'q. Hisoblar bo'limida bitta hisobni faollashtiring." };
         }
         {
           const guard = await accountForPosting(userId, paymentAccountId, "source");
@@ -1120,7 +1120,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "delete") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const deleted = await db
           .update(debts)
           .set({ isDeleted: true })
@@ -1129,7 +1129,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!deleted[0]) return { ok: false, message: "Qarz topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: deleted[0].id, message: "Qarz arxivlandi" };
       }
-      return { ok: false, message: "Noma'lum amal" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }
 
     /* ------------------------- goals ------------------------- */
@@ -1137,7 +1137,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "create") {
         const name = str(d.name);
         const targetAmount = num(d.targetAmount);
-        if (!name || !targetAmount || targetAmount <= 0) return { ok: false, message: "Ma'lumot to'liq emas" };
+        if (!name || !targetAmount || targetAmount <= 0) return { ok: false, message: "Ma'lumot to'liq emas. Barcha maydonlarni to'ldiring." };
         const accountId = int(d.accountId);
         if (accountId && !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
         const savedAmount = num(d.savedAmount, 0) ?? 0;
@@ -1163,7 +1163,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "contribute") {
         const id = int(d.id);
         const amount = num(d.amount);
-        if (!id || !amount || amount <= 0) return { ok: false, message: "Ma'lumot noto'g'ri" };
+        if (!id || !amount || amount <= 0) return { ok: false, message: "Ma'lumot noto'g'ri. Tekshirib qayta urinib ko'ring." };
         const row = await db.select().from(goals).where(and(eq(goals.id, id), eq(goals.userId, userId), eq(goals.isDeleted, false))).limit(1);
         if (!row[0]) return { ok: false, message: "Maqsad topilmadi" };
         if (amount > row[0].targetAmount - row[0].savedAmount) {
@@ -1188,7 +1188,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "update") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const existing = await db.select().from(goals).where(and(eq(goals.id, id), eq(goals.userId, userId), eq(goals.isDeleted, false))).limit(1);
         if (!existing[0]) return { ok: false, message: "Maqsad topilmadi yoki ruxsat yo'q" };
         const name = str(d.name, existing[0].name);
@@ -1211,7 +1211,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       }
       if (input.action === "delete") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         const deleted = await db
           .update(goals)
           .set({ isDeleted: true })
@@ -1220,14 +1220,14 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!deleted[0]) return { ok: false, message: "Maqsad topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: deleted[0].id, message: "Maqsad arxivlandi" };
       }
-      return { ok: false, message: "Noma'lum amal" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }
 
     /* ------------------------- notifications ------------------------- */
     case "notification": {
       if (input.action === "read") {
         const id = int(d.id);
-        if (!id) return { ok: false, message: "ID kerak" };
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
         await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
         return { ok: true, message: "O'qilgan" };
       }
@@ -1235,11 +1235,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.userId, userId));
         return { ok: true, message: "Barchasi o'qilgan" };
       }
-      return { ok: false, message: "Noma'lum amal" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }
 
     default:
-      return { ok: false, message: "Noma'lum modul" };
+      return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
   }
 }
 

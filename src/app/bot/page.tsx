@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Badge, Button, Card, PageHeader, Skeleton, TextInput } from "@/components/ui";
+import { Button, Card, PageHeader, Skeleton, TextInput } from "@/components/ui";
+import { ERRORS } from "@/lib/copy";
 
 type Msg = { id: number; role: "user" | "bot"; text: string };
 type Draft = {
@@ -24,10 +25,10 @@ const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
 
 const QUICK = [
   "📊 Hisobot",
-  "📅 Reja va prognoz",
+  "📅 Reja",
   "💳 Hisoblar",
-  "📌 Majburiy to'lovlar",
-  "💰 Kutilayotgan daromadlar",
+  "📌 To‘lovlar",
+  "💵 Kutilayotgan daromad",
   "🎯 Budjet",
   "📋 Qarzdorlik",
   "🏆 Maqsadlar",
@@ -40,7 +41,7 @@ export default function BotPage() {
     {
       id: 1,
       role: "bot",
-      text: "Salom 👋\n\nMen tezkor moliya yordamchingizman. Tabiiy tilda yozing:\n\n„150 ming ovqatga ketdi“\n„1,5 mln maosh keldi“\n„2.5 mln ijara to'ladim“\n\nYoki tezkor buyruqlardan foydalaning.",
+      text: "Salom 👋\n\nOperatsiyani tabiiy tilda yozing:\n\n„150 ming ovqatga ketdi“\n„1,5 mln maosh keldi“",
     },
   ]);
   const [input, setInput] = useState("");
@@ -52,11 +53,11 @@ export default function BotPage() {
     const botUrl = BOT_USERNAME ? `https://t.me/${BOT_USERNAME.replace(/^@/, "")}` : null;
     return (
       <div className="animate-fade-up space-y-4">
-        <PageHeader title="Telegram bot" back={{ href: "/more", label: "Menyu" }} action={<Badge tone="positive">Webhook</Badge>} />
+        <PageHeader title="Telegram bot" back={{ href: "/more", label: "Menyu" }} />
         <Card>
-          <p className="text-[15px] font-semibold">Bot Telegram ichida mustaqil ishlaydi</p>
+          <p className="text-[15px] font-semibold">Bot Telegram ichida ishlaydi</p>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            Bu sahifa simulator emas. Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring; tabiiy tildagi operatsiyalar tasdiqlashdan keyin Mini App bilan bir xil bazaga yoziladi.
+Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsiyalar Mini App bilan bir xil bazaga yoziladi.
           </p>
           {botUrl ? (
             <a
@@ -69,13 +70,13 @@ export default function BotPage() {
             </a>
           ) : (
             <p className="mt-4 rounded-xl bg-warning-soft px-3 py-2 text-[12px] text-warning-text">
-              Bot havolasi uchun NEXT_PUBLIC_TELEGRAM_BOT_USERNAME sozlanishi kerak.
+              Bot havolasi hozircha mavjud emas.
             </p>
           )}
         </Card>
         <Card>
           <p className="mb-2 text-[15px] font-semibold">Mavjud buyruqlar</p>
-          <p className="text-[13px] leading-7 text-muted">/start · /report · /forecast · /help · Kirim · Chiqim · Transfer</p>
+          <p className="text-[13px] leading-7 text-muted">/start · /report · /forecast · /help · Daromad · Xarajat · Transfer</p>
         </Card>
       </div>
     );
@@ -86,7 +87,7 @@ export default function BotPage() {
   async function send(text: string, confirm?: Record<string, unknown> | null) {
     const value = text.trim();
     if (!value && !confirm) return;
-    setMessages((prev) => [...prev, { id: counter.current++, role: "user", text: value || "✅ Ha, qo'sh" }]);
+    setMessages((prev) => [...prev, { id: counter.current++, role: "user", text: value || "✅ Tasdiqlash" }]);
     setInput("");
     setDrafts([]);
     setBusy(true);
@@ -102,7 +103,7 @@ export default function BotPage() {
       else if (reply.draft) setDrafts([reply.draft]);
       if (confirm) await refresh();
     } catch {
-      setMessages((prev) => [...prev, { id: counter.current++, role: "bot", text: "⚠️ Ulanish xatosi." }]);
+      setMessages((prev) => [...prev, { id: counter.current++, role: "bot", text: ERRORS.connection }]);
     } finally {
       setBusy(false);
     }
@@ -110,7 +111,7 @@ export default function BotPage() {
 
   return (
     <div className="animate-fade-up space-y-4">
-      <PageHeader title="Bot konsol" back={{ href: "/more", label: "Menyu" }} action={<Badge tone="accent">POST /api/bot</Badge>} />
+      <PageHeader title="Telegram bot" back={{ href: "/more", label: "Menyu" }} />
 
       <Card padded={false} className="overflow-hidden">
         <div className="flex max-h-[56dvh] flex-col">
@@ -128,7 +129,7 @@ export default function BotPage() {
             ))}
             {busy ? (
               <div className="flex justify-start">
-                <div className="animate-shimmer rounded-2xl border border-line bg-surface-2 px-4 py-2.5 text-[13px] text-muted">yozilmoqda…</div>
+                <div className="animate-shimmer rounded-2xl border border-line bg-surface-2 px-4 py-2.5 text-[13px] text-muted">Yuklanmoqda…</div>
               </div>
             ) : null}
           </div>
@@ -136,13 +137,13 @@ export default function BotPage() {
           {drafts.length ? (
             <div className="border-t border-line bg-surface-2 p-3.5 sm:p-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-                {drafts.length > 1 ? `${drafts.length} ta operatsiyani tasdiqlash` : "Tasdiqlash"}
+                {drafts.length > 1 ? `${drafts.length} ta operatsiya` : "Tasdiqlash"}
               </p>
               <div className="mt-1 space-y-1">
                 {drafts.map((d, i) => (
                   <p key={i} className="text-[13px] leading-snug">
                     {drafts.length > 1 ? `${i + 1}. ` : ""}
-                    {d.type === "income" ? "➕ Kirim" : d.type === "transfer" ? "↔️ Transfer" : "➖ Chiqim"} ·{" "}
+                    {d.type === "income" ? "➕ Daromad" : d.type === "transfer" ? "↔️ Transfer" : "➖ Xarajat"} ·{" "}
                     {d.amount?.toLocaleString("ru-RU")} · {d.categoryName ?? "kategoriya yo‘q"} · {d.date}
                   </p>
                 ))}
@@ -158,7 +159,7 @@ export default function BotPage() {
                     })
                   }
                 >
-                  ✅ {drafts.length > 1 ? "Barchasini tasdiqlash" : "Ha, qo‘sh"}
+                  ✅ Tasdiqlash
                 </Button>
                 <Button type="button" size="sm" variant="secondary" onClick={() => setDrafts([])}>
                   Bekor qilish
@@ -199,9 +200,9 @@ export default function BotPage() {
       <Card>
         <p className="mb-2 text-[15px] font-semibold">Bot imkoniyatlari</p>
         <div className="grid grid-cols-1 gap-2 text-[12.5px] leading-snug text-muted sm:grid-cols-2">
-          <p>➕ Kirim, ➖ chiqim, ↔️ transfer — tezkor</p>
-          <p>📊 Hisobot: bugun va oy ko‘rsatkichlari</p>
-          <p>📅 Reja va prognoz: safe-to-spend, xavf</p>
+          <p>➕ Daromad · ➖ Xarajat · ↔️ Transfer</p>
+          <p>📊 Hisobot: bugun va oy</p>
+          <p>📅 Reja: sarflash mumkin, xavf</p>
           <p>🔔 Eslatmalar: to‘lov, budjet, xavf</p>
           <p>🧠 Tabiiy tilda summa va kategoriya</p>
           <p>📱 Mini App bilan bir xil baza</p>

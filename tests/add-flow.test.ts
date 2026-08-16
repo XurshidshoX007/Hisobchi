@@ -72,7 +72,8 @@ test("all create/edit sheets are built from the shared FormSheet", () => {
 
 test("FormSheet exposes exactly one primary action with a real state machine", () => {
   // disabled → “Saqlash”, loading → “Saqlanmoqda…”, success → “Saqlandi ✓”.
-  assert.match(formKit, /submittingLabel = "Saqlanmoqda…"/);
+  assert.match(formKit, /submittingLabel = LOADING\.saving/);
+  assert.match(read("lib/copy.ts"), /saving: "Saqlanmoqda…"/);
   assert.match(formKit, /savedLabel = "Saqlandi ✓"/);
   assert.match(formKit, /disabled=\{!canSubmit \|\| busy\}/);
   // No duplicate submission: the handler is re-entrancy guarded.
@@ -95,14 +96,15 @@ test("create sheets have no second competing footer button", () => {
   assert.doesNotMatch(quickAdd, /Bekor qilish/);
 });
 
-test("primary CTAs are concrete verbs, not four synonyms at once", () => {
-  assert.match(CREATE_PAGES.plans, /submitLabel=\{editing \? "Saqlash" : "Rejani yaratish"\}/);
-  assert.match(CREATE_PAGES.plans, /submitLabel=\{editing \? "Saqlash" : "Daromadni qo‘shish"\}/);
-  assert.match(CREATE_PAGES.debts, /submitLabel="Qarzni saqlash"/);
-  assert.match(CREATE_PAGES.goals, /submitLabel="Maqsadni saqlash"/);
-  assert.match(CREATE_PAGES.budgets, /submitLabel="Budjetni saqlash"/);
-  assert.match(CREATE_PAGES.accounts, /submitLabel="Hisobni saqlash"/);
-  assert.match(CREATE_PAGES.accounts, /submitLabel="Kategoriyani saqlash"/);
+test("every primary CTA speaks the same short verb (§8)", () => {
+  // ONE save verb across the product: the sheet title already says WHAT is
+  // being saved, so the button never repeats the entity name.
+  for (const [name, source] of Object.entries(CREATE_PAGES)) {
+    for (const label of source.match(/submitLabel=(?:"[^"]*"|\{[^}]*\})/g) ?? []) {
+      assert.equal(label, 'submitLabel="Saqlash"', `${name}: CTA copy must be "Saqlash"`);
+    }
+  }
+  assert.match(quickAdd, /submitLabel="Saqlash"/);
 });
 
 /* ==================== §6/§8/§9/§10/§11/§12 field kit reuse ==================== */
@@ -131,7 +133,7 @@ test("optional details are collapsed, never ten fields by default", () => {
     assert.match(CREATE_PAGES[name], /<AdvancedSection/, `${name} should collapse its secondary fields`);
   }
   assert.match(formKit, /export function NoteField/);
-  assert.match(formKit, /Izoh qo‘shish/);
+  assert.match(formKit, /label = "Izoh"/);
 });
 
 test("category picker starts from recent categories and hides the full list", () => {
@@ -173,7 +175,7 @@ test("validation messages are field-specific, never a bare “Xatolik”", () =>
   for (const source of sources) {
     assert.doesNotMatch(source, /= "Xatolik"/);
   }
-  assert.match(quickAdd, /Kategoriya tanlang/);
+  assert.match(quickAdd, /Kategoriyani tanlang/);
   assert.match(CREATE_PAGES.debts, /Shaxs yoki tashkilot nomini kiriting/);
   assert.match(CREATE_PAGES.plans, /Manba nomini kiriting/);
   // Server failures get a compact banner with a retry, not a dead end.

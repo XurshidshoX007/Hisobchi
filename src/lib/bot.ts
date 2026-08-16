@@ -5,6 +5,7 @@ import { parseDrafts } from "./nlp";
 import { compact, formatAmount, humanDate, shortDate } from "./money";
 import type { AppState } from "./types";
 import { botIntent } from "./bot-routing";
+import { TERMS, TX_LABEL } from "./copy";
 
 export type BotDraft = {
   type: "income" | "expense" | "transfer";
@@ -32,17 +33,17 @@ export type BotReply = {
  * Telegram main keyboard per spec - compact logically grouped.
  */
 export const MAIN_MENU: string[][] = [
-  ["💰 Kirim", "💸 Chiqim", "🔄 Transfer"],
-  ["📊 Hisobot", "📅 Reja va prognoz"],
+  ["💰 Daromad", "💸 Xarajat", "🔄 Transfer"],
+  ["📊 Hisobot", "📅 Reja"],
   ["💳 Hisoblar", "📁 Kategoriyalar"],
-  ["📌 Majburiy to'lovlar", "💵 Kutilayotgan daromadlar"],
+  ["📌 To‘lovlar", "💵 Kutilayotgan daromad"],
   ["🎯 Budjet", "💳 Qarzdorlik", "🏆 Maqsadlar"],
   ["🔔 Eslatmalar", "⚙️ Sozlamalar"],
 ];
 
 export const MORE_MENU: string[][] = [
   ["💳 Hisoblar", "📁 Kategoriyalar"],
-  ["📌 Majburiy to'lovlar", "💵 Kutilayotgan daromadlar"],
+  ["📌 To‘lovlar", "💵 Kutilayotgan daromad"],
   ["🎯 Budjet", "💳 Qarzdorlik", "🏆 Maqsadlar"],
   ["🔔 Eslatmalar", "⚙️ Sozlamalar"],
   ["⬅️ Asosiy menyu"],
@@ -72,7 +73,7 @@ export async function respondToBotMessage(
       lastMessage = result.message;
     }
     const after = await buildAppState(user);
-    if (!okCount) return { text: `❌ ${lastMessage || "Operatsiyani saqlab bo'lmadi"}`, keyboard: MAIN_MENU };
+    if (!okCount) return { text: `❌ ${lastMessage || "Operatsiyani saqlab bo'lmadi. Qayta urinib ko'ring."}`, keyboard: MAIN_MENU };
     return {
       text: `✅ ${okCount > 1 ? `${okCount} ta operatsiya qayd etildi` : lastMessage}\n\n${summaryBlock(after)}`,
       keyboard: MAIN_MENU,
@@ -84,7 +85,7 @@ export async function respondToBotMessage(
       text: [
         `Salom, ${user.firstName} 👋`,
         "",
-        "Men sizning shaxsiy moliya boshqaruvchingizman. Kirim, chiqim va transferni tabiiy tilda yozing:",
+        "Daromad, xarajat va transferni tabiiy tilda yozing:",
         "",
         "„150 ming ovqatga ketdi“",
         "„1,5 mln maosh keldi“",
@@ -98,13 +99,13 @@ export async function respondToBotMessage(
 
   if (intent === "add-income") {
     return {
-      text: "💰 Kirim summasi va manbasini yozing. Misol: „1,5 mln maosh keldi“.",
+      text: "💰 Daromad summasi va manbasini yozing. Misol: „1,5 mln maosh keldi“.",
       keyboard: MAIN_MENU,
     };
   }
   if (intent === "add-expense") {
     return {
-      text: "💸 Chiqim summasi va maqsadini yozing. Misol: „150 ming ovqatga ketdi“.",
+      text: "💸 Xarajat summasi va maqsadini yozing. Misol: „150 ming ovqatga ketdi“.",
       keyboard: MAIN_MENU,
     };
   }
@@ -147,13 +148,13 @@ export async function respondToBotMessage(
   }
   if (intent === "more-menu") {
     return {
-      text: "📂 Qo'shimcha bo'limlar: hisoblar, kategoriyalar, budjet, qarzdorlik, maqsadlar va sozlamalar.",
+      text: "📂 Qo'shimcha bo'limlar.",
       keyboard: MORE_MENU,
     };
   }
   if (intent === "main-menu") {
     return {
-      text: "⬅️ Asosiy menyu. Operatsiyani tabiiy tilda yozing yoki tugmalardan foydalaning.",
+      text: "⬅️ Asosiy menyu.",
       keyboard: MAIN_MENU,
     };
   }
@@ -175,7 +176,7 @@ export async function respondToBotMessage(
         "Buyruqlar:",
         "/start — asosiy menyu",
         "/report — bugun va oylik hisobot",
-        "/forecast — reja, xavf va Safe-to-Spend",
+        "/forecast — reja, xavf va sarflash mumkin bo'lgan summa",
         "/help — yordam",
         "",
         "Operatsiyani tabiiy tilda yozing:",
@@ -183,7 +184,7 @@ export async function respondToBotMessage(
         "• „kecha 150 ming ovqat, 70 ming taksi“ — bitta xabarda bir nechta operatsiya",
         "• „15-avgust 500 ming ijara to'ladim“ — sana bilan",
         "",
-        "Mini App tugmasi grafiklar va batafsil boshqaruvni ochadi.",
+        "Mini App tugmasi to'liq boshqaruvni ochadi.",
       ].join("\n"),
       keyboard: MAIN_MENU,
     };
@@ -192,7 +193,7 @@ export async function respondToBotMessage(
   const batch = parseDrafts(text);
   if (!batch.drafts.length) {
     return {
-      text: "🤔 Summani tushunmadim. Misol: „150 ming ovqatga ketdi“ yoki „8 mln maosh keldi“.\nBir nechta operatsiyani vergul yoki yangi qator bilan ajratib yozishingiz mumkin.",
+      text: "🤔 Summani tushunmadim. Misol: „150 ming ovqatga ketdi“.\nBir nechta operatsiyani vergul bilan ajrating.",
       keyboard: MAIN_MENU,
     };
   }
@@ -244,15 +245,15 @@ export async function respondToBotMessage(
               `${i + 1}. ${d.type === "income" ? "🟢" : d.type === "transfer" ? "🔄" : "🔴"} ${formatAmount(d.amount ?? 0)} — ${d.categoryName ?? typeLabel(d.type)}${d.date !== state.forecast.today ? ` (${shortDate(d.date)})` : ""}`,
           ),
           "",
-          "Barchasini tasdiqlash yoki alohida tanlashingiz mumkin.",
+          "Tasdiqlash yoki alohida tanlash mumkin.",
         ];
   if (batch.failed.length) {
-    lines.push("", `⚠️ Tushunilmagan qismlar: ${batch.failed.slice(0, 3).join("; ")}`);
+    lines.push("", `⚠️ Tushunilmadi: ${batch.failed.slice(0, 3).join("; ")}`);
   }
 
   return {
     text: lines.join("\n"),
-    keyboard: [["✅ Ha, qo'sh", "❌ Bekor qilish"], ...MAIN_MENU],
+    keyboard: [["✅ Tasdiqlash", "❌ Bekor qilish"], ...MAIN_MENU],
     draft: drafts[0],
     drafts,
     failedSegments: batch.failed,
@@ -260,7 +261,7 @@ export async function respondToBotMessage(
 }
 
 function typeLabel(type: BotDraft["type"]): string {
-  return type === "income" ? "Kirim" : type === "transfer" ? "Transfer" : "Chiqim";
+  return TX_LABEL[type];
 }
 
 function matchTransferAccounts(text: string, state: AppState): { accountId: number; toAccountId: number } | null {
@@ -278,13 +279,13 @@ function summaryBlock(s: AppState): string {
   const f = s.forecast;
   const m = s.monthly?.find((x) => x.isCurrent);
   return [
-    `💰 REAL BALANS: ${formatAmount(f.currentBalance)} so'm`,
+    `💰 ${TERMS.balance}: ${formatAmount(f.currentBalance)} so'm`,
     m ? `📅 ${m.label.toUpperCase()}` : "",
-    m ? `💵 Kutilayotgan daromad: ${compact(m.expectedIncomeBase)}` : `💵 Kutilayotgan: ${compact(f.income.base)}`,
-    m ? `📌 Majburiy: -${compact(m.mandatoryExpenseBase)}` : `📌 Majburiy: -${compact(f.expense.mandatoryBase)}`,
-    `✨ Safe-to-Spend: ${formatAmount(f.safeToSpend)} so'm${f.safeToSpend < 0 ? " (yetishmayapti)" : ""}`,
-    `📊 Bu oy: +${mon(s.analytics.monthTotals.income)} / -${mon(s.analytics.monthTotals.expense)}`,
-    m ? `🔮 Prognoz balans: ${formatAmount(m.forecastClosingBase)}` : "",
+    `💵 ${TERMS.expectedIncome}: ${formatAmount(m ? m.expectedIncomeBase : f.income.base)}`,
+    `📌 Majburiy: -${formatAmount(m ? m.mandatoryExpenseBase : f.expense.mandatoryBase)}`,
+    `✨ ${TERMS.safeToSpend}: ${formatAmount(f.safeToSpend)}${f.safeToSpend < 0 ? " (yetishmayapti)" : ""}`,
+    `📊 ${TERMS.income} +${formatAmount(s.analytics.monthTotals.income)} / ${TERMS.expense} -${formatAmount(s.analytics.monthTotals.expense)}`,
+    m ? `🔮 ${TERMS.forecast}: ${formatAmount(m.forecastClosingBase)}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -296,18 +297,18 @@ function reportBlock(s: AppState): string {
     "📊 Hisobot",
     "",
     "Bugun",
-    `• Kirim: ${mon(a.today.income)} so'm`,
-    `• Chiqim: ${mon(a.today.expense)} so'm`,
+    `• Daromad: ${mon(a.today.income)} so'm`,
+    `• Xarajat: ${mon(a.today.expense)} so'm`,
     `• Sof: ${mon(a.today.net)} so'm`,
     "",
     `Bu oy (${a.month})`,
     `• Daromad: ${mon(a.monthTotals.income)}`,
     `• Xarajat: ${mon(a.monthTotals.expense)}`,
-    `• Sof qoldiq: ${mon(a.monthTotals.net)}`,
-    `• O'rtacha kunlik xarajat: ${mon(a.monthTotals.avgDaily)}`,
+    `• Sof: ${mon(a.monthTotals.net)}`,
+    `• Kunlik o'rtacha xarajat: ${mon(a.monthTotals.avgDaily)}`,
     `• Jamg'arish ulushi: ${(a.monthTotals.savingsRate * 100).toFixed(0)}%`,
     "",
-    a.topCategory ? `Eng katta toifa: ${a.topCategory.name} — ${mon(a.topCategory.amount)} (${(a.topCategory.share * 100).toFixed(0)}%)` : "",
+    a.topCategory ? `Eng katta kategoriya: ${a.topCategory.name} — ${mon(a.topCategory.amount)} (${(a.topCategory.share * 100).toFixed(0)}%)` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -317,40 +318,40 @@ function forecastBlock(s: AppState): string {
   const f = s.forecast;
   const m = s.monthly?.find((x) => x.isCurrent);
   const lines = [
-    `📅 Reja va prognoz (${f.horizonDays} kun)`,
+    `📅 ${TERMS.plan} · ${TERMS.forecast} (${f.horizonDays} kun)`,
     "",
-    `REAL BALANS: ${mon(f.currentBalance)}`,
+    `${TERMS.balance}: ${mon(f.currentBalance)}`,
   ];
   if (m) {
     lines.push(
       `${m.label}:`,
       `  Ochilish: ${mon(m.openingBalance)}`,
-      `  Kutilayotgan daromad: +${mon(m.expectedIncomeBase)}`,
+      `  ${TERMS.expectedIncome}: +${mon(m.expectedIncomeBase)}`,
       `  Majburiy to'lov: -${mon(m.mandatoryExpenseBase)}`,
-      `  Ixtiyoriy reja: -${mon(m.optionalExpenseBase)}`,
-      `  Prognoz yakun: ${mon(m.forecastClosingBase)}`,
-      `  Eng past: ${mon(m.lowestProjected)} ${m.deficitDays ? `🔴 ${m.deficitDays} kun xavf` : ""}`,
+      `  Ixtiyoriy reja: ${m.optionalExpenseBase ? `-${mon(m.optionalExpenseBase)}` : "0"}`,
+      `  ${TERMS.forecast}: ${mon(m.forecastClosingBase)}`,
+      `  Eng past: ${mon(m.lowestProjected)}${m.deficitDays ? ` 🔴 ${m.deficitDays} kun xavf` : ""}`,
     );
   }
   lines.push(
     "",
-    `Kutilayotgan daromad (butun prognoz): ${mon(f.income.base)} (aniq ${mon(f.income.exactBase)}, taxminiy ${mon(f.income.estimatedBase)})`,
+    `${TERMS.expectedIncome}: ${mon(f.income.base)} (aniq ${mon(f.income.exactBase)}, taxminiy ${mon(f.income.estimatedBase)})`,
     `Rejalashtirilgan xarajat: ${mon(f.expense.base)} (majburiy ${mon(f.expense.mandatoryBase)})`,
     "",
-    `Prognoz (konservativ): ${mon(f.scenarios.min.balance)}`,
-    `Prognoz (bazaviy): ${mon(f.scenarios.base.balance)}`,
-    `Prognoz (optimistik): ${mon(f.scenarios.max.balance)}`,
+    `${TERMS.forecast} (past): ${mon(f.scenarios.min.balance)}`,
+    `${TERMS.forecast} (o'rta): ${mon(f.scenarios.base.balance)}`,
+    `${TERMS.forecast} (yuqori): ${mon(f.scenarios.max.balance)}`,
     "",
-    `✨ Safe-to-Spend: ${mon(f.safeToSpend)}`,
+    `✨ ${TERMS.safeToSpend}: ${mon(f.safeToSpend)}`,
     `  Hisob: ${mon(f.safeToSpendParts.balance)} + aniq ${mon(f.safeToSpendParts.confirmedIncome)} + taxminiy ${mon(f.safeToSpendParts.estimatedIncomeWeighted)} - to'lov ${mon(f.safeToSpendParts.mandatoryUpcoming)} - zaxira ${mon(f.safeToSpendParts.minReserve)}`,
     "",
   );
   if (f.riskDates.length) {
     const first = f.riskDates[0];
-    lines.push(`🚨 Xavf: ${shortDate(first.date)} kuni ${first.cause} tufayli ${mon(first.deficit)} yetishmasligi`);
-    if (first.recoveryDate) lines.push(`  Tuzalish: ${shortDate(first.recoveryDate)} kuni +${mon(first.recoveryAmount ?? 0)} kutilmoqda`);
+    lines.push(`🚨 Xavf: ${shortDate(first.date)} kuni ${first.cause} tufayli ${mon(first.deficit)} yetishmaydi`);
+    if (first.recoveryDate) lines.push(`  Tiklanish: ${shortDate(first.recoveryDate)} kuni +${mon(first.recoveryAmount ?? 0)}`);
   } else {
-    lines.push("✅ Pul yetishmasligi xavfi aniqlanmadi");
+    lines.push("✅ Xavf aniqlanmadi");
   }
   return lines.join("\n");
 }
@@ -366,9 +367,9 @@ function accountsBlock(s: AppState): string {
     "",
     ...s.accounts.map((a) => `${a.isActive ? "•" : "○"} ${a.name}: ${formatAmount(a.currentBalance)} so'm`),
     "",
-    `Jami (faol hisoblar): ${formatAmount(s.forecast.currentBalance)} so'm`,
+    `${TERMS.total} (faol hisoblar): ${formatAmount(s.forecast.currentBalance)} so'm`,
     ...(archived.length
-      ? [`⚠️ Arxivlangan hisoblarda: ${formatAmount(archived.reduce((t, a) => t + a.currentBalance, 0))} so'm — balansga kirmaydi`]
+      ? [`⚠️ Arxiv hisoblarda: ${formatAmount(archived.reduce((t, a) => t + a.currentBalance, 0))} so'm — balansga kirmaydi`]
       : []),
   ].join("\n");
 }
@@ -384,7 +385,7 @@ function categoriesBlock(s: AppState): string {
 
 function paymentsBlock(s: AppState): string {
   const f = s.forecast;
-  if (!f.upcomingPayments.length) return "📌 Yaqin majburiy to'lovlar yo'q.";
+  if (!f.upcomingPayments.length) return "📌 Rejalashtirilgan to'lovlar yo'q.";
   return [
     "📌 Yaqin to'lovlar",
     "",
@@ -397,18 +398,18 @@ function paymentsBlock(s: AppState): string {
 function incomeBlock(s: AppState): string {
   const f = s.forecast;
   return [
-    "💰 Kutilayotgan daromadlar",
+    `💵 ${TERMS.expectedIncome}`,
     "",
     ...(f.upcomingIncome.length
       ? f.upcomingIncome.map(
           (i) => `${shortDate(i.date)} — ${i.sourceName}: ${i.certainty === "estimated" ? `${mon(i.min)}–${mon(i.max)} (taxminiy)` : mon(i.base)}${i.received ? " ✅ qayd etilgan" : ""}`,
         )
-      : ["Yaqin daromad rejalari yo'q."]),
+      : ["Daromadlar hali kiritilmagan."]),
   ].join("\n");
 }
 
 function budgetBlock(s: AppState): string {
-  if (!s.budgets.length) return "🎯 Budjetlar belgilanmagan.";
+  if (!s.budgets.length) return "🎯 Budjetlar yo'q.";
   return [
     "🎯 Budjetlar",
     "",
@@ -431,7 +432,7 @@ function debtsBlock(s: AppState): string {
     "Menga qarzdor:",
     ...(toMe.length ? toMe.map(fmt) : ["—"]),
     "",
-    `Sof holat: ${formatAmount(toMe.reduce((t, d) => t + d.remainingAmount, 0) - iOwe.reduce((t, d) => t + d.remainingAmount, 0))} so'm`,
+    `${TERMS.net}: ${formatAmount(toMe.reduce((t, d) => t + d.remainingAmount, 0) - iOwe.reduce((t, d) => t + d.remainingAmount, 0))} so'm`,
   ].join("\n");
 }
 
@@ -448,7 +449,7 @@ function goalsBlock(s: AppState): string {
 }
 
 function alertsBlock(s: AppState): string {
-  if (!s.alerts.length) return "🔔 Hozircha eslatmalar yo'q.";
+  if (!s.alerts.length) return "🔔 Eslatmalar yo'q.";
   const icons: Record<string, string> = { info: "🔔", warning: "⚠️", critical: "🚨", success: "✅" };
-  return ["🔔 Eslatmalar va ogohlantirishlar", "", ...s.alerts.map((a) => `${icons[a.severity]} ${a.title}\n${a.body}`)].join("\n");
+  return ["🔔 Eslatmalar", "", ...s.alerts.map((a) => `${icons[a.severity]} ${a.title}\n${a.body}`)].join("\n");
 }

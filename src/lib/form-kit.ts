@@ -189,13 +189,13 @@ function normalizeDraftValue(value: DraftValue): string {
 /* ============================ Success copy ============================ */
 
 const SAVED_NOUN: Record<string, string> = {
-  income: "kirim",
-  expense: "chiqim",
+  income: "daromad",
+  expense: "xarajat",
   transfer: "transfer",
 };
 
 /**
- * §27: short, specific confirmation — “150 000 so‘mlik chiqim saqlandi” —
+ * §27: short, specific confirmation — “150 000 so‘mlik xarajat saqlandi” —
  * instead of a generic toast or a full-screen success page.
  */
 export function savedMessage(kind: string, amount?: number | null, currency = "so‘m"): string {

@@ -23,8 +23,8 @@ export type TransactionFilterContext = {
 
 const TYPE_OPTIONS: ReadonlyArray<{ value: TransactionFilters["type"]; label: string }> = [
   { value: "all", label: "Hammasi" },
-  { value: "income", label: "Kirim" },
-  { value: "expense", label: "Chiqim" },
+  { value: "income", label: "Daromad" },
+  { value: "expense", label: "Xarajat" },
   { value: "transfer", label: "Transfer" },
 ];
 

@@ -29,6 +29,71 @@ test("main/more menu buttons route to the correct intents", () => {
   assert.equal(botIntent("🎯 Budjet"), "budget");
 });
 
+/* ============================ COPY / TERMINOLOGY ============================ */
+
+test("every bot keyboard button routes to a real intent (Mini App vocabulary)", () => {
+  // The bot keyboard and the Mini App speak ONE vocabulary: Daromad / Xarajat /
+  // To‘lovlar / Reja. Every button must still resolve to a concrete intent —
+  // never fall through to the natural-language parser.
+  // The keyboard is read from source: importing lib/bot would pull in the DB.
+  const botSource = readFileSync(new URL("../src/lib/bot.ts", import.meta.url), "utf8");
+  const menus = botSource.slice(botSource.indexOf("export const MAIN_MENU"), botSource.indexOf("const mon ="));
+  const buttons = [...menus.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+  assert.ok(buttons.length >= 15, "keyboard buttons should be discovered");
+  for (const button of buttons) {
+    assert.notEqual(botIntent(button), "natural", `${button} must route to an intent`);
+  }
+  // Uzbek terminology of the CURRENT keyboard.
+  assert.equal(botIntent("💰 Daromad"), "add-income");
+  assert.equal(botIntent("💸 Xarajat"), "add-expense");
+  assert.equal(botIntent("📌 To‘lovlar"), "payments");
+  assert.equal(botIntent("📅 Reja"), "forecast");
+  // Legacy keyboards pinned in existing chats keep working (Kirim/Chiqim, ’/').
+  assert.equal(botIntent("➕ Kirim"), "add-income");
+  assert.equal(botIntent("📌 Majburiy to'lovlar"), "payments");
+  assert.equal(botIntent("📌 Majburiy to‘lovlar"), "payments");
+});
+
+test("Mini App and bot never mix synonyms for one concept", () => {
+  const uiSources = [
+    "app/page.tsx",
+    "app/transactions/page.tsx",
+    "app/plans/page.tsx",
+    "app/settings/page.tsx",
+    "app/bot/page.tsx",
+    "components/quick-add.tsx",
+    "components/transaction-filter.tsx",
+    "components/app-shell.tsx",
+  ].map((path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8"));
+  const bot = readFileSync(new URL("../src/lib/bot.ts", import.meta.url), "utf8");
+  for (const source of [...uiSources, bot]) {
+    // "Kirim"/"Chiqim" are retired user-facing synonyms of Daromad/Xarajat.
+    assert.doesNotMatch(source, /"[^"]*\bKirim\b[^"]*"/, "user-facing copy must say Daromad");
+    assert.doesNotMatch(source, /"[^"]*\bChiqim\b[^"]*"/, "user-facing copy must say Xarajat");
+    // Untranslated English finance terms never reach a label.
+    // Code identifiers (CashFlowStrip, safeToSpend) are INTERNAL and stay;
+    // only quoted, user-visible copy is audited.
+    for (const literal of source.match(/"[^"\n]*"/g) ?? []) {
+      if (literal.startsWith('"@/') || literal.startsWith('"./')) continue;
+      assert.doesNotMatch(literal, /Safe-to-Spend|Cash[ -]flow/i, `English finance term in UI copy: ${literal}`);
+    }
+  }
+  // The bot reads the SAME dictionary the Mini App does.
+  assert.match(bot, /TERMS\.safeToSpend/);
+  const copy = readFileSync(new URL("../src/lib/copy.ts", import.meta.url), "utf8");
+  assert.match(copy, /safeToSpend: "Sarflash mumkin"/);
+});
+
+test("the dashboard hero states each figure exactly once (§3/§7/§15)", () => {
+  const dashboard = readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+  // Removed redundancy: the card context already means "current, real, this month".
+  assert.doesNotMatch(dashboard, /REAL · |Joriy real balans|Bu oy · daromad|Bu oy · xarajat/);
+  assert.match(dashboard, /TERMS\.balance/);
+  assert.match(dashboard, /TERMS\.income/);
+  assert.match(dashboard, /TERMS\.expense/);
+  assert.match(dashboard, /TERMS\.safeToSpend/);
+});
+
 test("amount-bearing Telegram prose stays in the NLP flow", () => {
   assert.equal(botIntent("150 ming qarz qaytdi"), "natural");
   assert.equal(botIntent("8 mln daromad keldi"), "natural");

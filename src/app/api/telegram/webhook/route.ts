@@ -581,7 +581,7 @@ export async function POST(request: Request) {
       const summary = [
         "Quyidagi operatsiyani topdim:",
         "",
-        draft.type === "income" ? "➕ Kirim" : draft.type === "transfer" ? "↔️ Transfer" : "➖ Chiqim",
+        draft.type === "income" ? "➕ Daromad" : draft.type === "transfer" ? "↔️ Transfer" : "➖ Xarajat",
         `Summa: ${formatAmount(draft.amount ?? 0)}${
           draft.estimated && draft.minAmount && draft.maxAmount
             ? ` (${formatAmount(draft.minAmount)}–${formatAmount(draft.maxAmount)})`
@@ -629,7 +629,7 @@ export async function POST(request: Request) {
         ...drafts.map(
           (d, i) =>
             `${i + 1}. ${d.type === "income" ? "➕" : d.type === "transfer" ? "↔️" : "➖"} ${formatAmount(d.amount ?? 0)} — ${
-              d.categoryName ?? (d.type === "income" ? "Kirim" : d.type === "transfer" ? "Transfer" : "Chiqim")
+              d.categoryName ?? (d.type === "income" ? "Daromad" : d.type === "transfer" ? "Transfer" : "Xarajat")
             } · ${humanDate(d.date)}`,
         ),
         ...(reply.failedSegments?.length ? ["", `⚠️ Tushunilmadi: ${reply.failedSegments.slice(0, 3).join("; ")}`] : []),
@@ -669,7 +669,7 @@ export async function POST(request: Request) {
       if (url) {
         await callTelegram("sendMessage", {
           chat_id: chatId,
-          text: "Mini Appda to'liq dashboard, prognoz va tahlil mavjud.",
+          text: "Mini Appda to'liq boshqaruv, reja va prognoz mavjud.",
           reply_markup: { inline_keyboard: [[{ text: "📱 Mini Appni ochish", web_app: { url } }]] },
         });
       }

@@ -62,7 +62,7 @@ test("History is list-first and composes all local filters in one shared sheet",
   assert.match(transactionFilter, /status=\{localCount \|\| undefined\}/);
   assert.doesNotMatch(transactionFilter, /localCount \+ contexts\.length/);
   assert.doesNotMatch(history, /<Segmented|<Select|<TextInput/);
-  assert.doesNotMatch(history, /pastdagi \+ tugmasi/);
+  assert.doesNotMatch(history, /[Pp]astdagi \+ tugmasi/);
 });
 
 test("History filter controls expose dialog, radio and labelled-search semantics", () => {
@@ -115,7 +115,7 @@ test("monthly summary keeps every level of the hierarchy", () => {
 });
 
 test("compact states live inside the same summary card", () => {
-  assert.match(planSummary, /Faol to‘lov rejasi yo‘q\./); // empty
+  assert.match(planSummary, /Rejalashtirilgan to‘lovlar yo‘q\./); // empty
   assert.match(planSummary, /✓ Reja yakunlangan/); // completed
   assert.match(planSummary, /Kechikkan/); // overdue nearest row
   assert.match(planSummary, /ta kechikkan to‘lov/); // overdue rollup, still inline
@@ -132,5 +132,5 @@ test("progress exposes accessible values and stays visually light", () => {
 
 test("plans page keeps the global FAB as the only creation entry point", () => {
   assert.doesNotMatch(plans, /Yangi to‘lov rejasi/);
-  assert.match(plans, /pastdagi \+ tugmasi/);
+  assert.match(plans, /[Pp]astdagi \+ tugmasi/);
 });

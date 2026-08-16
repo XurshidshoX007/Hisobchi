@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AppState } from "@/lib/types";
+import { ERRORS } from "@/lib/copy";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -88,7 +89,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setState(data);
         setError(null);
       } catch {
-        setError("Ma'lumotlarni yuklab bo'lmadi. Sahifani yangilang.");
+        setError(ERRORS.load);
       } finally {
         lastLoadRef.current = Date.now();
         loadInFlightRef.current = null;
@@ -169,7 +170,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       // client serializes: while one financial mutation is in flight the
       // second click is ignored.
       if (inFlightRef.current) {
-        return { ok: false, message: "So'rov bajarilmoqda, kuting…" };
+        return { ok: false, message: ERRORS.busy };
       }
       inFlightRef.current = true;
       setMutating(true);
@@ -192,11 +193,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           state?: AppState;
         };
         if (json.state) setState(json.state);
-        if (!options.silent) toast(json.message ?? (json.ok ? "Saqlandi" : "Xatolik"), json.ok ? "success" : "error");
+        if (!options.silent) toast(json.message ?? (json.ok ? "Saqlandi" : ERRORS.save), json.ok ? "success" : "error");
         return { ok: json.ok, message: json.message ?? "" };
       } catch {
-        toast("Ulanish xatosi. Internetni tekshirib qayta urinib ko'ring.", "error");
-        return { ok: false, message: "Ulanish xatosi" };
+        toast(ERRORS.connection, "error");
+        return { ok: false, message: ERRORS.connection };
       } finally {
         inFlightRef.current = false;
         setMutating(false);

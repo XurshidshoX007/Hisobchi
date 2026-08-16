@@ -6,9 +6,8 @@ import { FinanceProvider } from "@/components/providers";
 import { AppShell } from "@/components/app-shell";
 
 export const metadata: Metadata = {
-  title: "Moliya OS — Shaxsiy moliya boshqaruvi",
-  description:
-    "Telegram bot va Mini App asosidagi shaxsiy moliyaviy boshqaruv tizimi: balans, cash-flow, prognoz, budjet, qarzdorlik va tahlil.",
+  title: "Hisobchi — Shaxsiy moliya",
+  description: "Balans, daromad, xarajat, reja va prognoz — Telegram bot va Mini App.",
 };
 
 export const viewport: Viewport = {

@@ -230,7 +230,7 @@ export function buildItemMenu(draftId: number, payload: ImageDraft): { text: str
 
   if (payload.kind === "transaction") {
     rows.push([
-      { text: "🔁 Kirim/Chiqim", callback_data: `ed:${draftId}:type:${(payload.data as { type?: string }).type === "income" ? "expense" : "income"}` },
+      { text: "🔁 Daromad/Xarajat", callback_data: `ed:${draftId}:type:${(payload.data as { type?: string }).type === "income" ? "expense" : "income"}` },
       { text: "📁 Kategoriya", callback_data: `ed:${draftId}:cat` },
     ]);
     rows.push([
