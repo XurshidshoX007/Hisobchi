@@ -77,3 +77,40 @@ export function parseBatchCallback(data: string): { batchId: string; action: "co
   if (!match) return null;
   return { batchId: match[1], action: match[2] as "confirm" | "cancel" };
 }
+
+export type DraftEditCallback =
+  | { draftId: number; action: "menu" | "drop" | "cat" }
+  | { draftId: number; action: "type"; value: "income" | "expense" }
+  | { draftId: number; action: "date"; value: string }
+  | { draftId: number; action: "dir"; value: "i_owe" | "owed_to_me" };
+
+/**
+ * Item-level edit callbacks (§22): `ed:<draftId>:<action>[:<value>]`.
+ * Kept well under Telegram's 64-byte callback_data budget.
+ */
+export function parseDraftEditCallback(data: string): DraftEditCallback | null {
+  if (data.length > 64) return null;
+  const match = data.match(/^ed:(\d{1,12}):(menu|drop|cat|type|date|dir)(?::([a-z0-9_-]{1,12}))?$/);
+  if (!match) return null;
+  const draftId = Number(match[1]);
+  if (!Number.isSafeInteger(draftId) || draftId <= 0) return null;
+  const action = match[2];
+  const value = match[3];
+  if (action === "menu" || action === "drop" || action === "cat") return { draftId, action };
+  if (action === "type" && (value === "income" || value === "expense")) return { draftId, action, value };
+  if (action === "date" && (value === "today" || value === "yesterday")) return { draftId, action, value };
+  if (action === "dir" && (value === "i_owe" || value === "owed_to_me")) return { draftId, action, value };
+  return null;
+}
+
+/** Category picker callback: `ec:<draftId>:<categoryId>`. */
+export function parseCategoryPickCallback(data: string): { draftId: number; categoryId: number } | null {
+  if (data.length > 64) return null;
+  const match = data.match(/^ec:(\d{1,12}):(\d{1,12})$/);
+  if (!match) return null;
+  const draftId = Number(match[1]);
+  const categoryId = Number(match[2]);
+  if (!Number.isSafeInteger(draftId) || draftId <= 0) return null;
+  if (!Number.isSafeInteger(categoryId) || categoryId <= 0) return null;
+  return { draftId, categoryId };
+}

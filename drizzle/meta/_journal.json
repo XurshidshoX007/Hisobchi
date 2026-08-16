@@ -43,6 +43,13 @@
       "when": 1786783452320,
       "tag": "0005_lifecycle_status_check",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786783452321,
+      "tag": "0006_image_intelligence",
+      "breakpoints": true
     }
   ]
 }
