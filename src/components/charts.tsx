@@ -5,6 +5,20 @@ import { formatAmount, formatSigned, monthLabel, shortDate } from "@/lib/money";
 
 type Pt = { x: number; y: number };
 const line = (pts: Pt[]) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+const smoothLine = (pts: Pt[]) => {
+  if (pts.length < 3) return line(pts);
+  return pts.reduce((path, point, index) => {
+    if (index === 0) return `M${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    const previous = pts[index - 1];
+    const midpointX = (previous.x + point.x) / 2;
+    const midpointY = (previous.y + point.y) / 2;
+    return `${path} Q${previous.x.toFixed(1)} ${previous.y.toFixed(1)} ${midpointX.toFixed(1)} ${midpointY.toFixed(1)}${
+      index === pts.length - 1 ? ` T${point.x.toFixed(1)} ${point.y.toFixed(1)}` : ""
+    }`;
+  }, "");
+};
+
+type ForecastEvent = { label: string; base: number; kind?: string };
 
 /** Income vs Expense grouped bars */
 export function IncomeExpenseBars({
@@ -81,7 +95,7 @@ export function ForecastArea({
     projectedBase: number;
     projectedMax: number;
     actual?: boolean;
-    events?: Array<{ label: string; base: number }>;
+    events?: ForecastEvent[];
   }>;
   height?: number;
   description?: string;
@@ -129,14 +143,36 @@ export function ForecastArea({
         const projected = lastActual >= 0 ? base.slice(Math.max(0, lastActual)) : base;
         return (
           <>
-            {actual.length > 1 ? <path d={line(actual)} fill="none" stroke="var(--fg)" strokeWidth="2" strokeLinecap="round" /> : null}
-            {projected.length > 1 ? <path d={line(projected)} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeDasharray={lastActual >= 0 ? "4 2" : undefined} /> : null}
+            {actual.length > 1 ? <path d={smoothLine(actual)} className="chart-enter" fill="none" stroke="var(--fg)" strokeWidth="2" strokeLinecap="round" /> : null}
+            {projected.length > 1 ? <path d={smoothLine(projected)} className="chart-enter" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeDasharray={lastActual >= 0 ? "4 2" : undefined} /> : null}
           </>
         );
       })()}
       {risks.map((r) => (
-        <circle key={r.date} cx={x(r.i)} cy={y(r.projectedMin)} r="2.6" fill="var(--negative)" />
+        <circle key={r.date} cx={x(r.i)} cy={y(r.projectedMin)} r="2.8" fill="var(--negative)" stroke="var(--surface)" strokeWidth="1" />
       ))}
+      {data.flatMap((day, index) =>
+        (day.events ?? []).map((event, eventIndex) => {
+          const income = event.kind === "planned_income" || event.kind === "real_income";
+          return (
+            <g key={`${day.date}-${eventIndex}`} aria-hidden="true">
+              <circle
+                cx={x(index)}
+                cy={y(day.projectedBase)}
+                r="3.2"
+                fill={income ? "var(--positive)" : "var(--warning)"}
+                stroke="var(--surface)"
+                strokeWidth="1.4"
+              />
+              <path
+                d={income ? `M${x(index) - 1.3} ${y(day.projectedBase)}h2.6M${x(index)} ${y(day.projectedBase) - 1.3}v2.6` : `M${x(index) - 1.3} ${y(day.projectedBase)}h2.6`}
+                stroke="var(--surface)"
+                strokeWidth="0.7"
+              />
+            </g>
+          );
+        }),
+      )}
       {[0, Math.floor(data.length / 2), data.length - 1].map((i) => (
         <text key={i} x={x(i)} y={H - 5} textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"} fontSize="8.5" fill="var(--muted)">
           {shortDate(data[i]?.date ?? "")}
@@ -164,7 +200,7 @@ function ForecastAreaInteractive({
     projectedBase: number;
     projectedMax: number;
     actual?: boolean;
-    events?: Array<{ label: string; base: number }>;
+    events?: ForecastEvent[];
   }>;
   description: string;
   W: number;
@@ -218,13 +254,17 @@ function ForecastAreaInteractive({
         ) : null}
       </svg>
       {d ? (
-        <div className="pointer-events-none absolute left-1/2 top-0 z-10 max-w-[calc(100%-1rem)] -translate-x-1/2 rounded-xl border border-line bg-surface px-3 py-1.5 text-center text-[11px] shadow-lg">
+        <div className="pointer-events-none absolute left-1/2 top-0 z-10 max-w-[calc(100%-1rem)] -translate-x-1/2 rounded-xl border border-line bg-surface px-3 py-2 text-left text-[11px] shadow-lg">
           <span className="font-semibold">{shortDate(d.date)}</span>
-          <span className="num ml-2 break-words">{formatAmount(d.projectedBase)}</span>
-          <span className="num mt-0.5 block break-words text-muted">
-            {formatAmount(d.projectedMin)}–{formatAmount(d.projectedMax)}
-          </span>
-          {d.events?.length ? <span className="mt-0.5 block max-w-56 truncate text-muted">Sabab: {d.events.map((event) => event.label).join(", ")}</span> : null}
+          <span className="mt-0.5 block text-muted">Balans:</span>
+          <span className="num block break-words font-semibold">{formatAmount(d.projectedBase)}</span>
+          {d.events?.length ? (
+            <span className="mt-1 block max-w-56 text-muted">Sabab: {d.events.map((event) => event.label).join(", ")}</span>
+          ) : (
+            <span className="num mt-1 block break-words text-muted">
+              Oraliq: {formatAmount(d.projectedMin)}–{formatAmount(d.projectedMax)}
+            </span>
+          )}
         </div>
       ) : null}
     </div>
@@ -263,7 +303,7 @@ export function BalanceLine({
         </linearGradient>
       </defs>
       <path d={area} fill="url(#bl-fill)" />
-      <path d={line(pts)} fill="none" stroke="var(--fg)" strokeWidth="1.8" strokeLinecap="round" />
+      <path d={smoothLine(pts)} className="chart-enter" fill="none" stroke="var(--fg)" strokeWidth="1.8" strokeLinecap="round" />
       <circle cx={last.x} cy={last.y} r="3" fill="var(--fg)" />
       <circle cx={last.x} cy={last.y} r="6" fill="var(--fg)" opacity="0.15" />
     </svg>

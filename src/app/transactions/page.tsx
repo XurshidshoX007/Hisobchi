@@ -5,8 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
-import { Badge, Button, Card, EmptyState, Money, PageHeader, Segmented, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
-import { formatAmount, formatSigned, humanDate } from "@/lib/money";
+import { Badge, Button, EmptyState, FinancialRow, Money, PageHeader, Section, Segmented, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { addDays, formatAmount, formatSigned, humanDate } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
 
 type Filter = "all" | "income" | "expense" | "transfer";
@@ -33,6 +33,7 @@ function TransactionsView() {
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<TxView | null>(null);
   const [deleting, setDeleting] = useState<TxView | null>(null);
+  const [actionsFor, setActionsFor] = useState<TxView | null>(null);
 
   function openCreate() {
     setEditing(null);
@@ -93,17 +94,17 @@ function TransactionsView() {
       />
 
       {planScope ? (
-        <Card className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl bg-accent-soft px-3 py-2.5">
           <p className="min-w-0 text-[13px]">
             <span className="text-muted">Filtr:</span> <span className="font-semibold">{planScope}</span>
           </p>
           <Link href="/transactions" className="text-[12.5px] font-medium text-accent-text underline-offset-2 hover:underline">
-            Filtrni olib tashlash
+            Olib tashlash
           </Link>
-        </Card>
+        </div>
       ) : null}
 
-      <Card className="space-y-3">
+      <Section framed className="space-y-3">
         <Segmented
           value={filter}
           onChange={setFilter}
@@ -131,7 +132,7 @@ function TransactionsView() {
           <Badge tone="accent">{totals.count} ta</Badge>
           <Badge tone="neutral">sof {formatAmount(totals.income - totals.expense)}</Badge>
         </div>
-      </Card>
+      </Section>
 
       {grouped.length === 0 ? (
         <EmptyState
@@ -145,42 +146,41 @@ function TransactionsView() {
           }
         />
       ) : (
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-5 sm:space-y-6">
           {grouped.map(([date, items]) => {
             const dayIn = items.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
             const dayOut = items.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+            const relative = date === state.forecast.today ? "Bugun" : date === addDays(state.forecast.today, -1) ? "Kecha" : null;
             return (
-              <Card key={date} padded={false} className="overflow-hidden">
-                <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5 sm:py-3">
-                  <span className="text-[12px] font-medium text-muted">{humanDate(date)}</span>
-                  <span className="num flex flex-wrap items-center justify-end gap-2 text-[12px]">
-                    {dayIn > 0 ? <span className="break-words font-medium text-positive-text">{formatSigned(dayIn)}</span> : null}
-                    {dayOut > 0 ? <span className="break-words text-fg-soft">{formatAmount(-dayOut)}</span> : null}
-                  </span>
+              <section key={date} aria-labelledby={`history-${date}`}>
+                <div className="flex items-end justify-between gap-3 border-b border-line pb-2">
+                  <div>
+                    <h2 id={`history-${date}`} className="text-[14px] font-semibold">{relative ?? humanDate(date)}</h2>
+                    {relative ? <p className="mt-0.5 text-[10.5px] text-muted">{humanDate(date)}</p> : null}
+                  </div>
+                  <div className="num flex flex-wrap justify-end gap-2 text-[11px]">
+                    {dayIn > 0 ? <span className="font-medium text-positive-text">{formatSigned(dayIn)}</span> : null}
+                    {dayOut > 0 ? <span className="text-muted">{formatAmount(-dayOut)}</span> : null}
+                  </div>
                 </div>
-                <div className="divide-y divide-line px-4 sm:px-5">
+                <div>
                   {items.map((t) => (
-                    <div key={t.id} className="group flex items-center gap-3 py-3">
+                    <FinancialRow key={t.id} interactive className="row-enter group flex items-center gap-3">
                       <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">
                         {t.type === "transfer" ? "↔️" : t.categoryIcon}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 truncate text-[14px] font-medium">
+                        <p className="flex items-center gap-1.5 text-[14px] font-medium">
                           <span className="truncate">
                             {t.type === "transfer" ? `${t.accountName} → ${t.toAccountName ?? ""}` : t.categoryName ?? "Boshqa"}
                           </span>
-                          {t.recurringId ? <Badge tone="accent">Reja to‘lovi</Badge> : null}
-                          {t.expectedIncomeId ? <Badge tone="positive">Kutilgan daromad</Badge> : null}
-                          {/* A confirmed but future-dated ledger event is real, yet it is
-                              deliberately NOT part of today's balance — say so explicitly. */}
-                          {t.date > state.forecast.today ? <Badge tone="warning">Kelajak sana</Badge> : null}
-                          {accountById.get(t.accountId)?.isActive === false ? (
-                            <Badge tone="neutral">arxiv hisob</Badge>
-                          ) : null}
+                          {t.recurringId ? <Badge tone="accent">Reja</Badge> : null}
+                          {t.expectedIncomeId ? <Badge tone="positive">Kutilgan</Badge> : null}
+                          {t.date > state.forecast.today ? <Badge tone="warning">Kelajak</Badge> : null}
+                          {accountById.get(t.accountId)?.isActive === false ? <Badge tone="neutral">arxiv</Badge> : null}
                         </p>
-                        <p className="truncate text-[11.5px] text-muted">
-                          {t.note ? `${t.note} · ` : ""}
-                          {t.accountName}
+                        <p className="mt-0.5 truncate text-[11.5px] text-muted">
+                          {t.note ? `${t.note} · ` : ""}{t.accountName}
                         </p>
                       </div>
                       <Money
@@ -189,31 +189,18 @@ function TransactionsView() {
                         signed
                         tone={t.type === "income" ? "positive" : t.type === "expense" ? "default" : "muted"}
                       />
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditing(t);
-                            setAddOpen(true);
-                          }}
-                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
-                          aria-label="Tahrirlash"
-                        >
-                          ✎
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleting(t)}
-                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
-                          aria-label="Bekor qilish"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
+                      <button
+                        type="button"
+                        onClick={() => setActionsFor(t)}
+                        className="grid h-10 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-3 hover:text-fg"
+                        aria-label={`${t.categoryName ?? "Operatsiya"} amallari`}
+                      >
+                        •••
+                      </button>
+                    </FinancialRow>
                   ))}
                 </div>
-              </Card>
+              </section>
             );
           })}
         </div>
@@ -223,6 +210,32 @@ function TransactionsView() {
         Muhim operatsiyalar o‘chirilmaydi — belgilanadi va tarix saqlanadi.
       </p>
 
+      <Sheet open={Boolean(actionsFor)} onClose={() => setActionsFor(null)} title={actionsFor?.categoryName ?? "Operatsiya amallari"}>
+        <div className="space-y-1">
+          <button
+            type="button"
+            className="flex min-h-12 w-full items-center rounded-xl px-3 text-left text-sm font-medium hover:bg-surface-2"
+            onClick={() => {
+              if (!actionsFor) return;
+              setEditing(actionsFor);
+              setActionsFor(null);
+              setAddOpen(true);
+            }}
+          >
+            ✎ Tahrirlash
+          </button>
+          <button
+            type="button"
+            className="flex min-h-12 w-full items-center rounded-xl px-3 text-left text-sm font-medium text-negative-text hover:bg-negative-soft"
+            onClick={() => {
+              setDeleting(actionsFor);
+              setActionsFor(null);
+            }}
+          >
+            O‘chirish
+          </button>
+        </div>
+      </Sheet>
       <QuickAddSheet open={addOpen} onClose={closeSheet} editing={editing} />
       <DeleteConfirm tx={deleting} onClose={() => setDeleting(null)} />
     </div>

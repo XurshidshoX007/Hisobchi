@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, PrimaryFinancialCard, Progress, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { formatCompactAmount, formatAmount, monthLabel } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
 
@@ -44,7 +44,7 @@ export default function BudgetsPage() {
         }
       />
 
-      <Card>
+      <PrimaryFinancialCard>
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy limit</p>
@@ -80,7 +80,7 @@ export default function BudgetsPage() {
             <p className="num mt-0.5 text-sm font-semibold">{exceeded}</p>
           </div>
         </div>
-      </Card>
+      </PrimaryFinancialCard>
 
       {budgets.length ? (
         <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">

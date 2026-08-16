@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useFinance } from "@/components/providers";
-import { Badge, Card, Money, PageHeader, Progress, Skeleton } from "@/components/ui";
+import { Badge, Card, FinancialRow, Money, PageHeader, Progress, Section, Skeleton } from "@/components/ui";
 import { formatCompactAmount } from "@/lib/money";
 
 const LINKS = [
@@ -26,19 +26,22 @@ export default function MorePage() {
     <div className="animate-fade-up space-y-4 sm:space-y-6">
       <PageHeader title="Ko‘proq" subtitle="Budjet, qarzdorlik, maqsadlar va sozlamalar" />
 
-      <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
-        {LINKS.map((l) => (
-          <Link key={l.href} href={l.href} className="block touch-manipulation">
-            <Card className="flex items-start gap-3 transition-colors hover:border-line-strong active:scale-[0.98]">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-3 text-lg">{l.icon}</div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-medium">{l.title}</p>
-                <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted">{l.desc}</p>
-              </div>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      <Section title="Boshqaruv" hint="Hisob va moliyaviy sozlamalar" framed>
+        <div className="grid sm:grid-cols-2 sm:gap-x-5">
+          {LINKS.map((link) => (
+            <Link key={link.href} href={link.href} className="block touch-manipulation">
+              <FinancialRow interactive className="flex items-center gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">{link.icon}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-medium">{link.title}</p>
+                  <p className="mt-0.5 truncate text-[11.5px] text-muted">{link.desc}</p>
+                </div>
+                <span className="text-muted" aria-hidden="true">›</span>
+              </FinancialRow>
+            </Link>
+          ))}
+        </div>
+      </Section>
 
       <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
         <Card>
@@ -102,20 +105,14 @@ export default function MorePage() {
         </Card>
       </div>
 
-      <Card>
-        <p className="mb-3 text-[15px] font-semibold">🔌 API</p>
-        <div className="space-y-2 text-[12.5px] leading-snug text-muted">
-          <p className="flex flex-wrap items-center gap-1.5">
-            <Badge tone="accent">GET /api/state</Badge> yagona manba
-          </p>
-          <p className="flex flex-wrap items-center gap-1.5">
-            <Badge tone="accent">POST /api/mutate</Badge> barcha yozuvlar
-          </p>
-          <p className="flex flex-wrap items-center gap-1.5">
-            <Badge tone="accent">POST /api/bot</Badge> bot mantiqi
-          </p>
+      <details className="px-1 text-[12px] text-muted">
+        <summary className="cursor-pointer select-none py-2 font-medium text-fg-soft">Texnik integratsiya</summary>
+        <div className="mt-1 flex flex-wrap gap-2 pb-2">
+          <Badge tone="neutral">GET /api/state</Badge>
+          <Badge tone="neutral">POST /api/mutate</Badge>
+          <Badge tone="neutral">POST /api/bot</Badge>
         </div>
-      </Card>
+      </details>
     </div>
   );
 }

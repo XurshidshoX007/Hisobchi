@@ -3,7 +3,19 @@
 import { useState } from "react";
 import { BalanceLine, CategoryBars, IncomeExpenseBars, Ring, Sparkline } from "@/components/charts";
 import { useFinance } from "@/components/providers";
-import { Badge, Card, Divider, Money, PageHeader, Progress, Segmented, Skeleton } from "@/components/ui";
+import {
+  Badge,
+  Divider,
+  FinancialRow,
+  MetricGrid,
+  Money,
+  PageHeader,
+  PrimaryFinancialCard,
+  Progress,
+  Section,
+  Segmented,
+  Skeleton,
+} from "@/components/ui";
 import { formatAmount, formatCompactAmount, monthLabel } from "@/lib/money";
 
 export default function AnalyticsPage() {
@@ -17,8 +29,10 @@ export default function AnalyticsPage() {
   const monthly = range === "3" ? a.monthly.slice(-3) : a.monthly;
   const prev = monthly.length >= 2 ? monthly[monthly.length - 2] : null;
   const cur = monthly[monthly.length - 1];
-  const incomeDelta = prev && prev.income > 0 ? (cur.income - prev.income) / prev.income : 0;
-  const expenseDelta = prev && prev.expense > 0 ? (cur.expense - prev.expense) / prev.expense : 0;
+  const incomeDelta = prev && cur && prev.income > 0 ? (cur.income - prev.income) / prev.income : 0;
+  const expenseDelta = prev && cur && prev.expense > 0 ? (cur.expense - prev.expense) / prev.expense : 0;
+  const primaryInsight = a.insights[0];
+  const expenseDirection = expenseDelta > 0 ? "oshgan" : expenseDelta < 0 ? "kamaygan" : "o‘zgarmagan";
 
   const metrics = [
     { label: "Jami daromad", value: a.monthTotals.income, delta: incomeDelta, tone: "positive" as const },
@@ -28,46 +42,31 @@ export default function AnalyticsPage() {
   ];
 
   return (
-    <div className="animate-fade-up space-y-4 sm:space-y-6">
-      <PageHeader title="Tahlil" subtitle={`${monthLabel(a.month)} · nima bo‘layotganini tushunamiz`} />
+    <div className="animate-fade-up space-y-5 sm:space-y-6">
+      <PageHeader title="Tahlil" subtitle={`${monthLabel(a.month)} · qaror uchun muhim signallar`} />
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-        {metrics.map((m) => (
-          <Card key={m.label} className="p-4">
-            <p className="truncate text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{m.label}</p>
-            <div className="mt-1.5">
-              <Money value={m.value} size="lg" tone={m.tone} />
-            </div>
-            {m.delta !== undefined && prev ? (
-              <p className={`mt-1 truncate text-[11px] font-medium ${m.delta >= 0 ? "text-positive-text" : "text-negative-text"}`}>
-                {m.delta >= 0 ? "▲" : "▼"} {Math.abs(m.delta * 100).toFixed(0)}% oldingi oyga nisbatan
-              </p>
-            ) : null}
-          </Card>
-        ))}
-      </div>
-
-      <Card>
-        <p className="mb-4 text-[15px] font-semibold">Oylik nisbatlar</p>
-        <div className="grid gap-4 sm:grid-cols-3 sm:gap-5">
-          <Ratio label="Jamg‘arish ulushi" value={a.monthTotals.savingsRate} caption="daromaddan qolgan" />
-          <Ratio label="Majburiy xarajat" value={a.monthTotals.mandatoryRatio} caption="daromadga nisbatan" invert />
-          <Ratio label="Ixtiyoriy xarajat" value={a.monthTotals.discretionaryRatio} caption="xarajatlar tarkibi" invert />
-        </div>
-        <Divider />
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <MiniStat label="Prognoz oylik xarajat" value={formatAmount(a.monthTotals.projectedMonthExpense)} />
-          <MiniStat label="Doimiy to‘lovlar" value={formatAmount(a.recurringTotal)} />
-          <MiniStat label="Transferlar" value={formatAmount(a.monthTotals.transferTotal)} />
-          <MiniStat label="Oy kunlari" value={`${a.monthTotals.daysElapsed} / ${a.monthTotals.daysInMonth}`} />
-        </div>
-      </Card>
-
-      <Card>
-        <div className="mb-3 flex items-end justify-between gap-3 sm:mb-4">
+      <PrimaryFinancialCard>
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-lg" aria-hidden="true">
+            {primaryInsight?.icon ?? "↗"}
+          </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-semibold">Income vs Expense</p>
-            <p className="truncate text-[11.5px] text-muted">Daromad (yashil) va xarajat</p>
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Bu oyning asosiy signali</p>
+            <h2 className="mt-1 text-lg font-semibold leading-snug">
+              {prev ? `Xarajatlar oldingi oyga nisbatan ${Math.abs(expenseDelta * 100).toFixed(0)}% ${expenseDirection}.` : primaryInsight?.title ?? "Moliyaviy tendensiya shakllanmoqda."}
+            </h2>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-muted">
+              {primaryInsight?.body ?? "Ko‘proq operatsiya kiritilgach, tahlil aniqroq tavsiya beradi."}
+            </p>
+          </div>
+        </div>
+      </PrimaryFinancialCard>
+
+      <PrimaryFinancialCard>
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-semibold">Daromad va xarajat</h2>
+            <p className="mt-1 text-[11.5px] text-muted">Oylik pul oqimi dinamikasi</p>
           </div>
           <div className="w-36 shrink-0 sm:w-40">
             <Segmented
@@ -80,178 +79,140 @@ export default function AnalyticsPage() {
             />
           </div>
         </div>
-        <IncomeExpenseBars data={monthly} />
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center sm:gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-[11px] text-muted">O‘rtacha daromad</p>
-            <p className="num mt-0.5 break-words text-sm font-medium">{formatAmount(monthly.reduce((s, m) => s + m.income, 0) / monthly.length)}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-[11px] text-muted">O‘rtacha xarajat</p>
-            <p className="num mt-0.5 break-words text-sm font-medium">{formatAmount(monthly.reduce((s, m) => s + m.expense, 0) / monthly.length)}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-[11px] text-muted">O‘rtacha jamg‘arish</p>
-            <p className="num mt-0.5 break-words text-sm font-medium">{formatAmount(monthly.reduce((s, m) => s + m.net, 0) / monthly.length)}</p>
-          </div>
+        <IncomeExpenseBars data={monthly} height={180} />
+        <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-4 text-center">
+          <MiniStat label="O‘rtacha daromad" value={formatAmount(monthly.reduce((sum, item) => sum + item.income, 0) / Math.max(1, monthly.length))} />
+          <MiniStat label="O‘rtacha xarajat" value={formatAmount(monthly.reduce((sum, item) => sum + item.expense, 0) / Math.max(1, monthly.length))} />
+          <MiniStat label="O‘rtacha qoldiq" value={formatAmount(monthly.reduce((sum, item) => sum + item.net, 0) / Math.max(1, monthly.length))} />
         </div>
-      </Card>
+      </PrimaryFinancialCard>
 
-      <Card>
-        <div className="mb-3 flex items-end justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[15px] font-semibold">Balance History</p>
-            <p className="text-[11.5px] text-muted">So‘nggi 90 kun</p>
-          </div>
-          <div className="shrink-0">
-            <Money value={a.balanceHistory[a.balanceHistory.length - 1]?.balance ?? 0} size="lg" />
-          </div>
-        </div>
-        <BalanceLine data={a.balanceHistory} />
-        <div className="mt-3">
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Jamg‘arish trendi</p>
-          <Sparkline values={a.monthly.map((m) => m.net)} />
-        </div>
-      </Card>
-
-      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-2">
-        <Card>
-          <p className="mb-4 text-[15px] font-semibold">Xarajatlar tahlili</p>
-          {a.categories.length ? (
-            <>
-              <CategoryBars
-                items={a.categories.slice(0, 8).map((c) => ({ name: c.name, icon: c.icon, amount: c.amount, share: c.share }))}
-              />
-              <Divider />
-              <div className="mt-3 space-y-2">
-                {a.categories
-                  .slice(0, 6)
-                  .filter((c) => c.prevAmount > 0)
-                  .map((c) => (
-                    <div key={c.name} className="flex items-center justify-between gap-3 text-[12.5px]">
-                      <span className="min-w-0 flex-1 truncate text-fg-soft">
-                        {c.icon} {c.name}
-                      </span>
-                      <span className={`shrink-0 font-medium ${c.change > 0 ? "text-negative-text" : "text-positive-text"}`}>
-                        {c.change > 0 ? "+" : ""}
-                        {formatAmount(c.change)} ({(c.changePct * 100).toFixed(0)}%)
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            </>
-          ) : (
-            <p className="text-[13px] text-muted">Bu oyda xarajat qayd etilmagan.</p>
-          )}
-        </Card>
-
-        <Card>
-          <p className="mb-4 text-[15px] font-semibold">Daromad manbalari</p>
-          {a.incomeSources.length ? (
-            <CategoryBars items={a.incomeSources.map((s) => ({ name: s.name, icon: "•", amount: s.amount, share: s.share }))} />
-          ) : (
-            <p className="text-[13px] text-muted">Daromad manbalari mavjud emas.</p>
-          )}
-          {a.anomalies.length ? (
-            <>
-              <Divider />
-              <p className="mb-2 mt-4 text-[13px] font-semibold">Noodatiy xarajatlar</p>
-              <div className="space-y-2">
-                {a.anomalies.map((n) => (
-                  <div key={n.id} className="flex items-center justify-between gap-3 rounded-xl bg-warning-soft px-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12.5px] font-medium">{n.name}</p>
-                      <p className="text-[11px] text-muted">o‘rtachadan {n.ratio.toFixed(1)}× ortiq</p>
-                    </div>
-                    <span className="num max-w-[48%] break-words text-right text-[12.5px] font-medium">{formatAmount(n.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : null}
-        </Card>
-      </div>
-
-      <Card>
-        <p className="mb-4 text-[15px] font-semibold">📊 Intelligent Insights</p>
-        <div className="space-y-3">
-          {a.insights.map((ins, i) => (
-            <div key={i} className="flat-card flex items-start gap-3 p-4">
-              <span className="shrink-0 text-lg">{ins.icon}</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[14px] font-medium">{ins.title}</p>
-                <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">{ins.body}</p>
-              </div>
+      <Section title="Asosiy ko‘rsatkichlar" hint="Bu oy · exact qiymatlar">
+        <MetricGrid className="sm:grid-cols-4">
+          {metrics.map((metric) => (
+            <div key={metric.label} className="min-w-0 p-3 sm:p-4">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-muted">{metric.label}</p>
+              <div className="mt-1.5"><Money value={metric.value} size="lg" tone={metric.tone} /></div>
+              {metric.delta !== undefined && prev ? (
+                <p className={`mt-1 text-[11px] font-medium ${metric.delta >= 0 ? "text-positive-text" : "text-negative-text"}`}>
+                  {metric.delta >= 0 ? "▲" : "▼"} {Math.abs(metric.delta * 100).toFixed(0)}%
+                </p>
+              ) : null}
             </div>
           ))}
-          <div className="flat-card flex items-start gap-3 p-4">
+        </MetricGrid>
+      </Section>
+
+      <Section title="Oylik nisbatlar" hint="Daromadga nisbatan" framed>
+        <div className="grid gap-4 sm:grid-cols-3 sm:gap-5">
+          <Ratio label="Jamg‘arish ulushi" value={a.monthTotals.savingsRate} caption="daromaddan qolgan" />
+          <Ratio label="Majburiy xarajat" value={a.monthTotals.mandatoryRatio} caption="daromadga nisbatan" invert />
+          <Ratio label="Ixtiyoriy xarajat" value={a.monthTotals.discretionaryRatio} caption="xarajatlar tarkibi" invert />
+        </div>
+        <Divider />
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <MiniStat label="Prognoz xarajat" value={formatAmount(a.monthTotals.projectedMonthExpense)} />
+          <MiniStat label="Doimiy to‘lov" value={formatAmount(a.recurringTotal)} />
+          <MiniStat label="Transfer" value={formatAmount(a.monthTotals.transferTotal)} />
+          <MiniStat label="Oy kunlari" value={`${a.monthTotals.daysElapsed} / ${a.monthTotals.daysInMonth}`} />
+        </div>
+      </Section>
+
+      <Section title="Balans tarixi" hint="So‘nggi 90 kun" framed action={<Money value={a.balanceHistory[a.balanceHistory.length - 1]?.balance ?? 0} size="lg" />}>
+        <BalanceLine data={a.balanceHistory} />
+        <div className="mt-3 border-t border-line pt-3">
+          <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Jamg‘arish trendi</p>
+          <Sparkline values={a.monthly.map((item) => item.net)} />
+        </div>
+      </Section>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Section title="Xarajatlar tarkibi" framed>
+          {a.categories.length ? (
+            <>
+              <CategoryBars items={a.categories.slice(0, 8).map((category) => ({ name: category.name, icon: category.icon, amount: category.amount, share: category.share }))} />
+              {a.categories.some((category) => category.prevAmount > 0) ? (
+                <div className="mt-4 border-t border-line pt-2">
+                  {a.categories.filter((category) => category.prevAmount > 0).slice(0, 6).map((category) => (
+                    <FinancialRow key={category.name} className="flex items-center justify-between gap-3 text-[12.5px]">
+                      <span className="min-w-0 flex-1 truncate text-fg-soft">{category.icon} {category.name}</span>
+                      <span className={`shrink-0 font-medium ${category.change > 0 ? "text-negative-text" : "text-positive-text"}`}>
+                        {category.change > 0 ? "+" : ""}{formatAmount(category.change)} ({(category.changePct * 100).toFixed(0)}%)
+                      </span>
+                    </FinancialRow>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : <p className="text-[13px] text-muted">Bu oyda xarajat qayd etilmagan.</p>}
+        </Section>
+
+        <Section title="Daromad va noodatiy xarajat" framed>
+          {a.incomeSources.length ? (
+            <CategoryBars items={a.incomeSources.map((source) => ({ name: source.name, icon: "•", amount: source.amount, share: source.share }))} />
+          ) : <p className="text-[13px] text-muted">Daromad manbalari mavjud emas.</p>}
+          {a.anomalies.length ? (
+            <div className="mt-4 border-t border-line pt-2">
+              <p className="py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Noodatiy xarajatlar</p>
+              {a.anomalies.map((anomaly) => (
+                <FinancialRow key={anomaly.id} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1"><p className="truncate text-[12.5px] font-medium">{anomaly.name}</p><p className="text-[11px] text-muted">o‘rtachadan {anomaly.ratio.toFixed(1)}× ortiq</p></div>
+                  <span className="num max-w-[48%] break-words text-right text-[12.5px] font-medium">{formatAmount(anomaly.amount)}</span>
+                </FinancialRow>
+              ))}
+            </div>
+          ) : null}
+        </Section>
+      </div>
+
+      <Section title="Tavsiyalar" hint="Keyingi qaror uchun" framed>
+        <div>
+          {a.insights.slice(1).map((insight, index) => (
+            <FinancialRow key={`${insight.title}-${index}`} className="flex items-start gap-3">
+              <span className="shrink-0 text-lg">{insight.icon}</span>
+              <div className="min-w-0 flex-1"><p className="text-[14px] font-medium">{insight.title}</p><p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">{insight.body}</p></div>
+            </FinancialRow>
+          ))}
+          <FinancialRow className="flex items-start gap-3">
             <span className="shrink-0 text-lg">📈</span>
             <div className="min-w-0 flex-1">
               <p className="text-[14px] font-medium">Kelasi oy prognozi</p>
               <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
-                Bazaviy ssenariy: {formatCompactAmount(state.forecast.scenarios.base.delta)} (
-                {formatCompactAmount(state.forecast.scenarios.min.balance)} — {formatCompactAmount(state.forecast.scenarios.max.balance)})
+                Bazaviy: {formatCompactAmount(state.forecast.scenarios.base.delta)} · {formatCompactAmount(state.forecast.scenarios.min.balance)} — {formatCompactAmount(state.forecast.scenarios.max.balance)}
               </p>
             </div>
-          </div>
+          </FinancialRow>
         </div>
-      </Card>
+      </Section>
 
-      <Card>
-        <div className="mb-3.5 flex items-center justify-between gap-3 sm:mb-4">
-          <div className="min-w-0">
-            <p className="text-[15px] font-semibold">Financial Health</p>
-            <p className="truncate text-[11.5px] text-muted">6 omil asosidagi ko‘rsatkich</p>
-          </div>
-          <Badge tone={state.health.score >= 70 ? "positive" : state.health.score >= 55 ? "warning" : "negative"}>
-            {state.health.grade}
-          </Badge>
-        </div>
+      <Section title="Moliyaviy salomatlik" hint="6 omil asosidagi ko‘rsatkich" framed action={<Badge tone={state.health.score >= 70 ? "positive" : state.health.score >= 55 ? "warning" : "negative"}>{state.health.grade}</Badge>}>
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:gap-6">
           <Ring value={state.health.score / 100} size={120} label={`${state.health.score}`} sublabel="/ 100" />
           <div className="w-full min-w-0 flex-1 space-y-3">
-            {state.health.factors.map((f) => (
-              <div key={f.key} className="min-w-0">
-                <div className="mb-1 flex items-center justify-between gap-2 text-[12px]">
-                  <span className="truncate text-fg-soft">{f.label}</span>
-                  <span className="shrink-0 text-muted">
-                    <span className="num font-medium">{f.score}</span>
-                    <span className="text-muted"> /{f.weight}%</span>
-                  </span>
-                </div>
-                <Progress value={f.score / 100} height={6} />
-                <p className="mt-1 truncate text-[11px] text-muted">{f.detail}</p>
+            {state.health.factors.map((factor) => (
+              <div key={factor.key} className="min-w-0">
+                <div className="mb-1 flex items-center justify-between gap-2 text-[12px]"><span className="truncate text-fg-soft">{factor.label}</span><span className="shrink-0 text-muted"><span className="num font-medium">{factor.score}</span> /{factor.weight}%</span></div>
+                <Progress value={factor.score / 100} height={6} />
+                <p className="mt-1 text-[11px] text-muted">{factor.detail}</p>
               </div>
             ))}
           </div>
         </div>
-      </Card>
+      </Section>
     </div>
   );
 }
 
-function Ratio({
-  label,
-  value,
-  caption,
-  invert,
-}: {
-  label: string;
-  value: number;
-  caption: string;
-  invert?: boolean;
-}) {
+function Ratio({ label, value, caption, invert }: { label: string; value: number; caption: string; invert?: boolean }) {
   const good = invert ? value <= 0.5 : value >= 0.2;
   return (
     <div className="min-w-0">
       <div className="flex items-baseline justify-between gap-2">
         <p className="truncate text-[12px] text-muted">{label}</p>
-        <p className={`num shrink-0 text-lg font-semibold ${good ? "text-positive-text" : "text-warning-text"}`}>
-          {(value * 100).toFixed(0)}%
-        </p>
+        <p className={`num shrink-0 text-lg font-semibold ${good ? "text-positive-text" : "text-warning-text"}`}>{(value * 100).toFixed(0)}%</p>
       </div>
       <Progress value={value} height={6} />
-      <p className="mt-1 truncate text-[11px] text-muted">{caption}</p>
+      <p className="mt-1 text-[11px] text-muted">{caption}</p>
     </div>
   );
 }
@@ -259,8 +220,8 @@ function Ratio({
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="truncate text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
-      <p className="num mt-0.5 break-words text-sm font-medium">{value}</p>
+      <p className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-muted">{label}</p>
+      <p className="num mt-1 break-words text-sm font-medium">{value}</p>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useState, type ReactNode } from "react";
 import { formatAmount, humanDate } from "@/lib/money";
 import { MENU_ROUTE, showsProfileHeader } from "@/lib/navigation";
 import { useFinance } from "./providers";
-import { Badge, Button, Divider, Money, Sheet } from "./ui";
+import { Badge, Button, Divider, FinancialRow, Money, Sheet } from "./ui";
 
 const NAV = [
   { href: "/", label: "Dashboard", short: "Asosiy", icon: HomeIcon },
@@ -193,13 +193,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <p className="py-6 text-center text-sm text-muted">Hozircha eslatmalar yo‘q.</p>
         ) : null}
         {state?.alerts.map((a) => (
-          <div
+          <FinancialRow
             key={a.id}
-            className="flat-card p-4"
-            style={{
-              borderColor:
-                a.severity === "critical" ? "var(--negative)" : a.severity === "warning" ? "var(--warning)" : "var(--border)",
-            }}
+            className={`px-3 ${a.severity === "critical" ? "rounded-xl bg-negative-soft" : a.severity === "warning" ? "rounded-xl bg-warning-soft" : ""}`}
           >
             <div className="flex items-start justify-between gap-3">
               <p className="text-[14px] font-semibold">
@@ -209,10 +205,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-muted">{a.body}</p>
             {a.refDate ? <p className="mt-2 text-[11px] text-muted">{humanDate(a.refDate)}</p> : null}
-          </div>
+          </FinancialRow>
         ))}
         {state?.notifications.map((n) => (
-          <div key={n.id} className="flat-card p-4">
+          <FinancialRow key={n.id} className={`px-3 transition-opacity ${n.isRead ? "opacity-60" : ""}`}>
             <div className="flex items-start justify-between gap-3">
               <p className="text-[14px] font-medium">{n.title}</p>
               <Badge tone={n.isRead ? "neutral" : "accent"}>{n.isRead ? "o‘qilgan" : "yangi"}</Badge>
@@ -230,7 +226,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </button>
               ) : null}
             </div>
-          </div>
+          </FinancialRow>
         ))}
       </Sheet>
     </div>

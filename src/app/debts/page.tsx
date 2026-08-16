@@ -9,6 +9,7 @@ import {
   Card,
   EmptyState,
   Field,
+  MetricGrid,
   Money,
   PageHeader,
   Progress,
@@ -57,29 +58,23 @@ export default function DebtsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
-        <Card className="p-4">
+      <MetricGrid className="sm:grid-cols-3">
+        <div className="min-w-0 p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Men qarzdorman</p>
-          <div className="mt-1.5">
-            <Money value={iOweTotal} size="lg" tone="negative" />
-          </div>
+          <div className="mt-1.5"><Money value={iOweTotal} size="lg" tone="negative" /></div>
           <p className="mt-1 text-[11.5px] text-muted">{iOwe.length} ta yozuv</p>
-        </Card>
-        <Card className="p-4">
+        </div>
+        <div className="min-w-0 p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Menga qarzdor</p>
-          <div className="mt-1.5">
-            <Money value={toMeTotal} size="lg" tone="positive" />
-          </div>
+          <div className="mt-1.5"><Money value={toMeTotal} size="lg" tone="positive" /></div>
           <p className="mt-1 text-[11.5px] text-muted">{toMe.length} ta yozuv</p>
-        </Card>
-        <Card className="p-4">
+        </div>
+        <div className="min-w-0 p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Sof holat</p>
-          <div className="mt-1.5">
-            <Money value={toMeTotal - iOweTotal} size="lg" tone={toMeTotal - iOweTotal >= 0 ? "positive" : "negative"} />
-          </div>
+          <div className="mt-1.5"><Money value={toMeTotal - iOweTotal} size="lg" tone={toMeTotal - iOweTotal >= 0 ? "positive" : "negative"} /></div>
           <p className="mt-1 text-[11.5px] text-muted">farqi</p>
-        </Card>
-      </div>
+        </div>
+      </MetricGrid>
 
       {(["i_owe", "owed_to_me"] as const).map((dir) => {
         const list = dir === "i_owe" ? iOwe : toMe;

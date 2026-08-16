@@ -9,19 +9,127 @@ export function Card({
   className = "",
   padded = true,
   onClick,
+  variant = "section",
 }: {
   children: ReactNode;
   className?: string;
   padded?: boolean;
   onClick?: () => void;
+  /** Level 1 = primary, Level 2 = section, frameless = layout-only grouping. */
+  variant?: "primary" | "section" | "frameless";
 }) {
+  const variants = {
+    primary: "primary-card",
+    section: "section-card",
+    frameless: "section-frameless",
+  };
   return (
     <div
       onClick={onClick}
-      className={`card min-w-0 ${padded ? "p-4 sm:p-5" : ""} ${onClick ? "cursor-pointer transition-transform active:scale-[0.99]" : ""} ${className}`}
+      data-container-level={variant === "primary" ? "1" : variant === "section" ? "2" : "none"}
+      className={`${variants[variant]} min-w-0 ${padded ? "p-4 sm:p-5" : ""} ${onClick ? "cursor-pointer transition-colors active:bg-surface-2" : ""} ${className}`}
     >
       {children}
     </div>
+  );
+}
+
+/** Level 1 container: reserved for a financial decision, never generic grouping. */
+export function PrimaryFinancialCard({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card variant="primary" className={className}>
+      {children}
+    </Card>
+  );
+}
+
+/** Level 2 semantic section with optional heading; intentionally shadowless. */
+export function Section({
+  children,
+  title,
+  hint,
+  action,
+  className = "",
+  framed = false,
+}: {
+  children: ReactNode;
+  title?: string;
+  hint?: string;
+  action?: ReactNode;
+  className?: string;
+  framed?: boolean;
+}) {
+  return (
+    <section
+      data-container-level={framed ? "2" : undefined}
+      className={`${framed ? "section-card p-4 sm:p-5" : "section-frameless"} min-w-0 ${className}`}
+    >
+      {title ? <SectionTitle title={title} hint={hint} action={action} /> : null}
+      {children}
+    </section>
+  );
+}
+
+/** Level 3 list primitive: spacing + divider + calm interaction, never another card. */
+export function FinancialRow({
+  children,
+  className = "",
+  interactive = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  interactive?: boolean;
+}) {
+  return (
+    <div
+      data-container-level="3"
+      className={`financial-row min-w-0 ${interactive ? "financial-row-interactive" : ""} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function MetricGrid({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`metric-grid grid min-w-0 grid-cols-2 ${className}`}>{children}</div>;
+}
+
+export function MonthSwitcher({
+  label,
+  context,
+  onPrevious,
+  onNext,
+  previousDisabled,
+  nextDisabled,
+}: {
+  label: string;
+  context?: string;
+  onPrevious: () => void;
+  onNext: () => void;
+  previousDisabled?: boolean;
+  nextDisabled?: boolean;
+}) {
+  const control =
+    "grid h-11 w-11 shrink-0 place-items-center rounded-full text-lg text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg disabled:pointer-events-none disabled:opacity-30";
+  return (
+    <nav className="month-switcher flex items-center gap-2" aria-label="Oy tanlash">
+      <button type="button" className={control} aria-label="Oldingi oy" disabled={previousDisabled} onClick={onPrevious}>
+        ‹
+      </button>
+      <div className="min-w-0 flex-1 text-center">
+        <p className="truncate text-lg font-bold tracking-tight">{label}</p>
+        {context ? <p className="mt-0.5 text-[11px] text-muted">{context}</p> : null}
+      </div>
+      <button type="button" className={control} aria-label="Keyingi oy" disabled={nextDisabled} onClick={onNext}>
+        ›
+      </button>
+    </nav>
   );
 }
 
@@ -94,9 +202,11 @@ export function Button({
 export function Badge({
   children,
   tone = "neutral",
+  className = "",
 }: {
   children: ReactNode;
   tone?: "neutral" | "positive" | "negative" | "warning" | "accent" | "info";
+  className?: string;
 }) {
   const tones: Record<string, string> = {
     neutral: "bg-surface-3 text-fg-soft",
@@ -108,7 +218,7 @@ export function Badge({
   };
   return (
     <span
-      className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold ${tones[tone]}`}
+      className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${tones[tone]} ${className}`}
     >
       {children}
     </span>
@@ -144,9 +254,12 @@ export function Money({
     negative: "text-negative-text",
     muted: "text-muted",
   };
+  const text = signed ? formatSigned(value) : formatAmount(value);
   return (
     <span className={`num inline-block max-w-full ${sizes[size]} ${tones[tone]} break-words`}>
-      {signed ? formatSigned(value) : formatAmount(value)}
+      <span key={`${text}-${currency ?? ""}`} className="money-transition inline">
+        {text}
+      </span>
       {compactSuffix ? <span className="ml-1 text-xs font-normal text-muted">{compactSuffix}</span> : null}
       {currency ? <span className="ml-1 text-[0.62em] font-normal text-muted">{currency}</span> : null}
     </span>
@@ -297,7 +410,26 @@ export function Sheet({
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     // Move focus into the dialog for keyboard/screen-reader users.

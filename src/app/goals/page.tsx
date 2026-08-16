@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, MetricGrid, Money, PageHeader, Progress, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { formatCompactAmount, formatAmount, humanDate } from "@/lib/money";
 import type { GoalView } from "@/lib/finance";
 
@@ -42,30 +42,22 @@ export default function GoalsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
-        <Card className="p-4">
+      <MetricGrid className="sm:grid-cols-3">
+        <div className="min-w-0 p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Jami maqsad</p>
-          <div className="mt-1.5">
-            <Money value={totalTarget} size="lg" />
-          </div>
-        </Card>
-        <Card className="p-4">
+          <div className="mt-1.5"><Money value={totalTarget} size="lg" /></div>
+        </div>
+        <div className="min-w-0 p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Yig‘ilgan</p>
-          <div className="mt-1.5">
-            <Money value={totalSaved} size="lg" tone="positive" />
-          </div>
-          <div className="mt-2">
-            <Progress value={totalTarget > 0 ? totalSaved / totalTarget : 0} height={6} />
-          </div>
-        </Card>
-        <Card className="p-4">
+          <div className="mt-1.5"><Money value={totalSaved} size="lg" tone="positive" /></div>
+          <div className="mt-2"><Progress value={totalTarget > 0 ? totalSaved / totalTarget : 0} height={6} /></div>
+        </div>
+        <div className="min-w-0 p-4">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Kerakli oylik</p>
-          <div className="mt-1.5">
-            <Money value={monthly} size="lg" />
-          </div>
+          <div className="mt-1.5"><Money value={monthly} size="lg" /></div>
           <p className="mt-1 text-[11.5px] text-muted">barcha maqsadlar uchun</p>
-        </Card>
-      </div>
+        </div>
+      </MetricGrid>
 
       {state.goals.length ? (
         <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">

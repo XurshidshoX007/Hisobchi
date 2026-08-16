@@ -12,6 +12,7 @@ import {
   Field,
   Money,
   PageHeader,
+  PrimaryFinancialCard,
   Segmented,
   Select,
   Sheet,
@@ -70,7 +71,7 @@ export default function AccountsPage() {
 
       {tab === "accounts" ? (
         <div className="space-y-4">
-          <Card>
+          <PrimaryFinancialCard>
             <div className="flex items-end justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy balans</p>
@@ -109,7 +110,7 @@ export default function AccountsPage() {
                 </div>
               ))}
             </div>
-          </Card>
+          </PrimaryFinancialCard>
 
           <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
             {state.accounts.map((a) => (
