@@ -19,9 +19,12 @@ import { parseDraft } from "./nlp";
 import {
   advanceIncomeState,
   advanceRecurringState,
+  canRestorePlan,
   occurrenceIdentity,
+  resolveEditLifecycle,
   revertIncomeState,
   revertRecurringState,
+  togglePlanError,
 } from "./reconciliation";
 
 export type MutateInput = {
@@ -78,8 +81,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
     transaction: ["create", "update", "delete"],
     account: ["create", "update"],
     category: ["create", "update"],
-    recurring: ["create", "update", "pay", "toggle", "delete"],
-    expectedIncome: ["create", "update", "receive", "toggle", "delete"],
+    recurring: ["create", "update", "pay", "toggle", "restore", "delete"],
+    expectedIncome: ["create", "update", "receive", "toggle", "restore", "delete"],
     budget: ["upsert", "delete"],
     debt: ["create", "update", "pay", "delete"],
     goal: ["create", "contribute", "update", "delete"],
@@ -498,17 +501,22 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (planType === "term" && installmentCount !== null && installmentCount < existingRec[0].installmentsPaid) {
           return { ok: false, message: "Bo'lib to'lashlar soni to'langanlaridan kam bo'lmasligi kerak" };
         }
-        // A term whose final installment is already paid stays "completed"
-        // even when the edit leaves it inactive (e.g. only the name changed);
-        // otherwise the active/paused intent is honoured. A cancelled plan is
-        // not silently resurrected here — the user is explicitly re-saving it.
+        // Lifecycle-safe edit (§11): a cancelled plan is NEVER resurrected by
+        // an ordinary Edit → Save (only the explicit `restore` action is);
+        // a fully-paid term/one_time stays completed; otherwise the active/
+        // paused intent from the form is honoured.
         const nextIsActive = bool(d.isActive, existingRec[0].isActive);
-        const termAlreadyFinished =
-          planType === "term" && installmentCount !== null && existingRec[0].installmentsPaid >= installmentCount;
-        const status = !nextIsActive && termAlreadyFinished ? "completed" : nextIsActive ? "active" : "paused";
+        const lifecycle = resolveEditLifecycle({
+          previousStatus: existingRec[0].status,
+          planType,
+          frequency: values.frequency,
+          total: installmentCount,
+          done: existingRec[0].installmentsPaid,
+          nextIsActive,
+        });
         const updated = await db
           .update(recurringExpenses)
-          .set({ ...values, isActive: nextIsActive, status })
+          .set({ ...values, isActive: lifecycle.isActive, status: lifecycle.status })
           .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
           .returning({ id: recurringExpenses.id });
         if (!updated[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
@@ -523,7 +531,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
           .limit(1);
         if (!rec[0]) return { ok: false, message: "To'lov topilmadi" };
-        if (!rec[0].isActive) return { ok: false, message: "Bu to'lov rejasi faol emas" };
+        // Pay is only valid for an ACTIVE plan with an open occurrence (§12):
+        // paused / cancelled / completed plans can never be paid into.
+        if (!rec[0].isActive || rec[0].status === "cancelled" || rec[0].status === "paused" || rec[0].status === "completed") {
+          return { ok: false, message: "Bu to'lov rejasi faol emas" };
+        }
         if (rec[0].planType === "term" && rec[0].installmentCount !== null && rec[0].installmentsPaid >= rec[0].installmentCount) {
           return { ok: false, message: "Bu to'lov muddati allaqachon tugagan" };
         }
@@ -585,35 +597,66 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         }
         return { ok: true, message: `${rec[0].name} to'landi` };
       }
-      if (input.action === "toggle" || input.action === "delete") {
+      if (input.action === "toggle" || input.action === "restore" || input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
         // Semantics:
-        //   toggle → pause / resume (active ↔ paused)
-        //   delete → CANCEL the plan (future occurrences only). Historical
-        //            transactions are deliberately untouched — financial
-        //            history must never be destroyed by a plan cancellation.
-        const set =
-          input.action === "delete"
-            ? { isActive: false as boolean, status: "cancelled" as const }
-            : {
-                // Flip the active flag and keep the status in sync. A plan that
-                // was completed/cancelled is only re-activated by an explicit
-                // resume (isActive was false → becomes active).
-                isActive: sql<boolean>`not ${recurringExpenses.isActive}`,
-                status: sql<string>`case when ${recurringExpenses.isActive} then 'paused' else 'active' end`,
-              };
+        //   toggle  → pause / resume (active ↔ paused). It must NEVER wake up
+        //             a cancelled or completed plan (§13).
+        //   restore → the ONLY way back from cancelled (§11). Atomic: the
+        //             WHERE clause demands status='cancelled'.
+        //   delete  → CANCEL the plan (future occurrences only). Historical
+        //             transactions are deliberately untouched — financial
+        //             history must never be destroyed by a plan cancellation.
+        const current = await db
+          .select({ status: recurringExpenses.status })
+          .from(recurringExpenses)
+          .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
+          .limit(1);
+        if (!current[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+
+        if (input.action === "toggle") {
+          const blocked = togglePlanError(current[0].status);
+          if (blocked) return { ok: false, message: blocked };
+          const updated = await db
+            .update(recurringExpenses)
+            .set({
+              // Flip the active flag and keep the status in sync (active ↔ paused).
+              isActive: sql<boolean>`not ${recurringExpenses.isActive}`,
+              status: sql<string>`case when ${recurringExpenses.isActive} then 'paused' else 'active' end`,
+            })
+            .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
+            .returning({ id: recurringExpenses.id });
+          if (!updated[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+          return { ok: true, id: updated[0].id, message: "Holati o'zgartirildi" };
+        }
+
+        if (input.action === "restore") {
+          if (!canRestorePlan(current[0].status)) {
+            return { ok: false, message: "Faqat bekor qilingan rejani qayta faollashtirish mumkin" };
+          }
+          const restored = await db
+            .update(recurringExpenses)
+            .set({ isActive: true, status: "active" })
+            .where(
+              and(
+                eq(recurringExpenses.id, id),
+                eq(recurringExpenses.userId, userId),
+                eq(recurringExpenses.status, "cancelled"),
+              ),
+            )
+            .returning({ id: recurringExpenses.id });
+          if (!restored[0]) return { ok: false, message: "Reja allaqachon faollashtirilgan" };
+          return { ok: true, id: restored[0].id, message: "Reja qayta faollashtirildi" };
+        }
+
         const updated = await db
           .update(recurringExpenses)
-          .set(set)
+          .set({ isActive: false, status: "cancelled" })
           .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
           .returning({ id: recurringExpenses.id });
         if (!updated[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
-        return {
-          ok: true,
-          id: updated[0].id,
-          message: input.action === "toggle" ? "Holati o'zgartirildi" : "Reja bekor qilindi",
-        };
+        return { ok: true, id: updated[0].id, message: "Reja bekor qilindi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
@@ -683,17 +726,24 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           return { ok: true, id: row.id, message: `${sourceName} kutilayotgan daromadga qo'shildi` };
         }
         const owned = await db
-          .select({ isActive: expectedIncomes.isActive, occurrencesReceived: expectedIncomes.occurrencesReceived })
+          .select({ isActive: expectedIncomes.isActive, status: expectedIncomes.status, occurrencesReceived: expectedIncomes.occurrencesReceived })
           .from(expectedIncomes)
           .where(and(eq(expectedIncomes.id, updateId!), eq(expectedIncomes.userId, userId)))
           .limit(1);
-        const nextIsActive = bool(d.isActive, owned[0]?.isActive ?? true);
-        const termAlreadyFinished =
-          incomePlanType === "term" && occurrenceCount !== null && (owned[0]?.occurrencesReceived ?? 0) >= occurrenceCount;
-        const status = !nextIsActive && termAlreadyFinished ? "completed" : nextIsActive ? "active" : "paused";
+        // Lifecycle-safe edit (§11): a cancelled income plan is never
+        // resurrected by Edit → Save; a fully-received term/one_time stays
+        // completed; otherwise the form's active/paused intent is honoured.
+        const lifecycle = resolveEditLifecycle({
+          previousStatus: owned[0]?.status,
+          planType: incomePlanType,
+          frequency: values.frequency,
+          total: occurrenceCount,
+          done: owned[0]?.occurrencesReceived ?? 0,
+          nextIsActive: bool(d.isActive, owned[0]?.isActive ?? true),
+        });
         const updated = await db
           .update(expectedIncomes)
-          .set({ ...values, isActive: nextIsActive, status })
+          .set({ ...values, isActive: lifecycle.isActive, status: lifecycle.status })
           .where(and(eq(expectedIncomes.id, updateId!), eq(expectedIncomes.userId, userId)))
           .returning({ id: expectedIncomes.id });
         if (!updated[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
@@ -712,7 +762,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const incomeAccountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId));
         if (!incomeAccountId || !(await ownsAccount(userId, incomeAccountId))) return { ok: false, message: "Hisob topilmadi" };
-        if (!row[0].isActive) return { ok: false, message: "Daromad faol emas" };
+        // Receive is only valid for an ACTIVE income plan (§12): paused /
+        // cancelled / completed plans have no open occurrence to fulfil.
+        if (!row[0].isActive || row[0].status === "cancelled" || row[0].status === "paused" || row[0].status === "completed") {
+          return { ok: false, message: "Daromad faol emas" };
+        }
         if (row[0].planType === "term" && row[0].occurrenceCount !== null && row[0].occurrencesReceived >= row[0].occurrenceCount) {
           return { ok: false, message: "Bu daromad rejasi allaqachon yakunlangan" };
         }
@@ -761,25 +815,61 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!txRow) return { ok: false, message: "Bu daromad avval qabul qilingan" };
         return { ok: true, id: txRow.id, message: `${row[0].sourceName} kirim sifatida qayd etildi` };
       }
-      if (input.action === "toggle" || input.action === "delete") {
+      if (input.action === "toggle" || input.action === "restore" || input.action === "delete") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        // toggle → pause/resume; delete → cancel future occurrences only
+        // Same lifecycle semantics as payment plans: toggle = pause/resume
+        // (never wakes up cancelled/completed, §13); restore = the only way
+        // back from cancelled (§11); delete = cancel future occurrences only
         // (historical received-income transactions are preserved).
-        const set =
-          input.action === "delete"
-            ? { isActive: false as boolean, status: "cancelled" as const }
-            : {
-                isActive: sql<boolean>`not ${expectedIncomes.isActive}`,
-                status: sql<string>`case when ${expectedIncomes.isActive} then 'paused' else 'active' end`,
-              };
+        const current = await db
+          .select({ status: expectedIncomes.status })
+          .from(expectedIncomes)
+          .where(and(eq(expectedIncomes.id, id), eq(expectedIncomes.userId, userId)))
+          .limit(1);
+        if (!current[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
+
+        if (input.action === "toggle") {
+          const blocked = togglePlanError(current[0].status);
+          if (blocked) return { ok: false, message: blocked };
+          const updated = await db
+            .update(expectedIncomes)
+            .set({
+              isActive: sql<boolean>`not ${expectedIncomes.isActive}`,
+              status: sql<string>`case when ${expectedIncomes.isActive} then 'paused' else 'active' end`,
+            })
+            .where(and(eq(expectedIncomes.id, id), eq(expectedIncomes.userId, userId)))
+            .returning({ id: expectedIncomes.id });
+          if (!updated[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
+          return { ok: true, id: updated[0].id, message: "Holati o'zgartirildi" };
+        }
+
+        if (input.action === "restore") {
+          if (!canRestorePlan(current[0].status)) {
+            return { ok: false, message: "Faqat bekor qilingan rejani qayta faollashtirish mumkin" };
+          }
+          const restored = await db
+            .update(expectedIncomes)
+            .set({ isActive: true, status: "active" })
+            .where(
+              and(
+                eq(expectedIncomes.id, id),
+                eq(expectedIncomes.userId, userId),
+                eq(expectedIncomes.status, "cancelled"),
+              ),
+            )
+            .returning({ id: expectedIncomes.id });
+          if (!restored[0]) return { ok: false, message: "Reja allaqachon faollashtirilgan" };
+          return { ok: true, id: restored[0].id, message: "Daromad rejasi qayta faollashtirildi" };
+        }
+
         const updated = await db
           .update(expectedIncomes)
-          .set(set)
+          .set({ isActive: false, status: "cancelled" })
           .where(and(eq(expectedIncomes.id, id), eq(expectedIncomes.userId, userId)))
           .returning({ id: expectedIncomes.id });
         if (!updated[0]) return { ok: false, message: "Daromad topilmadi yoki ruxsat yo'q" };
-        return { ok: true, id: updated[0].id, message: input.action === "delete" ? "Daromad rejasi bekor qilindi" : "Yangilandi" };
+        return { ok: true, id: updated[0].id, message: "Daromad rejasi bekor qilindi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }

@@ -21,19 +21,26 @@ import {
   TextInput,
 } from "@/components/ui";
 import { addMonths, compact, formatAmount, humanDate, monthKey, monthStart, shortDate, todayISO } from "@/lib/money";
-import { monthCashflow, monthPlanned } from "@/lib/finance";
-import type { ExpectedIncomeView, RecurringView } from "@/lib/finance";
+import { filterPlansByTab, isActivePlanLoad, monthCashflow, monthPlanned } from "@/lib/finance";
+import type { ExpectedIncomeView, PlanLifecycle, PlanListTab, RecurringView } from "@/lib/finance";
 
 type Tab = "payments" | "income" | "cashflow";
+
+/** Actions a payment-plan row can emit, keyed by lifecycle status. */
+type PlanRowAction = "pay" | "toggle" | "restore" | "edit" | "cancel";
+type IncomeRowAction = "receive" | "toggle" | "restore" | "edit" | "cancel";
 
 export default function PlansPage() {
   const { state, loading, mutate } = useFinance();
   const [tab, setTab] = useState<Tab>("payments");
+  const [planTab, setPlanTab] = useState<PlanListTab>("open");
+  const [incomeTab, setIncomeTab] = useState<PlanListTab>("open");
   const [sheet, setSheet] = useState<"recurring" | "income" | null>(null);
   const [editing, setEditing] = useState<RecurringView | null>(null);
   const [editingIncome, setEditingIncome] = useState<ExpectedIncomeView | null>(null);
   const [cashMonth, setCashMonth] = useState<string>(monthKey(todayISO()));
   const [deletingPlan, setDeletingPlan] = useState<RecurringView | null>(null);
+  const [deletingIncome, setDeletingIncome] = useState<ExpectedIncomeView | null>(null);
 
   function closeSheet() {
     setSheet(null);
@@ -45,9 +52,50 @@ export default function PlansPage() {
   if (!state) return null;
 
   const f = state.forecast;
-  const monthlyMandatory = state.recurring.filter((r) => r.isActive && r.isMandatory).reduce((s, r) => s + r.baseAmount, 0);
-  const monthlyOptional = state.recurring.filter((r) => r.isActive && !r.isMandatory).reduce((s, r) => s + r.baseAmount, 0);
-  const termPlans = state.recurring.filter((r) => r.isActive && r.planType === "term");
+  // Lifecycle buckets (§2/§7): the default "Faol" tab shows ACTIVE plans plus
+  // PAUSED ones (clearly separated); cancelled/completed live in their own
+  // tabs and NEVER appear in the main payment list.
+  const activePlans = state.recurring.filter((r) => r.status === "active");
+  const pausedPlans = state.recurring.filter((r) => r.status === "paused");
+  const tabbedPlans = planTab === "open" ? null : filterPlansByTab(state.recurring, planTab);
+
+  const activeIncomePlans = state.expectedIncomes.filter((i) => i.status === "active");
+  const pausedIncomePlans = state.expectedIncomes.filter((i) => i.status === "paused");
+  const tabbedIncomePlans = incomeTab === "open" ? null : filterPlansByTab(state.expectedIncomes, incomeTab);
+
+  // Dashboard statistics (§4/§15/§16): money load counts ONLY plans that
+  // produce future occurrences — cancelled and completed contribute zero,
+  // paused is excluded from the active load (it has its own tab/badge).
+  const loadPlans = state.recurring.filter((r) => isActivePlanLoad(r.status));
+  const monthlyMandatory = loadPlans.filter((r) => r.isMandatory).reduce((s, r) => s + r.baseAmount, 0);
+  const monthlyOptional = loadPlans.filter((r) => !r.isMandatory).reduce((s, r) => s + r.baseAmount, 0);
+  const termPlans = loadPlans.filter((r) => r.planType === "term");
+
+  function handlePlanAction(action: PlanRowAction, plan: RecurringView) {
+    if (action === "edit") {
+      setEditing(plan);
+      setSheet("recurring");
+      return;
+    }
+    if (action === "cancel") {
+      setDeletingPlan(plan);
+      return;
+    }
+    void mutate("recurring", action, { id: plan.id });
+  }
+
+  function handleIncomeAction(action: IncomeRowAction, plan: ExpectedIncomeView) {
+    if (action === "edit") {
+      setEditingIncome(plan);
+      setSheet("income");
+      return;
+    }
+    if (action === "cancel") {
+      setDeletingIncome(plan);
+      return;
+    }
+    void mutate("expectedIncome", action, { id: plan.id });
+  }
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
@@ -71,10 +119,12 @@ export default function PlansPage() {
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Stat label="Majburiy / oy" value={monthlyMandatory} />
               <Stat label="Ixtiyoriy / oy" value={monthlyOptional} />
-              <Stat label="Rejalar soni" value={state.recurring.filter((r) => r.isActive).length} plain />
-              {/* Annualized total counts ONLY indefinite recurring plans — term
-                  plans must not be multiplied by 12. */}
-              <Stat label="Yillik jami" value={state.recurring.filter((r) => r.isActive && r.planType === "recurring").reduce((s, r) => s + r.yearlyTotal, 0)} />
+              {/* §4: cancelled/completed plans are never counted here. */}
+              <Stat label="Rejalar soni" value={activePlans.length + pausedPlans.length} plain />
+              {/* Annualized total counts ONLY indefinite recurring plans that
+                  produce future occurrences — term plans must not be
+                  multiplied by 12 and cancelled plans contribute zero. */}
+              <Stat label="Yillik jami" value={loadPlans.filter((r) => r.planType === "recurring").reduce((s, r) => s + r.yearlyTotal, 0)} />
             </div>
             {termPlans.length ? (
               <div className="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-4 sm:grid-cols-2">
@@ -84,10 +134,21 @@ export default function PlansPage() {
             ) : null}
           </Card>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-2">
+            <Segmented
+              value={planTab}
+              onChange={setPlanTab}
+              options={[
+                { value: "open", label: "Faol" },
+                { value: "paused", label: "Pauza" },
+                { value: "completed", label: "Yakunlangan" },
+                { value: "cancelled", label: "Bekor qilingan" },
+              ]}
+            />
             <Button
               type="button"
               size="sm"
+              className="shrink-0"
               onClick={() => {
                 setEditing(null);
                 setSheet("recurring");
@@ -97,104 +158,55 @@ export default function PlansPage() {
             </Button>
           </div>
 
-          {state.recurring.length ? (
+          {planTab === "open" ? (
+            activePlans.length || pausedPlans.length ? (
+              <Card padded={false} className="overflow-hidden">
+                <div className="divide-y divide-line px-4 sm:px-5">
+                  {activePlans.map((r) => (
+                    <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} />
+                  ))}
+                  {pausedPlans.length ? (
+                    <>
+                      <p className="pt-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">
+                        Pauzadagi rejalar
+                      </p>
+                      {pausedPlans.map((r) => (
+                        <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} />
+                      ))}
+                    </>
+                  ) : null}
+                </div>
+              </Card>
+            ) : (
+              <EmptyState
+                icon="📌"
+                title="Doimiy to‘lovlar yo‘q"
+                description="Ijara, kommunal, kredit kabi takrorlanuvchi to‘lovlarni bir marta kiriting — tizim sanani o‘zi hisoblaydi."
+                action={
+                  <Button type="button" onClick={() => setSheet("recurring")}>
+                    ➕ Doimiy to‘lov qo‘shish
+                  </Button>
+                }
+              />
+            )
+          ) : tabbedPlans && tabbedPlans.length ? (
             <Card padded={false} className="overflow-hidden">
               <div className="divide-y divide-line px-4 sm:px-5">
-                {state.recurring.map((r) => (
-                  <div key={r.id} className="py-4">
-                    <div className="flex items-start gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-[11px] font-semibold">
-                        {r.daysLeft < 0 ? "!" : `${r.daysLeft}k`}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14.5px] font-medium">
-                          {r.name} {r.paidThisMonth ? <span className="text-positive-text">✓</span> : null}
-                        </p>
-                        <p className="mt-0.5 text-[11.5px] leading-snug text-muted">
-                          {r.categoryName ?? "kategoriya yo‘q"} ·{" "}
-                          {r.planType === "one_time"
-                            ? "bir martalik"
-                            : `har ${r.frequency === "monthly" ? "oy" : r.frequency === "weekly" ? "hafta" : "yil"} ${r.dueDay}-sana`}{" "}
-                          · {humanDate(r.nextDueDate)}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          <Badge tone={planStatusTone(r.status)}>{planStatusLabel(r.status)}</Badge>
-                          <Badge tone={r.isMandatory ? "negative" : "neutral"}>{r.isMandatory ? "majburiy" : "ixtiyoriy"}</Badge>
-                          <Badge tone={r.certainty === "estimated" ? "warning" : "accent"}>
-                            {r.certainty === "estimated" ? "taxminiy" : "aniq"}
-                          </Badge>
-                          {r.planType === "term" ? (
-                            <Badge tone={r.termCompleted ? "positive" : "neutral"}>
-                              {r.installmentsPaid}/{r.installmentCount ?? 0} to‘lov
-                            </Badge>
-                          ) : null}
-                          {r.planType === "one_time" ? <Badge tone="neutral">bir martalik</Badge> : null}
-                        </div>
-                        {r.planType === "term" && r.planTotal !== null ? (
-                          <p className="mt-1.5 text-[11.5px] text-muted">
-                            Reja jami: {compact(r.planTotal)} so‘m
-                            {r.remainingTotal !== null && !r.termCompleted
-                              ? ` · Qolgan: ${compact(r.remainingTotal)} so‘m (${r.remainingInstallments} ta to‘lov)`
-                              : ""}
-                          </p>
-                        ) : r.planType === "recurring" ? (
-                          <p className="mt-1.5 text-[11.5px] text-muted">Yillik jami: {compact(r.yearlyTotal)} so‘m</p>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        {r.certainty === "estimated" && r.minAmount && r.maxAmount ? (
-                          <span className="num text-[14px] font-medium">
-                            {compact(r.minAmount)}–{compact(r.maxAmount)}
-                          </span>
-                        ) : (
-                          <Money value={r.baseAmount} size="md" />
-                        )}
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => mutate("recurring", "pay", { id: r.id })}
-                            disabled={!r.isActive || r.termCompleted}
-                            className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-positive hover:text-positive-text active:bg-surface-3 disabled:pointer-events-none disabled:opacity-50 touch-manipulation"
-                          >
-                            To‘landi
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing(r);
-                              setSheet("recurring");
-                            }}
-                            className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
-                          >
-                            Tahrir
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeletingPlan(r)}
-                            disabled={r.status === "cancelled"}
-                            className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-negative hover:text-negative-text active:bg-surface-3 disabled:pointer-events-none disabled:opacity-50 touch-manipulation"
-                            aria-label="Rejani bekor qilish"
-                          >
-                            Rejani bekor qilish
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                {tabbedPlans.map((r) => (
+                  <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} />
                 ))}
               </div>
             </Card>
           ) : (
-            <EmptyState
-              icon="📌"
-              title="Doimiy to‘lovlar yo‘q"
-              description="Ijara, kommunal, kredit kabi takrorlanuvchi to‘lovlarni bir marta kiriting — tizim sanani o‘zi hisoblaydi."
-              action={
-                <Button type="button" onClick={() => setSheet("recurring")}>
-                  ➕ Doimiy to‘lov qo‘shish
-                </Button>
-              }
-            />
+            <Card>
+              <p className="text-[13px] leading-relaxed text-muted">
+                {planTab === "paused"
+                  ? "Pauzadagi rejalar yo‘q. Faol rejani tahrirlash oynasida yoki «Pauza» tugmasi bilan vaqtincha to‘xtatishingiz mumkin."
+                  : planTab === "completed"
+                    ? "Hozircha yakunlangan rejalar yo‘q. Muddatli reja barcha bo‘lib to‘lashlari tugagach shu yerga tushadi."
+                    : "Bekor qilingan rejalar yo‘q. Rejani bekor qilish faqat kelajakdagi to‘lovlarni to‘xtatadi — tarixdagi to‘lovlar saqlanadi."}
+              </p>
+            </Card>
           )}
         </div>
       ) : null}
@@ -215,10 +227,21 @@ export default function PlansPage() {
             </p>
           </Card>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-2">
+            <Segmented
+              value={incomeTab}
+              onChange={setIncomeTab}
+              options={[
+                { value: "open", label: "Faol" },
+                { value: "paused", label: "Pauza" },
+                { value: "completed", label: "Yakunlangan" },
+                { value: "cancelled", label: "Bekor qilingan" },
+              ]}
+            />
             <Button
               type="button"
               size="sm"
+              className="shrink-0"
               onClick={() => {
                 setEditingIncome(null);
                 setSheet("income");
@@ -228,92 +251,61 @@ export default function PlansPage() {
             </Button>
           </div>
 
-          {state.expectedIncomes.length ? (
+          {incomeTab === "open" ? (
+            activeIncomePlans.length || pausedIncomePlans.length ? (
+              <Card padded={false} className="overflow-hidden">
+                <div className="divide-y divide-line px-4 sm:px-5">
+                  {activeIncomePlans.map((i) => (
+                    <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} />
+                  ))}
+                  {pausedIncomePlans.length ? (
+                    <>
+                      <p className="pt-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">
+                        Pauzadagi rejalar
+                      </p>
+                      {pausedIncomePlans.map((i) => (
+                        <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} />
+                      ))}
+                    </>
+                  ) : null}
+                </div>
+              </Card>
+            ) : (
+              <EmptyState
+                icon="💰"
+                title="Kutilayotgan daromad yo‘q"
+                description="Keladigan daromadlarni kiritib prognoz aniqligini oshiring."
+                action={
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setEditingIncome(null);
+                      setSheet("income");
+                    }}
+                  >
+                    ➕ Daromad reja
+                  </Button>
+                }
+              />
+            )
+          ) : tabbedIncomePlans && tabbedIncomePlans.length ? (
             <Card padded={false} className="overflow-hidden">
               <div className="divide-y divide-line px-4 sm:px-5">
-                {state.expectedIncomes.map((i) => (
-                  <div key={i.id} className="py-4">
-                    <div className="flex items-start gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-positive-soft text-[11px] font-semibold text-positive-text">
-                        {i.daysLeft < 0 ? "!" : `${i.daysLeft}k`}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14.5px] font-medium">{i.sourceName}</p>
-                        <p className="mt-0.5 text-[11.5px] text-muted">
-                          {humanDate(i.expectedDate)} · {frequencyLabel(i.frequency)}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          <Badge tone={i.certainty === "estimated" ? "warning" : "accent"}>
-                            {i.certainty === "estimated" ? "taxminiy" : "aniq"}
-                          </Badge>
-                          {i.received ? <Badge tone="positive">qayd etilgan</Badge> : <Badge tone="neutral">kutilmoqda</Badge>}
-                          {i.planType === "term" ? (
-                            <Badge tone={i.termCompleted ? "positive" : "neutral"}>
-                              {i.occurrencesReceived}/{i.occurrenceCount ?? 0}
-                            </Badge>
-                          ) : null}
-                          {i.planType === "one_time" ? <Badge tone="neutral">bir martalik</Badge> : null}
-                          {i.termCompleted ? <Badge tone="positive">yakunlangan</Badge> : !i.isActive ? <Badge tone="neutral">pauza</Badge> : null}
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        {i.certainty === "estimated" && i.minAmount && i.maxAmount ? (
-                          <span className="num text-[14px] font-medium">
-                            {compact(i.minAmount)}–{compact(i.maxAmount)}
-                          </span>
-                        ) : (
-                          <Money value={i.baseAmount} size="md" tone="positive" />
-                        )}
-                      </div>
-                    </div>
-                    <div className="ml-[52px] mt-3 flex flex-wrap justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => mutate("expectedIncome", "receive", { id: i.id })}
-                        disabled={!i.isActive}
-                        className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-positive hover:text-positive-text active:bg-surface-3 disabled:pointer-events-none disabled:opacity-50 touch-manipulation"
-                      >
-                        Qabul
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingIncome(i);
-                          setSheet("income");
-                        }}
-                        className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
-                      >
-                        Tahrir
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => mutate("expectedIncome", "toggle", { id: i.id })}
-                        className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
-                      >
-                        {i.isActive ? "Pauza" : "Yoqish"}
-                      </button>
-                    </div>
-                  </div>
+                {tabbedIncomePlans.map((i) => (
+                  <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} />
                 ))}
               </div>
             </Card>
           ) : (
-            <EmptyState
-              icon="💰"
-              title="Kutilayotgan daromad yo‘q"
-              description="Keladigan daromadlarni kiritib prognoz aniqligini oshiring."
-              action={
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setEditingIncome(null);
-                    setSheet("income");
-                  }}
-                >
-                  ➕ Daromad reja
-                </Button>
-              }
-            />
+            <Card>
+              <p className="text-[13px] leading-relaxed text-muted">
+                {incomeTab === "paused"
+                  ? "Pauzadagi daromad rejalar yo‘q."
+                  : incomeTab === "completed"
+                    ? "Yakunlangan daromad rejalar yo‘q."
+                    : "Bekor qilingan daromad rejalar yo‘q. Bekor qilish faqat kelajakdagi qabullarni to‘xtatadi — tarix saqlanadi."}
+              </p>
+            </Card>
           )}
         </div>
       ) : null}
@@ -332,7 +324,221 @@ export default function PlansPage() {
 
       <RecurringSheet open={sheet === "recurring"} onClose={closeSheet} editing={editing} />
       <IncomeSheet open={sheet === "income"} onClose={closeSheet} editing={editingIncome} />
-      <PlanDeleteConfirm plan={deletingPlan} onClose={() => setDeletingPlan(null)} />
+      <CancelPlanConfirm
+        target={
+          deletingPlan
+            ? { entity: "recurring" as const, id: deletingPlan.id, name: deletingPlan.name }
+            : deletingIncome
+              ? { entity: "expectedIncome" as const, id: deletingIncome.id, name: deletingIncome.sourceName }
+              : null
+        }
+        onClose={() => {
+          setDeletingPlan(null);
+          setDeletingIncome(null);
+        }}
+      />
+    </div>
+  );
+}
+
+const ROW_BTN =
+  "min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors active:bg-surface-3 disabled:pointer-events-none disabled:opacity-50 touch-manipulation";
+const ROW_BTN_POSITIVE = `${ROW_BTN} hover:border-positive hover:text-positive-text`;
+const ROW_BTN_NEUTRAL = `${ROW_BTN} hover:border-line-strong`;
+const ROW_BTN_DANGER = `${ROW_BTN} hover:border-negative hover:text-negative-text`;
+
+/** One payment plan. Which actions render depends ONLY on lifecycle status
+ *  (§12/§13): pay → active only; pause/resume → active/paused; cancelled gets
+ *  the explicit "Qayta faollashtirish"; completed is view/edit-only. */
+function PaymentPlanRow({ plan: r, onAction }: { plan: RecurringView; onAction: (action: PlanRowAction, plan: RecurringView) => void }) {
+  const status = r.status as PlanLifecycle;
+  const dayBadge =
+    status === "completed" ? "✓" : status === "cancelled" ? "✕" : r.daysLeft < 0 ? "!" : `${r.daysLeft}k`;
+  return (
+    <div className="py-4">
+      <div className="flex items-start gap-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-[11px] font-semibold">{dayBadge}</div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14.5px] font-medium">
+            {r.name} {status === "active" && r.paidThisMonth ? <span className="text-positive-text">✓</span> : null}
+          </p>
+          <p className="mt-0.5 text-[11.5px] leading-snug text-muted">
+            {r.categoryName ?? "kategoriya yo‘q"} ·{" "}
+            {r.planType === "one_time"
+              ? "bir martalik"
+              : `har ${r.frequency === "monthly" ? "oy" : r.frequency === "weekly" ? "hafta" : "yil"} ${r.dueDay}-sana`}{" "}
+            · {humanDate(r.nextDueDate)}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge tone={planStatusTone(status)}>{planStatusLabel(status)}</Badge>
+            <Badge tone={r.isMandatory ? "negative" : "neutral"}>{r.isMandatory ? "majburiy" : "ixtiyoriy"}</Badge>
+            <Badge tone={r.certainty === "estimated" ? "warning" : "accent"}>
+              {r.certainty === "estimated" ? "taxminiy" : "aniq"}
+            </Badge>
+            {r.planType === "term" ? (
+              <Badge tone={r.termCompleted ? "positive" : "neutral"}>
+                {r.installmentsPaid}/{r.installmentCount ?? 0} to‘lov
+              </Badge>
+            ) : null}
+            {r.planType === "one_time" ? <Badge tone="neutral">bir martalik</Badge> : null}
+          </div>
+          {r.planType === "term" && r.planTotal !== null ? (
+            <p className="mt-1.5 text-[11.5px] text-muted">
+              Reja jami: {compact(r.planTotal)} so‘m
+              {r.remainingTotal !== null && !r.termCompleted && status !== "cancelled"
+                ? ` · Qolgan: ${compact(r.remainingTotal)} so‘m (${r.remainingInstallments} ta to‘lov)`
+                : ""}
+            </p>
+          ) : r.planType === "recurring" ? (
+            <p className="mt-1.5 text-[11.5px] text-muted">Yillik jami: {compact(r.yearlyTotal)} so‘m</p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {r.certainty === "estimated" && r.minAmount && r.maxAmount ? (
+            <span className="num text-[14px] font-medium">
+              {compact(r.minAmount)}–{compact(r.maxAmount)}
+            </span>
+          ) : (
+            <Money value={r.baseAmount} size="md" />
+          )}
+          <div className="flex max-w-[170px] flex-wrap justify-end gap-1.5">
+            {status === "active" ? (
+              <>
+                <button type="button" onClick={() => onAction("pay", r)} className={ROW_BTN_POSITIVE}>
+                  To‘landi
+                </button>
+                <button type="button" onClick={() => onAction("toggle", r)} className={ROW_BTN_NEUTRAL}>
+                  Pauza
+                </button>
+                <button type="button" onClick={() => onAction("edit", r)} className={ROW_BTN_NEUTRAL}>
+                  Tahrir
+                </button>
+                <button type="button" onClick={() => onAction("cancel", r)} className={ROW_BTN_DANGER} aria-label="Rejani bekor qilish">
+                  Bekor qilish
+                </button>
+              </>
+            ) : status === "paused" ? (
+              <>
+                <button type="button" onClick={() => onAction("toggle", r)} className={ROW_BTN_POSITIVE}>
+                  Yoqish
+                </button>
+                <button type="button" onClick={() => onAction("edit", r)} className={ROW_BTN_NEUTRAL}>
+                  Tahrir
+                </button>
+                <button type="button" onClick={() => onAction("cancel", r)} className={ROW_BTN_DANGER} aria-label="Rejani bekor qilish">
+                  Bekor qilish
+                </button>
+              </>
+            ) : status === "cancelled" ? (
+              <>
+                <button type="button" onClick={() => onAction("restore", r)} className={ROW_BTN_POSITIVE}>
+                  Qayta faollashtirish
+                </button>
+                <button type="button" onClick={() => onAction("edit", r)} className={ROW_BTN_NEUTRAL}>
+                  Tahrir
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => onAction("edit", r)} className={ROW_BTN_NEUTRAL}>
+                Tahrir
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** One expected-income plan — same lifecycle action mapping as payments. */
+function IncomePlanRow({ plan: i, onAction }: { plan: ExpectedIncomeView; onAction: (action: IncomeRowAction, plan: ExpectedIncomeView) => void }) {
+  const status = i.status as PlanLifecycle;
+  const dayBadge =
+    status === "completed" ? "✓" : status === "cancelled" ? "✕" : i.daysLeft < 0 ? "!" : `${i.daysLeft}k`;
+  return (
+    <div className="py-4">
+      <div className="flex items-start gap-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-positive-soft text-[11px] font-semibold text-positive-text">
+          {dayBadge}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14.5px] font-medium">{i.sourceName}</p>
+          <p className="mt-0.5 text-[11.5px] text-muted">
+            {humanDate(i.expectedDate)} · {frequencyLabel(i.frequency)}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge tone={planStatusTone(status)}>{planStatusLabel(status)}</Badge>
+            <Badge tone={i.certainty === "estimated" ? "warning" : "accent"}>
+              {i.certainty === "estimated" ? "taxminiy" : "aniq"}
+            </Badge>
+            {status === "active" ? (
+              i.received ? (
+                <Badge tone="positive">qayd etilgan</Badge>
+              ) : (
+                <Badge tone="neutral">kutilmoqda</Badge>
+              )
+            ) : null}
+            {i.planType === "term" ? (
+              <Badge tone={i.termCompleted ? "positive" : "neutral"}>
+                {i.occurrencesReceived}/{i.occurrenceCount ?? 0}
+              </Badge>
+            ) : null}
+            {i.planType === "one_time" ? <Badge tone="neutral">bir martalik</Badge> : null}
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          {i.certainty === "estimated" && i.minAmount && i.maxAmount ? (
+            <span className="num text-[14px] font-medium">
+              {compact(i.minAmount)}–{compact(i.maxAmount)}
+            </span>
+          ) : (
+            <Money value={i.baseAmount} size="md" tone="positive" />
+          )}
+        </div>
+      </div>
+      <div className="ml-[52px] mt-3 flex flex-wrap justify-end gap-1.5">
+        {status === "active" ? (
+          <>
+            <button type="button" onClick={() => onAction("receive", i)} className={`${ROW_BTN_POSITIVE} min-h-9 px-3`}>
+              Qabul
+            </button>
+            <button type="button" onClick={() => onAction("toggle", i)} className={`${ROW_BTN_NEUTRAL} min-h-9 px-3`}>
+              Pauza
+            </button>
+            <button type="button" onClick={() => onAction("edit", i)} className={`${ROW_BTN_NEUTRAL} min-h-9 px-3`}>
+              Tahrir
+            </button>
+            <button type="button" onClick={() => onAction("cancel", i)} className={`${ROW_BTN_DANGER} min-h-9 px-3`} aria-label="Rejani bekor qilish">
+              Bekor qilish
+            </button>
+          </>
+        ) : status === "paused" ? (
+          <>
+            <button type="button" onClick={() => onAction("toggle", i)} className={`${ROW_BTN_POSITIVE} min-h-9 px-3`}>
+              Yoqish
+            </button>
+            <button type="button" onClick={() => onAction("edit", i)} className={`${ROW_BTN_NEUTRAL} min-h-9 px-3`}>
+              Tahrir
+            </button>
+            <button type="button" onClick={() => onAction("cancel", i)} className={`${ROW_BTN_DANGER} min-h-9 px-3`} aria-label="Rejani bekor qilish">
+              Bekor qilish
+            </button>
+          </>
+        ) : status === "cancelled" ? (
+          <>
+            <button type="button" onClick={() => onAction("restore", i)} className={`${ROW_BTN_POSITIVE} min-h-9 px-3`}>
+              Qayta faollashtirish
+            </button>
+            <button type="button" onClick={() => onAction("edit", i)} className={`${ROW_BTN_NEUTRAL} min-h-9 px-3`}>
+              Tahrir
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={() => onAction("edit", i)} className={`${ROW_BTN_NEUTRAL} min-h-9 px-3`}>
+            Tahrir
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -484,24 +690,31 @@ function CashflowTab({
   );
 }
 
-function PlanDeleteConfirm({ plan, onClose }: { plan: RecurringView | null; onClose: () => void }) {
+type CancelTarget = { entity: "recurring" | "expectedIncome"; id: number; name: string };
+
+/** Plan cancellation confirmation (§8/§27): cancels FUTURE occurrences only.
+ *  Real historical transactions always survive; the planned future is simply
+ *  removed from balance forecasts — never phrased as "O‘chirish". */
+function CancelPlanConfirm({ target, onClose }: { target: CancelTarget | null; onClose: () => void }) {
   const { mutate } = useFinance();
   const [saving, setSaving] = useState(false);
 
   async function confirm() {
-    if (!plan || saving) return;
+    if (!target || saving) return;
     setSaving(true);
     try {
-      await mutate("recurring", "delete", { id: plan.id });
+      await mutate(target.entity, "delete", { id: target.id });
     } finally {
       setSaving(false);
       onClose();
     }
   }
 
+  const isIncome = target?.entity === "expectedIncome";
+
   return (
     <Sheet
-      open={Boolean(plan)}
+      open={Boolean(target)}
       onClose={onClose}
       title="Rejani bekor qilish"
       footer={
@@ -516,11 +729,13 @@ function PlanDeleteConfirm({ plan, onClose }: { plan: RecurringView | null; onCl
       }
     >
       <p className="text-[14px] leading-relaxed">
-        <span className="font-semibold">{plan?.name}</span> rejasi bekor qilinadi.
+        <span className="font-semibold">{target?.name}</span> rejasini bekor qilasizmi?
       </p>
-      <p className="text-[13px] leading-relaxed text-muted">
-        Bu faqat kelajakdagi to‘lovlarni bekor qiladi. Tarixdagi amalga oshirilgan to‘lovlar saqlanadi.
-      </p>
+      <div className="space-y-2.5 text-[13px] leading-relaxed text-muted">
+        <p>Bu rejaning kelajakdagi {isIncome ? "daromad qabullari" : "to‘lovlari"} bekor qilinadi.</p>
+        <p>Tarixda qayd etilgan haqiqiy {isIncome ? "daromadlar" : "to‘lovlar"} saqlanadi.</p>
+        <p>Kelajakdagi {isIncome ? "qabullar" : "to‘lovlar"} balans va prognozdan chiqariladi.</p>
+      </div>
     </Sheet>
   );
 }
@@ -690,12 +905,25 @@ function RecurringSheet({
             <option value="0">Ixtiyoriy</option>
           </Select>
         </Field>
-        <Field label="Faollik">
-          <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
-            <option value="1">Faol</option>
-            <option value="0">Pauza</option>
-          </Select>
-        </Field>
+        {/* §11: cancelled / completed plans are never reactivated by a normal
+            Edit → Save — the server enforces it, and the form explains it
+            instead of offering a misleading Faol/Pauza switch. */}
+        {editing && (editing.status === "cancelled" || editing.status === "completed") ? (
+          <Field label="Faollik">
+            <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12px] leading-relaxed text-muted">
+              {editing.status === "cancelled"
+                ? "Bu reja bekor qilingan. Tahrirlash uni faollashtirmaydi — qaytarish uchun «Qayta faollashtirish» tugmasidan foydalaning."
+                : "Bu reja yakunlangan. Tahrirlash uni qayta ochmaydi; muddatli rejada bo‘lib to‘lashlar sonini oshirganda qolgan to‘lovlar davom etadi."}
+            </p>
+          </Field>
+        ) : (
+          <Field label="Faollik">
+            <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
+              <option value="1">Faol</option>
+              <option value="0">Pauza</option>
+            </Select>
+          </Field>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Kategoriya">
@@ -905,12 +1133,22 @@ function IncomeSheet({
           </Select>
         </Field>
       </div>
-      <Field label="Faollik">
-        <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
-          <option value="1">Faol</option>
-          <option value="0">Pauza</option>
-        </Select>
-      </Field>
+      {editing && (editing.status === "cancelled" || editing.status === "completed") ? (
+        <Field label="Faollik">
+          <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12px] leading-relaxed text-muted">
+            {editing.status === "cancelled"
+              ? "Bu reja bekor qilingan. Tahrirlash uni faollashtirmaydi — qaytarish uchun «Qayta faollashtirish» tugmasidan foydalaning."
+              : "Bu reja yakunlangan. Tahrirlash uni qayta ochmaydi."}
+          </p>
+        </Field>
+      ) : (
+        <Field label="Faollik">
+          <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
+            <option value="1">Faol</option>
+            <option value="0">Pauza</option>
+          </Select>
+        </Field>
+      )}
       <Field label="Izoh">
         <TextArea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ixtiyoriy" />
       </Field>

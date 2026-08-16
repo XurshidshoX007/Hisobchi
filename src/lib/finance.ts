@@ -52,6 +52,42 @@ export type CategoryView = {
 
 export type PlanLifecycle = "active" | "paused" | "cancelled" | "completed";
 
+/**
+ * Plans → To'lovlar list lifecycle filter (§2/§7/§20).
+ *   open      — the default view: ACTIVE + PAUSED (paused clearly badged)
+ *   paused    — only paused
+ *   completed — only completed terms / finished one-time plans
+ *   cancelled — only user-cancelled (hidden from the default list)
+ */
+export type PlanListTab = "open" | "paused" | "completed" | "cancelled";
+
+export function planInTab(status: PlanLifecycle, tab: PlanListTab): boolean {
+  switch (tab) {
+    case "open":
+      return status === "active" || status === "paused";
+    case "paused":
+      return status === "paused";
+    case "completed":
+      return status === "completed";
+    case "cancelled":
+      return status === "cancelled";
+  }
+}
+
+export function filterPlansByTab<T extends { status: PlanLifecycle }>(plans: T[], tab: PlanListTab): T[] {
+  return plans.filter((p) => planInTab(p.status, tab));
+}
+
+/**
+ * Money-load statistics (Majburiy/oy, Yillik jami, Muddatli jami/qolgan,
+ * forecast load) count ONLY plans that produce future occurrences (§4/§16):
+ * cancelled and completed contribute 0; paused is excluded from the active
+ * load and shown separately via its own badge/tab instead.
+ */
+export function isActivePlanLoad(status: PlanLifecycle): boolean {
+  return status === "active";
+}
+
 export type RecurringView = {
   id: number;
   name: string;

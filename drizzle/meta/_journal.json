@@ -36,6 +36,13 @@
       "when": 1786783452319,
       "tag": "0004_plan_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786783452320,
+      "tag": "0005_lifecycle_status_check",
+      "breakpoints": true
     }
   ]
 }
