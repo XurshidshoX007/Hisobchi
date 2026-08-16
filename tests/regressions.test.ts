@@ -481,3 +481,28 @@ test("segmented controls render complete labels without ellipsis", () => {
   assert.match(html, /aria-selected="true"/);
   assert.match(html, /--segmented-active/);
 });
+
+test("received expected income is reconciled and never forecast twice", () => {
+  const tx = { date: "2026-08-20", type: "income", amount: 3_000_000, expectedIncomeId: 7, recurringId: null };
+  const planned = buildPlanned([], [{ id: 7, sourceName: "Avans", amount: 3_000_000, minAmount: null, maxAmount: null, expectedDate: "2026-08-20", frequency: "once", certainty: "exact", isActive: true, linkedTransactionId: 7 }], "2026-08-16", 31, [tx]);
+  assert.equal(planned.filter((x) => x.source === "expected").length, 0);
+});
+
+test("paid recurring occurrence is removed from the planned timeline", () => {
+  const planned = buildPlanned([{ id: 8, name: "Kredit", amount: 1_880_000, minAmount: null, maxAmount: null, nextDueDate: "2026-08-17", frequency: "once", isMandatory: true, certainty: "exact", isActive: true, categoryId: null }], [], "2026-08-16", 31, [{ date: "2026-08-17", type: "expense", amount: 1_880_000, recurringId: 8 }]);
+  assert.equal(planned.length, 0);
+});
+
+test("conservative forecast includes estimated minimum income", () => {
+  const forecast = buildForecast({
+    currentBalance: 100_000,
+    recurring: [{ id: 1, name: "Kredit", amount: 1_880_000, minAmount: null, maxAmount: null, nextDueDate: "2026-08-17", frequency: "once", isMandatory: true, certainty: "exact", isActive: true, categoryId: null }],
+    incomes: [{ id: 2, sourceName: "Avans", amount: null, minAmount: 1_000_000, maxAmount: 2_000_000, expectedDate: "2026-08-20", frequency: "once", certainty: "estimated", isActive: true, linkedTransactionId: null }],
+    minReserve: 0,
+    estimatedConfidence: 100,
+    today: "2026-08-16",
+    horizonDays: 31,
+  });
+  assert.equal(forecast.scenarios.min.balance, -780_000);
+  assert.equal(forecast.riskDates[0]?.date, "2026-08-17");
+});

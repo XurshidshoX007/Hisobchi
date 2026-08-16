@@ -319,6 +319,7 @@ export const goals = pgTable(
     monthlyContribution: money("monthly_contribution").notNull().default(0),
     accountId: integer("account_id").references(() => accounts.id, { onDelete: "set null" }),
     status: text("status").notNull().default("active"), // active | reached
+    isDeleted: boolean("is_deleted").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

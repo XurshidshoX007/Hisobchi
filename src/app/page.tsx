@@ -10,7 +10,7 @@ import { compact, formatAmount, humanDate, monthLabel, shortDate, todayISO } fro
 import type { MonthlyView } from "@/lib/finance";
 
 export default function DashboardPage() {
-  const { state, loading, error } = useFinance();
+  const { state, loading, error, refresh } = useFinance();
   const [addOpen, setAddOpen] = useState(false);
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
 
@@ -61,7 +61,7 @@ export default function DashboardPage() {
     );
   }
   if (error && !state) {
-    return <EmptyState icon="⚠️" title="Ma&#39;lumot yuklanmadi" description={error} />;
+    return <EmptyState icon="⚠️" title="Ma&#39;lumot yuklanmadi" description={error} action={<Button type="button" onClick={() => void refresh()}>Qayta urinish</Button>} />;
   }
   if (!state) return null;
 
@@ -87,6 +87,7 @@ export default function DashboardPage() {
           <Button
             variant="secondary"
             size="sm"
+            aria-label="Oldingi oy"
             disabled={!canPrev}
             onClick={() => {
               if (canPrev) setSelectedMonthKey(monthlyViews[monthIndex - 1].monthKey);
@@ -104,6 +105,7 @@ export default function DashboardPage() {
           <Button
             variant="secondary"
             size="sm"
+            aria-label="Keyingi oy"
             disabled={!canNext}
             onClick={() => {
               if (canNext) setSelectedMonthKey(monthlyViews[monthIndex + 1].monthKey);
@@ -117,6 +119,7 @@ export default function DashboardPage() {
             <button
               key={m.monthKey}
               onClick={() => setSelectedMonthKey(m.monthKey)}
+              aria-pressed={m.monthKey === activeMonthKey}
               className={`h-1.5 rounded-full transition-all ${m.monthKey === activeMonthKey ? "w-6 bg-accent" : "w-1.5 bg-line-strong"}`}
               aria-label={m.label}
             />
@@ -131,7 +134,7 @@ export default function DashboardPage() {
         />
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">REAL BALANS</p>
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{activeMonthly?.isCurrent ? "REAL BALANS · HOZIR" : "REAL BALANS · GLOBAL HOZIR"}</p>
             <div className="mt-2 flex flex-wrap items-baseline gap-2">
               <Money value={f.currentBalance} size="hero" />
               <span className="text-sm font-medium text-muted">{state.user.currency}</span>
@@ -170,12 +173,20 @@ export default function DashboardPage() {
             </div>
             {activeMonthly?.deficitDays ? <p className="mt-1 text-[11px] text-negative-text">⚠️ {activeMonthly.deficitDays} kun taqchillik xavfi</p> : null}
           </div>
+          <div className="rounded-2xl bg-positive-soft px-4 py-3.5">
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-positive-text">Real daromad</p>
+            <div className="mt-1.5"><Money value={activeMonthly?.realIncome ?? a.monthTotals.income} size="lg" tone="positive" signed /></div>
+            <p className="mt-1 text-[11px] text-muted">REAL · {activeMonthly?.isCurrent ? "shu oy" : activeMonthly?.label}</p>
+          </div>
+          <div className="rounded-2xl bg-negative-soft px-4 py-3.5">
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-negative-text">Real xarajat</p>
+            <div className="mt-1.5"><Money value={-(activeMonthly?.realExpense ?? a.monthTotals.expense)} size="lg" tone="negative" signed /></div>
+            <p className="mt-1 text-[11px] text-muted">REAL · actual transactionlar</p>
+          </div>
           <div className="rounded-2xl bg-surface-3 px-4 py-3.5">
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Rejalashtirilgan xarajatlar</p>
-            <div className="mt-1.5">
-              <Money value={-optionalThisMonth} size="lg" signed />
-            </div>
-            <p className="mt-1 text-[11px] text-muted">{optionalThisMonth > 0 ? "ixtiyoriy" : "reja yo&#39;q"}</p>
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Ixtiyoriy reja</p>
+            <div className="mt-1.5"><Money value={-optionalThisMonth} size="lg" signed /></div>
+            <p className="mt-1 text-[11px] text-muted">PLAN · {optionalThisMonth > 0 ? "ixtiyoriy" : "reja yo'q"}</p>
           </div>
           <div className="rounded-2xl bg-accent-soft px-4 py-3.5">
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-accent-text">Prognoz balans</p>
@@ -213,7 +224,7 @@ export default function DashboardPage() {
             <div className="min-w-0 flex-1">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">✨ Safe-to-Spend</p>
               <div className="mt-2">
-                <Money value={Math.max(0, f.safeToSpend)} size="xl" tone={f.safeToSpend < 0 ? "negative" : "default"} />
+                <Money value={f.safeToSpend} size="xl" tone={f.safeToSpend < 0 ? "negative" : "default"} signed />
               </div>
               <p className="mt-2 text-[12px] leading-relaxed text-muted">
                 {f.safeToSpend < 0
@@ -235,7 +246,8 @@ export default function DashboardPage() {
               { k: "Joriy balans", v: f.safeToSpendParts.balance, tone: "default" as const },
               { k: "Aniq kutilayotgan daromad", v: f.safeToSpendParts.confirmedIncome, tone: "positive" as const },
               { k: "Taxminiy daromad (ishonch)", v: f.safeToSpendParts.estimatedIncomeWeighted, tone: "muted" as const },
-              { k: "Majburiy + ixtiyoriy to&#39;lovlar", v: -f.safeToSpendParts.mandatoryUpcoming, tone: "negative" as const },
+              { k: "Majburiy to&#39;lovlar", v: -f.safeToSpendParts.mandatoryUpcoming, tone: "negative" as const },
+              { k: "Rejalashtirilgan ixtiyoriy", v: -f.safeToSpendParts.optionalPlanned, tone: "muted" as const },
               { k: "Minimal zaxira", v: -f.safeToSpendParts.minReserve, tone: "muted" as const },
             ].map((r) => (
               <div key={r.k} className="flex items-center justify-between gap-2">
@@ -565,7 +577,11 @@ export default function DashboardPage() {
                     {humanDate(t.date)} · {t.accountName} {t.note ? `· ${t.note}` : ""}
                   </p>
                 </div>
-                <Money value={t.type === "expense" ? -t.amount : t.amount} size="sm" signed tone={t.type === "income" ? "positive" : t.type === "expense" ? "default" : "muted"} />
+                {t.type === "transfer" ? (
+                  <span className="text-sm font-semibold text-muted">—</span>
+                ) : (
+                  <Money value={t.type === "expense" ? -t.amount : t.amount} size="sm" signed tone={t.type === "income" ? "positive" : "default"} />
+                )}
               </div>
             ))}
           </div>

@@ -735,18 +735,24 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!personName || !amount || amount <= 0) return { ok: false, message: "Ma'lumot to'liq emas" };
         const remainingAmount = num(d.remainingAmount, amount) ?? amount;
         if (remainingAmount < 0 || remainingAmount > amount) return { ok: false, message: "Qolgan qarz summasi noto'g'ri" };
-        const [row] = await db
-          .insert(debts)
-          .values({
-            userId,
-            direction: allowed(str(d.direction, "i_owe"), ["i_owe", "owed_to_me"], "i_owe"),
-            personName,
-            amount,
-            remainingAmount,
-            dueDate: isoDate(d.dueDate),
-            note: str(d.note),
-          })
-          .returning();
+        const direction = allowed(str(d.direction, "i_owe"), ["i_owe", "owed_to_me"], "i_owe");
+        const accountId = int(d.accountId) ?? (await defaultAccount(userId));
+        if (!accountId || !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+        const [row] = await db.transaction(async (tx) => {
+          const [created] = await tx.insert(debts).values({
+            userId, direction, personName, amount, remainingAmount,
+            dueDate: isoDate(d.dueDate), note: str(d.note),
+          }).returning();
+          // Creating a debt is itself a cash event: borrowed money arrives;
+          // money lent out leaves the selected account.
+          await tx.insert(transactions).values({
+            userId, accountId, type: direction === "i_owe" ? "income" : "expense",
+            amount, date: isoDate(d.date, today) ?? today,
+            note: direction === "i_owe" ? `Qarz olindi: ${personName}` : `Qarz berildi: ${personName}`,
+            source: "miniapp", currency: user.currency,
+          });
+          return [created];
+        });
         return { ok: true, id: row.id, message: `${personName} qarzdorlikka qo'shildi` };
       }
       if (input.action === "update") {
@@ -800,12 +806,15 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const paymentAccountId = int(d.accountId) ?? (await defaultAccount(userId));
         if (!paymentAccountId || !(await ownsAccount(userId, paymentAccountId))) return { ok: false, message: "Hisob topilmadi" };
         const remaining = Math.max(0, row[0].remainingAmount - amount);
-        await db.transaction(async (tx) => {
+        const paid = await db.transaction(async (tx) => {
+          // The balance check belongs in the UPDATE predicate, not only in
+          // the preflight read: concurrent payments must not overspend debt.
+          const updated = await tx.update(debts)
+            .set({ remainingAmount: sql`${debts.remainingAmount} - ${amount}`, status: sql`case when ${debts.remainingAmount} - ${amount} = 0 then 'settled' else 'active' end` })
+            .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false), sql`${debts.remainingAmount} >= ${amount}`))
+            .returning({ id: debts.id });
+          if (!updated[0]) return false;
           await tx.insert(debtPayments).values({ userId, debtId: id, amount, date: isoDate(d.date, today) ?? today, note: str(d.note) });
-          await tx
-            .update(debts)
-            .set({ remainingAmount: remaining, status: remaining === 0 ? "settled" : "active" })
-            .where(eq(debts.id, id));
           // A repayment is also a real money movement.
           if (row[0].direction === "i_owe") {
             await tx.insert(transactions).values({
@@ -830,7 +839,9 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               currency: user.currency,
             });
           }
+          return true;
         });
+        if (!paid) return { ok: false, message: "To'lov allaqachon qayd etilgan yoki qolgan qarz yetarli emas" };
         return { ok: true, message: remaining === 0 ? "Qarz yopildi" : "To'lov qayd etildi" };
       }
       if (input.action === "delete") {
@@ -879,28 +890,32 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const id = int(d.id);
         const amount = num(d.amount);
         if (!id || !amount || amount <= 0) return { ok: false, message: "Ma'lumot noto'g'ri" };
-        const row = await db.select().from(goals).where(and(eq(goals.id, id), eq(goals.userId, userId))).limit(1);
+        const row = await db.select().from(goals).where(and(eq(goals.id, id), eq(goals.userId, userId), eq(goals.isDeleted, false))).limit(1);
         if (!row[0]) return { ok: false, message: "Maqsad topilmadi" };
         if (amount > row[0].targetAmount - row[0].savedAmount) {
           return { ok: false, message: "Jamg'arma qolgan maqsad summasidan katta bo'lmasligi kerak" };
         }
-        await db.transaction(async (tx) => {
+        const accountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId));
+        if (!accountId || !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+        const contributed = await db.transaction(async (tx) => {
+          // Both the cap and increment are evaluated by the database, so two
+          // concurrent clicks cannot push a goal beyond its target.
+          const updated = await tx.update(goals)
+            .set({ savedAmount: sql`${goals.savedAmount} + ${amount}`, status: sql`case when ${goals.savedAmount} + ${amount} >= ${goals.targetAmount} then 'reached' else 'active' end` })
+            .where(and(eq(goals.id, id), eq(goals.userId, userId), sql`${goals.savedAmount} + ${amount} <= ${goals.targetAmount}`))
+            .returning({ id: goals.id });
+          if (!updated[0]) return false;
           await tx.insert(goalContributions).values({ userId, goalId: id, amount, date: isoDate(d.date, today) ?? today });
-          // Atomic increment prevents lost updates from concurrent contributions.
-          await tx
-            .update(goals)
-            .set({
-              savedAmount: sql`${goals.savedAmount} + ${amount}`,
-              status: sql`case when ${goals.savedAmount} + ${amount} >= ${goals.targetAmount} then 'reached' else 'active' end`,
-            })
-            .where(and(eq(goals.id, id), eq(goals.userId, userId)));
+          await tx.insert(transactions).values({ userId, accountId, type: "expense", amount, date: isoDate(d.date, today) ?? today, note: `Maqsad: ${row[0].name}`, source: "miniapp", currency: user.currency });
+          return true;
         });
+        if (!contributed) return { ok: false, message: "Maqsad uchun qolgan summa yetarli emas" };
         return { ok: true, message: `${row[0].name} ga jamg'arma qo'shildi` };
       }
       if (input.action === "update") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
-        const existing = await db.select().from(goals).where(and(eq(goals.id, id), eq(goals.userId, userId))).limit(1);
+        const existing = await db.select().from(goals).where(and(eq(goals.id, id), eq(goals.userId, userId), eq(goals.isDeleted, false))).limit(1);
         if (!existing[0]) return { ok: false, message: "Maqsad topilmadi yoki ruxsat yo'q" };
         const name = str(d.name, existing[0].name);
         const icon = str(d.icon, existing[0].icon);
@@ -915,7 +930,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const updated = await db
           .update(goals)
           .set({ name, icon: icon ?? "🎯", targetAmount, monthlyContribution, targetDate })
-          .where(and(eq(goals.id, id), eq(goals.userId, userId)))
+          .where(and(eq(goals.id, id), eq(goals.userId, userId), eq(goals.isDeleted, false)))
           .returning({ id: goals.id });
         if (!updated[0]) return { ok: false, message: "Maqsad topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: updated[0].id, message: "Maqsad yangilandi" };
@@ -924,11 +939,12 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
         const deleted = await db
-          .delete(goals)
-          .where(and(eq(goals.id, id), eq(goals.userId, userId)))
+          .update(goals)
+          .set({ isDeleted: true })
+          .where(and(eq(goals.id, id), eq(goals.userId, userId), eq(goals.isDeleted, false)))
           .returning({ id: goals.id });
         if (!deleted[0]) return { ok: false, message: "Maqsad topilmadi yoki ruxsat yo'q" };
-        return { ok: true, id: deleted[0].id, message: "Maqsad o'chirildi" };
+        return { ok: true, id: deleted[0].id, message: "Maqsad arxivlandi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
