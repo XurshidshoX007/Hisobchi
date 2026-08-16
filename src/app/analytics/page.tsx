@@ -120,7 +120,7 @@ export default function AnalyticsPage() {
       {/* 4 · Ratios */}
       <Section title="Oylik nisbatlar">
         <div className="rounded-2xl border border-line bg-surface p-4">
-          <div className="grid gap-4 sm:grid-cols-3 sm:gap-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-5">
             <Ratio label="Jamg‘arish ulushi" value={a.monthTotals.savingsRate} caption="daromaddan qolgan" />
             <Ratio label="Majburiy xarajat" value={a.monthTotals.mandatoryRatio} caption="daromadga nisbatan" invert />
             <Ratio label="Ixtiyoriy xarajat" value={a.monthTotals.discretionaryRatio} caption="xarajatlar tarkibi" invert />
@@ -135,7 +135,7 @@ export default function AnalyticsPage() {
       </Section>
 
       {/* 5 · Category analysis */}
-      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-2">
         <Card>
           <p className="mb-4 text-[15px] font-semibold">Xarajatlar tahlili</p>
           {a.categories.length ? (

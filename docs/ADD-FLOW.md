@@ -64,6 +64,10 @@ error banner & retry), `AmountField`, `CategoryPicker`, `DateField`,
 `AccountPicker`, `NoteField`, `AdvancedSection`, `PreviewCard`, `Chip`,
 `ChoiceList`, `haptic()`.
 
+Layout primitives (§6) — `FormSection` (= `FormGroup`), `FormRow`,
+`FormActions`, `ChoiceGrid`, `CompactSegmented`. Pages compose these instead of
+inventing per-screen grids, chip rows or type switches.
+
 ## 4. Field budget per form
 
 | Form | Default (visible) fields | Collapsed |
@@ -88,10 +92,67 @@ While any sheet is open, `document.body[data-sheet-open]` makes the FAB recede
 (opacity 0, `pointer-events: none`), so it can never sit above a modal and a
 second tap cannot open a sheet behind the overlay.
 
-## 6. Guards
+## 6. Responsive contract — the add flow is horizontally LOCKED
+
+A form sheet has **exactly one scroll axis: vertical**. Horizontal scrolling is
+allowed in exactly one place in the product: a genuinely long *navigation* tab
+strip (`Segmented` in `ui.tsx`, e.g. Plans tabs, History filter). Never for
+form fields, choice controls, button groups or summary cards.
+
+### Why the sheet used to drift sideways
+
+1. **A page-level intrinsic width leaked into the sheet.** A single-column
+   `grid gap-*` (no `grid-cols-1`) creates an implicit **`auto`** track, whose
+   minimum is the *min-content* of its widest item. A `truncate` (i.e.
+   `white-space: nowrap`) account/goal/category name contributes its FULL text
+   width there, so the grid grew to ~407px inside a 320px screen. On mobile the
+   layout viewport then expands to the content (`innerWidth` 422 vs
+   `clientWidth` 320) — and because `position: fixed` is sized by that layout
+   viewport, **the sheet itself became 422px wide and panned with the page.**
+   Fix: single-column grids declare `grid-cols-1` → `repeat(1, minmax(0,1fr))`.
+2. **The sheet body was an implicit x-scroller.** `overflow-y: auto` with
+   `overflow-x: visible` computes to `overflow-x: auto` in CSS. Any child wider
+   than the body (a nowrap chip row, a two-chip `flex` row) produced a real
+   horizontal scrollbar inside the sheet. Fix: `.sheet-body` states
+   `overflow-x: hidden` explicitly — *after* the offending children were fixed.
+3. **Form controls scrolled sideways on purpose.** Category / account / date
+   chip rows, the amount ladder and the scrollable `Segmented` were nested
+   horizontal scrollers inside a vertical scroller. Fix: they wrap now
+   (`ChipRow`, `FormActions`) or became a grid (`ChoiceGrid`).
+
+### Geometry
+
+| Layer | Rule |
+| --- | --- |
+| `.sheet-layer` | `position: fixed`, `max-width: 100vw`, `overflow: hidden` |
+| `.sheet-dialog` | `width: 100%`, `max-width: 100vw`, `min-width: 0`, `max-h-[92dvh]`, desktop `max-w-[520px]` |
+| `.sheet-body` | the ONLY scroll container: `overflow-y: auto`, `overflow-x: hidden`, `overscroll-behavior: contain` |
+| `.sheet-form > *` | `min-width: 0`, `max-width: 100%` — one shared rule instead of per-component patches |
+| `.sheet-footer` | `width: 100%`, wrapping button row, safe-area padding |
+
+### Choice controls
+
+| Primitive | Use |
+| --- | --- |
+| `ChoiceGrid` | radio-style choices: `repeat(n, minmax(0,1fr))`, `gap: 8px`, 44–48px targets, wrapping labels, `role="radiogroup"` + roving focus |
+| `CompactSegmented` | the small type switch at the top of a form (Chiqim · Kirim · Transfer) |
+| `Chip` | pill selection inside a **wrapping** row; long values shrink and ellipsize |
+| `FormRow` | two controls side by side ≥380px, stacked below, both tracks `minmax(0,1fr)` |
+| `FormActions` | wrapping button group — three buttons are never squeezed into one line |
+| `Segmented` (`ui.tsx`) | **navigation only** — keeps its horizontal scroll for long tab sets |
+
+Selection never changes geometry: both states carry one 1px border and the
+active state adds an **inset ring** (`ring-2 ring-inset`) plus `accent-soft`
+background — no border-width switch, no negative margins, no border overlap.
+
+## 7. Guards
 
 `tests/form-kit.test.ts` covers the pure behaviour (amount formatting,
 ranking, chips, defaults, dirty detection, success copy).
 `tests/add-flow.test.ts` is structural: it fails the build if a screen
 re-introduces its own add button, its own sheet footer, its own amount input or
 its own unsaved-data dialog.
+`tests/add-flow-responsive.test.ts` guards the geometry above: sheet layer /
+dialog / body rules, no horizontal scroller inside a form, grid-based choice
+controls with inset-ring selection, `minmax(0,1fr)` tracks and single-column
+page grids that cannot stretch the mobile layout viewport.

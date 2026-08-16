@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { AdvancedSection, AmountField, Chip, FormSheet } from "@/components/form-kit";
+import { AdvancedSection, AmountField, ChoiceGrid, CompactSegmented, FormRow, FormSheet } from "@/components/form-kit";
 import {
   Badge,
   Card,
@@ -135,7 +135,7 @@ export default function AccountsPage() {
             </div>
           </Card>
 
-          <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
             {state.accounts.map((a) => (
               <Card key={a.id}>
                 <div className="flex items-start justify-between gap-3">
@@ -184,7 +184,7 @@ export default function AccountsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {(["expense", "income"] as const).map((type) => (
               <Card key={type} className="overflow-hidden" padded={false}>
                 <div className="border-b border-line px-4 py-3 sm:px-5">
@@ -345,17 +345,16 @@ function AccountSheet({
         <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Naqd pul / Humo / Click" />
       </Field>
 
-      <div>
-        <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Turi</span>
-        <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 py-0.5">
-          {TYPES.map((t) => (
-            <Chip key={t.value} active={type === t.value} onClick={() => setType(t.value)}>
-              <span aria-hidden="true">{TYPE_ICON[t.value] ?? "•"}</span>
-              {t.label}
-            </Chip>
-          ))}
-        </div>
-      </div>
+      {/* §7/§13: the six account types are a choice GRID — equal cells, own
+          borders, wrapping labels. No horizontal scrolling inside the sheet. */}
+      <ChoiceGrid
+        label="Turi"
+        ariaLabel="Hisob turi"
+        value={type}
+        onChange={setType}
+        columns={2}
+        options={TYPES.map((t) => ({ value: t.value, label: t.label, icon: TYPE_ICON[t.value] ?? "•" }))}
+      />
 
       <AmountField
         value={initialBalance}
@@ -434,8 +433,9 @@ function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () 
       dirty={dirty}
       onSubmit={submit}
     >
-      <Segmented
+      <CompactSegmented
         value={type}
+        ariaLabel="Kategoriya turi"
         onChange={setType}
         options={[
           { value: "expense", label: "Chiqim" },
@@ -448,7 +448,7 @@ function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () 
       </Field>
 
       <AdvancedSection>
-        <div className="grid grid-cols-2 gap-3">
+        <FormRow>
           <Field label="Ikona (emoji)">
             <TextInput value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🧸" />
           </Field>
@@ -458,7 +458,7 @@ function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () 
               <option value="1">Majburiy</option>
             </Select>
           </Field>
-        </div>
+        </FormRow>
         <Field label="Ota kategoriya" hint="Misol: Uy → Ijara">
           <Select value={parentId} onChange={(e) => setParentId(e.target.value)}>
             <option value="">Yuqori daraja</option>

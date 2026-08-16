@@ -11,8 +11,10 @@ import { PlanStatusFilter } from "@/components/plan-status-filter";
 import {
   AdvancedSection,
   AmountField,
-  Chip,
+  ChoiceGrid,
+  CompactSegmented,
   DateField,
+  FormRow,
   FormSheet,
   NoteField,
   PreviewCard,
@@ -831,24 +833,26 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
     onClose();
     action();
   }
+  // §9/§24: the same boxed row grammar as every other choice list in a sheet —
+  // own border, 8px gap, wrapping label, 48px touch target.
   const rowClass =
-    "flex min-h-12 w-full items-center gap-3 rounded-xl px-3.5 text-left text-[14px] font-medium transition-colors hover:bg-surface-2 active:bg-surface-3 touch-manipulation";
+    "flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium leading-tight transition-colors hover:border-line-strong hover:bg-surface-3 active:bg-surface-3 touch-manipulation [overflow-wrap:anywhere]";
   return (
     <Sheet open={Boolean(plan)} onClose={onClose} title={plan?.title ?? ""}>
-      <div className="-mx-1.5 space-y-0.5">
+      <div className="min-w-0 space-y-2">
         {plan?.status === "active" || plan?.status === "paused" ? (
           <button type="button" className={rowClass} onClick={() => plan && run(plan.onToggle)}>
-            <span className="w-6 text-center">{plan.status === "active" ? "❚❚" : "▶"}</span>
+            <span className="w-6 shrink-0 text-center" aria-hidden="true">{plan.status === "active" ? "❚❚" : "▶"}</span>
             {plan.status === "active" ? "Pauza qilish" : "Yoqish"}
           </button>
         ) : null}
         <button type="button" className={rowClass} onClick={() => plan && run(plan.onEdit)}>
-          <span className="w-6 text-center">✏️</span>
+          <span className="w-6 shrink-0 text-center" aria-hidden="true">✏️</span>
           Tahrirlash
         </button>
         {plan?.paymentsCount ? (
           <button type="button" className={rowClass} onClick={() => plan && run(plan.onHistory)}>
-            <span className="w-6 text-center">🧾</span>
+            <span className="w-6 shrink-0 text-center" aria-hidden="true">🧾</span>
             Tarixni ko‘rish ({plan.paymentsCount} ta)
           </button>
         ) : null}
@@ -858,7 +862,7 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
             className={`${rowClass} text-negative-text`}
             onClick={() => plan && run(plan.onCancel)}
           >
-            <span className="w-6 text-center">🚫</span>
+            <span className="w-6 shrink-0 text-center" aria-hidden="true">🚫</span>
             Rejani bekor qilish
           </button>
         ) : null}
@@ -1352,46 +1356,45 @@ function RecurringSheet({
       {certainty === "exact" ? (
         <AmountField value={amount} onChange={setAmount} currency="UZS" error={showError("amount")} autoFocus={!editing} />
       ) : (
-        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+        <FormRow>
           <AmountField value={min} onChange={setMin} label="Minimal" quick={false} error={showError("min")} />
           <AmountField value={max} onChange={setMax} label="Maksimal" quick={false} error={showError("max")} />
-        </div>
+        </FormRow>
       )}
-      <div className="flex gap-2">
-        {(["exact", "estimated"] as const).map((value) => (
-          <Chip
-            key={value}
-            active={certainty === value}
-            onClick={() => {
-              setCertainty(value);
-              if (value === "exact") {
-                setMin("");
-                setMax("");
-              } else {
-                setAmount("");
-              }
-            }}
-          >
-            {value === "exact" ? "Aniq summa" : "Taxminiy diapazon"}
-          </Chip>
-        ))}
-      </div>
+      {/* §7/§11: two equal, separated choice cells — no scrolling pill row. */}
+      <ChoiceGrid
+        value={certainty}
+        ariaLabel="Summa aniqligi"
+        onChange={(value) => {
+          setCertainty(value);
+          if (value === "exact") {
+            setMin("");
+            setMax("");
+          } else {
+            setAmount("");
+          }
+        }}
+        options={[
+          { value: "exact", label: "Aniq summa" },
+          { value: "estimated", label: "Taxminiy diapazon" },
+        ]}
+      />
 
       {/* 3 · WHAT KIND OF COMMITMENT */}
-      <Field label="To‘lov turi">
-        <Segmented
-          value={planType}
-          onChange={setPlanType}
-          options={[
-            { value: "one_time", label: "Bir martalik" },
-            { value: "recurring", label: "Doimiy" },
-            { value: "term", label: "Muddatli" },
-          ]}
-        />
-      </Field>
+      <CompactSegmented
+        label="To‘lov turi"
+        value={planType}
+        ariaLabel="To‘lov turi"
+        onChange={setPlanType}
+        options={[
+          { value: "one_time", label: "Bir martalik" },
+          { value: "recurring", label: "Doimiy" },
+          { value: "term", label: "Muddatli" },
+        ]}
+      />
 
       {/* 4 · TYPE-SPECIFIC FIELDS ONLY (§14) */}
-      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+      <FormRow>
         <DateField
           value={nextDueDate}
           onChange={setNextDueDate}
@@ -1408,7 +1411,7 @@ function RecurringSheet({
             </Select>
           </Field>
         ) : null}
-      </div>
+      </FormRow>
 
       {planType === "term" ? (
         <Field
@@ -1454,7 +1457,7 @@ function RecurringSheet({
 
       {/* 6 · OPTIONAL DETAILS */}
       <AdvancedSection>
-        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+        <FormRow>
           <Field label="Turi">
             <Select value={isMandatory ? "1" : "0"} onChange={(e) => setIsMandatory(e.target.value === "1")}>
               <option value="1">Majburiy</option>
@@ -1480,7 +1483,7 @@ function RecurringSheet({
               </Select>
             </Field>
           )}
-        </div>
+        </FormRow>
 
         <Field label="Kategoriya">
           <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
@@ -1667,44 +1670,42 @@ function IncomeSheet({
       {certainty === "exact" ? (
         <AmountField value={amount} onChange={setAmount} currency="UZS" error={showError("amount")} autoFocus={!editing} />
       ) : (
-        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+        <FormRow>
           <AmountField value={min} onChange={setMin} label="Minimal" quick={false} error={showError("min")} />
           <AmountField value={max} onChange={setMax} label="Maksimal" quick={false} error={showError("max")} />
-        </div>
+        </FormRow>
       )}
-      <div className="flex gap-2">
-        {(["exact", "estimated"] as const).map((value) => (
-          <Chip
-            key={value}
-            active={certainty === value}
-            onClick={() => {
-              setCertainty(value);
-              if (value === "exact") {
-                setMin("");
-                setMax("");
-              } else {
-                setAmount("");
-              }
-            }}
-          >
-            {value === "exact" ? "Aniq" : "Taxminiy"}
-          </Chip>
-        ))}
-      </div>
+      <ChoiceGrid
+        value={certainty}
+        ariaLabel="Summa aniqligi"
+        onChange={(value) => {
+          setCertainty(value);
+          if (value === "exact") {
+            setMin("");
+            setMax("");
+          } else {
+            setAmount("");
+          }
+        }}
+        options={[
+          { value: "exact", label: "Aniq" },
+          { value: "estimated", label: "Taxminiy" },
+        ]}
+      />
 
-      <Field label="Daromad turi">
-        <Segmented
-          value={planType}
-          onChange={setPlanType}
-          options={[
-            { value: "one_time", label: "Bir martalik" },
-            { value: "recurring", label: "Doimiy" },
-            { value: "term", label: "Muddatli" },
-          ]}
-        />
-      </Field>
+      <CompactSegmented
+        label="Daromad turi"
+        value={planType}
+        ariaLabel="Daromad turi"
+        onChange={setPlanType}
+        options={[
+          { value: "one_time", label: "Bir martalik" },
+          { value: "recurring", label: "Doimiy" },
+          { value: "term", label: "Muddatli" },
+        ]}
+      />
 
-      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+      <FormRow>
         <DateField value={expectedDate} onChange={setExpectedDate} label="Kutilayotgan sana" chips={false} error={showError("date")} />
         {planType !== "one_time" ? (
           <Field label="Takrorlanish">
@@ -1715,7 +1716,7 @@ function IncomeSheet({
             </Select>
           </Field>
         ) : null}
-      </div>
+      </FormRow>
 
       {planType === "term" ? (
         <Field
@@ -1748,7 +1749,7 @@ function IncomeSheet({
       </PreviewCard>
 
       <AdvancedSection>
-        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+        <FormRow>
           <Field label="Kategoriya">
             <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               <option value="">Tanlanmagan</option>
@@ -1770,7 +1771,7 @@ function IncomeSheet({
               ))}
             </Select>
           </Field>
-        </div>
+        </FormRow>
 
         {lockedLifecycle ? (
           <Field label="Holati">

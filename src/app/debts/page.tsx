@@ -8,7 +8,9 @@ import {
   AccountPicker,
   AmountField,
   Chip,
+  ChoiceGrid,
   DateField,
+  FormActions,
   FormSheet,
   NoteField,
   PreviewCard,
@@ -20,7 +22,6 @@ import {
   Money,
   PageHeader,
   Progress,
-  Segmented,
   Skeleton,
   TextInput,
 } from "@/components/ui";
@@ -264,8 +265,11 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
       dirty={dirty}
       onSubmit={submit}
     >
-      <Segmented
+      {/* §7/§11: a two-cell choice grid — the long Uzbek labels wrap inside
+          their own boxes instead of scrolling the sheet sideways. */}
+      <ChoiceGrid
         value={direction}
+        ariaLabel="Qarz yo‘nalishi"
         onChange={setDirection}
         options={[
           { value: "i_owe", label: "Men qarzdorman" },
@@ -285,7 +289,7 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
 
       {parsed > 0 && personName.trim() ? (
         <PreviewCard>
-          <p className="text-[13px]">
+          <p className="min-w-0 break-words text-[13px]">
             <span className="font-semibold">{personName.trim()}</span> ·{" "}
             <span className="num">{formatAmount(parsed)}</span> so‘m ·{" "}
             <span className={direction === "i_owe" ? "text-negative-text" : "text-positive-text"}>
@@ -361,11 +365,11 @@ function PaySheet({ debt, onClose }: { debt: DebtView | null; onClose: () => voi
         error={touched ? errors.amount ?? null : null}
         autoFocus
       />
-      <div className="flex flex-wrap gap-2">
+      <FormActions>
         <Chip onClick={() => setAmount(formatAmountInput(String(Math.round(record.remainingAmount))))}>
           To‘liq {compact(record.remainingAmount)}
         </Chip>
-      </div>
+      </FormActions>
       <AccountPicker value={accountId} onChange={setAccountId} />
       <p className="text-[11.5px] leading-snug text-muted">
         {record.direction === "i_owe" ? "Xarajat sifatida qayd etiladi" : "Kirim sifatida qayd etiladi"} va
