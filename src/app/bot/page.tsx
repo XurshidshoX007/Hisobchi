@@ -198,7 +198,7 @@ export default function BotPage() {
 
       <Card>
         <p className="mb-2 text-[15px] font-semibold">Bot imkoniyatlari</p>
-        <div className="grid gap-2 text-[12.5px] leading-snug text-muted sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 text-[12.5px] leading-snug text-muted sm:grid-cols-2">
           <p>➕ Kirim, ➖ chiqim, ↔️ transfer — tezkor</p>
           <p>📊 Hisobot: bugun va oy ko‘rsatkichlari</p>
           <p>📅 Reja va prognoz: safe-to-spend, xavf</p>

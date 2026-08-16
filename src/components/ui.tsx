@@ -183,8 +183,14 @@ export function Field({
   );
 }
 
+/**
+ * §8/§16: every control fills its parent and may never contribute a larger
+ * intrinsic width than the sheet it lives in (`min-w-0` + `max-w-full`).
+ * The 16px base font size is deliberate: it is what stops iOS/Telegram from
+ * zooming the page — and a zoom is a horizontal viewport shift (§21).
+ */
 const inputClass =
-  "w-full rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-base leading-tight outline-none transition-colors placeholder:text-muted focus:border-accent focus:bg-surface sm:py-2.5 sm:text-[15px]";
+  "w-full min-w-0 max-w-full rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-base leading-tight outline-none transition-colors placeholder:text-muted focus:border-accent focus:bg-surface sm:py-2.5 sm:text-[15px]";
 
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputClass} ${props.className ?? ""}`} />;
@@ -208,7 +214,7 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="no-scrollbar w-full overflow-x-auto overscroll-x-contain rounded-full" data-segmented-scroll>
+    <div className="no-scrollbar w-full max-w-full overflow-x-auto overscroll-x-contain rounded-full" data-segmented-scroll>
       {/*
        * The inner row grows equally while labels fit, then becomes horizontally
        * scrollable when their intrinsic widths no longer fit. Labels are never
@@ -357,7 +363,10 @@ export function Sheet({
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        className="animate-sheet relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88vh] sm:max-w-lg sm:rounded-[20px]"
+        /* Geometry: `.sheet-dialog` (globals.css) locks width/min-width and the
+           100vw cap; `sm:max-w-[520px]` states the desktop column here too so
+           the value is visible where the component is read. */
+        className="sheet-dialog animate-sheet relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88vh] sm:max-w-[520px] sm:rounded-[20px]"
       >
         <div className="shrink-0 px-5 pt-3 sm:hidden">
           <div className="mx-auto h-1.5 w-10 rounded-full bg-line-strong" />
@@ -373,21 +382,24 @@ export function Sheet({
               </p>
             ) : null}
           </div>
+          {/* §12/§37: a 36px glyph with a 48px invisible hit area — a compact
+              header that is still comfortable to tap. */}
           <button
             type="button"
             onClick={onClose}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-muted transition-colors hover:bg-surface-3 hover:text-fg active:scale-[0.96] touch-manipulation"
+            data-hit="expanded"
+            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-surface-3 hover:text-fg active:scale-[0.96] touch-manipulation"
             aria-label="Yopish"
           >
             ✕
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
-          <div className="space-y-4 pb-2">{children}</div>
+        <div className="sheet-body min-h-0 flex-1 px-5 pb-4">
+          <div className="sheet-form space-y-4 pb-2">{children}</div>
         </div>
         {footer ? (
-          <div className="sheet-footer-safe sticky bottom-0 shrink-0 border-t border-line bg-surface px-5 pt-4">
-            <div className="flex gap-2.5">{footer}</div>
+          <div className="sheet-footer-safe sheet-footer sticky bottom-0 shrink-0 border-t border-line bg-surface px-5 pt-4">
+            <div className="flex min-w-0 flex-wrap gap-2.5 [&>*]:min-w-0">{footer}</div>
           </div>
         ) : (
           <div className="sheet-bottom-safe shrink-0" />
