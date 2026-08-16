@@ -12,14 +12,39 @@ export function FilterButton({
   ariaLabel,
   status,
   controlsId,
+  floating = false,
 }: {
   onClick: () => void;
   open: boolean;
   ariaLabel: string;
   status?: string | number;
   controlsId?: string;
+  floating?: boolean;
 }) {
   const active = status !== undefined && status !== "" && status !== 0;
+
+  if (floating) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-controls={open ? controlsId : undefined}
+        className="global-fab grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-fg transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-95 touch-manipulation"
+      >
+        <FunnelIcon size={22} />
+        {active ? (
+          <span
+            className="absolute right-0.5 top-0.5 h-3.5 w-3.5 rounded-full border-2 border-primary bg-warning animate-badge-pop"
+            aria-hidden="true"
+          />
+        ) : null}
+        {active ? <span className="sr-only">{status} ta faol filtr</span> : null}
+      </button>
+    );
+  }
 
   return (
     <button
@@ -96,9 +121,9 @@ export function FilterRadioGroup<T extends string>({
   );
 }
 
-function FunnelIcon() {
+function FunnelIcon({ size = 17 }: { size?: number }) {
   return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
       <path d="M4 5h16l-6.4 7.2v5.3l-3.2 1.5v-6.8L4 5Z" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );

@@ -32,6 +32,10 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const { currentContext } = useFab();
   const [alertsOpen, setAlertsOpen] = useState(false);
   const hasGlobalFab = supportsFab(pathname) && getFabActions({ pathname, ...currentContext }).length > 0;
+  // History owns a contextual filter FAB in the same shared geometry slot. It
+  // replaces (rather than stacks with) the global add action on that route.
+  const hasContextualFab = pathname === "/transactions";
+  const hasFloatingAction = hasGlobalFab || hasContextualFab;
 
   const unread = (state?.alerts.length ?? 0) + (state?.notifications.filter((n) => !n.isRead).length ?? 0);
   // Route-aware header: TRUE only on `/more`. Internal pages (Hisoblar,
@@ -59,7 +63,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
   return (
     <>
-    <div className={`app-shell-layout mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 ${hasGlobalFab ? "has-global-fab" : ""}`}>
+    <div className={`app-shell-layout mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 ${hasFloatingAction ? "has-global-fab" : ""}`}>
       {/* Sidebar — desktop */}
       <aside className="sticky top-6 hidden h-fit w-60 shrink-0 flex-col gap-1 lg:flex">
         <div className="mb-5 flex items-center gap-2.5 px-2">
