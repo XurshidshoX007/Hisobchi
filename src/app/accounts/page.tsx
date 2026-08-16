@@ -50,7 +50,9 @@ export default function AccountsPage() {
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
 
-  const total = state.accounts.filter((a) => a.isActive).reduce((s, a) => s + a.currentBalance, 0);
+  // §35: ONE canonical balance source — the same ledger-based figure the
+  // Dashboard hero shows; never re-summed independently in the UI.
+  const total = state.forecast.currentBalance;
   const max = Math.max(1, ...state.accounts.map((a) => Math.abs(a.currentBalance)));
 
   return (
@@ -73,9 +75,9 @@ export default function AccountsPage() {
           <Card>
             <div className="flex items-end justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy balans</p>
+                <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Joriy balans · taqsimot</p>
                 <div className="mt-1.5 flex flex-wrap items-baseline gap-2">
-                  <Money value={total} size="xl" />
+                  <Money value={total} size="lg" />
                   <span className="text-sm text-muted">{state.user.currency}</span>
                 </div>
               </div>
