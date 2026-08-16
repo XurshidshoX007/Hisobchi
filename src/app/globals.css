@@ -325,7 +325,7 @@ input::placeholder {
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -361,7 +361,7 @@ input::placeholder {
 }
 
 .animate-fade-up {
-  animation: fade-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fade-up 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .animate-pop {
   animation: pop-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -373,16 +373,59 @@ input::placeholder {
   animation: shimmer 1.6s ease-in-out infinite;
 }
 
+/*
+ * Bottom navigation motion (§6–§14, §24).
+ *
+ * The press feedback lives on `.nav-item` so the whole tappable area scales
+ * gently (0.98) without disturbing the FAB, sheet or sibling geometry. The
+ * unread badge pops once on a count change (scale 0.9 → 1, 180ms) — never an
+ * infinite pulse. All durations share the same ease-out curve used across the
+ * nav so background, icon, label and indicator settle together.
+ */
+.nav-item {
+  transition: transform 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item:active {
+  transform: scale(0.98);
+}
+
+@keyframes badge-pop {
+  from {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-badge-pop {
+  animation: badge-pop 180ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-pop,
   .animate-sheet,
-  .animate-shimmer {
+  .animate-shimmer,
+  .animate-badge-pop {
     animation: none !important;
   }
 
   .global-fab,
   .global-fab svg {
     transition-duration: 0.01ms !important;
+  }
+
+  /* Navigation: drop the transform choreography (icon scale, indicator
+     expand, press scale) and collapse transitions so only the semantic
+     color/visibility change remains, instantly. */
+  .nav-item,
+  .nav-item:active,
+  .nav-item * {
+    transition-duration: 0.01ms !important;
+    transform: none !important;
   }
 }
