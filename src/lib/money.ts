@@ -61,21 +61,32 @@ function appTimeZone(): string {
   return DEFAULT_TIMEZONE;
 }
 
+/**
+ * The calendar day of `instant` in a given timezone — the testable core of
+ * `todayISO()`. A Telegram message sent at 00:05 Tashkent time must be booked
+ * on the new Uzbek day even though the server clock (UTC) still reports
+ * yesterday, otherwise the bot's transaction and the balance disagree about
+ * which day (and which month) the money moved.
+ */
+export function todayISOAt(instant: Date, timeZone: string = appTimeZone()): string {
+  try {
+    // en-CA yields YYYY-MM-DD directly.
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(instant);
+  } catch {
+    return toISO(instant);
+  }
+}
+
 /** today (in the project timezone) as YYYY-MM-DD */
 export function todayISO(): string {
   // In the browser the device clock already reflects the user's zone.
   if (typeof window !== "undefined") return toISO(new Date());
-  try {
-    // en-CA yields YYYY-MM-DD directly.
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: appTimeZone(),
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
-  } catch {
-    return toISO(new Date());
-  }
+  return todayISOAt(new Date());
 }
 
 export function toISO(d: Date): string {

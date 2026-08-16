@@ -22,6 +22,8 @@ import {
   buildHealth,
   buildMonthlySeries,
   comparePlansByDue,
+  computeLedgerBalances,
+  ledgerBalanceCheck,
   rangeValue,
   resolvePlanLifecycle,
   type AccountView,
@@ -76,68 +78,38 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const accountNames = new Map(accountRows.map((a) => [a.id, a.name]));
   const catById = new Map(categoryRows.map((c) => [c.id, c]));
 
-  /* ---- balances (full history, SQL aggregated) ----
-   * Date semantics: the current balance reflects financial events up to and
-   * including *today* (transaction.date). A future-dated transaction belongs
-   * to the forecast, not to today's balance. */
-  const lte = (a: typeof transactions.date, b: string) => sql`${a} <= ${b}`;
-  const balanceRows = await db
-    .select({
-      accountId: transactions.accountId,
-      inflow: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`,
-      outflow: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
-      transferOut: sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' then ${transactions.amount} else 0 end), 0)`,
-      transferIn: sql<number>`coalesce(sum(case when ${transactions.type} = 'transfer' and ${transactions.toAccountId} = ${transactions.accountId} then 0 else 0 end), 0)`,
-      txCount: sql<number>`count(*)`,
-    })
-    .from(transactions)
-    .where(and(eq(transactions.userId, user.id), eq(transactions.isDeleted, false), lte(transactions.date, today)))
-    .groupBy(transactions.accountId);
-
-  const transferInRows = await db
-    .select({ toAccountId: transactions.toAccountId, total: sql<number>`coalesce(sum(${transactions.amount}), 0)` })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.userId, user.id),
-        eq(transactions.type, "transfer"),
-        eq(transactions.isDeleted, false),
-        lte(transactions.date, today),
-      ),
-    )
-    .groupBy(transactions.toAccountId);
-
-  const balanceByAccount = new Map<number, { inflow: number; outflow: number; transferOut: number; transferIn: number; txCount: number }>();
-  for (const row of balanceRows) {
-    balanceByAccount.set(Number(row.accountId), {
-      inflow: Number(row.inflow),
-      outflow: Number(row.outflow),
-      transferOut: Number(row.transferOut),
-      transferIn: 0,
-      txCount: Number(row.txCount),
-    });
-  }
-  for (const row of transferInRows) {
-    if (row.toAccountId === null) continue;
-    const cur = balanceByAccount.get(Number(row.toAccountId)) ?? { inflow: 0, outflow: 0, transferOut: 0, transferIn: 0, txCount: 0 };
-    cur.transferIn = Number(row.total);
-    balanceByAccount.set(Number(row.toAccountId), cur);
-  }
+  /* ---- balances ----
+   * ONE authoritative calculation (`computeLedgerBalances`) shared with the
+   * accounts page, the forecast start balance and the bot report. It runs over
+   * the SAME rows the History list renders, so a transaction that is visible in
+   * the history can never be missing from the balance.
+   *
+   * Date semantics: the balance reflects financial events up to and including
+   * *today* (transaction.date); a future-dated transaction belongs to the
+   * forecast, not to today's balance. */
+  const ledgerRows = txRows.map((t) => ({
+    accountId: t.accountId,
+    toAccountId: t.toAccountId,
+    type: t.type,
+    amount: t.amount,
+    date: t.date,
+    isDeleted: t.isDeleted,
+  }));
+  const ledger = computeLedgerBalances(accountRows, ledgerRows, today);
 
   const accountViews: AccountView[] = accountRows.map((a) => {
-    const agg = balanceByAccount.get(a.id) ?? { inflow: 0, outflow: 0, transferOut: 0, transferIn: 0, txCount: 0 };
-    const currentBalance = a.initialBalance + agg.inflow - agg.outflow + agg.transferIn - agg.transferOut;
+    const agg = ledger.get(a.id);
     return {
       id: a.id,
       name: a.name,
       type: a.type,
       currency: a.currency,
       initialBalance: a.initialBalance,
-      currentBalance: round2(currentBalance),
+      currentBalance: agg?.currentBalance ?? round2(a.initialBalance),
       isActive: a.isActive,
-      inflow: round2(agg.inflow),
-      outflow: round2(agg.outflow),
-      txCount: agg.txCount,
+      inflow: agg?.inflow ?? 0,
+      outflow: agg?.outflow ?? 0,
+      txCount: agg?.txCount ?? 0,
     };
   });
 
@@ -640,6 +612,29 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       amount: first.deficit,
     });
   }
+  /* ---- ledger consistency guard (History ↔ REAL BALANCE) ----
+   * The dashboard total intentionally covers ACTIVE accounts only, so money
+   * sitting on an archived account is real but invisible there. That gap used
+   * to be silent — a transaction appeared in History while the balance never
+   * moved. It is now surfaced instead of hidden. */
+  const ledgerCheck = ledgerBalanceCheck(
+    accountRows.map((a) => ({ id: a.id, name: a.name, initialBalance: a.initialBalance, isActive: a.isActive })),
+    ledgerRows,
+    today,
+  );
+  if (ledgerCheck.excludedAccounts.length) {
+    const names = ledgerCheck.excludedAccounts.map((a) => a.name).join(", ");
+    alerts.push({
+      id: "ledger-archived-balance",
+      type: "insight",
+      severity: "warning",
+      title: "Arxivlangan hisobda pul bor",
+      body: `${names} hisobi noaktiv, shuning uchun undagi ${Math.round(ledgerCheck.excludedBalance).toLocaleString("ru-RU")} ${user.currency} umumiy balansga qo'shilmayapti. Hisoblar bo'limida uni faollashtiring yoki mablag'ni boshqa hisobga o'tkazing.`,
+      refDate: null,
+      amount: ledgerCheck.excludedBalance,
+    });
+  }
+
   const severityOrder = { critical: 0, warning: 1, info: 2, success: 3 } as const;
   alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 

@@ -75,6 +75,7 @@ function TransactionsView() {
   if (!state) return null;
 
   const categories = state.flatCategories.filter((c) => c.isActive);
+  const accountById = new Map(state.accounts.map((a) => [a.id, a]));
   const linkedPlan = planFilter ? state.recurring.find((r) => r.id === planFilter) ?? null : null;
   const linkedIncome = incomeFilter ? state.expectedIncomes.find((i) => i.id === incomeFilter) ?? null : null;
   const planScope = linkedPlan?.name ?? linkedIncome?.sourceName ?? null;
@@ -170,6 +171,12 @@ function TransactionsView() {
                           </span>
                           {t.recurringId ? <Badge tone="accent">Reja to‘lovi</Badge> : null}
                           {t.expectedIncomeId ? <Badge tone="positive">Kutilgan daromad</Badge> : null}
+                          {/* A confirmed but future-dated ledger event is real, yet it is
+                              deliberately NOT part of today's balance — say so explicitly. */}
+                          {t.date > state.forecast.today ? <Badge tone="warning">Kelajak sana</Badge> : null}
+                          {accountById.get(t.accountId)?.isActive === false ? (
+                            <Badge tone="neutral">arxiv hisob</Badge>
+                          ) : null}
                         </p>
                         <p className="truncate text-[11.5px] text-muted">
                           {t.note ? `${t.note} · ` : ""}

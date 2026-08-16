@@ -38,6 +38,160 @@ export type AccountView = {
   txCount: number;
 };
 
+/* ============================ Authoritative ledger balance ============================ */
+
+export type LedgerTx = {
+  accountId: number;
+  toAccountId?: number | null;
+  type: string;
+  amount: number;
+  date: string;
+  isDeleted?: boolean;
+};
+
+export type AccountLedger = {
+  accountId: number;
+  initialBalance: number;
+  inflow: number;
+  outflow: number;
+  transferIn: number;
+  transferOut: number;
+  txCount: number;
+  currentBalance: number;
+};
+
+/**
+ * THE single real-balance calculation of the product.
+ *
+ * Every surface (dashboard REAL balance, accounts page, forecast start, bot
+ * report) must derive its number from this function so a balance can never
+ * disagree with the transaction history that produced it.
+ *
+ * Eligibility rules — deliberately identical to the History list, except for
+ * the two documented exceptions:
+ *   - soft-deleted transactions never count (they are not money);
+ *   - a transaction dated in the FUTURE is a confirmed ledger event that has
+ *     not happened yet, so it belongs to the forecast, not to today's balance.
+ *
+ * balance = initialBalance + income − expense + transferIn − transferOut
+ */
+export function computeLedgerBalances(
+  accounts: Array<{ id: number; initialBalance: number }>,
+  transactions: LedgerTx[],
+  today: string,
+): Map<number, AccountLedger> {
+  const ledger = new Map<number, AccountLedger>();
+  for (const account of accounts) {
+    ledger.set(account.id, {
+      accountId: account.id,
+      initialBalance: account.initialBalance,
+      inflow: 0,
+      outflow: 0,
+      transferIn: 0,
+      transferOut: 0,
+      txCount: 0,
+      currentBalance: account.initialBalance,
+    });
+  }
+
+  for (const tx of transactions) {
+    if (tx.isDeleted) continue;
+    // A future-dated real transaction is forecast, never today's balance.
+    if (tx.date > today) continue;
+    const source = ledger.get(tx.accountId);
+    if (source) {
+      source.txCount += 1;
+      if (tx.type === "income") source.inflow += tx.amount;
+      else if (tx.type === "expense") source.outflow += tx.amount;
+      else if (tx.type === "transfer") source.transferOut += tx.amount;
+    }
+    if (tx.type === "transfer" && tx.toAccountId !== null && tx.toAccountId !== undefined) {
+      const target = ledger.get(tx.toAccountId);
+      if (target) target.transferIn += tx.amount;
+    }
+  }
+
+  for (const entry of ledger.values()) {
+    entry.currentBalance = round2(
+      entry.initialBalance + entry.inflow - entry.outflow + entry.transferIn - entry.transferOut,
+    );
+    entry.inflow = round2(entry.inflow);
+    entry.outflow = round2(entry.outflow);
+    entry.transferIn = round2(entry.transferIn);
+    entry.transferOut = round2(entry.transferOut);
+  }
+  return ledger;
+}
+
+export type LedgerCheck = {
+  today: string;
+  initialBalance: number;
+  realIncome: number;
+  realExpense: number;
+  transferIn: number;
+  transferOut: number;
+  /** Ledger total over EVERY account of the user. */
+  computedBalance: number;
+  /** What the dashboard shows: active (non-archived) accounts only. */
+  activeBalance: number;
+  /** Money parked on archived accounts — invisible in the dashboard total. */
+  excludedBalance: number;
+  excludedAccounts: Array<{ id: number; name: string; balance: number }>;
+  /** Confirmed but future-dated ledger events (excluded from today's balance). */
+  futureIncome: number;
+  futureExpense: number;
+  /** True when active + excluded reconciles to the full ledger. */
+  balanced: boolean;
+};
+
+/**
+ * Diagnostic cross-check between HISTORY and REAL BALANCE (internal use only —
+ * never exposed through a public endpoint).
+ *
+ * It makes the two documented exceptions explicit (future-dated and archived
+ * accounts) so a mismatch can be attributed instead of guessed: if
+ * `excludedBalance` is non-zero, real money is sitting on an archived account
+ * and the dashboard total is legitimately smaller than the raw history sum.
+ */
+export function ledgerBalanceCheck(
+  accounts: Array<{ id: number; name: string; initialBalance: number; isActive: boolean }>,
+  transactions: LedgerTx[],
+  today: string,
+): LedgerCheck {
+  const ledger = computeLedgerBalances(accounts, transactions, today);
+  const live = transactions.filter((t) => !t.isDeleted);
+  const past = live.filter((t) => t.date <= today);
+  const future = live.filter((t) => t.date > today);
+  const sum = (rows: LedgerTx[], type: string) => round2(rows.filter((t) => t.type === type).reduce((s, t) => s + t.amount, 0));
+
+  let activeBalance = 0;
+  let computedBalance = 0;
+  const excludedAccounts: LedgerCheck["excludedAccounts"] = [];
+  for (const account of accounts) {
+    const balance = ledger.get(account.id)?.currentBalance ?? account.initialBalance;
+    computedBalance += balance;
+    if (account.isActive) activeBalance += balance;
+    else if (Math.round(balance) !== 0) excludedAccounts.push({ id: account.id, name: account.name, balance: round2(balance) });
+  }
+  const excludedBalance = round2(computedBalance - activeBalance);
+
+  return {
+    today,
+    initialBalance: round2(accounts.reduce((s, a) => s + a.initialBalance, 0)),
+    realIncome: sum(past, "income"),
+    realExpense: sum(past, "expense"),
+    transferIn: round2(past.filter((t) => t.type === "transfer" && t.toAccountId).reduce((s, t) => s + t.amount, 0)),
+    transferOut: sum(past, "transfer"),
+    computedBalance: round2(computedBalance),
+    activeBalance: round2(activeBalance),
+    excludedBalance,
+    excludedAccounts,
+    futureIncome: sum(future, "income"),
+    futureExpense: sum(future, "expense"),
+    balanced: Math.abs(round2(activeBalance + excludedBalance) - round2(computedBalance)) < 0.01,
+  };
+}
+
 export type CategoryView = {
   id: number;
   parentId: number | null;

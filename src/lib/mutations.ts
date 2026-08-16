@@ -105,26 +105,22 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const amount = num(d.amount);
         if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
         const accountId = int(d.accountId) ?? (await defaultAccount(userId));
-        if (!accountId) return { ok: false, message: "Hisob topilmadi" };
+        if (!accountId) {
+          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+        }
 
-        // Ownership: the source account must belong to the current user.
-        const ownsAccount = await db
-          .select({ id: accounts.id })
-          .from(accounts)
-          .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
-          .limit(1);
-        if (!ownsAccount[0]) return { ok: false, message: "Hisob topilmadi" };
+        // Ownership + archived guard: the source account must belong to the
+        // current user AND be active, otherwise the money would land outside
+        // the balance the dashboard shows.
+        const sourceAccount = await accountForPosting(userId, accountId, "source");
+        if (!sourceAccount.ok) return { ok: false, message: sourceAccount.message };
 
         if (type === "transfer") {
           const toId = int(d.toAccountId);
           if (!toId) return { ok: false, message: "Qaysi hisobga o'tkazish kerakligini tanlang" };
           if (toId === accountId) return { ok: false, message: "Bir xil hisobga transfer qilib bo'lmaydi" };
-          const ownsTo = await db
-            .select({ id: accounts.id })
-            .from(accounts)
-            .where(and(eq(accounts.id, toId), eq(accounts.userId, userId)))
-            .limit(1);
-          if (!ownsTo[0]) return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
+          const targetAccount = await accountForPosting(userId, toId, "target");
+          if (!targetAccount.ok) return { ok: false, message: targetAccount.message };
         }
 
         // Ownership: category (if any) must belong to the user.
@@ -233,12 +229,27 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (existing[0].expectedIncomeId && type !== "income") return { ok: false, message: "Qabul qilingan daromad kirim bo'lib qolishi kerak" };
         const amount = d.amount !== undefined ? num(d.amount) : existing[0].amount;
         if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
+        // An existing transaction may legitimately live on an account that was
+        // archived later, so keeping the same account stays allowed; only
+        // MOVING money onto an archived account is rejected.
         const accountId = d.accountId !== undefined ? int(d.accountId) : existing[0].accountId;
-        if (!accountId || !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (!accountId) return { ok: false, message: "Hisob topilmadi" };
+        if (accountId !== existing[0].accountId) {
+          const nextAccount = await accountForPosting(userId, accountId, "source");
+          if (!nextAccount.ok) return { ok: false, message: nextAccount.message };
+        } else if (!(await ownsAnyAccount(userId, accountId))) {
+          return { ok: false, message: "Hisob topilmadi" };
+        }
 
         const toAccountId = type === "transfer" ? (d.toAccountId !== undefined ? int(d.toAccountId) : existing[0].toAccountId) : null;
         if (type === "transfer") {
-          if (!toAccountId || !(await ownsAccount(userId, toAccountId))) return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
+          if (!toAccountId) return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
+          if (toAccountId !== existing[0].toAccountId) {
+            const nextTarget = await accountForPosting(userId, toAccountId, "target");
+            if (!nextTarget.ok) return { ok: false, message: nextTarget.message };
+          } else if (!(await ownsAnyAccount(userId, toAccountId))) {
+            return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
+          }
           if (toAccountId === accountId) return { ok: false, message: "Bir xil hisobga transfer qilib bo'lmaydi" };
         }
 
@@ -557,7 +568,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const amount = num(d.amount) ?? rec[0].amount ?? rec[0].maxAmount ?? 0;
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const paymentAccountId = int(d.accountId) ?? rec[0].accountId ?? (await defaultAccount(userId));
-        if (!paymentAccountId || !(await ownsAccount(userId, paymentAccountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (!paymentAccountId) {
+          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+        }
+        {
+          const guard = await accountForPosting(userId, paymentAccountId, "source");
+          if (!guard.ok) return { ok: false, message: guard.message };
+        }
         // The occurrence being paid is the plan's current scheduled date. The
         // actual transaction date may be earlier (early payment); the planned
         // date is stored separately so deletion can restore the exact schedule.
@@ -806,7 +823,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const amount = num(d.amount) ?? row[0].amount ?? row[0].maxAmount ?? 0;
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const incomeAccountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId));
-        if (!incomeAccountId || !(await ownsAccount(userId, incomeAccountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (!incomeAccountId) {
+          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+        }
+        {
+          const guard = await accountForPosting(userId, incomeAccountId, "source");
+          if (!guard.ok) return { ok: false, message: guard.message };
+        }
         // Receive is only valid for an ACTIVE income plan (§12): paused /
         // cancelled / completed plans have no open occurrence to fulfil.
         if (!row[0].isActive || row[0].status === "cancelled" || row[0].status === "paused" || row[0].status === "completed") {
@@ -1049,7 +1072,13 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!row[0]) return { ok: false, message: "Qarz topilmadi" };
         if (amount > row[0].remainingAmount) return { ok: false, message: "To'lov qolgan qarzdan katta bo'lmasligi kerak" };
         const paymentAccountId = int(d.accountId) ?? (await defaultAccount(userId));
-        if (!paymentAccountId || !(await ownsAccount(userId, paymentAccountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (!paymentAccountId) {
+          return { ok: false, message: "Faol hisob topilmadi — Hisoblar bo'limida kamida bitta hisobni faollashtiring" };
+        }
+        {
+          const guard = await accountForPosting(userId, paymentAccountId, "source");
+          if (!guard.ok) return { ok: false, message: guard.message };
+        }
         const remaining = Math.max(0, row[0].remainingAmount - amount);
         const paid = await db.transaction(async (tx) => {
           // The balance check belongs in the UPDATE predicate, not only in
@@ -1222,9 +1251,58 @@ function thisMonthDate(day: number): string {
   return iso;
 }
 
+/**
+ * The account a transaction lands on when the caller (bot NLP, quick-add,
+ * plan payment) did not choose one.
+ *
+ * It MUST be an active account: the dashboard balance sums active accounts
+ * only, so defaulting to an archived one produced money that showed up in the
+ * History list while the balance never moved. Ordering is fully deterministic
+ * (sortOrder, then id) so the same user always gets the same default.
+ */
 async function defaultAccount(userId: number): Promise<number | null> {
-  const rows = await db.select().from(accounts).where(eq(accounts.userId, userId)).orderBy(accounts.sortOrder).limit(1);
+  const rows = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.isActive, true)))
+    .orderBy(accounts.sortOrder, accounts.id)
+    .limit(1);
   return rows[0]?.id ?? null;
+}
+
+/** Ownership + archived-account guard for a transaction endpoint. */
+async function accountForPosting(
+  userId: number,
+  accountId: number,
+  label: "source" | "target",
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const rows = await db
+    .select({ id: accounts.id, name: accounts.name, isActive: accounts.isActive })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
+    .limit(1);
+  if (!rows[0]) {
+    return { ok: false, message: label === "source" ? "Hisob topilmadi" : "Qabul qiluvchi hisob topilmadi" };
+  }
+  if (!rows[0].isActive) {
+    // Posting into an archived account would silently leave the money out of
+    // the dashboard balance while still showing it in History.
+    return {
+      ok: false,
+      message: `«${rows[0].name}» hisobi arxivlangan — uni Hisoblar bo'limida faollashtiring yoki boshqa hisobni tanlang`,
+    };
+  }
+  return { ok: true };
+}
+
+/** Ownership only — used where an archived account is still a valid target. */
+async function ownsAnyAccount(userId: number, accountId: number): Promise<boolean> {
+  const rows = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
+    .limit(1);
+  return Boolean(rows[0]);
 }
 
 async function ownsAccount(userId: number, accountId: number): Promise<boolean> {

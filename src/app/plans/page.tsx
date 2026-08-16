@@ -1587,11 +1587,16 @@ function RecurringSheet({
         <Field label="Hisob">
           <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
             <option value="">Standart</option>
-            {(state?.accounts ?? []).map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
+            {/* Archived accounts are excluded from the dashboard balance, so a
+                plan must never be able to target one. */}
+            {(state?.accounts ?? [])
+              .filter((a) => a.isActive || a.id === editing?.accountId)
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {a.isActive ? "" : " (arxiv)"}
+                </option>
+              ))}
           </Select>
         </Field>
       </div>
@@ -1841,6 +1846,7 @@ function IncomeSheet({
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
+                {a.isActive ? "" : " (arxiv)"}
               </option>
             ))}
           </Select>

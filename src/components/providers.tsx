@@ -65,25 +65,43 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3200);
   }, []);
 
-  const load = useCallback(async () => {
-    try {
-      const headers: Record<string, string> = {};
-      if (initDataRef.current) headers["x-telegram-init-data"] = initDataRef.current;
-      const res = await fetch("/api/state", { headers, cache: "no-store" });
-      if (res.status === 401) {
-        setError("auth");
-        return;
+  // One in-flight /api/state request at a time, plus a short burst window:
+  // returning from the Telegram chat can fire visibilitychange, focus and
+  // pageshow together, and the app must not issue three identical requests.
+  const loadInFlightRef = useRef<Promise<void> | null>(null);
+  const lastLoadRef = useRef(0);
+
+  const load = useCallback(async (options?: { force?: boolean }) => {
+    if (loadInFlightRef.current) return loadInFlightRef.current;
+    if (!options?.force && Date.now() - lastLoadRef.current < 1200) return;
+    const run = (async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (initDataRef.current) headers["x-telegram-init-data"] = initDataRef.current;
+        const res = await fetch("/api/state", { headers, cache: "no-store" });
+        if (res.status === 401) {
+          setError("auth");
+          return;
+        }
+        if (!res.ok) throw new Error("load failed");
+        const data = (await res.json()) as AppState;
+        setState(data);
+        setError(null);
+      } catch {
+        setError("Ma'lumotlarni yuklab bo'lmadi. Sahifani yangilang.");
+      } finally {
+        lastLoadRef.current = Date.now();
+        loadInFlightRef.current = null;
+        setLoading(false);
       }
-      if (!res.ok) throw new Error("load failed");
-      const data = (await res.json()) as AppState;
-      setState(data);
-      setError(null);
-    } catch {
-      setError("Ma'lumotlarni yuklab bo'lmadi. Sahifani yangilang.");
-    } finally {
-      setLoading(false);
-    }
+    })();
+    loadInFlightRef.current = run;
+    return run;
   }, []);
+
+  const refresh = useCallback(async () => {
+    await load({ force: true });
+  }, [load]);
 
   useEffect(() => {
     const stored = (localStorage.getItem("pfos-theme") as ThemeMode | null) ?? "system";
@@ -103,16 +121,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setSystemDark(mq.matches);
     const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
     mq.addEventListener("change", onChange);
-    void load();
-    // Bot ↔ Mini App sync: transactions confirmed in the Telegram chat must
-    // appear when the user switches back to the Mini App without a manual
-    // page reload.
+    void load({ force: true });
+    // Bot ↔ Mini App sync: a transaction confirmed in the Telegram chat must
+    // show up — in History AND in the balance — as soon as the user switches
+    // back to the Mini App, with no manual reload. Telegram WebViews are not
+    // consistent about which signal they emit, so all three are observed and
+    // de-duplicated by the loader itself.
     const onVisible = () => {
       if (document.visibilityState === "visible") void load();
     };
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onFocus);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       mq.removeEventListener("change", onChange);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [load]);
@@ -181,8 +206,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<FinanceContextValue>(
-    () => ({ state, loading, error, refresh: load, mutate, mutating, toast, theme, setTheme, isDark, telegram }),
-    [state, loading, error, load, mutate, mutating, toast, theme, setTheme, isDark, telegram],
+    () => ({ state, loading, error, refresh, mutate, mutating, toast, theme, setTheme, isDark, telegram }),
+    [state, loading, error, refresh, mutate, mutating, toast, theme, setTheme, isDark, telegram],
   );
 
   return (
