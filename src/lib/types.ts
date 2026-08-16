@@ -11,6 +11,7 @@ import type {
   NotificationView,
   RecurringView,
   TxView,
+  MonthlyView,
 } from "./finance";
 
 export type UserView = {
@@ -56,6 +57,7 @@ export type AppState = {
   forecast: Forecast;
   analytics: Analytics;
   health: Health;
+  monthly?: MonthlyView[];
 };
 
 export type MutateResult = { ok: true; message?: string; state?: AppState } | { ok: false; error: string };

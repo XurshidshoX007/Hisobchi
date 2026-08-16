@@ -1,4 +1,4 @@
-import { addDays, addMonths, clamp, dayDiff, monthEnd, monthKey, monthStart, round2, todayISO } from "./money";
+import { addDays, addMonths, clamp, dayDiff, monthEnd, monthKey, monthStart, round2, todayISO, UZ_MONTHS } from "./money";
 
 /* ============================ Shared view types ============================ */
 
@@ -168,6 +168,12 @@ export function rangeValue(
   return { base: (lo + hi) / 2, min: lo, max: hi };
 }
 
+/**
+ * Returns all occurrences of a plan that fall between [today, horizonEnd].
+ * Past seed dates are fast-forwarded to the first occurrence >= today.
+ * A one-time plan returns at most one date and only if it is today or future.
+ * Term plans are capped by `maxOccurrences` (remaining installments).
+ */
 function nextOccurrences(
   seedDate: string,
   frequency: string,
@@ -175,26 +181,35 @@ function nextOccurrences(
   horizonEnd: string,
   maxOccurrences: number | null = null,
 ): string[] {
-  const out: string[] = [];
+  if (maxOccurrences !== null && maxOccurrences <= 0) return [];
+  const freq = frequency === "once" ? "once" : frequency;
+
+  if (freq === "once") {
+    if (seedDate < today) return [];
+    if (seedDate > horizonEnd) return [];
+    return maxOccurrences !== null ? [seedDate].slice(0, Math.max(0, maxOccurrences)) : [seedDate];
+  }
+
+  const advance = (d: string) =>
+    freq === "weekly" ? addDays(d, 7) : freq === "yearly" ? addMonths(d, 12) : addMonths(d, 1);
+
   let cursor = seedDate;
-  // The scheduled date itself counts. A one-time item must never be silently
-  // expanded into monthly occurrences.
-  if (seedDate <= horizonEnd) out.push(seedDate);
-  if (frequency === "once") return out.slice(0, maxOccurrences ?? out.length);
   let guard = 0;
-  while (cursor <= horizonEnd && guard < 60) {
-    cursor =
-      frequency === "weekly"
-        ? addDays(cursor, 7)
-        : frequency === "yearly"
-          ? addMonths(cursor, 12)
-          : addMonths(cursor, 1);
-    if (cursor >= today && cursor <= horizonEnd) out.push(cursor);
+  while (cursor < today && guard < 400) {
+    cursor = advance(cursor);
+    guard += 1;
+  }
+  if (cursor < today) return [];
+
+  const out: string[] = [];
+  guard = 0;
+  while (cursor <= horizonEnd && guard < 200) {
+    out.push(cursor);
+    if (maxOccurrences !== null && out.length >= maxOccurrences) break;
+    cursor = advance(cursor);
     guard += 1;
   }
   const unique = out.filter((d, i, arr) => arr.indexOf(d) === i).sort();
-  // Term plans project only the REMAINING installments — a finished credit
-  // must never keep draining the forecast.
   return maxOccurrences !== null ? unique.slice(0, Math.max(0, maxOccurrences)) : unique;
 }
 
@@ -267,7 +282,7 @@ export type Forecast = {
     projectedMax: number;
     events: PlannedItem[];
   }>;
-  riskDates: Array<{ date: string; balance: number; deficit: number; cause: string }>;
+  riskDates: Array<{ date: string; balance: number; deficit: number; cause: string; recoveryDate?: string | null; recoveryAmount?: number | null }>;
   planned: PlannedItem[];
   upcomingPayments: Array<{
     id: number;
@@ -358,7 +373,7 @@ export function buildPlanned(
   for (const r of recurring) {
     if (!r.isActive) continue;
     const remaining = remainingOccurrences(r);
-    if (remaining !== null && remaining <= 0) continue; // term plan finished
+    if (remaining !== null && remaining <= 0) continue;
     const { base, min, max } = rangeValue(r.amount, r.minAmount, r.maxAmount);
     for (const date of nextOccurrences(r.nextDueDate, r.frequency, today, horizonEnd, remaining)) {
       items.push({
@@ -380,10 +395,10 @@ export function buildPlanned(
   for (const inc of incomes) {
     if (!inc.isActive) continue;
     const remaining = remainingOccurrences(inc);
-    if (remaining !== null && remaining <= 0) continue; // term income finished
+    if (remaining !== null && remaining <= 0) continue;
     const { base, min, max } = rangeValue(inc.amount, inc.minAmount, inc.maxAmount);
     for (const date of nextOccurrences(inc.expectedDate, inc.frequency, today, horizonEnd, remaining)) {
-      // already-received (past-dated) income is not projected again — REAL vs PLANNED
+      // Past income never forecasted - REAL vs PLAN separation
       if (date < today) continue;
       items.push({
         key: `i-${inc.id}-${date}`,
@@ -414,7 +429,7 @@ export function buildForecast(params: {
   horizonDays?: number;
 }): Forecast {
   const today = params.today ?? todayISO();
-  const horizonDays = params.horizonDays ?? 35;
+  const horizonDays = params.horizonDays ?? 90; // extended for monthly planning
   const horizonEnd = addDays(today, horizonDays);
   const planned = buildPlanned(params.recurring, params.incomes, today, horizonDays);
 
@@ -460,10 +475,6 @@ export function buildForecast(params: {
       expense.optionalMax += p.max;
     }
   }
-  // Scenario semantics (MIN/BASE/MAX):
-  //  MIN  — only confirmed (exact) income; estimated income may not arrive.
-  //  BASE — exact + probable estimated income at its base value.
-  //  MAX  — exact + estimated income at its upper bound.
   income.base = income.exactBase + income.estimatedBase;
   income.min = income.exactMin;
   income.max = income.exactBase + income.estimatedMax;
@@ -471,20 +482,14 @@ export function buildForecast(params: {
   expense.min = expense.mandatoryMin + expense.optionalMin;
   expense.max = expense.mandatoryMax + expense.optionalMax;
 
-  // Safe-to-Spend answers "how much can I spend right now" — it uses the
-  // current-month window, while the forecast uses the full horizon.
+  // SAFE-TO-SPEND: current month window
   const daysToMonthEnd = dayDiff(today, monthEnd(today));
-  const safeHorizonEnd = daysToMonthEnd >= 5 ? monthEnd(today) : addDays(today, 7);
+  const safeHorizonEnd = daysToMonthEnd >= 5 ? monthEnd(today) : addDays(today, 14);
   const safeWindow = planned.filter((p) => p.date <= safeHorizonEnd);
-  const safeExactIncome = safeWindow
-    .filter((p) => p.kind === "income" && p.certainty === "exact")
-    .reduce((s, p) => s + p.base, 0);
-  const safeEstimatedIncome = safeWindow
-    .filter((p) => p.kind === "income" && p.certainty === "estimated")
-    .reduce((s, p) => s + p.base, 0);
-  const safeMandatory = safeWindow
-    .filter((p) => p.kind === "expense" && p.mandatory)
-    .reduce((s, p) => s + p.base, 0);
+  const safeExactIncome = safeWindow.filter((p) => p.kind === "income" && p.certainty === "exact").reduce((s, p) => s + p.base, 0);
+  const safeEstimatedIncome = safeWindow.filter((p) => p.kind === "income" && p.certainty === "estimated").reduce((s, p) => s + p.base, 0);
+  const safeMandatory = safeWindow.filter((p) => p.kind === "expense" && p.mandatory).reduce((s, p) => s + p.base, 0);
+  const safeOptional = safeWindow.filter((p) => p.kind === "expense" && !p.mandatory).reduce((s, p) => s + p.base, 0);
 
   const balance = params.currentBalance;
   const scenarios = {
@@ -495,8 +500,8 @@ export function buildForecast(params: {
 
   const confidence = clamp(params.estimatedConfidence, 0, 100) / 100;
   const safeEstimatedWeighted = safeEstimatedIncome * confidence;
-  const safeToSpend =
-    balance + safeExactIncome + safeEstimatedWeighted - safeMandatory - params.minReserve;
+  // Conservative: subtract mandatory and optional (if configured) and reserve
+  const safeToSpend = balance + safeExactIncome + safeEstimatedWeighted - safeMandatory - safeOptional - params.minReserve;
 
   const cashflow: Forecast["cashflow"] = [];
   const riskDates: Forecast["riskDates"] = [];
@@ -517,11 +522,29 @@ export function buildForecast(params: {
       events.filter((e) => e.kind === "expense").reduce((s, e) => s + e.min, 0);
     cashflow.push({ date, inflow, outflow, net: inflow - outflow, projectedBase: runningBase, projectedMin: runningMin, projectedMax: runningMax, events });
     if (runningMin < 0) {
+      // Try to find recovery date (next income)
+      let recoveryDate: string | null = null;
+      let recoveryAmount: number | null = null;
+      let probeBase = runningBase;
+      for (let j = i + 1; j <= horizonDays; j++) {
+        const d2 = addDays(today, j);
+        const ev2 = planned.filter((p) => p.date === d2);
+        const in2 = ev2.filter((e) => e.kind === "income").reduce((s, e) => s + e.base, 0);
+        const out2 = ev2.filter((e) => e.kind === "expense").reduce((s, e) => s + e.base, 0);
+        probeBase += in2 - out2;
+        if (probeBase >= 0 && in2 > 0) {
+          recoveryDate = d2;
+          recoveryAmount = in2;
+          break;
+        }
+      }
       riskDates.push({
         date,
         balance: round2(runningMin),
         deficit: round2(Math.abs(runningMin)),
         cause: events.filter((e) => e.kind === "expense").map((e) => e.label).join(", ") || "balans pasayishi",
+        recoveryDate,
+        recoveryAmount,
       });
     }
   }
@@ -549,7 +572,7 @@ export function buildForecast(params: {
         status: daysLeft < 0 ? ("overdue" as const) : daysLeft === 0 ? ("today" as const) : ("upcoming" as const),
       };
     })
-    .filter((p) => p.daysLeft <= 21)
+    .filter((p) => p.daysLeft <= 45)
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
   const upcomingIncome = params.incomes
@@ -572,7 +595,7 @@ export function buildForecast(params: {
         received: Boolean(i.linkedTransactionId),
       };
     })
-    .filter((i) => i.daysLeft <= 21)
+    .filter((i) => i.daysLeft <= 45)
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
   return {
@@ -589,8 +612,8 @@ export function buildForecast(params: {
       balance,
       confirmedIncome: round2(safeExactIncome),
       estimatedIncomeWeighted: round2(safeEstimatedWeighted),
-      mandatoryUpcoming: round2(safeMandatory),
-      optionalPlanned: round2(expense.optionalBase),
+      mandatoryUpcoming: round2(safeMandatory + safeOptional),
+      optionalPlanned: round2(safeOptional),
       minReserve: params.minReserve,
     },
     cashflow,
@@ -599,6 +622,327 @@ export function buildForecast(params: {
     upcomingPayments,
     upcomingIncome,
   };
+}
+
+/* ============================ Monthly Finance Engine ============================ */
+
+export type MonthlyDay = {
+  date: string;
+  realIncome: number;
+  realExpense: number;
+  plannedIncome: number;
+  plannedExpense: number;
+  projectedBase: number;
+  projectedMin: number;
+  projectedMax: number;
+  events: PlannedItem[];
+  isToday: boolean;
+  isPast: boolean;
+  isRisk: boolean;
+  balance: number;
+};
+
+export type MonthlyView = {
+  monthKey: string;
+  monthStart: string;
+  monthEnd: string;
+  label: string; // e.g. "Avgust 2026"
+  labelShort: string; // "Avg 26"
+  isCurrent: boolean;
+  isPast: boolean;
+  isFuture: boolean;
+  openingBalance: number;
+  realIncome: number;
+  realExpense: number;
+  realNet: number;
+  expectedIncomeBase: number;
+  expectedIncomeMin: number;
+  expectedIncomeMax: number;
+  mandatoryExpenseBase: number;
+  optionalExpenseBase: number;
+  totalPlannedExpense: number;
+  forecastClosingBase: number;
+  forecastClosingMin: number;
+  forecastClosingMax: number;
+  lowestProjected: number;
+  highestProjected: number;
+  deficitDays: number;
+  deficitAmount: number;
+  safeToSpend?: number;
+  daily: MonthlyDay[];
+};
+
+function monthLabelFull(key: string): { full: string; short: string } {
+  const [y, m] = key.split("-").map(Number);
+  const monthName = UZ_MONTHS[(m ?? 1) - 1] ?? "";
+  const cap = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+  return { full: `${cap} ${y}`, short: `${monthName.slice(0, 3)} ${String(y).slice(2)}` };
+}
+
+export function buildMonthlyView(params: {
+  monthKey: string;
+  today: string;
+  currentBalance: number;
+  transactions: Array<{ date: string; type: string; amount: number }>; // real transactions <= today
+  planned: PlannedItem[];
+  cashflow: Forecast["cashflow"];
+  analytics: Analytics;
+  forecast: Forecast;
+}): MonthlyView {
+  const { monthKey: mk, today, currentBalance, transactions, planned, cashflow, analytics, forecast } = params;
+  const mStart = monthStart(mk + "-01");
+  const mEnd = monthEnd(mStart);
+  const { full, short } = monthLabelFull(mk);
+  const isCurrent = mk === monthKey(today);
+  const isPast = mk < monthKey(today);
+  const isFuture = mk > monthKey(today);
+
+  // Opening balance
+  let openingBalance: number;
+  if (isCurrent) {
+    // current month opening = currentBalance - real net so far this month
+    const monthNet = analytics.monthTotals.net;
+    openingBalance = currentBalance - monthNet;
+  } else if (isPast) {
+    // For past months, opening = balance at day before month start
+    // Compute by subtracting all transactions from monthStart onwards up to today
+    let netSinceStart = 0;
+    for (const t of transactions) {
+      if (t.date >= mStart) {
+        if (t.type === "income") netSinceStart += t.amount;
+        else if (t.type === "expense") netSinceStart -= t.amount;
+      }
+    }
+    openingBalance = currentBalance - netSinceStart;
+  } else {
+    // Future month: opening = projected balance at day before month start
+    const prevDay = addDays(mStart, -1);
+    const cf = cashflow.find((c) => c.date === prevDay);
+    if (cf) {
+      openingBalance = cf.projectedBase;
+    } else {
+      // Fallback: accumulate planned net from today to prevDay
+      let running = currentBalance;
+      const todayIdx = cashflow.findIndex((c) => c.date === today);
+      for (let i = todayIdx + 1; i < cashflow.length; i++) {
+        const c = cashflow[i];
+        if (c.date > prevDay) break;
+        running = c.projectedBase;
+      }
+      // If still not found (beyond horizon), estimate from planned
+      if (running === currentBalance && cashflow.length && cashflow[cashflow.length - 1].date < prevDay) {
+        let extra = 0;
+        for (const p of planned) {
+          if (p.date > cashflow[cashflow.length - 1].date && p.date <= prevDay) {
+            extra += p.kind === "income" ? p.base : -p.base;
+          }
+        }
+        running += extra;
+      }
+      openingBalance = running;
+    }
+  }
+
+  // Real income/expense for this month
+  let realIncome = 0;
+  let realExpense = 0;
+  if (isCurrent) {
+    realIncome = analytics.monthTotals.income;
+    realExpense = analytics.monthTotals.expense;
+  } else if (isPast) {
+    const found = analytics.monthly.find((m) => m.month === mk);
+    if (found) {
+      realIncome = found.income;
+      realExpense = found.expense;
+    } else {
+      // fallback from transactions
+      for (const t of transactions) {
+        if (t.date.startsWith(mk + "-")) {
+          if (t.type === "income") realIncome += t.amount;
+          else if (t.type === "expense") realExpense += t.amount;
+        }
+      }
+    }
+  }
+
+  // Planned for this month (future events)
+  const monthPlanned = planned.filter((p) => monthKey(p.date) === mk);
+  const expectedIncomeBase = monthPlanned.filter((p) => p.kind === "income").reduce((s, p) => s + p.base, 0);
+  const expectedIncomeMin = monthPlanned.filter((p) => p.kind === "income").reduce((s, p) => s + p.min, 0);
+  const expectedIncomeMax = monthPlanned.filter((p) => p.kind === "income").reduce((s, p) => s + p.max, 0);
+  const mandatoryExpenseBase = monthPlanned.filter((p) => p.kind === "expense" && p.mandatory).reduce((s, p) => s + p.base, 0);
+  const optionalExpenseBase = monthPlanned.filter((p) => p.kind === "expense" && !p.mandatory).reduce((s, p) => s + p.base, 0);
+
+  // Build daily breakdown
+  const daily: MonthlyDay[] = [];
+  let runningBase = openingBalance;
+  let runningMin = openingBalance;
+  let runningMax = openingBalance;
+  let lowest = openingBalance;
+  let highest = openingBalance;
+  let deficitDays = 0;
+  let maxDeficit = 0;
+
+  // Map real transactions per day for quick lookup
+  const realByDate = new Map<string, { income: number; expense: number }>();
+  for (const t of transactions) {
+    if (!t.date.startsWith(mk)) continue;
+    const entry = realByDate.get(t.date) ?? { income: 0, expense: 0 };
+    if (t.type === "income") entry.income += t.amount;
+    else if (t.type === "expense") entry.expense += t.amount;
+    realByDate.set(t.date, entry);
+  }
+
+  for (let d = mStart; d <= mEnd; d = addDays(d, 1)) {
+    const isToday = d === today;
+    const isPastDay = d < today;
+    const events = planned.filter((p) => p.date === d);
+    const plannedIncome = events.filter((e) => e.kind === "income").reduce((s, e) => s + e.base, 0);
+    const plannedExpense = events.filter((e) => e.kind === "expense").reduce((s, e) => s + e.base, 0);
+    const plannedIncomeMin = events.filter((e) => e.kind === "income").reduce((s, e) => s + e.min, 0);
+    const plannedIncomeMax = events.filter((e) => e.kind === "income").reduce((s, e) => s + e.max, 0);
+    const plannedExpenseMin = events.filter((e) => e.kind === "expense").reduce((s, e) => s + e.min, 0);
+    const plannedExpenseMax = events.filter((e) => e.kind === "expense").reduce((s, e) => s + e.max, 0);
+
+    const real = realByDate.get(d) ?? { income: 0, expense: 0 };
+
+    if (!isFuture && isPastDay) {
+      // Past days: only real matters
+      runningBase += real.income - real.expense;
+      runningMin += real.income - real.expense;
+      runningMax += real.income - real.expense;
+    } else if (isToday) {
+      // Today: real already included in currentBalance, but for daily we show real for today plus planned that already happened?
+      // Our opening already accounts for month net up to today, so running after today is currentBalance if we processed all past days.
+      // To avoid double counting, set running to currentBalance at end of today if isCurrent month.
+      if (isCurrent) {
+        // Recompute running up to today should equal currentBalance
+        // We have been accumulating past days; include today's real
+        runningBase += real.income - real.expense;
+        runningMin = runningBase;
+        runningMax = runningBase;
+        // For future part of today (planned that hasn't happened yet today?), we keep as is - but forecast cashflow for today includes planned events of today.
+        // If there are planned events today that haven't been realized as real, they will have been already counted in forecast cashflow.
+        // To align, if planned events exist today and not yet realized, add them for future projection? Simplification: add planned for today as well.
+        runningBase += plannedIncome - plannedExpense;
+        runningMin += plannedIncomeMin - plannedExpenseMax;
+        runningMax += plannedIncomeMax - plannedExpenseMin;
+      } else {
+        runningBase += real.income - real.expense;
+        runningMin += real.income - real.expense;
+        runningMax += real.income - real.expense;
+      }
+    } else {
+      // Future day
+      runningBase += plannedIncome - plannedExpense;
+      runningMin += plannedIncomeMin - plannedExpenseMax;
+      runningMax += plannedIncomeMax - plannedExpenseMin;
+    }
+
+    // For current month past days already processed, ensure final running after last past day equals currentBalance minus remaining planned? We'll later adjust closing via forecast.
+    lowest = Math.min(lowest, runningBase, runningMin);
+    highest = Math.max(highest, runningBase, runningMax);
+    if (runningMin < 0) {
+      deficitDays += 1;
+      maxDeficit = Math.max(maxDeficit, Math.abs(runningMin));
+    }
+
+    daily.push({
+      date: d,
+      realIncome: real.income,
+      realExpense: real.expense,
+      plannedIncome,
+      plannedExpense,
+      projectedBase: round2(runningBase),
+      projectedMin: round2(runningMin),
+      projectedMax: round2(runningMax),
+      events,
+      isToday,
+      isPast: isPastDay,
+      isRisk: runningMin < 0,
+      balance: round2(runningBase),
+    });
+  }
+
+  // Determine forecast closing
+  const forecastClosingBase = daily.length ? daily[daily.length - 1].projectedBase : openingBalance;
+  const forecastClosingMin = daily.length ? daily[daily.length - 1].projectedMin : openingBalance;
+  const forecastClosingMax = daily.length ? daily[daily.length - 1].projectedMax : openingBalance;
+
+  // For current month, if we are past beginning, the running should align with forecast's cashflow at monthEnd if within horizon.
+  // Adjust using forecast cashflow if available
+  let finalClosingBase = forecastClosingBase;
+  let finalClosingMin = forecastClosingMin;
+  let finalClosingMax = forecastClosingMax;
+  const cfEnd = cashflow.find((c) => c.date === mEnd);
+  if (cfEnd && (isCurrent || isFuture)) {
+    finalClosingBase = cfEnd.projectedBase;
+    finalClosingMin = cfEnd.projectedMin;
+    finalClosingMax = cfEnd.projectedMax;
+  }
+
+  return {
+    monthKey: mk,
+    monthStart: mStart,
+    monthEnd: mEnd,
+    label: full,
+    labelShort: short,
+    isCurrent,
+    isPast,
+    isFuture,
+    openingBalance: round2(openingBalance),
+    realIncome: round2(realIncome),
+    realExpense: round2(realExpense),
+    realNet: round2(realIncome - realExpense),
+    expectedIncomeBase: round2(expectedIncomeBase),
+    expectedIncomeMin: round2(expectedIncomeMin),
+    expectedIncomeMax: round2(expectedIncomeMax),
+    mandatoryExpenseBase: round2(mandatoryExpenseBase),
+    optionalExpenseBase: round2(optionalExpenseBase),
+    totalPlannedExpense: round2(mandatoryExpenseBase + optionalExpenseBase),
+    forecastClosingBase: round2(finalClosingBase),
+    forecastClosingMin: round2(finalClosingMin),
+    forecastClosingMax: round2(finalClosingMax),
+    lowestProjected: round2(lowest),
+    highestProjected: round2(highest),
+    deficitDays,
+    deficitAmount: round2(maxDeficit),
+    safeToSpend: isCurrent ? forecast.safeToSpend : undefined,
+    daily,
+  };
+}
+
+export function buildMonthlySeries(params: {
+  today: string;
+  currentBalance: number;
+  transactions: Array<{ date: string; type: string; amount: number }>;
+  planned: PlannedItem[];
+  cashflow: Forecast["cashflow"];
+  analytics: Analytics;
+  forecast: Forecast;
+  monthsBefore?: number;
+  monthsAfter?: number;
+}): MonthlyView[] {
+  const { today, monthsBefore = 1, monthsAfter = 4 } = params;
+  const result: MonthlyView[] = [];
+  const start = monthStart(addMonths(monthStart(today), -monthsBefore));
+  for (let i = 0; i < monthsBefore + monthsAfter + 1; i++) {
+    const mkDate = addMonths(start, i);
+    const mk = monthKey(mkDate);
+    result.push(
+      buildMonthlyView({
+        monthKey: mk,
+        today,
+        currentBalance: params.currentBalance,
+        transactions: params.transactions,
+        planned: params.planned,
+        cashflow: params.cashflow,
+        analytics: params.analytics,
+        forecast: params.forecast,
+      }),
+    );
+  }
+  return result;
 }
 
 /* ============================ Analytics ============================ */
@@ -684,7 +1028,6 @@ export function buildAnalytics(params: {
   const transferTotal = inMonth(mk, "transfer");
   const net = income - expense;
 
-  // monthly series (last 6 months)
   const monthly: Analytics["monthly"] = [];
   for (let i = 5; i >= 0; i--) {
     const key = monthKey(addMonths(start, -i));
@@ -696,7 +1039,6 @@ export function buildAnalytics(params: {
     });
   }
 
-  // category breakdown current + previous month
   const prevKey = monthKey(addMonths(start, -1));
   const byCat = new Map<string, { amount: number; prev: number; count: number; cat: (typeof params.categories)[number] | null }>();
   for (const t of active) {
@@ -738,9 +1080,7 @@ export function buildAnalytics(params: {
     .sort((a, b) => b.amount - a.amount);
 
   const mandatoryAmount = categoriesOut.filter((c) => c.isEssential).reduce((s, c) => s + c.amount, 0);
-  const essentialIds = new Set(params.categories.filter((c) => c.isEssential).map((c) => c.id));
 
-  // balance history: reconstruct backwards 90 days from current balance
   const balanceHistory: Array<{ date: string; balance: number }> = [];
   let running = params.currentBalance;
   for (let i = 0; i <= 90; i++) {
@@ -754,7 +1094,6 @@ export function buildAnalytics(params: {
   }
   balanceHistory.reverse();
 
-  // anomalies: > 2.5x category median in current month
   const anomalies: Analytics["anomalies"] = [];
   const grouped = new Map<number, number[]>();
   for (const t of active) {
@@ -810,16 +1149,17 @@ export function buildAnalytics(params: {
       icon: diff > 0.1 ? "⚠️" : "✅",
       tone: diff > 0.1 ? "warning" : "positive",
       title: `Xarajat ${diff >= 0 ? "+" : ""}${(diff * 100).toFixed(0)}%`,
-      body: diff > 0.1
-        ? "Xarajatlar o‘sishi daromaddan tez ketyapti — ixtiyoriy toifalarni ko'rib chiqing."
-        : "Xarajatlar nazorat ostida.",
+      body:
+        diff > 0.1
+          ? "Xarajatlar o'sishi daromaddan tez ketyapti — ixtiyoriy toifalarni ko'rib chiqing."
+          : "Xarajatlar nazorat ostida.",
     });
   }
   if (fastest) {
     insights.push({
       icon: "🔥",
       tone: "warning",
-      title: `Eng tez o‘sish: ${fastest.name}`,
+      title: `Eng tez o'sish: ${fastest.name}`,
       body: `${round2(fastest.change / 1000)} ming so'mga oshdi (${(fastest.changePct * 100).toFixed(0)}%).`,
     });
   }
@@ -917,9 +1257,9 @@ export function buildHealth(params: {
   const liquidity = clamp(100 - riskPenalty);
 
   const factors: HealthFactor[] = [
-    { key: "savings", label: "Jamg‘arish ulushi", score: Math.round(savings), weight: 25, detail: `${(a.monthTotals.savingsRate * 100).toFixed(0)}% daromad qolmoqda` },
+    { key: "savings", label: "Jamg'arish ulushi", score: Math.round(savings), weight: 25, detail: `${(a.monthTotals.savingsRate * 100).toFixed(0)}% daromad qolmoqda` },
     { key: "reserve", label: "Zaxira darajasi", score: Math.round(reserve), weight: 20, detail: `${reserveMonths.toFixed(1)} oy xarajat qoplanadi` },
-    { key: "debt", label: "Qarz bosimi", score: Math.round(debt), weight: 15, detail: params.debtsOwedByMe > 0 ? "Faol qarzlar mavjud" : "Faol qarz yo‘q" },
+    { key: "debt", label: "Qarz bosimi", score: Math.round(debt), weight: 15, detail: params.debtsOwedByMe > 0 ? "Faol qarzlar mavjud" : "Faol qarz yo'q" },
     { key: "stability", label: "Cash-flow barqarorligi", score: Math.round(stability), weight: 15, detail: `${positiveMonths}/6 oy ijobiy qoldiq` },
     { key: "mandatory", label: "Majburiy xarajat nisbati", score: Math.round(mandatory), weight: 10, detail: `${(a.monthTotals.mandatoryRatio * 100).toFixed(0)}% daromadga nisbatan` },
     { key: "liquidity", label: "Likvidlik xavfi", score: Math.round(liquidity), weight: 15, detail: params.forecast.riskDates.length ? `${params.forecast.riskDates.length} kun xavf ostida` : "Xavf aniqlanmadi" },
@@ -930,10 +1270,10 @@ export function buildHealth(params: {
   const grade: Health["grade"] =
     score >= 85 ? "EXCELLENT" : score >= 70 ? "GOOD" : score >= 55 ? "STABLE" : score >= 40 ? "FAIR" : "CRITICAL";
   const labelMap: Record<Health["grade"], string> = {
-    EXCELLENT: "A‘lo",
+    EXCELLENT: "A'lo",
     GOOD: "Yaxshi",
     STABLE: "Barqaror",
-    FAIR: "O‘rtacha",
+    FAIR: "O'rtacha",
     CRITICAL: "Zaif",
   };
 
