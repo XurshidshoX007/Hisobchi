@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useFinance } from "@/components/providers";
+import { useFab, useFabPage } from "@/components/fab";
 import { PageHeader, Section, Skeleton } from "@/components/ui";
 import { compact } from "@/lib/money";
 
@@ -12,6 +13,18 @@ import { compact } from "@/lib/money";
  */
 export default function MorePage() {
   const { state, loading } = useFinance();
+
+  // Global FAB → secondary tools. Each entry routes to the page that OWNS the
+  // form, which auto-opens its own create sheet (no duplicated forms).
+  const { route } = useFab();
+  useFabPage({}, {
+    account: (a) => route("/accounts", a),
+    debt: (a) => route("/debts", a),
+    goal: (a) => route("/goals", a),
+    budget: (a) => route("/budgets", a),
+    category: (a) => route("/accounts", a),
+  });
+
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
 

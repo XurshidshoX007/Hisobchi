@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { parseDraft } from "@/lib/nlp";
 import { addDays, humanDate, todayISO } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
+import { rememberTxType } from "@/lib/fab";
 import { useFinance } from "./providers";
 import { Button, Field, Segmented, Select, Sheet, TextInput } from "./ui";
 
@@ -81,7 +82,11 @@ export function QuickAddSheet({
         note: note || (type === "income" ? "Kirim" : type === "transfer" ? "Transfer" : "Chiqim"),
         source: "miniapp",
       });
-      if (res.ok) onClose();
+      if (res.ok) {
+        // §27: remember the direction so a neutral "+ Operatsiya" reopens it.
+        rememberTxType(type);
+        onClose();
+      }
     } finally {
       setSaving(false);
     }

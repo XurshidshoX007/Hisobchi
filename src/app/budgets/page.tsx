@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
+import { useFab, useFabPage } from "@/components/fab";
 import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, formatAmount, monthLabel } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
@@ -11,6 +12,16 @@ export default function BudgetsPage() {
   const { state, loading, mutate } = useFinance();
   const [sheet, setSheet] = useState(false);
   const [editing, setEditing] = useState<BudgetView | null>(null);
+
+  // Global FAB → existing BudgetSheet.
+  useFabPage({}, { budget: () => openCreate() });
+
+  // Routed creates (Menu → "+ Budjet").
+  const { consume } = useFab();
+  useEffect(() => {
+    const routed = consume();
+    if (routed?.id === "budget") openCreate();
+  }, [consume]);
 
   function openCreate() {
     setEditing(null);
@@ -37,11 +48,6 @@ export default function BudgetsPage() {
       <PageHeader
         title="Budjetlar"
         subtitle={`${monthLabel(state.analytics.month)} · ${daysLeft} kun qoldi`}
-        action={
-          <Button type="button" size="sm" onClick={openCreate}>
-            ➕ Limit
-          </Button>
-        }
       />
 
       <Card>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BalanceLine, CategoryBars, IncomeExpenseBars, Ring, Sparkline } from "@/components/charts";
 import { useFinance } from "@/components/providers";
+import { useFab, useFabPage } from "@/components/fab";
 import { Badge, Card, Divider, PageHeader, Progress, Section, Segmented, Skeleton } from "@/components/ui";
 import { compact, formatSigned, monthLabel } from "@/lib/money";
 
@@ -16,6 +17,15 @@ import { compact, formatSigned, monthLabel } from "@/lib/money";
 export default function AnalyticsPage() {
   const { state, loading } = useFinance();
   const [range, setRange] = useState<"3" | "6">("6");
+
+  // Analytics is interpretation (§9): the FAB stays visible for consistency but
+  // only routes to the real create entry points — never a fake analytics action.
+  const { route } = useFab();
+  useFabPage({}, {
+    transaction: (a) => route("/transactions", a),
+    payment_plan: (a) => route("/plans", a),
+    expected_income: (a) => route("/plans", a),
+  });
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;

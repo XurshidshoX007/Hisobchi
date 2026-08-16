@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { formatAmount, humanDate } from "@/lib/money";
 import { MENU_ROUTE, showsProfileHeader } from "@/lib/navigation";
 import { useFinance } from "./providers";
+import { FabProvider, GlobalAddFab } from "./fab";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
 
 const NAV = [
@@ -47,7 +48,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 pb-[calc(76px+env(safe-area-inset-bottom)+16px)] sm:pb-6 lg:pb-10">
+    <FabProvider>
+    <div className="mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 pb-[calc(env(safe-area-inset-bottom,0px)+148px)] sm:pb-6 lg:pb-10">
       {/* Sidebar — desktop */}
       <aside className="sticky top-6 hidden h-fit w-60 shrink-0 flex-col gap-1 lg:flex">
         <div className="mb-5 flex items-center gap-2.5 px-2">
@@ -248,6 +250,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         ))}
       </Sheet>
     </div>
+    <GlobalAddFab />
+    </FabProvider>
   );
 }
 

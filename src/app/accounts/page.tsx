@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
+import { useFab, useFabPage } from "@/components/fab";
 import {
   Badge,
   Button,
@@ -47,6 +48,37 @@ export default function AccountsPage() {
   const [catSheet, setCatSheet] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryView | null>(null);
 
+  // Global FAB: account vs category depends on the active sub-tab.
+  useFabPage(
+    { accountsTab: tab },
+    {
+      account: () => {
+        setEditingAccount(null);
+        setSheet(true);
+      },
+      category: () => {
+        setEditingCategory(null);
+        setCatSheet(true);
+      },
+    },
+  );
+
+  // Routed creates (Menu → "+ Hisob" / "+ Kategoriya").
+  const { consume } = useFab();
+  useEffect(() => {
+    const routed = consume();
+    if (!routed) return;
+    if (routed.id === "account") {
+      setTab("accounts");
+      setEditingAccount(null);
+      setSheet(true);
+    } else if (routed.id === "category") {
+      setTab("categories");
+      setEditingCategory(null);
+      setCatSheet(true);
+    }
+  }, [consume]);
+
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
 
@@ -81,16 +113,6 @@ export default function AccountsPage() {
                   <span className="text-sm text-muted">{state.user.currency}</span>
                 </div>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  setEditingAccount(null);
-                  setSheet(true);
-                }}
-              >
-                ➕ Hisob
-              </Button>
             </div>
             <Divider />
             <div className="mt-4 space-y-3">
@@ -162,18 +184,6 @@ export default function AccountsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                setEditingCategory(null);
-                setCatSheet(true);
-              }}
-            >
-              ➕ Kategoriya
-            </Button>
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {(["expense", "income"] as const).map((type) => (
               <Card key={type} className="overflow-hidden" padded={false}>
