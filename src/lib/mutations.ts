@@ -14,8 +14,15 @@ import {
   transactions,
 } from "@/db/schema";
 import type { User } from "@/db/schema";
-import { addDays, addMonths, monthKey, todayISO } from "./money";
+import { addMonths, monthKey, todayISO } from "./money";
 import { parseDraft } from "./nlp";
+import {
+  advanceIncomeState,
+  advanceRecurringState,
+  occurrenceIdentity,
+  revertIncomeState,
+  revertRecurringState,
+} from "./reconciliation";
 
 export type MutateInput = {
   entity: string;
@@ -61,38 +68,7 @@ const isoDate = (value: unknown, fallback: string | null = null): string | null 
   return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== parsed ? fallback : parsed;
 };
 
-function advance(date: string, frequency: string): string {
-  if (frequency === "weekly") return addDays(date, 7);
-  if (frequency === "yearly") return addMonths(date, 12);
-  return addMonths(date, 1);
-}
-
-/**
- * Payment plan engine: computes the state transition after one payment.
- *  one_time  -> deactivate
- *  recurring -> advance nextDueDate
- *  term      -> increment installmentsPaid; deactivate when the term ends
- */
-function advanceRecurringValues(
-  rec: { frequency: string; nextDueDate: string; planType: string; installmentCount: number | null; installmentsPaid: number },
-  today: string,
-): Record<string, unknown> {
-  if (rec.planType === "one_time" || rec.frequency === "once") {
-    return { isActive: false, paidThrough: today };
-  }
-  if (rec.planType === "term") {
-    const paid = rec.installmentsPaid + 1;
-    const finished = rec.installmentCount !== null && paid >= rec.installmentCount;
-    return {
-      installmentsPaid: paid,
-      paidThrough: today,
-      ...(finished
-        ? { isActive: false }
-        : { nextDueDate: advance(rec.nextDueDate, rec.frequency) }),
-    };
-  }
-  return { nextDueDate: advance(rec.nextDueDate, rec.frequency), paidThrough: today };
-}
+/** Shared plan-state helpers live in `reconciliation.ts`; see that module. */
 
 export async function runMutation(user: User, input: MutateInput): Promise<{ ok: boolean; message: string; id?: number }> {
   const d = input.data ?? {};
@@ -161,53 +137,73 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         }
         const recurringId = int(d.recurringId);
         const expectedIncomeId = int(d.expectedIncomeId);
+        let recRow: typeof recurringExpenses.$inferSelect | null = null;
+        let incRow: typeof expectedIncomes.$inferSelect | null = null;
         if (recurringId) {
           const ownedRecurring = await db
-            .select({ id: recurringExpenses.id })
-            .from(recurringExpenses)
-            .where(and(eq(recurringExpenses.id, recurringId), eq(recurringExpenses.userId, userId)))
-            .limit(1);
-          if (!ownedRecurring[0] || type !== "expense") return { ok: false, message: "Doimiy to'lov topilmadi" };
-        }
-        if (expectedIncomeId) {
-          const ownedIncome = await db
-            .select({ id: expectedIncomes.id })
-            .from(expectedIncomes)
-            .where(and(eq(expectedIncomes.id, expectedIncomeId), eq(expectedIncomes.userId, userId)))
-            .limit(1);
-          if (!ownedIncome[0] || type !== "income") return { ok: false, message: "Kutilayotgan daromad topilmadi" };
-        }
-        const [row] = await db
-          .insert(transactions)
-          .values({
-            userId,
-            accountId,
-            toAccountId: type === "transfer" ? int(d.toAccountId) : null,
-            categoryId: catId,
-            type,
-            amount,
-            date: isoDate(d.date, today) ?? today,
-            note: str(d.note),
-            source: allowed(str(d.source, "miniapp"), ["bot", "miniapp", "api", "auto"], "miniapp"),
-            currency: user.currency,
-            recurringId,
-            expectedIncomeId,
-          })
-          .returning();
-
-        if (recurringId) {
-          const rec = await db
             .select()
             .from(recurringExpenses)
             .where(and(eq(recurringExpenses.id, recurringId), eq(recurringExpenses.userId, userId)))
             .limit(1);
-          if (rec[0]) {
-            await db
-              .update(recurringExpenses)
-              .set(advanceRecurringValues(rec[0], today))
-              .where(and(eq(recurringExpenses.id, recurringId), eq(recurringExpenses.userId, userId)));
-          }
+          if (!ownedRecurring[0] || type !== "expense") return { ok: false, message: "Doimiy to'lov topilmadi" };
+          recRow = ownedRecurring[0];
         }
+        if (expectedIncomeId) {
+          const ownedIncome = await db
+            .select()
+            .from(expectedIncomes)
+            .where(and(eq(expectedIncomes.id, expectedIncomeId), eq(expectedIncomes.userId, userId)))
+            .limit(1);
+          if (!ownedIncome[0] || type !== "income") return { ok: false, message: "Kutilayotgan daromad topilmadi" };
+          incRow = ownedIncome[0];
+        }
+
+        // Occurrence identity: the *scheduled* date being fulfilled (not the
+        // actual transaction date, which may be an early payment).
+        const plannedDate = recRow ? recRow.nextDueDate : incRow ? incRow.expectedDate : null;
+        const identity = plannedDate
+          ? occurrenceIdentity(
+              { startDate: recRow?.startDate ?? incRow?.startDate, nextDueDate: recRow ? recRow.nextDueDate : incRow!.expectedDate, frequency: recRow ? recRow.frequency : incRow!.frequency },
+              plannedDate,
+            )
+          : null;
+
+        const row = await db.transaction(async (tx) => {
+          const [created] = await tx
+            .insert(transactions)
+            .values({
+              userId,
+              accountId,
+              toAccountId: type === "transfer" ? int(d.toAccountId) : null,
+              categoryId: catId,
+              type,
+              amount,
+              date: isoDate(d.date, today) ?? today,
+              note: str(d.note),
+              source: allowed(str(d.source, "miniapp"), ["bot", "miniapp", "api", "auto"], "miniapp"),
+              currency: user.currency,
+              recurringId,
+              expectedIncomeId,
+              plannedDate: identity?.plannedDate ?? null,
+              occurrenceNumber: identity?.occurrenceNumber ?? null,
+            })
+            .returning();
+          // Symmetric advance of the parent plan, in the same transaction as
+          // the money movement so a failure cannot leave a half-advanced plan.
+          if (recRow && plannedDate) {
+            await tx
+              .update(recurringExpenses)
+              .set(advanceRecurringState(recRow, plannedDate))
+              .where(and(eq(recurringExpenses.id, recurringId!), eq(recurringExpenses.userId, userId)));
+          }
+          if (incRow && plannedDate) {
+            await tx
+              .update(expectedIncomes)
+              .set(advanceIncomeState(incRow, plannedDate))
+              .where(and(eq(expectedIncomes.id, expectedIncomeId!), eq(expectedIncomes.userId, userId)));
+          }
+          return created;
+        });
         return {
           ok: true,
           id: row.id,
@@ -267,13 +263,59 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
         // Business rule: soft delete / reversal instead of hard delete.
-        const deleted = await db
-          .update(transactions)
-          .set({ isDeleted: true, deletedAt: new Date() })
+        // A plan-linked transaction (recurring payment or received expected
+        // income) must also reconcile its parent plan: the fulfilled
+        // occurrence is revoked, counters are decremented, the scheduled date
+        // is restored and a completed plan is re-activated. This runs in a
+        // single transaction so delete + revert are atomic.
+        const existing = await db
+          .select()
+          .from(transactions)
           .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
-          .returning({ id: transactions.id });
-        if (!deleted[0]) return { ok: false, message: "Operatsiya topilmadi yoki ruxsat yo'q" };
-        return { ok: true, id: deleted[0].id, message: "Operatsiya bekor qilindi" };
+          .limit(1);
+        if (!existing[0]) return { ok: false, message: "Operatsiya topilmadi yoki ruxsat yo'q" };
+
+        const deleted = await db.transaction(async (tx) => {
+          // Reconcile the parent plan BEFORE marking the transaction deleted so
+          // a concurrent state read never observes a revoked occurrence without
+          // its transaction (or vice-versa) mid-flight.
+          if (existing[0].recurringId) {
+            const rec = await tx
+              .select()
+              .from(recurringExpenses)
+              .where(and(eq(recurringExpenses.id, existing[0].recurringId), eq(recurringExpenses.userId, userId)))
+              .limit(1);
+            if (rec[0]) {
+              const plannedDate = existing[0].plannedDate ?? existing[0].date;
+              await tx
+                .update(recurringExpenses)
+                .set(revertRecurringState(rec[0], plannedDate))
+                .where(and(eq(recurringExpenses.id, rec[0].id), eq(recurringExpenses.userId, userId)));
+            }
+          }
+          if (existing[0].expectedIncomeId) {
+            const inc = await tx
+              .select()
+              .from(expectedIncomes)
+              .where(and(eq(expectedIncomes.id, existing[0].expectedIncomeId), eq(expectedIncomes.userId, userId)))
+              .limit(1);
+            if (inc[0]) {
+              const plannedDate = existing[0].plannedDate ?? existing[0].date;
+              await tx
+                .update(expectedIncomes)
+                .set(revertIncomeState(inc[0], plannedDate))
+                .where(and(eq(expectedIncomes.id, inc[0].id), eq(expectedIncomes.userId, userId)));
+            }
+          }
+          const [row] = await tx
+            .update(transactions)
+            .set({ isDeleted: true, deletedAt: new Date() })
+            .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+            .returning({ id: transactions.id });
+          return row;
+        });
+        if (!deleted) return { ok: false, message: "Operatsiya topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: deleted.id, message: "Operatsiya bekor qilindi" };
       }
       return { ok: false, message: "Noma'lum amal" };
     }
@@ -479,12 +521,20 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const paymentAccountId = int(d.accountId) ?? rec[0].accountId ?? (await defaultAccount(userId));
         if (!paymentAccountId || !(await ownsAccount(userId, paymentAccountId))) return { ok: false, message: "Hisob topilmadi" };
+        // The occurrence being paid is the plan's current scheduled date. The
+        // actual transaction date may be earlier (early payment); the planned
+        // date is stored separately so deletion can restore the exact schedule.
+        const plannedDate = rec[0].nextDueDate;
+        const identity = occurrenceIdentity(
+          { startDate: rec[0].startDate, nextDueDate: rec[0].nextDueDate, frequency: rec[0].frequency },
+          plannedDate,
+        );
         const paid = await db.transaction(async (tx) => {
           // Claim this due date first: concurrent "pay" clicks compare the old
           // nextDueDate/installmentsPaid, so only one writes a transaction.
           const claimed = await tx
             .update(recurringExpenses)
-            .set(advanceRecurringValues(rec[0], today))
+            .set(advanceRecurringState(rec[0], plannedDate))
             .where(
               and(
                 eq(recurringExpenses.id, id),
@@ -506,6 +556,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             note: `${rec[0].name} (reja bajarildi)`,
             source: "auto",
             recurringId: rec[0].id,
+            plannedDate: identity.plannedDate,
+            occurrenceNumber: identity.occurrenceNumber,
             currency: user.currency,
           });
           return true;
@@ -594,6 +646,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           isActive: bool(d.isActive, true),
           planType: incomePlanType,
           occurrenceCount,
+          startDate: isoDate(d.startDate, expectedDate),
         };
         if (input.action === "create") {
           const [row] = await db.insert(expectedIncomes).values({ ...values, occurrencesReceived: 0 }).returning();
@@ -624,24 +677,19 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (row[0].planType === "term" && row[0].occurrenceCount !== null && row[0].occurrencesReceived >= row[0].occurrenceCount) {
           return { ok: false, message: "Bu daromad rejasi allaqachon yakunlangan" };
         }
-        const receiveValues = (): Record<string, unknown> => {
-          if (row[0].planType === "one_time" || row[0].frequency === "once") return { isActive: false };
-          if (row[0].planType === "term") {
-            const received = row[0].occurrencesReceived + 1;
-            const finished = row[0].occurrenceCount !== null && received >= row[0].occurrenceCount;
-            return {
-              occurrencesReceived: received,
-              ...(finished ? { isActive: false } : { expectedDate: advance(row[0].expectedDate, row[0].frequency) }),
-            };
-          }
-          return { expectedDate: advance(row[0].expectedDate, row[0].frequency) };
-        };
+        // The occurrence being received is the plan's current scheduled date;
+        // the actual transaction date may be earlier (early receive).
+        const plannedDate = row[0].expectedDate;
+        const identity = occurrenceIdentity(
+          { startDate: row[0].startDate, nextDueDate: row[0].expectedDate, frequency: row[0].frequency },
+          plannedDate,
+        );
         const txRow = await db.transaction(async (tx) => {
           // Claim this exact occurrence before inserting money. Concurrent
           // clicks compare the old date/active state, so only one can win.
           const claimed = await tx
             .update(expectedIncomes)
-            .set(receiveValues())
+            .set(advanceIncomeState(row[0], plannedDate))
             .where(
               and(
                 eq(expectedIncomes.id, id),
@@ -664,6 +712,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               note: `${row[0].sourceName} (kutilgan daromad qabul qilindi)`,
               source: "api",
               expectedIncomeId: row[0].id,
+              plannedDate: identity.plannedDate,
+              occurrenceNumber: identity.occurrenceNumber,
               currency: user.currency,
             })
             .returning();

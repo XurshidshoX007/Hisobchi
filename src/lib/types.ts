@@ -8,6 +8,7 @@ import type {
   Forecast,
   GoalView,
   Health,
+  MonthIncomeSummary,
   NotificationView,
   RecurringView,
   TxView,
@@ -58,6 +59,8 @@ export type AppState = {
   analytics: Analytics;
   health: Health;
   monthly?: MonthlyView[];
+  /** Current-month-only expected income summary (see Plans → Daromad). */
+  currentMonthIncome: MonthIncomeSummary;
 };
 
 export type MutateResult = { ok: true; message?: string; state?: AppState } | { ok: false; error: string };
