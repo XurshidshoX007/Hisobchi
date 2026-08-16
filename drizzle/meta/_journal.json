@@ -15,6 +15,13 @@
       "when": 1786783452316,
       "tag": "0001_payment_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786783452317,
+      "tag": "0002_goal_soft_delete",
+      "breakpoints": true
     }
   ]
 }
