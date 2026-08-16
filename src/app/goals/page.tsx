@@ -60,7 +60,7 @@ export default function GoalsPage() {
                     </p>
                   </div>
                 </div>
-                <Badge tone={g.onTrack ? "positive" : "warning"}>{g.onTrack ? "rejada" : "ortda"}</Badge>
+                <Badge tone={g.onTrack ? "positive" : "warning"}>{g.onTrack ? "Rejada" : "Ortda"}</Badge>
               </div>
 
               {/* §18: primary = progress toward target; secondary = one muted
@@ -108,7 +108,7 @@ export default function GoalsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon="🏆" title="Maqsadlar yo‘q" description="Pastdagi + tugmasi orqali maqsad yarating." />
+        <EmptyState icon="🏆" title="Maqsadlar yo‘q." description="Pastdagi + tugmasi orqali maqsad qo‘shing." />
       )}
 
       <GoalSheet open={sheet} onClose={closeSheet} editing={editing} />
@@ -188,9 +188,9 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Maqsadni tahrirlash" : "Yangi maqsad"}
+      title={editing ? "Maqsadni tahrirlash" : "+ Maqsad"}
       subtitle={editing ? undefined : "Nimaga jamg‘arasiz?"}
-      submitLabel="Maqsadni saqlash"
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
       onSubmit={submit}
@@ -291,7 +291,7 @@ function ContributeSheet({ goal, onClose }: { goal: GoalView | null; onClose: ()
       onClose={onClose}
       title={`${record.icon} ${record.name}`}
       subtitle={`Qolgan ${formatAmount(record.remaining)} so‘m`}
-      submitLabel="Jamg‘armani qo‘shish"
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={Boolean(amount)}
       onSubmit={submit}

@@ -11,8 +11,8 @@ import { FabProvider, GlobalAddFab, useFab } from "./fab";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
 
 const NAV = [
-  { href: "/", label: "Dashboard", short: "Asosiy", icon: HomeIcon },
-  { href: "/transactions", label: "Operatsiyalar", short: "Tarix", icon: ListIcon },
+  { href: "/", label: "Asosiy", short: "Asosiy", icon: HomeIcon },
+  { href: "/transactions", label: "Tarix", short: "Tarix", icon: ListIcon },
   { href: "/plans", label: "Reja", short: "Reja", icon: CalendarIcon },
   { href: "/analytics", label: "Tahlil", short: "Tahlil", icon: ChartIcon },
   { href: "/more", label: "Ko‘proq", short: "Menyu", icon: GridIcon },
@@ -48,13 +48,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary text-lg font-bold text-primary-fg">
             ₮
           </div>
-          <h1 className="mt-4 text-lg font-semibold tracking-tight">Moliya OS</h1>
+          <h1 className="mt-4 text-lg font-semibold tracking-tight">Hisobchi</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            Bu muhitda demo rejim o‘chirilgan. Ilovani Telegram Mini App sifatida oching —{" "}
-            <span className="font-medium text-fg-soft">kirish Telegram orqali xavfsiz tasdiqlanadi</span>.
-          </p>
-          <p className="mt-3 rounded-xl bg-surface-2 px-3 py-2 text-[11.5px] leading-snug text-muted">
-            BotFather’da Mini App URL sozlangach, foydalanuvchilar to‘g‘ridan-to‘g‘ri Telegram ichida kiradi.
+            Ilovani Telegram orqali oching — kirish Telegramda tasdiqlanadi.
           </p>
         </div>
       </div>
@@ -71,8 +67,8 @@ function AppShellContent({ children }: { children: ReactNode }) {
             <span>₮</span>
           </div>
           <div>
-            <p className="text-[13px] font-semibold leading-tight">Moliya OS</p>
-            <p className="text-[11px] text-muted">Personal Finance</p>
+            <p className="text-[13px] font-semibold leading-tight">Hisobchi</p>
+            <p className="text-[11px] text-muted">Shaxsiy moliya</p>
           </div>
         </div>
         {NAV.map((item) => {
@@ -104,9 +100,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
             one-line reference to it (§4), never a second hero. */}
         <Link href="/" className="mt-6 block rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2">
           <p className="text-[11.5px] text-muted">
-            Joriy balans: <span className="num font-semibold text-fg">{formatAmount(state?.forecast.currentBalance ?? 0)}</span>
+            Balans: <span className="num font-semibold text-fg">{formatAmount(state?.forecast.currentBalance ?? 0)}</span>
           </p>
-          <p className="text-[10.5px] text-muted">{state?.accounts.length ?? 0} hisob · Dashboard →</p>
+          <p className="text-[10.5px] text-muted">{state?.accounts.length ?? 0} hisob · Asosiy →</p>
         </Link>
 
         <button
@@ -127,7 +123,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
           <span className="text-base">{theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}</span>
-          {theme === "dark" ? "Dark mode" : theme === "light" ? "Light mode" : "Tizim mavzusi"}
+          {theme === "dark" ? "Tungi" : theme === "light" ? "Kunduzgi" : "Tizim"}
         </button>
       </aside>
 
@@ -212,7 +208,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
         title="Eslatmalar"
         footer={
           <Button variant="secondary" className="flex-1" onClick={() => mutate("notification", "readAll", {})}>
-            Barchasini o‘qilgan deb belgilash
+            Hammasini o‘qilgan qilish
           </Button>
         }
       >
@@ -244,7 +240,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 onClick={() => setAlertsOpen(false)}
                 className="shrink-0 text-[11.5px] font-semibold text-accent-text touch-manipulation"
               >
-                {a.severity === "critical" ? "Dashboard →" : "Rejalar →"}
+                {a.severity === "critical" ? "Asosiy →" : "Reja →"}
               </Link>
             </div>
           </div>
@@ -253,7 +249,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           <div key={n.id} className="flat-card p-4">
             <div className="flex items-start justify-between gap-3">
               <p className="text-[14px] font-medium">{n.title}</p>
-              <Badge tone={n.isRead ? "neutral" : "accent"}>{n.isRead ? "o‘qilgan" : "yangi"}</Badge>
+              <Badge tone={n.isRead ? "neutral" : "accent"}>{n.isRead ? "O‘qilgan" : "Yangi"}</Badge>
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-muted">{n.body}</p>
             <div className="mt-2 flex items-center justify-between">

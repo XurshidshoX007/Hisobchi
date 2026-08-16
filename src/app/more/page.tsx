@@ -40,7 +40,7 @@ export default function MorePage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-6">
-      <PageHeader title="Ko‘proq" />
+      <PageHeader title="Menyu" />
 
       <Section>
         <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-line rounded-2xl border border-line bg-surface">

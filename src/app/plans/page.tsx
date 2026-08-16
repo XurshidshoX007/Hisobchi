@@ -279,7 +279,7 @@ export default function PlansPage() {
 
   return (
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-4 sm:space-y-5">
-      <PageHeader title="Reja va prognoz" subtitle="Kelajakdagi majburiyatlar va kutilayotgan pullar markazi" />
+      <PageHeader title="Reja" />
 
       <div className="mb-1 sm:mb-4">
         <Segmented
@@ -288,7 +288,7 @@ export default function PlansPage() {
           options={[
             { value: "payments", label: "To‘lovlar" },
             { value: "income", label: "Daromad" },
-            { value: "cashflow", label: "Cash-flow" },
+            { value: "cashflow", label: "Pul oqimi" },
           ]}
         />
       </div>
@@ -353,8 +353,8 @@ export default function PlansPage() {
             ) : (
               <EmptyState
                 icon="📌"
-                title="Faol reja yo‘q"
-                description="Ijara, kommunal, kredit kabi takrorlanuvchi to‘lovlarni pastdagi + tugmasi orqali kiriting."
+                title="Rejalashtirilgan to‘lovlar yo‘q."
+                description="Pastdagi + tugmasi orqali to‘lov rejasini qo‘shing."
               />
             )
           ) : tabbedPlans && tabbedPlans.length ? (
@@ -375,14 +375,14 @@ export default function PlansPage() {
               }
               description={
                 planTab === "paused"
-                  ? "Faol rejani vaqtincha to‘xtatsangiz shu yerda ko‘rinadi — pauzadagi reja prognozga ta’sir qilmaydi."
+                  ? "Pauzadagi reja prognozga qo‘shilmaydi."
                   : planTab === "completed"
-                    ? "Muddatli reja barcha bo‘lib to‘lashlari tugagach shu yerga tushadi."
-                    : "Bekor qilish faqat kelajakdagi to‘lovlarni to‘xtatadi — tarixdagi haqiqiy to‘lovlar saqlanadi."
+                    ? "Muddatli reja tugagach shu yerga tushadi."
+                    : "Bekor qilingan reja tarixda saqlanadi."
               }
               action={
                 <Button type="button" variant="secondary" onClick={() => setPlanTab("open")}>
-                  Faol rejalarga qaytish
+                  Faol rejalar
                 </Button>
               }
             />
@@ -395,18 +395,17 @@ export default function PlansPage() {
           <Card>
             <div className="mb-2.5 flex items-center justify-between gap-2">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">
-                Bu oy · {state.currentMonthIncome.label}
+                Kutilayotgan daromad · {state.currentMonthIncome.label}
               </p>
-              <Badge tone="positive">kutilmoqda</Badge>
             </div>
             <Money value={state.currentMonthIncome.base} size="xl" tone="positive" />
             <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3">
-              <StatCard label="Aniq kutilmoqda" value={state.currentMonthIncome.exactBase} context="tasdiqlangan manbalar" tone="positive" />
-              <StatCard label="Taxminiy" value={state.currentMonthIncome.estimatedBase} context="diapazon o‘rtachasi" tone="muted" />
+              <StatCard label="Aniq" value={state.currentMonthIncome.exactBase} tone="positive" />
+              <StatCard label="Taxminiy" value={state.currentMonthIncome.estimatedBase} tone="muted" />
             </div>
             <p className="mt-3 border-t border-line pt-3 text-[11.5px] leading-snug text-muted">
-              90 kunlik prognoz: <span className="num font-medium text-fg">{compact(f.income.base)} so‘m</span> (aniq{" "}
-              {compact(f.income.exactBase)}, taxminiy {compact(f.income.estimatedBase)})
+              90 kunlik prognoz <span className="num font-medium text-fg">{compact(f.income.base)} so‘m</span> · aniq{" "}
+              {compact(f.income.exactBase)} · taxminiy {compact(f.income.estimatedBase)}
             </p>
           </Card>
 
@@ -439,8 +438,8 @@ export default function PlansPage() {
             ) : (
               <EmptyState
                 icon="💰"
-                title="Faol daromad rejasi yo‘q"
-                description="Keladigan daromadni pastdagi + tugmasi orqali kiriting — cash-flow uni hisobga oladi."
+                title="Daromadlar hali kiritilmagan."
+                description="Pastdagi + tugmasi orqali kutilayotgan daromadni qo‘shing."
               />
             )
           ) : tabbedIncomePlans && tabbedIncomePlans.length ? (
@@ -463,12 +462,12 @@ export default function PlansPage() {
                 incomeTab === "paused"
                   ? "Pauzadagi daromad prognozga qo‘shilmaydi."
                   : incomeTab === "completed"
-                    ? "Muddatli daromad barcha qabullari tugagach shu yerga tushadi."
-                    : "Bekor qilish faqat kelajakdagi qabullarni to‘xtatadi — tarix saqlanadi."
+                    ? "Muddatli daromad tugagach shu yerga tushadi."
+                    : "Bekor qilingan reja tarixda saqlanadi."
               }
               action={
                 <Button type="button" variant="secondary" onClick={() => setIncomeTab("open")}>
-                  Faol rejalarga qaytish
+                  Faol rejalar
                 </Button>
               }
             />
@@ -1009,7 +1008,7 @@ function RestorePlanConfirm({ target, onClose }: { target: RestoreTarget | null;
         </div>
       ) : null}
       <p className="text-[12.5px] leading-relaxed text-muted">
-        Eskirgan sana tiklanmaydi — reja bugundan keyingi birinchi haqiqiy sanadan davom etadi.
+        Reja bugundan keyingi birinchi sanadan davom etadi.
       </p>
     </Sheet>
   );
@@ -1067,7 +1066,7 @@ function CashflowTab({
           </button>
           <div className="min-w-0 text-center">
             <p className="truncate text-[15px] font-semibold">{monthLabel}</p>
-            <p className="mt-0.5 text-[11px] text-muted">{isCurrent ? "joriy oy" : "kelajak oy"}</p>
+            <p className="mt-0.5 text-[11px] text-muted">{isCurrent ? "Joriy oy" : "Kelasi oy"}</p>
           </div>
           <button
             type="button"
@@ -1090,11 +1089,11 @@ function CashflowTab({
                 <p className="num mt-1 break-words text-[13.5px] font-semibold">{formatAmount(opening)}</p>
               </div>
               <div className="min-w-0 p-3">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Kirim</p>
+                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Daromad</p>
                 <p className="num mt-1 break-words text-[13.5px] font-semibold text-positive-text">+{formatAmount(inflow)}</p>
               </div>
               <div className="min-w-0 border-t border-line p-3 sm:border-t-0">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Chiqim</p>
+                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Xarajat</p>
                 <p className="num mt-1 break-words text-[13.5px] font-semibold">−{formatAmount(outflow)}</p>
               </div>
               <div className="min-w-0 border-t border-line p-3 sm:border-t-0">
@@ -1103,8 +1102,8 @@ function CashflowTab({
               </div>
             </div>
             <p className="text-[11px] text-muted">
-              Majburiy: <span className="num font-medium text-fg-soft">{compact(mandatory)}</span> · Kutilayotgan daromad:{" "}
-              <span className="num font-medium text-fg-soft">{compact(expectedIncome)}</span> — to‘liq ro‘yxat To‘lovlar / Daromad tablarida.
+              Majburiy <span className="num font-medium text-fg-soft">{compact(mandatory)}</span> · Kutilayotgan daromad{" "}
+              <span className="num font-medium text-fg-soft">{compact(expectedIncome)}</span>
             </p>
 
             <div>
@@ -1129,7 +1128,7 @@ function CashflowTab({
           </>
         ) : (
           <p className="text-[13px] leading-relaxed text-muted">
-            Bu oy prognoz oynasidan tashqarida ({forecast.horizonDays} kunlik gorizont). Joriy oyga qayting.
+            Bu oy prognoz davridan tashqarida. Joriy oyga qayting.
           </p>
         )}
       </Card>
@@ -1148,14 +1147,14 @@ function CashflowTab({
                 <span className="min-w-0 flex-1 truncate text-[13px] sm:text-[13.5px]">{p.label}</span>
                 <span className="shrink-0">
                   <Badge tone={p.mandatory ? "negative" : p.kind === "income" ? "positive" : "neutral"}>
-                    {p.mandatory ? "majburiy" : p.kind === "income" ? (p.certainty === "estimated" ? "taxminiy" : "aniq") : "ixtiyoriy"}
+                    {p.mandatory ? "Majburiy" : p.kind === "income" ? (p.certainty === "estimated" ? "Taxminiy" : "Aniq") : "Ixtiyoriy"}
                   </Badge>
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-[13px] leading-relaxed text-muted">Bu oyda rejalashtirilgan hodisa yo‘q.</p>
+          <p className="text-[13px] leading-relaxed text-muted">Rejalashtirilgan to‘lovlar yo‘q.</p>
         )}
       </Card>
 
@@ -1177,13 +1176,11 @@ function CashflowTab({
               ))}
             </div>
             <Link href="/" className="mt-2 inline-block text-[12px] font-semibold text-accent-text">
-              To‘liq izoh → Dashboard
+              To‘liq izoh → Asosiy
             </Link>
           </>
         ) : (
-          <p className="text-[13px] leading-relaxed text-muted">
-            Bu oyda pul yetishmasligi xavfi aniqlanmadi (butun {forecast.horizonDays} kunlik prognoz tekshirildi).
-          </p>
+          <p className="text-[13px] leading-relaxed text-muted">Xavf aniqlanmadi.</p>
         )}
       </Card>
     </div>
@@ -1340,9 +1337,9 @@ function RecurringSheet({
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "To‘lov rejasini tahrirlash" : "To‘lov rejasi"}
-      subtitle={editing ? undefined : "Nima uchun va qancha to‘laysiz?"}
-      submitLabel={editing ? "Saqlash" : "Rejani yaratish"}
+      title={editing ? "To‘lovni tahrirlash" : "+ To‘lov"}
+      subtitle={editing ? undefined : "Nima uchun va qancha?"}
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
       onSubmit={submit}
@@ -1403,7 +1400,7 @@ function RecurringSheet({
           error={showError("date")}
         />
         {planType !== "one_time" ? (
-          <Field label="To‘lov chastotasi">
+          <Field label="Takrorlanish">
             <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
               <option value="weekly">Har hafta</option>
               <option value="monthly">Har oy</option>
@@ -1471,8 +1468,8 @@ function RecurringSheet({
             <Field label="Holati">
               <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12px] leading-relaxed text-muted">
                 {editing?.status === "cancelled"
-                  ? "Bekor qilingan. Tahrirlash uni faollashtirmaydi — «Qayta faollashtirish» tugmasidan foydalaning."
-                  : "Yakunlangan. Tahrirlash uni qayta ochmaydi; bo‘lib to‘lashlar sonini oshirsangiz qolgan to‘lovlar davom etadi."}
+                  ? "Bekor qilingan. «Qayta faollashtirish» tugmasini bosing."
+                  : "Yakunlangan. To‘lovlar soni oshirilsa, reja davom etadi."}
               </p>
             </Field>
           ) : (
@@ -1656,9 +1653,9 @@ function IncomeSheet({
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Kutilayotgan daromadni tahrirlash" : "Kutilayotgan daromad"}
+      title={editing ? "Daromadni tahrirlash" : "+ Daromad"}
       subtitle={editing ? undefined : "Qaysi manbadan va qachon?"}
-      submitLabel={editing ? "Saqlash" : "Daromadni qo‘shish"}
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
       onSubmit={submit}
@@ -1777,7 +1774,7 @@ function IncomeSheet({
           <Field label="Holati">
             <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12px] leading-relaxed text-muted">
               {editing?.status === "cancelled"
-                ? "Bekor qilingan. Tahrirlash uni faollashtirmaydi — «Qayta faollashtirish» tugmasidan foydalaning."
+                ? "Bekor qilingan. «Qayta faollashtirish» tugmasini bosing."
                 : "Yakunlangan. Tahrirlash uni qayta ochmaydi."}
             </p>
           </Field>

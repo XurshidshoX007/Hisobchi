@@ -25,14 +25,14 @@ export default function AnalyticsPage() {
       <h1 className="mt-5 text-xl font-bold tracking-tight sm:text-[22px]">Tez kunda</h1>
 
       <p className="mt-2 max-w-[320px] text-[13px] leading-relaxed text-muted">
-        Moliyaviy tahlil, trendlar va chuqur statistikalar shu bo‘limda paydo bo‘ladi.
+        Tahlil va trendlar shu bo‘limda paydo bo‘ladi.
       </p>
 
       <Link
         href="/"
         className="mt-6 inline-flex min-h-11 select-none items-center justify-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-fg transition-colors hover:border-line-strong hover:bg-surface-2 active:scale-[0.98] touch-manipulation"
       >
-        Bosh sahifaga qaytish
+        Asosiy sahifa
       </Link>
     </div>
   );

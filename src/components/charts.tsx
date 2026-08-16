@@ -73,7 +73,7 @@ export function IncomeExpenseBars({
 export function ForecastArea({
   data,
   height = 160,
-  description = "Balansning real va prognoz qismi, minimum, bazaviy va maksimum ssenariylar.",
+  description = "Balans prognozi: min, o‘rta va max.",
 }: {
   data: Array<{
     date: string;

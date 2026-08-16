@@ -8,6 +8,7 @@ import { useFabPage } from "@/components/fab";
 import { Badge, Button, Card, EmptyState, Money, Section, SectionTitle, Skeleton } from "@/components/ui";
 import { QuickAddSheet } from "@/components/quick-add";
 import { formatAmount, shortDate } from "@/lib/money";
+import { ERRORS, LOADING, TERMS } from "@/lib/copy";
 import type { FinancialTimelineEvent } from "@/lib/finance";
 import type { FabTransactionType } from "@/lib/fab";
 
@@ -22,10 +23,10 @@ function eventAmount(event: FinancialTimelineEvent): number {
 }
 
 function eventLabel(event: FinancialTimelineEvent): string {
-  if (event.phase === "real") return "REAL · amalga oshgan";
-  if (event.phase === "forecast") return "PROGNOZ · qayd etilgan";
-  if (event.kind === "planned_income") return event.certainty === "estimated" ? "REJA · taxminiy" : "REJA · aniq";
-  return event.mandatory ? "REJA · majburiy" : "REJA · ixtiyoriy";
+  if (event.phase === "real") return "Bajarilgan";
+  if (event.phase === "forecast") return "Prognoz";
+  if (event.kind === "planned_income") return event.certainty === "estimated" ? "Reja · taxminiy" : "Reja · aniq";
+  return event.mandatory ? "Reja · majburiy" : "Reja · ixtiyoriy";
 }
 
 export default function DashboardPage() {
@@ -35,7 +36,7 @@ export default function DashboardPage() {
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
 
   // Global FAB: the Dashboard owns the transaction entry point. The three
-  // contextual directions (Kirim/Chiqim/Transfer) all resolve to the shared
+  // contextual directions (Daromad/Xarajat/Transfer) all resolve to the shared
   // QuickAddSheet with the chosen default type — no second form.
   useFabPage({}, { transaction: (a) => { setDefaultType(a.type ?? "expense"); setAddOpen(true); } });
 
@@ -59,7 +60,7 @@ export default function DashboardPage() {
 
   if (loading && !state) {
     return (
-      <div className="space-y-3" aria-label="Dashboard yuklanmoqda" aria-busy="true">
+      <div className="space-y-3" aria-label={LOADING.default} aria-busy="true">
         <Skeleton className="h-12" />
         <Skeleton className="h-56" />
         <Skeleton className="h-24" />
@@ -69,7 +70,7 @@ export default function DashboardPage() {
     );
   }
   if (error && !state) {
-    return <EmptyState icon="⚠️" title="Ma'lumot yuklanmadi" description={error} action={<Button onClick={() => void refresh()}>Qayta urinish</Button>} />;
+    return <EmptyState icon="⚠️" title={ERRORS.load} description={error} action={<Button onClick={() => void refresh()}>Qayta urinish</Button>} />;
   }
   if (!state || !month) return null;
 
@@ -80,8 +81,10 @@ export default function DashboardPage() {
   const trendVisible = !month.isFuture && Boolean(previousMonth && previous);
 
   const contextBalance = month.isCurrent ? forecast.currentBalance : month.isPast ? month.forecastClosingBase : month.openingBalance;
-  const contextLabel = month.isCurrent ? "Joriy real balans" : month.isPast ? "Oy yopilish real balansi" : "Prognoz ochilish balansi";
-  const closingLabel = month.isPast ? "Real yopilish balansi" : "Oy oxiri prognozi";
+  // §3/§7: the month switcher above already states WHICH month and whether it
+  // is current/past/future — the label never repeats that context.
+  const contextLabel = month.isCurrent ? TERMS.balance : month.isPast ? "Oy yopilishi" : "Ochilish balansi";
+  const closingLabel = month.isPast ? "Yopilish" : "Oy oxiri prognozi";
 
   const firstRiskDay = month.daily.find((day) => day.isRisk && (month.isCurrent ? day.date >= forecast.today : true));
   const riskCause = firstRiskDay?.timelineEvents
@@ -117,7 +120,7 @@ export default function DashboardPage() {
         >←</button>
         <div className="min-w-0 flex-1 text-center">
           <p className="truncate text-lg font-bold uppercase tracking-tight">{month.label}</p>
-          <p className="text-[11px] text-muted">{month.isCurrent ? "Joriy oy" : month.isPast ? "Tarixiy real natija" : "Kelajak rejasi"}</p>
+          <p className="text-[11px] text-muted">{month.isCurrent ? "Joriy oy" : month.isPast ? "O‘tgan oy" : "Kelasi oy"}</p>
         </div>
         <button
           type="button"
@@ -134,21 +137,20 @@ export default function DashboardPage() {
         <div className="absolute -right-20 -top-24 h-56 w-56 rounded-full bg-accent opacity-[0.06]" />
         <div className="relative flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">REAL · {contextLabel}</p>
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{contextLabel}</p>
             <div className="mt-2 flex flex-wrap items-baseline gap-1.5">
               <Money value={contextBalance} size="hero" tone={contextBalance < 0 ? "negative" : "default"} />
               <span className="text-xs text-muted">{state.user.currency}</span>
             </div>
-            {!month.isCurrent ? <p className="mt-1 text-[11px] text-muted">Bugungi global balans bilan aralashtirilmagan</p> : null}
           </div>
         </div>
 
         <div className="relative mt-4 grid grid-cols-2 gap-2 border-t border-line pt-3">
-          <div><p className="text-[10px] font-semibold uppercase text-muted">Bu oy · daromad</p><div className="mt-1"><Money value={month.realIncome} size="md" tone="positive" signed /></div></div>
-          <div><p className="text-[10px] font-semibold uppercase text-muted">Bu oy · xarajat</p><div className="mt-1"><Money value={-month.realExpense} size="md" tone="negative" signed /></div></div>
+          <div><p className="text-[10px] font-semibold uppercase text-muted">{TERMS.income}</p><div className="mt-1"><Money value={month.realIncome} size="md" tone="positive" signed /></div></div>
+          <div><p className="text-[10px] font-semibold uppercase text-muted">{TERMS.expense}</p><div className="mt-1"><Money value={-month.realExpense} size="md" tone="negative" signed /></div></div>
         </div>
         <div className="relative mt-3 rounded-xl bg-surface-2 p-3">
-          <p className="text-[10px] font-semibold uppercase text-muted">PROGNOZ · {closingLabel}</p>
+          <p className="text-[10px] font-semibold uppercase text-muted">{closingLabel}</p>
           <div className="mt-1"><Money value={month.forecastClosingBase} size="lg" tone={month.forecastClosingBase < 0 ? "negative" : "default"} /></div>
         </div>
       </Card>
@@ -185,8 +187,7 @@ export default function DashboardPage() {
       {/* 4 · Monthly summary — ONE compact grouped block (§13). Only the REJA
              side lives here: REAL flow and PROGNOZ already have their home in
              the hero above and are not repeated. */}
-      <Section title="Oylik xulosa" hint="REJA tomoni · to‘liq ro‘yxat Rejalarda" action={<Link href="/plans" className="text-xs font-semibold text-accent-text">Rejalar →</Link>}>
-        <h2 className="sr-only">Oylik asosiy ko‘rsatkichlar</h2>
+      <Section title="Oylik xulosa" action={<Link href="/plans" className="text-xs font-semibold text-accent-text">Rejalar →</Link>}>
         <div className="rounded-2xl border border-line bg-surface">
           <div className="grid grid-cols-2 divide-x divide-line">
             <div className="min-w-0 p-3">
@@ -206,18 +207,17 @@ export default function DashboardPage() {
         </div>
       </Section>
 
-      {/* 5 · Safe-to-Spend — one strong card; the formula is secondary and
-             collapsed (§14). */}
+      {/* 5 · “Sarflash mumkin” (safeToSpend) — one strong card; the formula is
+             secondary and collapsed (§14). */}
       {month.isCurrent ? (
         <Card>
-          <SectionTitle title="Safe-to-Spend" hint={`Bugundan ${shortDate(forecast.safeHorizonEnd)} gacha`} action={<Badge tone={forecast.safeToSpend < 0 ? "negative" : "positive"}>{forecast.safeToSpend < 0 ? "Yetishmayapti" : "Xavfsiz"}</Badge>} />
+          <SectionTitle title={TERMS.safeToSpend} hint={`${shortDate(forecast.safeHorizonEnd)} gacha`} action={<Badge tone={forecast.safeToSpend < 0 ? "negative" : "positive"}>{forecast.safeToSpend < 0 ? "Yetishmayapti" : "Xavfsiz"}</Badge>} />
           <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase text-muted">Majburiyatlardan keyin xavfsiz</p>
-              <div className="mt-1"><Money value={forecast.safeToSpend} size="xl" tone={forecast.safeToSpend < 0 ? "negative" : "default"} signed /></div>
+              <div><Money value={forecast.safeToSpend} size="xl" tone={forecast.safeToSpend < 0 ? "negative" : "default"} signed /></div>
             </div>
             <p className="text-[12px] text-muted">
-              Rejalardan keyin: <span className={`num font-semibold ${forecast.freeToSpend < 0 ? "text-negative-text" : "text-fg"}`}>{formatAmount(forecast.freeToSpend)}</span>
+              Rejalardan keyin <span className={`num font-semibold ${forecast.freeToSpend < 0 ? "text-negative-text" : "text-fg"}`}>{formatAmount(forecast.freeToSpend)}</span>
             </p>
           </div>
           <details className="mt-3 rounded-xl border border-line">
@@ -231,14 +231,14 @@ export default function DashboardPage() {
 
       {/* 6 · The ONE main chart (§15). */}
       <Card>
-        <SectionTitle title="Balans prognozi" hint={`${month.label} · min / baza / max`} action={<Badge tone={month.deficitDays ? "negative" : "positive"}>{month.deficitDays ? `${month.deficitDays} xavf kuni` : "barqaror"}</Badge>} />
+        <SectionTitle title="Balans prognozi" hint={`${month.label} · min / o‘rta / max`} action={<Badge tone={month.deficitDays ? "negative" : "positive"}>{month.deficitDays ? `${month.deficitDays} xavf kuni` : "Barqaror"}</Badge>} />
         <ForecastArea data={chartData} description={chartSummary} />
         <p className="sr-only">{chartSummary}</p>
-        <div className="mt-3 flex flex-wrap gap-3 text-[10.5px] text-muted"><span>— REAL</span><span className="text-accent-text">— PROGNOZ</span><span>▧ min–max</span><span className="text-negative-text">● xavf</span></div>
+        <div className="mt-3 flex flex-wrap gap-3 text-[10.5px] text-muted"><span>— Real</span><span className="text-accent-text">— Prognoz</span><span>▧ min–max</span><span className="text-negative-text">● xavf</span></div>
       </Card>
 
       {/* 7 · Next 3 important events — a reference to Plans, not a list. */}
-      <Section title="Keyingi muhim voqealar" hint={month.isPast ? "Oy ichidagi so‘nggi REAL voqealar" : `${month.label} · 3 tagacha`} action={<Link href="/plans" className="text-xs font-semibold text-accent-text">Barchasi → Rejalar</Link>}>
+      <Section title="Keyingi muhim voqealar" hint={month.isPast ? "So‘nggi voqealar" : undefined} action={<Link href="/plans" className="text-xs font-semibold text-accent-text">Barchasi → Rejalar</Link>}>
         {monthEvents.length ? <div className="divide-y divide-line">{monthEvents.map((event) => {
           const amount = eventAmount(event);
           return <div key={event.key} className="flex min-w-0 items-center gap-3 py-3">
@@ -246,7 +246,7 @@ export default function DashboardPage() {
             <div className="min-w-0 flex-1"><p className="break-words text-[13.5px] font-medium">{event.label}</p><p className="mt-0.5 text-[10.5px] text-muted">{shortDate(event.date)} · {eventLabel(event)}</p></div>
             <div className="max-w-[38%] shrink-0 text-right"><Money value={amount} size="sm" tone={amount >= 0 ? "positive" : "negative"} signed /></div>
           </div>;
-        })}</div> : <EmptyState icon="📌" title="Bu davrda muhim voqea yo‘q" description={hasPlan ? "Rejalashtirilgan holat mavjud, ammo tanlangan mezonga tushmadi." : "Daromad yoki to‘lov rejasini qo‘shishingiz mumkin."} />}
+        })}</div> : <EmptyState icon="📌" title="Bu davrda muhim voqea yo‘q" description={hasPlan ? "Tanlangan davrda voqea yo‘q." : "Daromad yoki to‘lov rejasini qo‘shing."} />}
       </Section>
 
       {/* 8 · One compact insight — interpretation itself lives in Analytics. */}
@@ -259,7 +259,7 @@ export default function DashboardPage() {
         </Link>
       ) : null}
 
-      {!hasReal ? <p className="px-2 text-center text-[12px] text-muted">Bu oy hali operatsiya yo‘q.{hasPlan ? " Rejalashtirilgan holat mavjud." : ""}</p> : null}
+      {!hasReal ? <p className="px-2 text-center text-[12px] text-muted">Bu oy operatsiya yo‘q.</p> : null}
       <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} defaultType={defaultType} />
     </div>
   );

@@ -26,15 +26,22 @@ export type BotIntent =
  */
 export function botIntent(message: string): BotIntent {
   const text = message.trim();
-  const lower = text.toLocaleLowerCase("uz");
+  // §18: the product writes o‘/g‘ with a typographic apostrophe, while older
+  // pinned keyboards (and hand-typed messages) use ' or ’. Routing normalizes
+  // them so ONE spelling in the UI never breaks an existing chat.
+  const lower = text.toLocaleLowerCase("uz").replace(/[’‘`ʻ´]/g, "'");
   const firstToken = lower.split(/\s+/, 1)[0] ?? "";
   const command = firstToken.match(/^\/([a-z]+)(?:@[a-z0-9_]+)?$/)?.[1] ?? null;
 
   if (!text || command === "start" || lower === "start" || lower === "boshlash") return "start";
   if (command === "report" || lower === "📊 hisobot" || lower === "hisobot") return "report";
-  if (command === "forecast" || lower === "📅 reja va prognoz" || lower === "reja va prognoz") return "forecast";
+  if (command === "forecast" || lower === "📅 reja" || lower === "📅 reja va prognoz" || lower === "reja va prognoz") return "forecast";
   if (command === "help" || lower === "yordam") return "help";
 
+  // Both vocabularies are accepted: the CURRENT keyboard says Daromad/Xarajat,
+  // while older pinned keyboards in existing chats still say Kirim/Chiqim.
+  if (lower === "💰 daromad" || lower === "➕ daromad" || lower === "daromad") return "add-income";
+  if (lower === "💸 xarajat" || lower === "➖ xarajat" || lower === "xarajat") return "add-expense";
   if (lower === "💰 kirim" || lower === "➕ kirim" || lower === "kirim") return "add-income";
   if (lower === "💸 chiqim" || lower === "➖ chiqim" || lower === "chiqim") return "add-expense";
   if (lower === "🔄 transfer" || lower === "↔️ transfer" || lower === "↔ transfer" || lower === "transfer") return "add-transfer";

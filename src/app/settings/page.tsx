@@ -3,8 +3,9 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Badge, Button, Card, Divider, Field, PageHeader, Segmented, Select, Skeleton, TextInput } from "@/components/ui";
+import { Button, Card, Divider, Field, PageHeader, Segmented, Select, Skeleton, TextInput } from "@/components/ui";
 import { formatAmount } from "@/lib/money";
+import { TERMS } from "@/lib/copy";
 
 export default function SettingsPage() {
   const { state, loading, mutate, theme, setTheme, telegram } = useFinance();
@@ -72,21 +73,20 @@ export default function SettingsPage() {
           </Field>
         </div>
         <p className="mt-3 text-[11.5px] leading-snug text-muted">
-          {state.user.isDemo ? "Demo rejim — Telegram orqali kirilsa shaxsiy profil yaratiladi." : `ID: ${state.user.id}`}
+          {state.user.isDemo ? "Demo rejim. Telegram orqali kiring." : `ID: ${state.user.id}`}
           {telegram ? " · Mini App" : ""}
         </p>
       </Card>
 
       <Card>
-        <p className="mb-1 text-[15px] font-semibold">Safe-to-Spend</p>
-        <p className="mb-4 text-[12px] leading-snug text-muted">Xavfsiz sarflash shu qiymatlar asosida hisoblanadi.</p>
+        <p className="mb-1 text-[15px] font-semibold">{TERMS.safeToSpend}</p>
+        <p className="mb-4 text-[12px] leading-snug text-muted">Shu qiymatlar asosida hisoblanadi.</p>
         <Field label="Minimal zaxira">
           <TextInput value={minReserve} onChange={(e) => setMinReserve(e.target.value)} inputMode="decimal" />
         </Field>
         <div className="mt-4">
           <Field
             label={`Taxminiy daromad ishonchliligi: ${confidence}%`}
-            hint="Taxminiy daromadlar ehtiyotkorlik bilan hisoblanadi"
           >
             <input
               type="range"
@@ -106,23 +106,23 @@ export default function SettingsPage() {
         <Divider />
         <div className="mt-4 space-y-2 text-[12.5px]">
           <div className="flex justify-between gap-2">
-            <span className="truncate text-muted">Joriy balans</span>
+            <span className="truncate text-muted">{TERMS.balance}</span>
             <span className="num shrink-0 font-medium">{formatAmount(state.forecast.currentBalance)}</span>
           </div>
           <div className="flex justify-between gap-2">
-            <span className="truncate text-muted">Aniq kutilayotgan</span>
+            <span className="truncate text-muted">Aniq daromad</span>
             <span className="num shrink-0 font-medium">{formatAmount(state.forecast.income.exactBase)}</span>
           </div>
           <div className="flex justify-between gap-2">
-            <span className="truncate text-muted">Taxminiy (hisobga olingan)</span>
+            <span className="truncate text-muted">Taxminiy daromad</span>
             <span className="num shrink-0 font-medium">{formatAmount(state.forecast.safeToSpendParts.estimatedIncomeWeighted)}</span>
           </div>
           <div className="flex justify-between gap-2">
-            <span className="truncate text-muted">Majburiy to‘lovlar</span>
+            <span className="truncate text-muted">Majburiy to‘lov</span>
             <span className="num shrink-0 font-medium">−{formatAmount(state.forecast.expense.mandatoryBase)}</span>
           </div>
           <div className="flex justify-between gap-2 border-t border-line pt-2 font-semibold">
-            <span>Safe-to-Spend</span>
+            <span>{TERMS.safeToSpend}</span>
             <span className="num">{formatAmount(state.forecast.safeToSpend)}</span>
           </div>
         </div>
@@ -133,10 +133,10 @@ export default function SettingsPage() {
         <div className="space-y-4">
           {(
             [
-              { key: "payments" as const, label: "To‘lov eslatmalari", desc: "Ertaga to‘lov bor" },
-              { key: "income" as const, label: "Daromad eslatmalari", desc: "Daromad kutilmoqda" },
-              { key: "budget" as const, label: "Budjet ogohlantirishlari", desc: "Budjet 87% ishlatildi" },
-              { key: "risk" as const, label: "Pul yetishmasligi xavfi", desc: "Balansdan oshishi mumkin" },
+              { key: "payments" as const, label: "To‘lov", desc: "Ertaga to‘lov bor" },
+              { key: "income" as const, label: "Daromad", desc: "Daromad kutilmoqda" },
+              { key: "budget" as const, label: "Budjet", desc: "Limit oshishi yaqin" },
+              { key: "risk" as const, label: "Xavf", desc: "Balans yetmasligi mumkin" },
             ] as const
           ).map((row) => (
             <div key={row.key} className="flex items-start justify-between gap-3">
@@ -171,12 +171,12 @@ export default function SettingsPage() {
           value={theme}
           onChange={setTheme}
           options={[
-            { value: "light", label: "☀️ Light" },
-            { value: "dark", label: "🌙 Dark" },
-            { value: "system", label: "🖥 System" },
+            { value: "light", label: "☀️ Kunduzgi" },
+            { value: "dark", label: "🌙 Tungi" },
+            { value: "system", label: "🖥 Tizim" },
           ]}
         />
-        <p className="mt-3 text-[11.5px] leading-snug text-muted">Dark mode alohida dizayn tizimi asosida ishlaydi.</p>
+
       </Card>
 
       <div className="flex justify-end pt-2">
@@ -185,20 +185,6 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      <Card>
-        <p className="mb-3 text-[15px] font-semibold">Integratsiya</p>
-        <div className="space-y-2 text-[12.5px] leading-snug text-muted">
-          <p>
-            <Badge tone="accent">GET /api/state</Badge> — yagona haqiqat manbai
-          </p>
-          <p>
-            <Badge tone="accent">POST /api/mutate</Badge> — barcha yozuvlar
-          </p>
-          <p>
-            <Badge tone="accent">POST /api/bot</Badge> — bot mantiqi
-          </p>
-        </div>
-      </Card>
     </div>
   );
 }

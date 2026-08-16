@@ -5,6 +5,7 @@ import { parseDraft } from "@/lib/nlp";
 import { humanDate, todayISO } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
 import { rememberTxType } from "@/lib/fab";
+import { TX_LABEL } from "@/lib/copy";
 import {
   amountError,
   formatAmountInput,
@@ -33,9 +34,9 @@ import { Button, Money, TextInput } from "./ui";
 type TxType = "income" | "expense" | "transfer";
 
 const TYPE_TITLE: Record<TxType, string> = {
-  income: "Kirim qo‘shish",
-  expense: "Chiqim qo‘shish",
-  transfer: "Transfer",
+  income: "+ Daromad",
+  expense: "+ Xarajat",
+  transfer: "+ Transfer",
 };
 
 /**
@@ -116,7 +117,7 @@ export function QuickAddSheet({
     const e: Record<string, string> = {};
     const amountMsg = amountError(amount);
     if (amountMsg) e.amount = amountMsg;
-    if (type !== "transfer" && !categoryId) e.category = "Kategoriya tanlang";
+    if (type !== "transfer" && !categoryId) e.category = "Kategoriyani tanlang";
     if (type === "transfer") {
       if (!toAccountId) e.toAccount = "Qaysi hisobga o‘tkazishni tanlang";
       else if (toAccountId === accountId) e.toAccount = "Boshqa hisobni tanlang";
@@ -161,7 +162,7 @@ export function QuickAddSheet({
         accountId: accountId ? Number(accountId) : accounts[0]?.id,
         toAccountId: type === "transfer" && toAccountId ? Number(toAccountId) : null,
         date,
-        note: note || (type === "income" ? "Kirim" : type === "transfer" ? "Transfer" : "Chiqim"),
+        note: note || TX_LABEL[type],
         source: "miniapp",
       },
       { silent: true },
@@ -180,8 +181,8 @@ export function QuickAddSheet({
       open={open}
       onClose={onClose}
       title={editing ? "Operatsiyani tahrirlash" : TYPE_TITLE[type]}
-      subtitle={editing ? undefined : "Summa va kategoriya — qolgani avtomatik"}
-      submitLabel={editing ? "Saqlash" : "Saqlash"}
+      subtitle={editing ? undefined : "Summa va kategoriya"}
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
       onSubmit={submit}
@@ -198,9 +199,9 @@ export function QuickAddSheet({
           setCategoryId("");
         }}
         options={[
-          { value: "expense", label: "Chiqim" },
-          { value: "income", label: "Kirim" },
-          { value: "transfer", label: "Transfer" },
+          { value: "expense", label: TX_LABEL.expense },
+          { value: "income", label: TX_LABEL.income },
+          { value: "transfer", label: TX_LABEL.transfer },
         ]}
       />
 
@@ -253,7 +254,7 @@ export function QuickAddSheet({
         </FormActions>
         {nlpDraft && nlpDraft.amount ? (
           <p className="rounded-xl bg-accent-soft px-3 py-2 text-[11.5px] leading-snug text-accent-text [overflow-wrap:anywhere]">
-            {nlpDraft.type === "income" ? "Kirim" : nlpDraft.type === "transfer" ? "Transfer" : "Chiqim"} ·{" "}
+            {TX_LABEL[nlpDraft.type]} ·{" "}
             {Math.round(nlpDraft.amount).toLocaleString("ru-RU")} · {nlpDraft.categoryName ?? "kategoriya yo‘q"} ·{" "}
             {humanDate(nlpDraft.date)}
           </p>

@@ -60,8 +60,8 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
     case "/":
       // Dashboard — ONE transaction entry point, three directions.
       return [
-        { id: "transaction", label: "Kirim", icon: "➕", description: "Pul keldi", type: "income" },
-        { id: "transaction", label: "Chiqim", icon: "➖", description: "Pul ketdi", type: "expense" },
+        { id: "transaction", label: "Daromad", icon: "➕", description: "Pul keldi", type: "income" },
+        { id: "transaction", label: "Xarajat", icon: "➖", description: "Pul ketdi", type: "expense" },
         { id: "transaction", label: "Transfer", icon: "↔️", description: "Hisoblar orasida", type: "transfer" },
       ];
 
@@ -90,7 +90,7 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
         { id: "debt", label: "Qarz", icon: "💰", description: "Qarzdorman / qarzdor" },
         { id: "goal", label: "Maqsad", icon: "🎯", description: "Jamg‘arma rejasi" },
         { id: "budget", label: "Budjet", icon: "📊", description: "Oylik limit" },
-        { id: "category", label: "Kategoriya", icon: "🏷️", description: "Xarajat / daromad" },
+        { id: "category", label: "Kategoriya", icon: "🏷️", description: "Daromad / xarajat" },
       ];
 
     case "/accounts":

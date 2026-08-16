@@ -118,7 +118,7 @@ export default function AccountsPage() {
                     <Money value={a.currentBalance} size="md" tone={a.currentBalance < 0 ? "negative" : "default"} />
                     {!a.isActive ? (
                       <div className="mt-0.5 flex justify-end">
-                        <Badge tone="neutral">noaktiv</Badge>
+                        <Badge tone="neutral">Noaktiv</Badge>
                       </div>
                     ) : null}
                   </div>
@@ -148,7 +148,7 @@ export default function AccountsPage() {
             ))}
           </div>
         ) : (
-          <EmptyState icon="💳" title="Hisoblar yo‘q" description="Pastdagi + tugmasi orqali hisobingizni qo‘shing." />
+          <EmptyState icon="💳" title="Hisoblar yo‘q." description="Pastdagi + tugmasi orqali hisob qo‘shing." />
         )
       ) : (
         <div className="space-y-4">
@@ -206,21 +206,21 @@ function CategoryRow({ node, onEdit }: { node: CategoryView; onEdit: (category: 
         <span className="text-base">{node.icon}</span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-medium">{node.name}</p>
-          {node.isEssential ? <p className="text-[11px] text-muted">majburiy</p> : null}
+          {node.isEssential ? <p className="text-[11px] text-muted">Majburiy</p> : null}
         </div>
         <button
           type="button"
           onClick={() => onEdit(node)}
           className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11px] font-medium text-fg-soft transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
         >
-          tahrir
+          Tahrir
         </button>
         <button
           type="button"
           onClick={() => mutate("category", "update", { id: node.id, isActive: !node.isActive })}
           className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11px] font-medium text-muted transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
         >
-          {node.isActive ? "yashir" : "ko‘rsat"}
+          {node.isActive ? "Yashirish" : "Ko‘rsatish"}
         </button>
       </div>
       {node.children.length ? (
@@ -229,9 +229,9 @@ function CategoryRow({ node, onEdit }: { node: CategoryView; onEdit: (category: 
             <div key={ch.id} className="flex items-center gap-2">
               <span className="text-sm">{ch.icon}</span>
               <span className="flex-1 truncate text-[13px] text-fg-soft">{ch.name}</span>
-              {ch.isEssential ? <Badge tone="neutral">majburiy</Badge> : null}
+              {ch.isEssential ? <Badge tone="neutral">Majburiy</Badge> : null}
               <button type="button" onClick={() => onEdit(ch)} className="min-h-8 px-1.5 text-[11px] font-medium text-accent-text">
-                tahrir
+                Tahrir
               </button>
             </div>
           ))}
@@ -302,9 +302,9 @@ function AccountSheet({
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Hisobni tahrirlash" : "Yangi hisob"}
+      title={editing ? "Hisobni tahrirlash" : "+ Hisob"}
       subtitle={editing ? undefined : "Pul qayerda turadi?"}
-      submitLabel="Hisobni saqlash"
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
       onSubmit={submit}
@@ -394,9 +394,9 @@ function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () 
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Kategoriyani tahrirlash" : "Yangi kategoriya"}
-      subtitle={editing ? undefined : "Kirim yoki chiqim toifasi"}
-      submitLabel="Kategoriyani saqlash"
+      title={editing ? "Kategoriyani tahrirlash" : "+ Kategoriya"}
+      subtitle={editing ? undefined : "Daromad yoki xarajat toifasi"}
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
       onSubmit={submit}
@@ -406,8 +406,8 @@ function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () 
         ariaLabel="Kategoriya turi"
         onChange={setType}
         options={[
-          { value: "expense", label: "Chiqim" },
-          { value: "income", label: "Kirim" },
+          { value: "expense", label: "Xarajat" },
+          { value: "income", label: "Daromad" },
         ]}
       />
 

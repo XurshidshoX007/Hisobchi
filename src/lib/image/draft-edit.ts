@@ -85,7 +85,7 @@ export function editDraftPayload(
       // A type flip invalidates the category mapping (income ≠ expense tree).
       next.data.categoryId = null;
       next.meta.issues = unique([...next.meta.issues, "category_unknown"]);
-      return { ok: true, payload: next as unknown as StoredDraftPayload, ack: value === "income" ? "Kirim deb belgilandi" : "Chiqim deb belgilandi" };
+      return { ok: true, payload: next as unknown as StoredDraftPayload, ack: value === "income" ? "Daromad deb belgilandi" : "Xarajat deb belgilandi" };
     }
     case "date": {
       const date = value === "yesterday" ? addDays(today, -1) : value === "today" ? today : /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;

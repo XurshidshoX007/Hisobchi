@@ -185,13 +185,13 @@ export default function DebtsPage() {
               ))}
             {state.debts.filter((d) => filter === "all" || d.direction === filter).length === 0 ? (
               <p className="px-4 py-4 text-[13px] text-muted">
-                {filter === "i_owe" ? "Faol qarz yo‘q — yaxshi holat." : "Qarzdorlar yo‘q."}
+                {filter === "i_owe" ? "Qarz yo‘q." : "Qarzdorlar yo‘q."}
               </p>
             ) : null}
           </div>
         </>
       ) : (
-        <EmptyState icon="📋" title="Qarzlar yo‘q" description="Pastdagi + tugmasi orqali qarz kiriting." />
+        <EmptyState icon="📋" title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
       )}
 
       <DebtSheet open={sheet} onClose={closeSheet} editing={editing} />
@@ -268,9 +268,9 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Qarzni tahrirlash" : "Yangi qarz"}
+      title={editing ? "Qarzni tahrirlash" : "+ Qarz"}
       subtitle={editing ? undefined : "Kim kimga qarzdor?"}
-      submitLabel="Qarzni saqlash"
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
       onSubmit={submit}
@@ -362,7 +362,7 @@ function PaySheet({ debt, onClose }: { debt: DebtView | null; onClose: () => voi
       onClose={onClose}
       title={`To‘lov: ${record.personName}`}
       subtitle={`Qoldi ${formatAmount(record.remainingAmount)} so‘m`}
-      submitLabel="To‘lovni qayd etish"
+      submitLabel="Saqlash"
       canSubmit={valid}
       dirty={Boolean(amount)}
       onSubmit={submit}
@@ -382,8 +382,7 @@ function PaySheet({ debt, onClose }: { debt: DebtView | null; onClose: () => voi
       </FormActions>
       <AccountPicker value={accountId} onChange={setAccountId} />
       <p className="text-[11.5px] leading-snug text-muted">
-        {record.direction === "i_owe" ? "Xarajat sifatida qayd etiladi" : "Kirim sifatida qayd etiladi"} va
-        operatsiyalar tarixiga tushadi.
+        {record.direction === "i_owe" ? "Xarajat" : "Daromad"} sifatida tarixga yoziladi.
       </p>
     </FormSheet>
   );

@@ -36,6 +36,7 @@ import {
   rankCategoryIds,
 } from "@/lib/form-kit";
 import { todayISO } from "@/lib/money";
+import { ERRORS, LOADING } from "@/lib/copy";
 
 /* ============================ Feedback ============================ */
 
@@ -80,7 +81,7 @@ export function FormSheet({
   title,
   subtitle,
   submitLabel,
-  submittingLabel = "Saqlanmoqda…",
+  submittingLabel = LOADING.saving,
   savedLabel = "Saqlandi ✓",
   canSubmit = true,
   dirty = false,
@@ -143,11 +144,11 @@ export function FormSheet({
         return;
       }
       haptic("error");
-      setError(result.message || "Saqlab bo‘lmadi. Qayta urinib ko‘ring.");
+      setError(result.message || ERRORS.save);
       setStatus("idle");
       busyRef.current = false;
     } catch {
-      setError("Ulanish uzildi. Qayta urinib ko‘ring.");
+      setError(ERRORS.connection);
       setStatus("idle");
       busyRef.current = false;
     }
@@ -423,7 +424,7 @@ export function ChoiceGrid<T extends string>({
 }
 
 /**
- * §7/§19 — the compact type switch at the top of a form (Chiqim · Kirim ·
+ * §7/§19 — the compact type switch at the top of a form (Xarajat · Daromad ·
  * Transfer). Same grid contract as ChoiceGrid, tuned to look like a segmented
  * control. The scrollable `Segmented` in `ui.tsx` stays what it is: a
  * NAVIGATION control for genuinely long tab sets (Plans tabs, history filter),
@@ -917,7 +918,7 @@ export function AccountPicker({
 export function NoteField({
   value,
   onChange,
-  label = "Izoh qo‘shish",
+  label = "Izoh",
   placeholder = "Ixtiyoriy izoh",
   multiline = false,
 }: {
