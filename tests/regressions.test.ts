@@ -61,6 +61,7 @@ test("Mini App and bot never mix synonyms for one concept", () => {
     "app/plans/page.tsx",
     "app/settings/page.tsx",
     "app/bot/page.tsx",
+    "components/dashboard.tsx",
     "components/quick-add.tsx",
     "components/transaction-filter.tsx",
     "components/app-shell.tsx",
@@ -84,14 +85,17 @@ test("Mini App and bot never mix synonyms for one concept", () => {
   assert.match(copy, /safeToSpend: "Sarflash mumkin"/);
 });
 
-test("the dashboard hero states each figure exactly once (§3/§7/§15)", () => {
-  const dashboard = readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
-  // Removed redundancy: the card context already means "current, real, this month".
-  assert.doesNotMatch(dashboard, /REAL · |Joriy real balans|Bu oy · daromad|Bu oy · xarajat/);
-  assert.match(dashboard, /TERMS\.balance/);
-  assert.match(dashboard, /TERMS\.income/);
-  assert.match(dashboard, /TERMS\.expense/);
-  assert.match(dashboard, /TERMS\.safeToSpend/);
+test("the dashboard hero states only balance and current-month real movement (§3/§7/§15)", () => {
+  const page = readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+  const components = readFileSync(new URL("../src/components/dashboard.tsx", import.meta.url), "utf8");
+  const dashboard = `${page}\n${components}`;
+  // The month context appears once above the card; labels do not repeat
+  // "current", "real", or "this month" beside every amount.
+  assert.doesNotMatch(dashboard, /REAL · |Joriy real balans|Bu oy · daromad|Bu oy · xarajat/i);
+  assert.match(components, />Balans</);
+  assert.match(components, />Daromad</);
+  assert.match(components, />Xarajat</);
+  assert.doesNotMatch(dashboard, /TERMS\.safeToSpend|Sarflash mumkin|Sof natija/i);
 });
 
 test("amount-bearing Telegram prose stays in the NLP flow", () => {

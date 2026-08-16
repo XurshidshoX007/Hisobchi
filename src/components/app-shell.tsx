@@ -104,7 +104,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
             one-line reference to it (§4), never a second hero. */}
         <Link href="/" className="mt-6 block rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2">
           <p className="text-[11.5px] text-muted">
-            Balans: <span className="num font-semibold text-fg">{formatAmount(state?.forecast.currentBalance ?? 0)}</span>
+            Balans: <span className="num font-semibold text-fg">{formatAmount(state?.currentBalance ?? 0)}</span>
           </p>
           <p className="text-[10.5px] text-muted">{state?.accounts.length ?? 0} hisob · Asosiy →</p>
         </Link>
@@ -148,7 +148,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-semibold leading-tight">Salom, {state?.user.firstName ?? "…"} 👋</p>
                 <p className="num truncate text-[11.5px] font-semibold leading-tight">
-                  {formatAmount(state?.forecast.currentBalance ?? 0)}{" "}
+                  {formatAmount(state?.currentBalance ?? 0)}{" "}
                   <span className="font-normal text-muted">{state?.user.currency ?? "UZS"}</span>
                 </p>
               </div>

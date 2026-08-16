@@ -20,7 +20,7 @@ function analytics(today: string, currentBalance: number, transactions: Array<{ 
   });
 }
 
-test("dashboard acceptance timeline: risk, recovery, closing and transparent safe amount", () => {
+test("forecast engine acceptance timeline: risk, recovery, closing and safe amount", () => {
   const today = "2026-08-16";
   const forecast = buildForecast({ currentBalance: 100_000, recurring: [credit], incomes: [salary], minReserve: 0, estimatedConfidence: 50, today, horizonDays: 31, transactions: [] });
   const monthly = buildMonthlyView({ monthKey: "2026-08", today, currentBalance: 100_000, transactions: [], planned: forecast.planned, cashflow: forecast.cashflow, analytics: analytics(today, 100_000, []), forecast });

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hisobchi — Dashboard wireframe</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --canvas: #e9e8e4;
+      --bg: #f5f4f1;
+      --surface: #fff;
+      --surface-2: #faf9f7;
+      --line: #e5e2db;
+      --fg: #0c1222;
+      --muted: #616671;
+      --positive: #0d7b47;
+      --negative: #c02a2a;
+      --bar: #101828;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--fg);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-variant-numeric: tabular-nums;
+    }
+    .preview {
+      width: min(1240px, 100%);
+      margin: 0 auto;
+      padding: 40px 24px 64px;
+    }
+    .preview > h1 { margin: 0; font-size: 24px; letter-spacing: -.03em; }
+    .preview > p { margin: 8px 0 30px; color: var(--muted); font-size: 14px; }
+    .boards { display: grid; grid-template-columns: 390px minmax(0, 1fr); gap: 34px; align-items: start; }
+    .board-label { margin: 0 0 10px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .frame { overflow: hidden; border: 1px solid rgba(12,18,34,.12); background: var(--bg); box-shadow: 0 20px 55px rgba(12,18,34,.12); }
+    .mobile { width: 390px; min-height: 844px; border-radius: 34px; padding: 26px 14px 34px; }
+    .desktop { min-height: 720px; border-radius: 20px; padding: 32px; }
+    .page { width: 100%; max-width: 830px; margin: 0 auto; }
+    .desktop .page { max-width: 900px; }
+    .month { margin: 0 0 13px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+    .balance {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+      padding: 22px 20px 20px;
+      box-shadow: 0 1px 2px rgba(12,18,34,.04), 0 8px 24px -12px rgba(12,18,34,.12);
+    }
+    .balance::after { content: ""; position: absolute; right: -64px; top: -80px; width: 190px; height: 190px; border-radius: 50%; background: rgba(59,91,219,.055); }
+    .eyebrow { margin: 0; color: var(--muted); font-size: 10.5px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+    .hero-money { position: relative; z-index: 1; margin: 10px 0 0; font-size: clamp(31px, 5vw, 43px); font-weight: 760; letter-spacing: -.045em; line-height: 1; white-space: nowrap; }
+    .currency { margin-left: 5px; color: var(--muted); font-size: .34em; font-weight: 500; letter-spacing: 0; }
+    .flow { display: grid; grid-template-columns: 1fr 1fr; margin-top: 22px; border-top: 1px solid var(--line); }
+    .flow > div { min-width: 0; padding-top: 15px; }
+    .flow > div + div { border-left: 1px solid var(--line); padding-left: 18px; }
+    .flow-value { margin: 6px 0 0; font-size: clamp(16px, 2.3vw, 21px); font-weight: 680; letter-spacing: -.03em; white-space: nowrap; }
+    .income { color: var(--positive); }
+    .expense { color: var(--negative); }
+    .sections { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px; }
+    .section { min-width: 0; }
+    .section h2 { margin: 0 0 9px; font-size: 15px; letter-spacing: -.02em; }
+    .list { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+    .row { padding: 13px 15px 12px; }
+    .row + .row { border-top: 1px solid var(--line); }
+    .row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .category { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 600; }
+    .amount { flex: none; font-size: 13px; font-weight: 650; }
+    .track { height: 3px; margin-top: 8px; overflow: hidden; border-radius: 99px; background: #efede9; }
+    .fill { height: 100%; border-radius: inherit; background: var(--bar); opacity: .78; }
+    .desktop .balance { padding: 27px 28px 25px; }
+    .desktop .flow > div + div { padding-left: 28px; }
+    .desktop .sections { margin-top: 28px; gap: 24px; }
+    @media (max-width: 900px) {
+      .preview { padding: 26px 14px 50px; }
+      .boards { grid-template-columns: 1fr; }
+      .desktop-wrap { display: none; }
+      .mobile { max-width: 100%; margin: 0 auto; }
+    }
+    @media (max-width: 430px) {
+      .preview { padding-inline: 0; }
+      .preview > h1, .preview > p, .board-label { margin-left: 14px; margin-right: 14px; }
+      .mobile { width: 100%; border-radius: 0; border-inline: 0; }
+      .sections { grid-template-columns: 1fr; }
+      .hero-money { font-size: clamp(27px, 8.5vw, 34px); }
+      .flow-value { font-size: clamp(14px, 4.2vw, 17px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="preview">
+    <h1>Asosiy sahifa — tasdiqlangan wireframe</h1>
+    <p>Tasdiqlangan Asosiy sahifa ierarxiyasi.</p>
+    <div class="boards">
+      <section>
+        <p class="board-label">390px · Mobile</p>
+        <div class="frame mobile">
+          <div class="page">
+            <p class="month">Avgust 2026</p>
+            <article class="balance">
+              <p class="eyebrow">Balans</p>
+              <p class="hero-money">3 200 000 <span class="currency">so‘m</span></p>
+              <div class="flow">
+                <div><p class="eyebrow">Daromad</p><p class="flow-value income">+5 000 000 so‘m</p></div>
+                <div><p class="eyebrow">Xarajat</p><p class="flow-value expense">−1 800 000 so‘m</p></div>
+              </div>
+            </article>
+            <div class="sections">
+              <section class="section"><h2>Daromad kategoriyalari</h2><div class="list">
+                <div class="row"><div class="row-head"><span class="category">Ish haqi</span><span class="amount">3 000 000</span></div><div class="track"><div class="fill" style="width:100%;background:var(--positive)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Avans</span><span class="amount">1 500 000</span></div><div class="track"><div class="fill" style="width:50%;background:var(--positive)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Qo‘shimcha</span><span class="amount">500 000</span></div><div class="track"><div class="fill" style="width:17%;background:var(--positive)"></div></div></div>
+              </div></section>
+              <section class="section"><h2>Xarajat kategoriyalari</h2><div class="list">
+                <div class="row"><div class="row-head"><span class="category">Oziq-ovqat</span><span class="amount">650 000</span></div><div class="track"><div class="fill" style="width:100%;background:var(--negative)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Kredit</span><span class="amount">500 000</span></div><div class="track"><div class="fill" style="width:77%;background:var(--negative)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Transport</span><span class="amount">250 000</span></div><div class="track"><div class="fill" style="width:38%;background:var(--negative)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Uy</span><span class="amount">200 000</span></div><div class="track"><div class="fill" style="width:31%;background:var(--negative)"></div></div></div>
+              </div></section>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="desktop-wrap">
+        <p class="board-label">Desktop</p>
+        <div class="frame desktop">
+          <div class="page">
+            <p class="month">Avgust 2026</p>
+            <article class="balance">
+              <p class="eyebrow">Balans</p>
+              <p class="hero-money">3 200 000 <span class="currency">so‘m</span></p>
+              <div class="flow">
+                <div><p class="eyebrow">Daromad</p><p class="flow-value income">+5 000 000 so‘m</p></div>
+                <div><p class="eyebrow">Xarajat</p><p class="flow-value expense">−1 800 000 so‘m</p></div>
+              </div>
+            </article>
+            <div class="sections">
+              <section class="section"><h2>Daromad kategoriyalari</h2><div class="list">
+                <div class="row"><div class="row-head"><span class="category">Ish haqi</span><span class="amount">3 000 000 so‘m</span></div><div class="track"><div class="fill" style="width:100%;background:var(--positive)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Avans</span><span class="amount">1 500 000 so‘m</span></div><div class="track"><div class="fill" style="width:50%;background:var(--positive)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Qo‘shimcha</span><span class="amount">500 000 so‘m</span></div><div class="track"><div class="fill" style="width:17%;background:var(--positive)"></div></div></div>
+              </div></section>
+              <section class="section"><h2>Xarajat kategoriyalari</h2><div class="list">
+                <div class="row"><div class="row-head"><span class="category">Oziq-ovqat</span><span class="amount">650 000 so‘m</span></div><div class="track"><div class="fill" style="width:100%;background:var(--negative)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Kredit</span><span class="amount">500 000 so‘m</span></div><div class="track"><div class="fill" style="width:77%;background:var(--negative)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Transport</span><span class="amount">250 000 so‘m</span></div><div class="track"><div class="fill" style="width:38%;background:var(--negative)"></div></div></div>
+                <div class="row"><div class="row-head"><span class="category">Uy</span><span class="amount">200 000 so‘m</span></div><div class="track"><div class="fill" style="width:31%;background:var(--negative)"></div></div></div>
+              </div></section>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

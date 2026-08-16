@@ -45,6 +45,8 @@ export type LiveAlert = {
 export type AppState = {
   user: UserView;
   generatedAt: string;
+  /** Today's authoritative completed-ledger balance from computeLedgerBalances. */
+  currentBalance: number;
   accounts: AccountView[];
   categories: CategoryView[];
   flatCategories: Array<Omit<CategoryView, "children">>;
