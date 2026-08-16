@@ -55,6 +55,14 @@ test("transaction filters preserve note, category, account and amount matching",
   }
 });
 
+test("localized decimal amount search uses the same value shown in History", () => {
+  const decimal = { ...transactions[0], id: 96, note: "Uzum nasiya kredit", amount: 7532.96 };
+  for (const query of ["7532.96", "7532,96", "7 532,96"]) {
+    const result = filterTransactions([decimal], { ...defaults(), query }, { planId: null, incomeId: null });
+    assert.deepEqual(result.map((transaction) => transaction.id), [96], query);
+  }
+});
+
 test("route context combines with type and category using AND semantics", () => {
   const result = filterTransactions(
     transactions,

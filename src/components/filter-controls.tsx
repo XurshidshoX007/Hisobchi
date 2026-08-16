@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { FloatingActionButton } from "./ui";
 
 /**
  * Shared filter trigger used by list screens. Plans and History deliberately
@@ -25,14 +26,12 @@ export function FilterButton({
 
   if (floating) {
     return (
-      <button
-        type="button"
+      <FloatingActionButton
         onClick={onClick}
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? controlsId : undefined}
-        className="global-fab grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-fg transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-95 touch-manipulation"
       >
         <FunnelIcon size={22} />
         {active ? (
@@ -42,7 +41,7 @@ export function FilterButton({
           />
         ) : null}
         {active ? <span className="sr-only">{status} ta faol filtr</span> : null}
-      </button>
+      </FloatingActionButton>
     );
   }
 

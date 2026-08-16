@@ -18,15 +18,15 @@ import { addDays, formatAmount, todayISO } from "./money";
  */
 export function formatAmountInput(raw: string | number | null | undefined): string {
   if (raw === null || raw === undefined) return "";
-  let s = String(raw).replace(/[^\d.,]/g, "").replace(/,/g, ".");
-  const firstDot = s.indexOf(".");
-  if (firstDot >= 0) s = `${s.slice(0, firstDot + 1)}${s.slice(firstDot + 1).replace(/\./g, "")}`;
-  const [intRaw = "", decRaw] = s.split(".");
-  // Strip leading zeros but keep a single "0" (so "0" and "0.5" still type).
+  let s = String(raw).replace(/[^\d.,]/g, "").replace(/\./g, ",");
+  const firstComma = s.indexOf(",");
+  if (firstComma >= 0) s = `${s.slice(0, firstComma + 1)}${s.slice(firstComma + 1).replace(/,/g, "")}`;
+  const [intRaw = "", decRaw] = s.split(",");
+  // Strip leading zeros but keep a single "0" (so "0" and "0,5" still type).
   const int = intRaw.replace(/^0+(?=\d)/, "");
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   if (decRaw === undefined) return grouped;
-  return `${grouped || "0"}.${decRaw.slice(0, 2)}`;
+  return `${grouped || "0"},${decRaw.slice(0, 2)}`;
 }
 
 /** Reverse of `formatAmountInput` — the value that reaches the mutation. */

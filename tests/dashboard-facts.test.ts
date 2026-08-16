@@ -73,6 +73,16 @@ test("balance, current-month totals and categories follow income/expense add and
   assert.deepEqual(facts.incomeCategories, []);
 });
 
+test("a two-decimal transaction stays identical in balance, summary and category totals", () => {
+  const facts = dashboardFacts([
+    { id: 96, accountId: 1, type: "expense", amount: 7532.96, date: TODAY, categoryId: 3, source: "bot" },
+  ]);
+
+  assert.equal(facts.balance, 92_467.04);
+  assert.equal(facts.expense, 7532.96);
+  assert.equal(facts.expenseCategories[0]?.amount, 7532.96);
+});
+
 test("transaction amount/category edit replaces the old aggregation instead of adding to it", () => {
   const before = dashboardFacts([
     { id: 1, accountId: 1, type: "expense", amount: 200_000, date: TODAY, categoryId: 3 },

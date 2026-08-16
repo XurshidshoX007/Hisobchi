@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { ContextualBottomSheet } from "./ui";
+import { ContextualBottomSheet, FloatingActionButton } from "./ui";
 import { getFabActions, normalizePath, supportsFab, type FabAction, type FabActionDef, type FabContext } from "@/lib/fab";
 
 /**
@@ -172,14 +172,12 @@ function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke
 
   return (
     <>
-      <button
-        type="button"
+      <FloatingActionButton
         onClick={press}
         aria-label="Qo‘shish"
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? controlsId : undefined}
-        className="global-fab grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-fg transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-95 touch-manipulation"
       >
         <svg
           width="24"
@@ -194,7 +192,7 @@ function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke
         >
           <path d="M12 5v14M5 12h14" />
         </svg>
-      </button>
+      </FloatingActionButton>
 
       <ContextualBottomSheet
         open={open}

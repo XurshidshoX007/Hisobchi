@@ -63,7 +63,8 @@
   --bottom-nav-height: 68px;
   --fab-size: 56px;
   --fab-gap: 14px;
-  --content-bottom-gap: 12px;
+  /* Clearance left after the final row has scrolled completely above a FAB. */
+  --content-bottom-gap: 16px;
   --app-safe-area-bottom: max(
     env(safe-area-inset-bottom, 0px),
     var(--tg-safe-area-inset-bottom, 0px),
@@ -325,9 +326,9 @@ body[data-sheet-open] .global-fab {
 
 .global-fab {
   transition:
-    background-color 200ms ease,
-    opacity 180ms ease,
-    transform 180ms ease;
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    opacity var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 /* ============================================================================

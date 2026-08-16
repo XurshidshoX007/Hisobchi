@@ -12,7 +12,7 @@ const transactionFilter = readFileSync(new URL("../src/components/transaction-fi
 const history = readFileSync(new URL("../src/app/transactions/page.tsx", import.meta.url), "utf8");
 
 test("mobile chrome uses shared geometry instead of magic FAB offsets", () => {
-  for (const variable of ["--bottom-nav-height", "--fab-size", "--fab-gap"]) {
+  for (const variable of ["--bottom-nav-height", "--fab-size", "--fab-gap", "--content-bottom-gap"]) {
     assert.match(css, new RegExp(variable));
   }
   assert.match(css, /--app-safe-area-bottom:[\s\S]*env\(safe-area-inset-bottom, 0px\)/);
@@ -26,14 +26,22 @@ test("AppShell mounts one global add FAB and reserves the shared slot for Histor
   assert.match(shell, /const hasContextualFab = pathname === "\/transactions"/);
   assert.match(shell, /hasGlobalFab \|\| hasContextualFab/);
   assert.match(shell, /hasFloatingAction \? "has-global-fab"/);
-  assert.match(css, /\.app-shell-layout\.has-global-fab/);
+  assert.match(css, /\.app-shell-layout\.has-global-fab[\s\S]*var\(--fab-size\)[\s\S]*var\(--content-bottom-gap\)/);
   assert.match(css, /--z-bottom-nav:\s*40/);
   assert.match(css, /--z-fab:\s*50/);
   assert.match(css, /--z-sheet:\s*80/);
 });
 
+test("Add and History filter reuse one floating action foundation", () => {
+  assert.match(ui, /export function FloatingActionButton/);
+  assert.match(ui, /global-fab grid h-14 w-14/);
+  assert.match(fab, /<FloatingActionButton/);
+  assert.match(filterControls, /<FloatingActionButton/);
+});
+
 test("global FAB remains solid and exposes the required dialog semantics", () => {
-  assert.match(fab, /bg-primary text-primary-fg/);
+  assert.match(ui, /export function FloatingActionButton/);
+  assert.match(ui, /bg-primary text-primary-fg/);
   assert.match(fab, /aria-label="Qo‘shish"/);
   assert.match(fab, /aria-expanded=\{open\}/);
   assert.match(fab, /aria-haspopup="dialog"/);
@@ -53,8 +61,12 @@ test("plans share one compact single-select status filter", () => {
   assert.doesNotMatch(planFilter + transactionFilter, /Apply|Qo‘llash/);
 });
 
-test("History keeps search visible and only true filters in the shared sheet", () => {
+test("History keeps search visible, a minimal summary and only true filters in the shared sheet", () => {
   assert.match(history, /<PageHeader title="Tarix"/);
+  assert.match(history, /\+\{compact\(totals\.income\)\}/);
+  assert.match(history, /−\{compact\(totals\.expense\)\}/);
+  assert.match(history, /\{totals\.count\} ta/);
+  assert.doesNotMatch(history, /\bSof\b|\bsof\b/);
   assert.match(history, /<TextInput/);
   assert.match(history, /placeholder="Kategoriya, izoh yoki summa"/);
   assert.match(history, /const \[searchQuery, setSearchQuery\]/);
@@ -70,12 +82,19 @@ test("History keeps search visible and only true filters in the shared sheet", (
   assert.match(transactionFilter, /floating/);
 });
 
+test("History list, editor and summaries all consume the transaction amount field", () => {
+  assert.match(history, /sum \+ transaction\.amount/);
+  assert.match(history, /value=\{transaction\.type === "expense" \? -transaction\.amount : transaction\.amount\}/);
+  assert.match(history, /setEditing\(transaction\)/);
+  assert.doesNotMatch(history, /parseFloat|toLocaleString|Math\.round/);
+});
+
 test("History controls expose labelled search, floating dialog and active indicator semantics", () => {
   assert.match(history, /htmlFor="history-search"/);
   assert.match(history, /aria-label="Qidiruvni tozalash"/);
   assert.match(transactionFilter, /ariaLabel="Filtrlar"/);
   assert.match(filterControls, /aria-haspopup="dialog"/);
-  assert.match(filterControls, /global-fab/);
+  assert.match(filterControls, /<FloatingActionButton/);
   assert.match(filterControls, /ta faol filtr/);
   assert.match(filterControls, /role="radiogroup"/);
   assert.match(transactionFilter, /overflow-y-auto overflow-x-hidden/);

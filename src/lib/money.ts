@@ -18,14 +18,24 @@ export function currencyLabel(currency: string): string {
   return currency === "UZS" ? "so‘m" : currency;
 }
 
-/** 12480000 -> "12 480 000" */
+/**
+ * The canonical numeric boundary for money in this project.
+ * PostgreSQL stores numeric(18,2); every JS boundary therefore normalizes to
+ * the same two-decimal contract before a value is rendered or aggregated.
+ */
+export function roundMoney(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round((value + Math.sign(value) * Number.EPSILON) * 100) / 100;
+}
+
+/** 12480000 -> "12 480 000", 7532.96 -> "7 532,96" */
 export function formatAmount(value: number | null | undefined): string {
-  const n = Number(value ?? 0);
-  const rounded = Math.round(n * 100) / 100;
-  const [int, dec] = Math.abs(rounded).toString().split(".");
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const rounded = roundMoney(Number(value ?? 0));
+  const [integer, fraction = ""] = Math.abs(rounded).toFixed(2).split(".");
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const decimals = fraction.replace(/0+$/, "");
   const sign = rounded < 0 ? "-" : "";
-  return dec ? `${sign}${grouped}.${dec.slice(0, 2)}` : `${sign}${grouped}`;
+  return decimals ? `${sign}${grouped},${decimals}` : `${sign}${grouped}`;
 }
 
 export function formatSigned(value: number): string {
@@ -196,5 +206,5 @@ export function clamp(n: number, min = 0, max = 100): number {
 }
 
 export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+  return roundMoney(n);
 }

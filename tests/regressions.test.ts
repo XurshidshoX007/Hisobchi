@@ -158,10 +158,14 @@ test("two-operation and three-operation messages split correctly", () => {
   assert.ok(incomes.drafts.every((d) => d.type === "income"));
 });
 
-test("decimal commas are not treated as operation separators", () => {
+test("decimal commas are not treated as operation separators or rounded away", () => {
   const batch = parseDrafts("1,5 mln maosh keldi", "2026-08-16");
   assert.equal(batch.drafts.length, 1);
   assert.equal(batch.drafts[0].amount, 1_500_000);
+
+  const credit = parseDraft("7532,96 Uzum nasiya kredit", "2026-08-16");
+  assert.equal(credit.amount, 7532.96);
+  assert.equal(credit.note, "7532,96 Uzum nasiya kredit");
 });
 
 test("partial success: a bad segment does not drop the others", () => {

@@ -1,4 +1,4 @@
-import { UZ_MONTHS, addDays, parseISO, toISO } from "../money";
+import { UZ_MONTHS, addDays, parseISO, roundMoney, toISO } from "../money";
 
 /**
  * OCR-tolerant normalization primitives (§19, §20).
@@ -77,7 +77,7 @@ export function normalizeAmount(input: string): NormalizedAmount {
   }
 
   if (base === null || !Number.isFinite(base)) return { value: null, confidence: 0, raw: input };
-  const value = Math.round(base * mult * 100) / 100;
+  const value = roundMoney(base * mult);
   if (value <= 0) return { value: null, confidence: 0, raw: input };
   // A bare small integer ("12", "3") is far more likely a row number or a
   // month count than money: it is reported with low confidence.

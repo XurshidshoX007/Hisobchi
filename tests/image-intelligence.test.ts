@@ -37,6 +37,7 @@ test("all Uzbek amount spellings normalize to the same number", () => {
   assert.equal(normalizeAmount("2.5 mln").value, 2_500_000);
   assert.equal(normalizeAmount("150 ming").value, 150_000);
   assert.equal(normalizeAmount("3 mlrd").value, 3_000_000_000);
+  assert.equal(normalizeAmount("7532,96 Uzum nasiya kredit").value, 7532.96);
   assert.equal(normalizeAmount("salom").value, null);
 });
 

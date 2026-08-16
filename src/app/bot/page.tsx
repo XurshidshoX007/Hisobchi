@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { Button, Card, PageHeader, Skeleton, TextInput } from "@/components/ui";
 import { ERRORS } from "@/lib/copy";
+import { formatAmount } from "@/lib/money";
 
 type Msg = { id: number; role: "user" | "bot"; text: string };
 type Draft = {
@@ -144,7 +145,7 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
                   <p key={i} className="text-[13px] leading-snug">
                     {drafts.length > 1 ? `${i + 1}. ` : ""}
                     {d.type === "income" ? "➕ Daromad" : d.type === "transfer" ? "↔️ Transfer" : "➖ Xarajat"} ·{" "}
-                    {d.amount?.toLocaleString("ru-RU")} · {d.categoryName ?? "kategoriya yo‘q"} · {d.date}
+                    {d.amount === null ? "—" : formatAmount(d.amount)} · {d.categoryName ?? "kategoriya yo‘q"} · {d.date}
                   </p>
                 ))}
               </div>
