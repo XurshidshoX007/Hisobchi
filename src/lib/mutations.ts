@@ -67,6 +67,33 @@ function advance(date: string, frequency: string): string {
   return addMonths(date, 1);
 }
 
+/**
+ * Payment plan engine: computes the state transition after one payment.
+ *  one_time  -> deactivate
+ *  recurring -> advance nextDueDate
+ *  term      -> increment installmentsPaid; deactivate when the term ends
+ */
+function advanceRecurringValues(
+  rec: { frequency: string; nextDueDate: string; planType: string; installmentCount: number | null; installmentsPaid: number },
+  today: string,
+): Record<string, unknown> {
+  if (rec.planType === "one_time" || rec.frequency === "once") {
+    return { isActive: false, paidThrough: today };
+  }
+  if (rec.planType === "term") {
+    const paid = rec.installmentsPaid + 1;
+    const finished = rec.installmentCount !== null && paid >= rec.installmentCount;
+    return {
+      installmentsPaid: paid,
+      paidThrough: today,
+      ...(finished
+        ? { isActive: false }
+        : { nextDueDate: advance(rec.nextDueDate, rec.frequency) }),
+    };
+  }
+  return { nextDueDate: advance(rec.nextDueDate, rec.frequency), paidThrough: today };
+}
+
 export async function runMutation(user: User, input: MutateInput): Promise<{ ok: boolean; message: string; id?: number }> {
   const d = input.data ?? {};
   const userId = user.id;
@@ -177,7 +204,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           if (rec[0]) {
             await db
               .update(recurringExpenses)
-              .set(rec[0].frequency === "once" ? { isActive: false } : { nextDueDate: advance(rec[0].nextDueDate, rec[0].frequency) })
+              .set(advanceRecurringValues(rec[0], today))
               .where(and(eq(recurringExpenses.id, recurringId), eq(recurringExpenses.userId, userId)));
           }
         }
@@ -382,6 +409,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               ? thisMonthDate(dueDay)
               : addMonths(thisMonthDate(dueDay), 1);
         if (!nextDueDate) return { ok: false, message: "Keyingi to'lov sanasi noto'g'ri" };
+        const frequency = allowed(str(d.frequency, "monthly"), ["once", "weekly", "monthly", "yearly"], "monthly");
+        // Payment plan model: one_time | recurring | term.
+        const planType = allowed(
+          str(d.planType, frequency === "once" ? "one_time" : "recurring"),
+          ["one_time", "recurring", "term"],
+          frequency === "once" ? "one_time" : "recurring",
+        );
+        const installmentCount = planType === "term" ? int(d.installmentCount) : null;
+        if (planType === "term" && (!installmentCount || installmentCount < 1 || installmentCount > 600)) {
+          return { ok: false, message: "Muddatli to'lov uchun bo'lib to'lashlar sonini kiriting (1–600)" };
+        }
         const values = {
           userId,
           categoryId,
@@ -391,19 +429,31 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           minAmount: certainty === "estimated" ? minAmount : null,
           maxAmount: certainty === "estimated" ? maxAmount : null,
           dueDay,
-          frequency: allowed(str(d.frequency, "monthly"), ["once", "weekly", "monthly", "yearly"], "monthly"),
+          frequency: planType === "one_time" ? "once" : frequency === "once" ? "monthly" : frequency,
           isMandatory: bool(d.isMandatory, true),
           certainty,
           nextDueDate,
           reminderDaysBefore: int(d.reminderDaysBefore, 1) ?? 1,
           isActive: bool(d.isActive, true),
+          planType,
+          startDate: isoDate(d.startDate, nextDueDate),
+          installmentCount,
         };
         if (input.action === "create") {
-          const [row] = await db.insert(recurringExpenses).values(values).returning();
-          return { ok: true, id: row.id, message: `${name} doimiy to'lovga qo'shildi` };
+          const [row] = await db.insert(recurringExpenses).values({ ...values, installmentsPaid: 0 }).returning();
+          return { ok: true, id: row.id, message: `${name} to'lov rejasiga qo'shildi` };
         }
         const id = int(d.id);
         if (!id) return { ok: false, message: "ID kerak" };
+        const existingRec = await db
+          .select()
+          .from(recurringExpenses)
+          .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
+          .limit(1);
+        if (!existingRec[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+        if (planType === "term" && installmentCount !== null && installmentCount < existingRec[0].installmentsPaid) {
+          return { ok: false, message: "Bo'lib to'lashlar soni to'langanlaridan kam bo'lmasligi kerak" };
+        }
         const updated = await db
           .update(recurringExpenses)
           .set(values)
@@ -421,11 +471,31 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
           .limit(1);
         if (!rec[0]) return { ok: false, message: "To'lov topilmadi" };
+        if (!rec[0].isActive) return { ok: false, message: "Bu to'lov rejasi faol emas" };
+        if (rec[0].planType === "term" && rec[0].installmentCount !== null && rec[0].installmentsPaid >= rec[0].installmentCount) {
+          return { ok: false, message: "Bu to'lov muddati allaqachon tugagan" };
+        }
         const amount = num(d.amount) ?? rec[0].amount ?? rec[0].maxAmount ?? 0;
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
         const paymentAccountId = int(d.accountId) ?? rec[0].accountId ?? (await defaultAccount(userId));
         if (!paymentAccountId || !(await ownsAccount(userId, paymentAccountId))) return { ok: false, message: "Hisob topilmadi" };
-        await db.transaction(async (tx) => {
+        const paid = await db.transaction(async (tx) => {
+          // Claim this due date first: concurrent "pay" clicks compare the old
+          // nextDueDate/installmentsPaid, so only one writes a transaction.
+          const claimed = await tx
+            .update(recurringExpenses)
+            .set(advanceRecurringValues(rec[0], today))
+            .where(
+              and(
+                eq(recurringExpenses.id, id),
+                eq(recurringExpenses.userId, userId),
+                eq(recurringExpenses.isActive, true),
+                eq(recurringExpenses.nextDueDate, rec[0].nextDueDate),
+                eq(recurringExpenses.installmentsPaid, rec[0].installmentsPaid),
+              ),
+            )
+            .returning({ id: recurringExpenses.id });
+          if (!claimed[0]) return false;
           await tx.insert(transactions).values({
             userId,
             accountId: paymentAccountId,
@@ -438,15 +508,19 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             recurringId: rec[0].id,
             currency: user.currency,
           });
-          await tx
-            .update(recurringExpenses)
-            .set(
-              rec[0].frequency === "once"
-                ? { isActive: false, paidThrough: today }
-                : { nextDueDate: advance(rec[0].nextDueDate, rec[0].frequency), paidThrough: today },
-            )
-            .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)));
+          return true;
         });
+        if (!paid) return { ok: false, message: "Bu to'lov allaqachon qayd etilgan" };
+        if (rec[0].planType === "term" && rec[0].installmentCount !== null) {
+          const done = rec[0].installmentsPaid + 1;
+          return {
+            ok: true,
+            message:
+              done >= rec[0].installmentCount
+                ? `${rec[0].name} yakunlandi 🎉 (${done}/${rec[0].installmentCount})`
+                : `${rec[0].name} to'landi (${done}/${rec[0].installmentCount})`,
+          };
+        }
         return { ok: true, message: `${rec[0].name} to'landi` };
       }
       if (input.action === "toggle" || input.action === "delete") {
@@ -495,6 +569,16 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         }
         const expectedDate = isoDate(d.expectedDate);
         if (!expectedDate) return { ok: false, message: "Kutilayotgan sana noto'g'ri" };
+        const incomeFrequency = allowed(str(d.frequency, "monthly"), ["once", "weekly", "monthly", "yearly"], "monthly");
+        const incomePlanType = allowed(
+          str(d.planType, incomeFrequency === "once" ? "one_time" : "recurring"),
+          ["one_time", "recurring", "term"],
+          incomeFrequency === "once" ? "one_time" : "recurring",
+        );
+        const occurrenceCount = incomePlanType === "term" ? int(d.occurrenceCount) : null;
+        if (incomePlanType === "term" && (!occurrenceCount || occurrenceCount < 1 || occurrenceCount > 600)) {
+          return { ok: false, message: "Muddatli daromad uchun takrorlanishlar sonini kiriting (1–600)" };
+        }
         const values = {
           userId,
           sourceName,
@@ -502,15 +586,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           minAmount: certainty === "estimated" ? minAmount : null,
           maxAmount: certainty === "estimated" ? maxAmount : null,
           expectedDate,
-          frequency: allowed(str(d.frequency, "monthly"), ["once", "weekly", "monthly", "yearly"], "monthly"),
+          frequency: incomePlanType === "one_time" ? "once" : incomeFrequency === "once" ? "monthly" : incomeFrequency,
           certainty,
           accountId,
           categoryId,
           note: str(d.note),
           isActive: bool(d.isActive, true),
+          planType: incomePlanType,
+          occurrenceCount,
         };
         if (input.action === "create") {
-          const [row] = await db.insert(expectedIncomes).values(values).returning();
+          const [row] = await db.insert(expectedIncomes).values({ ...values, occurrencesReceived: 0 }).returning();
           return { ok: true, id: row.id, message: `${sourceName} kutilayotgan daromadga qo'shildi` };
         }
         const updated = await db
@@ -535,16 +621,27 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const incomeAccountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId));
         if (!incomeAccountId || !(await ownsAccount(userId, incomeAccountId))) return { ok: false, message: "Hisob topilmadi" };
         if (!row[0].isActive) return { ok: false, message: "Daromad faol emas" };
+        if (row[0].planType === "term" && row[0].occurrenceCount !== null && row[0].occurrencesReceived >= row[0].occurrenceCount) {
+          return { ok: false, message: "Bu daromad rejasi allaqachon yakunlangan" };
+        }
+        const receiveValues = (): Record<string, unknown> => {
+          if (row[0].planType === "one_time" || row[0].frequency === "once") return { isActive: false };
+          if (row[0].planType === "term") {
+            const received = row[0].occurrencesReceived + 1;
+            const finished = row[0].occurrenceCount !== null && received >= row[0].occurrenceCount;
+            return {
+              occurrencesReceived: received,
+              ...(finished ? { isActive: false } : { expectedDate: advance(row[0].expectedDate, row[0].frequency) }),
+            };
+          }
+          return { expectedDate: advance(row[0].expectedDate, row[0].frequency) };
+        };
         const txRow = await db.transaction(async (tx) => {
           // Claim this exact occurrence before inserting money. Concurrent
           // clicks compare the old date/active state, so only one can win.
           const claimed = await tx
             .update(expectedIncomes)
-            .set(
-              row[0].frequency === "once"
-                ? { isActive: false }
-                : { expectedDate: advance(row[0].expectedDate, row[0].frequency) },
-            )
+            .set(receiveValues())
             .where(
               and(
                 eq(expectedIncomes.id, id),

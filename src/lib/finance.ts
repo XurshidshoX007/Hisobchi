@@ -66,6 +66,12 @@ export type RecurringView = {
   daysLeft: number;
   paidThisMonth: boolean;
   yearlyTotal: number;
+  planType: "one_time" | "recurring" | "term";
+  installmentCount: number | null;
+  installmentsPaid: number;
+  remainingInstallments: number | null;
+  remainingTotal: number | null;
+  termCompleted: boolean;
 };
 
 export type ExpectedIncomeView = {
@@ -85,6 +91,11 @@ export type ExpectedIncomeView = {
   received: boolean;
   daysLeft: number;
   linkedTransactionId: number | null;
+  planType: "one_time" | "recurring" | "term";
+  occurrenceCount: number | null;
+  occurrencesReceived: number;
+  remainingOccurrences: number | null;
+  termCompleted: boolean;
 };
 
 export type BudgetView = {
@@ -162,13 +173,14 @@ function nextOccurrences(
   frequency: string,
   today: string,
   horizonEnd: string,
+  maxOccurrences: number | null = null,
 ): string[] {
   const out: string[] = [];
   let cursor = seedDate;
   // The scheduled date itself counts. A one-time item must never be silently
   // expanded into monthly occurrences.
   if (seedDate <= horizonEnd) out.push(seedDate);
-  if (frequency === "once") return out;
+  if (frequency === "once") return out.slice(0, maxOccurrences ?? out.length);
   let guard = 0;
   while (cursor <= horizonEnd && guard < 60) {
     cursor =
@@ -180,7 +192,10 @@ function nextOccurrences(
     if (cursor >= today && cursor <= horizonEnd) out.push(cursor);
     guard += 1;
   }
-  return out.filter((d, i, arr) => arr.indexOf(d) === i).sort();
+  const unique = out.filter((d, i, arr) => arr.indexOf(d) === i).sort();
+  // Term plans project only the REMAINING installments — a finished credit
+  // must never keep draining the forecast.
+  return maxOccurrences !== null ? unique.slice(0, Math.max(0, maxOccurrences)) : unique;
 }
 
 export type PlannedItem = {
@@ -292,6 +307,9 @@ type RecurringLike = {
   certainty: string;
   isActive: boolean;
   categoryId: number | null;
+  planType?: string;
+  installmentCount?: number | null;
+  installmentsPaid?: number | null;
 };
 
 type ExpectedLike = {
@@ -305,7 +323,28 @@ type ExpectedLike = {
   certainty: string;
   isActive: boolean;
   linkedTransactionId: number | null;
+  planType?: string;
+  occurrenceCount?: number | null;
+  occurrencesReceived?: number | null;
 };
+
+/** Remaining scheduled occurrences for a plan; null = unlimited (recurring). */
+export function remainingOccurrences(plan: {
+  planType?: string;
+  frequency: string;
+  installmentCount?: number | null;
+  installmentsPaid?: number | null;
+  occurrenceCount?: number | null;
+  occurrencesReceived?: number | null;
+}): number | null {
+  if (plan.planType === "term") {
+    const total = plan.installmentCount ?? plan.occurrenceCount ?? 0;
+    const done = plan.installmentsPaid ?? plan.occurrencesReceived ?? 0;
+    return Math.max(0, total - done);
+  }
+  if (plan.planType === "one_time" || plan.frequency === "once") return 1;
+  return null;
+}
 
 export function buildPlanned(
   recurring: RecurringLike[],
@@ -318,8 +357,10 @@ export function buildPlanned(
 
   for (const r of recurring) {
     if (!r.isActive) continue;
+    const remaining = remainingOccurrences(r);
+    if (remaining !== null && remaining <= 0) continue; // term plan finished
     const { base, min, max } = rangeValue(r.amount, r.minAmount, r.maxAmount);
-    for (const date of nextOccurrences(r.nextDueDate, r.frequency, today, horizonEnd)) {
+    for (const date of nextOccurrences(r.nextDueDate, r.frequency, today, horizonEnd, remaining)) {
       items.push({
         key: `r-${r.id}-${date}`,
         date,
@@ -338,8 +379,10 @@ export function buildPlanned(
 
   for (const inc of incomes) {
     if (!inc.isActive) continue;
+    const remaining = remainingOccurrences(inc);
+    if (remaining !== null && remaining <= 0) continue; // term income finished
     const { base, min, max } = rangeValue(inc.amount, inc.minAmount, inc.maxAmount);
-    for (const date of nextOccurrences(inc.expectedDate, inc.frequency, today, horizonEnd)) {
+    for (const date of nextOccurrences(inc.expectedDate, inc.frequency, today, horizonEnd, remaining)) {
       // already-received (past-dated) income is not projected again — REAL vs PLANNED
       if (date < today) continue;
       items.push({
@@ -417,8 +460,12 @@ export function buildForecast(params: {
       expense.optionalMax += p.max;
     }
   }
+  // Scenario semantics (MIN/BASE/MAX):
+  //  MIN  — only confirmed (exact) income; estimated income may not arrive.
+  //  BASE — exact + probable estimated income at its base value.
+  //  MAX  — exact + estimated income at its upper bound.
   income.base = income.exactBase + income.estimatedBase;
-  income.min = income.exactMin + income.estimatedMin;
+  income.min = income.exactMin;
   income.max = income.exactBase + income.estimatedMax;
   expense.base = expense.mandatoryBase + expense.optionalBase;
   expense.min = expense.mandatoryMin + expense.optionalMin;
@@ -481,6 +528,10 @@ export function buildForecast(params: {
 
   const upcomingPayments = params.recurring
     .filter((r) => r.isActive)
+    .filter((r) => {
+      const remaining = remainingOccurrences(r);
+      return remaining === null || remaining > 0;
+    })
     .map((r) => {
       const { base, min, max } = rangeValue(r.amount, r.minAmount, r.maxAmount);
       const daysLeft = dayDiff(today, r.nextDueDate);
@@ -503,6 +554,10 @@ export function buildForecast(params: {
 
   const upcomingIncome = params.incomes
     .filter((i) => i.isActive)
+    .filter((i) => {
+      const remaining = remainingOccurrences(i);
+      return remaining === null || remaining > 0;
+    })
     .map((i) => {
       const { base, min, max } = rangeValue(i.amount, i.minAmount, i.maxAmount);
       return {
@@ -746,7 +801,7 @@ export function buildAnalytics(params: {
       icon: diff >= 0 ? "📈" : "📉",
       tone: diff >= 0 ? "positive" : "neutral",
       title: `Daromad ${diff >= 0 ? "+" : ""}${(diff * 100).toFixed(0)}%`,
-      body: `Bu oy daromad ${round2(income / 10000)} ming, oldingi oy ${round2(prevIncome / 10000)} ming edi.`,
+      body: `Bu oy daromad ${Math.round(income / 1000)} ming, oldingi oy ${Math.round(prevIncome / 1000)} ming edi.`,
     });
   }
   if (prevExpense > 0) {
@@ -766,6 +821,22 @@ export function buildAnalytics(params: {
       tone: "warning",
       title: `Eng tez o‘sish: ${fastest.name}`,
       body: `${round2(fastest.change / 1000)} ming so'mga oshdi (${(fastest.changePct * 100).toFixed(0)}%).`,
+    });
+  }
+  if (topCategory && topCategory.amount > 0) {
+    insights.push({
+      icon: "🥇",
+      tone: "neutral",
+      title: `Eng katta toifa: ${topCategory.name}`,
+      body: `Bu oy xarajatning ${(topCategory.share * 100).toFixed(0)}% (${round2(topCategory.amount / 1000)} ming) shu toifaga ketdi.`,
+    });
+  }
+  if (income > expense && income > 0) {
+    insights.push({
+      icon: "💎",
+      tone: "positive",
+      title: `Daromad xarajatdan ${round2((income - expense) / 1_000_000) >= 1 ? `${round2((income - expense) / 1_000_000)} mln` : `${round2((income - expense) / 1000)} ming`} yuqori`,
+      body: "Ijobiy cash-flow — jamg'arma yoki maqsadlarga yo'naltirish mumkin.",
     });
   }
   insights.push({

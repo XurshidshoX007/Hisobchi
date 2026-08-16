@@ -104,7 +104,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
     mq.addEventListener("change", onChange);
     void load();
-    return () => mq.removeEventListener("change", onChange);
+    // Bot ↔ Mini App sync: transactions confirmed in the Telegram chat must
+    // appear when the user switches back to the Mini App without a manual
+    // page reload.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      mq.removeEventListener("change", onChange);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [load]);
 
   const isDark = theme === "system" ? systemDark : theme === "dark";
@@ -126,8 +136,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("pfos-theme", mode);
   }, []);
 
+  const inFlightRef = useRef(false);
   const mutate = useCallback<FinanceContextValue["mutate"]>(
     async (entity, action, data = {}, options = {}) => {
+      // A double-click fires two parallel requests with two distinct
+      // idempotency keys — the server cannot see them as duplicates, so the
+      // client serializes: while one financial mutation is in flight the
+      // second click is ignored.
+      if (inFlightRef.current) {
+        return { ok: false, message: "So'rov bajarilmoqda, kuting…" };
+      }
+      inFlightRef.current = true;
       setMutating(true);
       try {
         const headers: Record<string, string> = {
@@ -151,9 +170,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (!options.silent) toast(json.message ?? (json.ok ? "Saqlandi" : "Xatolik"), json.ok ? "success" : "error");
         return { ok: json.ok, message: json.message ?? "" };
       } catch {
-        toast("Ulanish xatosi", "error");
+        toast("Ulanish xatosi. Internetni tekshirib qayta urinib ko'ring.", "error");
         return { ok: false, message: "Ulanish xatosi" };
       } finally {
+        inFlightRef.current = false;
         setMutating(false);
       }
     },

@@ -99,16 +99,30 @@ export default function PlansPage() {
                           {r.name} {r.paidThisMonth ? <span className="text-positive-text">✓</span> : null}
                         </p>
                         <p className="mt-0.5 text-[11.5px] leading-snug text-muted">
-                          {r.categoryName ?? "kategoriya yo‘q"} · har {r.frequency === "monthly" ? "oy" : r.frequency === "weekly" ? "hafta" : "yil"}{" "}
-                          {r.dueDay}-sana · {humanDate(r.nextDueDate)}
+                          {r.categoryName ?? "kategoriya yo‘q"} ·{" "}
+                          {r.planType === "one_time"
+                            ? "bir martalik"
+                            : `har ${r.frequency === "monthly" ? "oy" : r.frequency === "weekly" ? "hafta" : "yil"} ${r.dueDay}-sana`}{" "}
+                          · {humanDate(r.nextDueDate)}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           <Badge tone={r.isMandatory ? "negative" : "neutral"}>{r.isMandatory ? "majburiy" : "ixtiyoriy"}</Badge>
                           <Badge tone={r.certainty === "estimated" ? "warning" : "accent"}>
                             {r.certainty === "estimated" ? "taxminiy" : "aniq"}
                           </Badge>
-                          {!r.isActive ? <Badge tone="neutral">pauza</Badge> : null}
+                          {r.planType === "term" ? (
+                            <Badge tone={r.termCompleted ? "positive" : "neutral"}>
+                              {r.installmentsPaid}/{r.installmentCount ?? 0} to‘lov
+                            </Badge>
+                          ) : null}
+                          {r.planType === "one_time" ? <Badge tone="neutral">bir martalik</Badge> : null}
+                          {r.termCompleted ? <Badge tone="positive">yakunlangan</Badge> : !r.isActive ? <Badge tone="neutral">pauza</Badge> : null}
                         </div>
+                        {r.planType === "term" && r.remainingTotal !== null && !r.termCompleted ? (
+                          <p className="mt-1.5 text-[11.5px] text-muted">
+                            Qolgan: {compact(r.remainingTotal)} so‘m ({r.remainingInstallments} ta to‘lov)
+                          </p>
+                        ) : null}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
                         {r.certainty === "estimated" && r.minAmount && r.maxAmount ? (
@@ -122,7 +136,8 @@ export default function PlansPage() {
                           <button
                             type="button"
                             onClick={() => mutate("recurring", "pay", { id: r.id })}
-                            className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-positive hover:text-positive-text active:bg-surface-3 touch-manipulation"
+                            disabled={!r.isActive || r.termCompleted}
+                            className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-positive hover:text-positive-text active:bg-surface-3 disabled:pointer-events-none disabled:opacity-50 touch-manipulation"
                           >
                             To‘landi
                           </button>
@@ -200,7 +215,13 @@ export default function PlansPage() {
                             {i.certainty === "estimated" ? "taxminiy" : "aniq"}
                           </Badge>
                           {i.received ? <Badge tone="positive">qayd etilgan</Badge> : <Badge tone="neutral">kutilmoqda</Badge>}
-                          {!i.isActive ? <Badge tone="neutral">pauza</Badge> : null}
+                          {i.planType === "term" ? (
+                            <Badge tone={i.termCompleted ? "positive" : "neutral"}>
+                              {i.occurrencesReceived}/{i.occurrenceCount ?? 0}
+                            </Badge>
+                          ) : null}
+                          {i.planType === "one_time" ? <Badge tone="neutral">bir martalik</Badge> : null}
+                          {i.termCompleted ? <Badge tone="positive">yakunlangan</Badge> : !i.isActive ? <Badge tone="neutral">pauza</Badge> : null}
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
@@ -386,20 +407,26 @@ function RecurringSheet({
   const [max, setMax] = useState("");
   const [nextDueDate, setNextDueDate] = useState(todayISO());
   const [frequency, setFrequency] = useState("monthly");
+  const [planType, setPlanType] = useState<"one_time" | "recurring" | "term">("recurring");
+  const [installmentCount, setInstallmentCount] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [isMandatory, setIsMandatory] = useState(true);
   const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
+      setSaving(false);
       setName(editing?.name ?? "");
       setCertainty(editing?.certainty ?? "exact");
       setAmount(editing?.amount ? String(editing.amount) : "");
       setMin(editing?.minAmount ? String(editing.minAmount) : "");
       setMax(editing?.maxAmount ? String(editing.maxAmount) : "");
       setNextDueDate(editing?.nextDueDate ?? todayISO());
-      setFrequency(editing?.frequency ?? "monthly");
+      setFrequency(editing?.frequency && editing.frequency !== "once" ? editing.frequency : "monthly");
+      setPlanType(editing?.planType ?? "recurring");
+      setInstallmentCount(editing?.installmentCount ? String(editing.installmentCount) : "");
       setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
       setAccountId(editing?.accountId ? String(editing.accountId) : "");
       setIsMandatory(editing?.isMandatory ?? true);
@@ -410,7 +437,9 @@ function RecurringSheet({
   const categories = (state?.flatCategories ?? []).filter((c) => c.type === "expense" && c.isActive);
 
   async function save() {
-    if (!name.trim()) return;
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    try {
     const day = Math.min(28, Math.max(1, Number(nextDueDate.slice(8, 10)) || 1));
     const res = await mutate("recurring", editing ? "update" : "create", {
       id: editing?.id,
@@ -421,27 +450,32 @@ function RecurringSheet({
       maxAmount: certainty === "estimated" ? max : null,
       dueDay: day,
       nextDueDate,
-      frequency,
+      frequency: planType === "one_time" ? "once" : frequency,
+      planType,
+      installmentCount: planType === "term" ? Number(installmentCount) || null : null,
       categoryId: categoryId ? Number(categoryId) : null,
       accountId: accountId ? Number(accountId) : null,
       isMandatory,
       isActive,
     });
     if (res.ok) onClose();
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title={editing ? "Doimiy to‘lovni tahrirlash" : "Doimiy to‘lov qo‘shish"}
+      title={editing ? "To‘lov rejasini tahrirlash" : "To‘lov rejasi qo‘shish"}
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button className="flex-[2]" onClick={save}>
-            Saqlash
+          <Button className="flex-[2]" onClick={save} disabled={saving || !name.trim()}>
+            {saving ? "Saqlanmoqda…" : "Saqlash"}
           </Button>
         </>
       }
@@ -449,6 +483,27 @@ function RecurringSheet({
       <Field label="Nomi">
         <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Ijara / Elektr / Kredit" />
       </Field>
+      <Field label="To‘lov turi">
+        <Segmented
+          value={planType}
+          onChange={setPlanType}
+          options={[
+            { value: "one_time", label: "Bir martalik" },
+            { value: "recurring", label: "Doimiy" },
+            { value: "term", label: "Muddatli" },
+          ]}
+        />
+      </Field>
+      {planType === "term" ? (
+        <Field label="Bo‘lib to‘lashlar soni" hint="Masalan, 12 oylik kredit uchun 12">
+          <TextInput
+            value={installmentCount}
+            onChange={(e) => setInstallmentCount(e.target.value)}
+            inputMode="numeric"
+            placeholder="12"
+          />
+        </Field>
+      ) : null}
       <Segmented
         value={certainty}
         onChange={(value) => {
@@ -483,14 +538,15 @@ function RecurringSheet({
         <Field label="Keyingi to‘lov sanasi">
           <TextInput type="date" value={nextDueDate} onChange={(e) => setNextDueDate(e.target.value)} />
         </Field>
-        <Field label="Takrorlanish">
-          <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
-            <option value="once">Bir marta</option>
-            <option value="weekly">Har hafta</option>
-            <option value="monthly">Har oy</option>
-            <option value="yearly">Har yil</option>
-          </Select>
-        </Field>
+        {planType !== "one_time" ? (
+          <Field label="Takrorlanish">
+            <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+              <option value="weekly">Har hafta</option>
+              <option value="monthly">Har oy</option>
+              <option value="yearly">Har yil</option>
+            </Select>
+          </Field>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
         <Field label="Turi">
@@ -549,22 +605,28 @@ function IncomeSheet({
   const [max, setMax] = useState("");
   const [expectedDate, setExpectedDate] = useState(todayISO());
   const [frequency, setFrequency] = useState("monthly");
+  const [planType, setPlanType] = useState<"one_time" | "recurring" | "term">("recurring");
+  const [occurrenceCount, setOccurrenceCount] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     // Initialize every field for the selected record. Opening a second record
     // cannot inherit any draft value from the first one.
+    setSaving(false);
     setSourceName(editing?.sourceName ?? "");
     setCertainty(editing?.certainty ?? "exact");
     setAmount(editing?.amount !== null && editing?.amount !== undefined ? String(editing.amount) : "");
     setMin(editing?.minAmount !== null && editing?.minAmount !== undefined ? String(editing.minAmount) : "");
     setMax(editing?.maxAmount !== null && editing?.maxAmount !== undefined ? String(editing.maxAmount) : "");
     setExpectedDate(editing?.expectedDate ?? todayISO());
-    setFrequency(editing?.frequency ?? "monthly");
+    setFrequency(editing?.frequency && editing.frequency !== "once" ? editing.frequency : "monthly");
+    setPlanType(editing?.planType ?? "recurring");
+    setOccurrenceCount(editing?.occurrenceCount ? String(editing.occurrenceCount) : "");
     setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
     setAccountId(editing?.accountId ? String(editing.accountId) : "");
     setIsActive(editing?.isActive ?? true);
@@ -575,7 +637,9 @@ function IncomeSheet({
   const accounts = (state?.accounts ?? []).filter((a) => a.isActive || a.id === editing?.accountId);
 
   async function save() {
-    if (!sourceName.trim() || !expectedDate) return;
+    if (!sourceName.trim() || !expectedDate || saving) return;
+    setSaving(true);
+    try {
     const res = await mutate("expectedIncome", editing ? "update" : "create", {
       id: editing?.id,
       sourceName: sourceName.trim(),
@@ -586,13 +650,18 @@ function IncomeSheet({
       minAmount: certainty === "estimated" ? min : null,
       maxAmount: certainty === "estimated" ? max : null,
       expectedDate,
-      frequency,
+      frequency: planType === "one_time" ? "once" : frequency,
+      planType,
+      occurrenceCount: planType === "term" ? Number(occurrenceCount) || null : null,
       categoryId: categoryId ? Number(categoryId) : null,
       accountId: accountId ? Number(accountId) : null,
       isActive,
       note: note.trim() || null,
     });
     if (res.ok) onClose();
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -605,8 +674,8 @@ function IncomeSheet({
           <Button variant="secondary" className="flex-1" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button className="flex-[2]" onClick={save}>
-            {editing ? "Yangilash" : "Saqlash"}
+          <Button className="flex-[2]" onClick={save} disabled={saving || !sourceName.trim()}>
+            {saving ? "Saqlanmoqda…" : editing ? "Yangilash" : "Saqlash"}
           </Button>
         </>
       }
@@ -614,6 +683,27 @@ function IncomeSheet({
       <Field label="Manba nomi">
         <TextInput value={sourceName} onChange={(e) => setSourceName(e.target.value)} placeholder="Ish haqi / Biznes daromadi" />
       </Field>
+      <Field label="Daromad turi">
+        <Segmented
+          value={planType}
+          onChange={setPlanType}
+          options={[
+            { value: "one_time", label: "Bir martalik" },
+            { value: "recurring", label: "Doimiy" },
+            { value: "term", label: "Muddatli" },
+          ]}
+        />
+      </Field>
+      {planType === "term" ? (
+        <Field label="Takrorlanishlar soni" hint="Masalan, 3 oylik kontrakt uchun 3">
+          <TextInput
+            value={occurrenceCount}
+            onChange={(e) => setOccurrenceCount(e.target.value)}
+            inputMode="numeric"
+            placeholder="3"
+          />
+        </Field>
+      ) : null}
       <Segmented
         value={certainty}
         onChange={(value) => {
@@ -648,14 +738,15 @@ function IncomeSheet({
         <Field label="Kutilayotgan sana">
           <TextInput type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
         </Field>
-        <Field label="Takrorlanish">
-          <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
-            <option value="once">Bir marta</option>
-            <option value="weekly">Har hafta</option>
-            <option value="monthly">Har oy</option>
-            <option value="yearly">Har yil</option>
-          </Select>
-        </Field>
+        {planType !== "one_time" ? (
+          <Field label="Takrorlanish">
+            <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+              <option value="weekly">Har hafta</option>
+              <option value="monthly">Har oy</option>
+              <option value="yearly">Har yil</option>
+            </Select>
+          </Field>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
         <Field label="Kategoriya">

@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { buildAppState } from "@/lib/state";
 import { getRedis } from "@/lib/redis";
+import { todayISO } from "@/lib/money";
 import { telegramApi } from "@/lib/telegram";
 import { securityContext, securityLog } from "@/lib/security";
 
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
       if (!alerts.length) continue;
 
       const fingerprint = alerts.map((alert) => alert.id).sort().join(",");
-      const day = new Date().toISOString().slice(0, 10);
+      const day = todayISO();
       const key = `pfos:telegram-notify:${user.id}:${day}:${fingerprint}`;
       const claimed = await redis.set(key, "pending", { NX: true, EX: 48 * 60 * 60 });
       if (claimed !== "OK") {

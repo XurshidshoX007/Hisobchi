@@ -67,7 +67,11 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const accountNames = new Map(accountRows.map((a) => [a.id, a.name]));
   const catById = new Map(categoryRows.map((c) => [c.id, c]));
 
-  /* ---- balances (full history, SQL aggregated) ---- */
+  /* ---- balances (full history, SQL aggregated) ----
+   * Date semantics: the current balance reflects financial events up to and
+   * including *today* (transaction.date). A future-dated transaction belongs
+   * to the forecast, not to today's balance. */
+  const lte = (a: typeof transactions.date, b: string) => sql`${a} <= ${b}`;
   const balanceRows = await db
     .select({
       accountId: transactions.accountId,
@@ -78,13 +82,20 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       txCount: sql<number>`count(*)`,
     })
     .from(transactions)
-    .where(and(eq(transactions.userId, user.id), eq(transactions.isDeleted, false)))
+    .where(and(eq(transactions.userId, user.id), eq(transactions.isDeleted, false), lte(transactions.date, today)))
     .groupBy(transactions.accountId);
 
   const transferInRows = await db
     .select({ toAccountId: transactions.toAccountId, total: sql<number>`coalesce(sum(${transactions.amount}), 0)` })
     .from(transactions)
-    .where(and(eq(transactions.userId, user.id), eq(transactions.type, "transfer"), eq(transactions.isDeleted, false)))
+    .where(
+      and(
+        eq(transactions.userId, user.id),
+        eq(transactions.type, "transfer"),
+        eq(transactions.isDeleted, false),
+        lte(transactions.date, today),
+      ),
+    )
     .groupBy(transactions.toAccountId);
 
   const balanceByAccount = new Map<number, { inflow: number; outflow: number; transferOut: number; transferIn: number; txCount: number }>();
@@ -165,13 +176,20 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       isDeleted: false,
     }));
 
-  /* ---- recurring ---- */
+  /* ---- recurring / payment plans ---- */
   const recurringViews: RecurringView[] = recurringRows.map((r) => {
     const { base } = rangeValue(r.amount, r.minAmount, r.maxAmount);
     const daysLeft = dayDiff(today, r.nextDueDate);
     const paidThisMonth = txViews.some(
       (t) => t.recurringId === r.id && t.date.startsWith(thisMonth),
     );
+    const planType = (r.planType === "term" ? "term" : r.planType === "one_time" || r.frequency === "once" ? "one_time" : "recurring") as
+      | "one_time"
+      | "recurring"
+      | "term";
+    const remainingInstallments =
+      planType === "term" ? Math.max(0, (r.installmentCount ?? 0) - r.installmentsPaid) : planType === "one_time" ? (r.isActive ? 1 : 0) : null;
+    const termCompleted = planType === "term" && remainingInstallments === 0;
     return {
       id: r.id,
       name: r.name,
@@ -188,10 +206,16 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       certainty: r.certainty === "estimated" ? "estimated" : "exact",
       nextDueDate: r.nextDueDate,
       reminderDaysBefore: r.reminderDaysBefore,
-      isActive: r.isActive,
+      isActive: r.isActive && !termCompleted,
       daysLeft,
       paidThisMonth,
       yearlyTotal: round2(r.frequency === "yearly" ? base : base * 12),
+      planType,
+      installmentCount: r.installmentCount,
+      installmentsPaid: r.installmentsPaid,
+      remainingInstallments,
+      remainingTotal: remainingInstallments !== null ? round2(remainingInstallments * base) : null,
+      termCompleted,
     };
   });
 
@@ -207,6 +231,13 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         (i.frequency === "once" || t.date.startsWith(thisMonth)),
     );
     const received = Boolean(linkedTransaction);
+    const planType = (i.planType === "term" ? "term" : i.planType === "one_time" || i.frequency === "once" ? "one_time" : "recurring") as
+      | "one_time"
+      | "recurring"
+      | "term";
+    const remaining =
+      planType === "term" ? Math.max(0, (i.occurrenceCount ?? 0) - i.occurrencesReceived) : planType === "one_time" ? (i.isActive ? 1 : 0) : null;
+    const termCompleted = planType === "term" && remaining === 0;
     return {
       id: i.id,
       sourceName: i.sourceName,
@@ -217,13 +248,18 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       expectedDate: i.expectedDate,
       frequency: i.frequency,
       certainty: i.certainty === "estimated" ? "estimated" : "exact",
-      isActive: i.isActive,
+      isActive: i.isActive && !termCompleted,
       note: i.note,
       accountId: i.accountId,
       categoryId: i.categoryId,
       received,
       daysLeft: dayDiff(today, i.expectedDate),
       linkedTransactionId: linkedTransaction?.id ?? null,
+      planType,
+      occurrenceCount: i.occurrenceCount,
+      occurrencesReceived: i.occurrencesReceived,
+      remainingOccurrences: remaining,
+      termCompleted,
     };
   });
 
@@ -340,6 +376,45 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     currentBalance,
     today,
   });
+
+  /* ---- forecast-aware smart insights (Phase: dynamic, real-state based) ---- */
+  {
+    const upcoming = forecast.planned.filter((p) => p.kind === "expense" && p.mandatory && p.date >= today && dayDiff(today, p.date) <= 12);
+    if (upcoming.length) {
+      analytics.insights.push({
+        icon: "📌",
+        tone: "neutral",
+        title: `Kelasi 12 kunda ${upcoming.length} ta majburiy to'lov`,
+        body: `Jami ${Math.round(upcoming.reduce((s, p) => s + p.base, 0) / 1000)} ming so'm rejalashtirilgan.`,
+      });
+    }
+    if (forecast.riskDates.length) {
+      const first = forecast.riskDates[0];
+      analytics.insights.push({
+        icon: "🚨",
+        tone: "negative",
+        title: "Balans minimal darajaga tushishi mumkin",
+        body: `${shortDate(first.date)} kuni taxminiy ${Math.round(first.deficit / 1000)} ming so'm taqchillik kutilmoqda.`,
+      });
+    }
+    analytics.insights.push({
+      icon: "✨",
+      tone: forecast.safeToSpend < 0 ? "warning" : "positive",
+      title: `Safe-to-Spend bugun: ${Math.round(Math.max(0, forecast.safeToSpend) / 1000)} ming`,
+      body:
+        forecast.safeToSpend < 0
+          ? "Majburiy to'lovlar va zaxira hisobga olinganda hozircha erkin mablag' yo'q."
+          : `Oy oxirigacha xavfsiz sarflash mumkin bo'lgan summa.`,
+    });
+    if (forecast.income.estimatedBase > 0) {
+      analytics.insights.push({
+        icon: "🎲",
+        tone: "neutral",
+        title: "Taxminiy daromadlar",
+        body: `Jami prognoz ${Math.round(forecast.income.base / 1000)} ming, shundan faqat ${Math.round(forecast.income.exactBase / 1000)} ming aniq.`,
+      });
+    }
+  }
 
   const health = buildHealth({
     analytics,
@@ -491,9 +566,12 @@ function formatRange(p: { min: number; max: number; base: number; certainty: str
 }
 
 function shortDate(iso: string): string {
+  // Parse the ISO date textually: `new Date(iso)` is UTC-midnight and can
+  // shift the visible day on non-UTC servers.
   const months = ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avg", "sen", "okt", "noy", "dek"];
-  const d = new Date(iso);
-  return `${d.getDate()}-${months[d.getMonth()]}`;
+  const day = Number(iso.slice(8, 10));
+  const month = Number(iso.slice(5, 7));
+  return `${day}-${months[(month || 1) - 1]}`;
 }
 
 // keeps unused imports referenced for future query extension

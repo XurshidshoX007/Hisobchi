@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { compact, formatAmount, monthLabel, shortDate } from "@/lib/money";
 
 type Pt = { x: number; y: number };
@@ -98,7 +99,7 @@ export function ForecastArea({
     .filter((d) => d.projectedMin < 0);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img">
+    <ForecastAreaInteractive data={data} W={W} H={H} pad={pad} x={x} y={y} innerH={innerH}>
       <defs>
         <linearGradient id="fa-fill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
@@ -122,7 +123,73 @@ export function ForecastArea({
           {shortDate(data[i]?.date ?? "")}
         </text>
       ))}
-    </svg>
+    </ForecastAreaInteractive>
+  );
+}
+
+/** Hover/tap layer: crosshair + tooltip (date, min/base/max) for the forecast. */
+function ForecastAreaInteractive({
+  data,
+  W,
+  H,
+  pad,
+  x,
+  y,
+  innerH,
+  children,
+}: {
+  data: Array<{ date: string; projectedMin: number; projectedBase: number; projectedMax: number }>;
+  W: number;
+  H: number;
+  pad: { top: number; bottom: number; left: number; right: number };
+  x: (i: number) => number;
+  y: (v: number) => number;
+  innerH: number;
+  children: React.ReactNode;
+}) {
+  const [active, setActive] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  const pick = (clientX: number) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || data.length === 0) return;
+    const rel = ((clientX - rect.left) / rect.width) * W;
+    const idx = Math.round(((rel - pad.left) / Math.max(1, W - pad.left - pad.right)) * (data.length - 1));
+    setActive(Math.max(0, Math.min(data.length - 1, idx)));
+  };
+
+  const d = active !== null ? data[active] : null;
+  return (
+    <div className="relative">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-auto w-full touch-pan-y"
+        role="img"
+        onMouseMove={(e) => pick(e.clientX)}
+        onMouseLeave={() => setActive(null)}
+        onTouchStart={(e) => pick(e.touches[0]?.clientX ?? 0)}
+        onTouchMove={(e) => pick(e.touches[0]?.clientX ?? 0)}
+        onTouchEnd={() => setActive(null)}
+      >
+        {children}
+        {d && active !== null ? (
+          <g>
+            <line x1={x(active)} x2={x(active)} y1={pad.top} y2={pad.top + innerH} stroke="var(--muted)" strokeWidth="1" strokeDasharray="2 3" />
+            <circle cx={x(active)} cy={y(d.projectedBase)} r="3.4" fill="var(--accent)" stroke="var(--surface)" strokeWidth="1.5" />
+          </g>
+        ) : null}
+      </svg>
+      {d ? (
+        <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 rounded-xl border border-line bg-surface px-3 py-1.5 text-[11px] shadow-lg">
+          <span className="font-semibold">{shortDate(d.date)}</span>
+          <span className="num ml-2">{compact(d.projectedBase)}</span>
+          <span className="ml-2 text-muted">
+            {compact(d.projectedMin)}–{compact(d.projectedMax)}
+          </span>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
