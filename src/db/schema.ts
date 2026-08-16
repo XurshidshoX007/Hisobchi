@@ -203,6 +203,8 @@ export const expectedIncomes = pgTable(
     occurrenceCount: integer("occurrence_count"),
     /** term: how many occurrences were already received. */
     occurrencesReceived: integer("occurrences_received").notNull().default(0),
+    /** Seed date of the occurrence schedule (mirrors recurring_expenses.start_date). */
+    startDate: date("start_date", { mode: "string" }),
     isActive: boolean("is_active").notNull().default(true),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -233,6 +235,16 @@ export const transactions = pgTable(
     source: text("source").notNull().default("miniapp"), // bot | miniapp | api | auto
     recurringId: integer("recurring_id").references(() => recurringExpenses.id, { onDelete: "set null" }),
     expectedIncomeId: integer("expected_income_id").references(() => expectedIncomes.id, { onDelete: "set null" }),
+    /**
+     * Occurrence identity for plan ↔ transaction reconciliation.
+     * `plannedDate` is the *scheduled* date of the occurrence this real
+     * transaction fulfils; it is immutable once a payment is recorded and is
+     * distinct from `date` (the *actual* payment/receipt date). This lets an
+     * early payment (actual 15th, planned 20th) be un-done without corrupting
+     * the schedule. `occurrenceNumber` is the 1-based sequence index.
+     */
+    plannedDate: date("planned_date", { mode: "string" }),
+    occurrenceNumber: integer("occurrence_number"),
     isDeleted: boolean("is_deleted").notNull().default(false),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

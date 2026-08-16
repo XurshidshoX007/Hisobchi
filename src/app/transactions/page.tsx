@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
-import { Badge, Button, Card, EmptyState, Money, PageHeader, Segmented, Select, Skeleton, TextInput } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Money, PageHeader, Segmented, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, humanDate } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
 
@@ -16,6 +16,7 @@ export default function TransactionsPage() {
   const [category, setCategory] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<TxView | null>(null);
+  const [deleting, setDeleting] = useState<TxView | null>(null);
 
   function openCreate() {
     setEditing(null);
@@ -159,7 +160,7 @@ export default function TransactionsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => mutate("transaction", "delete", { id: t.id })}
+                          onClick={() => setDeleting(t)}
                           className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
                           aria-label="Bekor qilish"
                         >
@@ -180,6 +181,57 @@ export default function TransactionsPage() {
       </p>
 
       <QuickAddSheet open={addOpen} onClose={closeSheet} editing={editing} />
+      <DeleteConfirm tx={deleting} onClose={() => setDeleting(null)} />
     </div>
+  );
+}
+
+function DeleteConfirm({ tx, onClose }: { tx: TxView | null; onClose: () => void }) {
+  const { mutate } = useFinance();
+  const [saving, setSaving] = useState(false);
+  const linked = Boolean(tx?.recurringId || tx?.expectedIncomeId);
+
+  async function confirm() {
+    if (!tx || saving) return;
+    setSaving(true);
+    try {
+      await mutate("transaction", "delete", { id: tx.id });
+    } finally {
+      setSaving(false);
+      onClose();
+    }
+  }
+
+  return (
+    <Sheet
+      open={Boolean(tx)}
+      onClose={onClose}
+      title={linked ? "To‘lovni o‘chirish" : "Operatsiyani o‘chirish"}
+      footer={
+        <>
+          <Button variant="secondary" className="flex-1" onClick={onClose}>
+            Bekor qilish
+          </Button>
+          <Button variant="danger" className="flex-[2]" onClick={confirm} disabled={saving}>
+            {saving ? "O‘chirilmoqda…" : "O‘chirish"}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-[14px] leading-relaxed">
+        {tx?.note ? (
+          <>
+            <span className="font-semibold">{tx.note}</span> operatsiyasi o‘chiriladi.
+          </>
+        ) : (
+          "Ushbu operatsiya o‘chiriladi."
+        )}
+      </p>
+      <p className="text-[13px] leading-relaxed text-muted">
+        {linked
+          ? "Bu amal to‘lovni tarixdan olib tashlaydi va reja hisobini qayta tiklaydi."
+          : "Operatsiya tarixdan olib tashlanadi."}
+      </p>
+    </Sheet>
   );
 }

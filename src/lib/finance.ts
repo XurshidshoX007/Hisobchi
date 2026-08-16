@@ -1,4 +1,5 @@
 import { addDays, addMonths, clamp, dayDiff, monthEnd, monthKey, monthStart, round2, todayISO, UZ_MONTHS } from "./money";
+import { advancePeriod, rewindPeriod } from "./reconciliation";
 
 /* ============================ Shared view types ============================ */
 
@@ -18,6 +19,9 @@ export type TxView = {
   source: string;
   recurringId: number | null;
   expectedIncomeId: number | null;
+  /** Scheduled occurrence date this transaction fulfils (occurrence identity). */
+  plannedDate: string | null;
+  occurrenceNumber: number | null;
   isDeleted: boolean;
 };
 
@@ -71,6 +75,8 @@ export type RecurringView = {
   installmentsPaid: number;
   remainingInstallments: number | null;
   remainingTotal: number | null;
+  /** Total value of the whole plan: term → count × amount, one_time → amount. */
+  planTotal: number | null;
   termCompleted: boolean;
 };
 
@@ -95,6 +101,8 @@ export type ExpectedIncomeView = {
   occurrenceCount: number | null;
   occurrencesReceived: number;
   remainingOccurrences: number | null;
+  /** Total value of the whole plan: term → count × amount, one_time → amount. */
+  planTotal: number | null;
   termCompleted: boolean;
 };
 
@@ -169,48 +177,78 @@ export function rangeValue(
 }
 
 /**
- * Returns all occurrences of a plan that fall between [today, horizonEnd].
- * Past seed dates are fast-forwarded to the first occurrence >= today.
- * A one-time plan returns at most one date and only if it is today or future.
- * Term plans are capped by `maxOccurrences` (remaining installments).
+ * Returns all occurrence dates of a plan that fall between [today, horizonEnd].
+ *
+ * Occurrence identity is schedule-based, not counter-based, so un-doing a
+ * payment (or an early payment) restores the exact scheduled dates without
+ * silently shifting the sequence:
+ *  - one_time  → at most its single date, only if today/future.
+ *  - recurring → fast-forwarded from the next-due cursor (past dates skipped).
+ *  - term      → the FULL finite schedule from `startDate`; fulfilled dates are
+ *    removed by the caller via occurrence identity, so a gap left by a deleted
+ *    middle installment does not truncate later unpaid occurrences.
  */
-function nextOccurrences(
-  seedDate: string,
-  frequency: string,
+function planOccurrences(
+  plan: {
+    planType?: string;
+    frequency: string;
+    nextDueDate?: string;
+    expectedDate?: string;
+    startDate?: string | null;
+    installmentCount?: number | null;
+    occurrenceCount?: number | null;
+    installmentsPaid?: number | null;
+    occurrencesReceived?: number | null;
+  },
   today: string,
   horizonEnd: string,
-  maxOccurrences: number | null = null,
 ): string[] {
-  if (maxOccurrences !== null && maxOccurrences <= 0) return [];
-  const freq = frequency === "once" ? "once" : frequency;
+  const planType = plan.planType;
+  const freq = plan.frequency === "once" ? "once" : plan.frequency;
+  const cursorDate = plan.nextDueDate ?? plan.expectedDate;
 
-  if (freq === "once") {
-    if (seedDate < today) return [];
-    if (seedDate > horizonEnd) return [];
-    return maxOccurrences !== null ? [seedDate].slice(0, Math.max(0, maxOccurrences)) : [seedDate];
+  if (planType === "one_time" || freq === "once") {
+    const d = cursorDate;
+    return d !== undefined && d >= today && d <= horizonEnd ? [d] : [];
   }
 
-  const advance = (d: string) =>
-    freq === "weekly" ? addDays(d, 7) : freq === "yearly" ? addMonths(d, 12) : addMonths(d, 1);
+  if (planType === "term") {
+    const count = plan.installmentCount ?? plan.occurrenceCount ?? 0;
+    // Seed the schedule from `startDate` when present. Legacy rows (or test
+    // fixtures) without it derive the seed by rewinding the cursor past the
+    // already-fulfilled occurrences — valid while payments are contiguous.
+    const paid = plan.installmentsPaid ?? plan.occurrencesReceived ?? 0;
+    const seed = plan.startDate ?? (cursorDate !== undefined ? rewindPeriod(cursorDate, freq, paid) : cursorDate);
+    const out: string[] = [];
+    let cursor = seed;
+    let guard = 0;
+    let total = 0;
+    while (total < count && cursor !== undefined && cursor <= horizonEnd && guard < 100_000) {
+      total += 1;
+      if (cursor >= today) out.push(cursor);
+      cursor = advancePeriod(cursor, freq);
+      guard += 1;
+    }
+    return out;
+  }
 
-  let cursor = seedDate;
+  // recurring (indefinite): keep the cursor-based fast-forward semantics.
+  let cursor = cursorDate;
   let guard = 0;
-  while (cursor < today && guard < 400) {
-    cursor = advance(cursor);
+  while (cursor !== undefined && cursor < today && guard < 100_000) {
+    cursor = advancePeriod(cursor, freq);
     guard += 1;
   }
-  if (cursor < today) return [];
+  if (cursor === undefined || cursor < today) return [];
 
   const out: string[] = [];
   guard = 0;
   while (cursor <= horizonEnd && guard < 200) {
     out.push(cursor);
-    if (maxOccurrences !== null && out.length >= maxOccurrences) break;
-    cursor = advance(cursor);
+    cursor = advancePeriod(cursor, freq);
     guard += 1;
   }
-  const unique = out.filter((d, i, arr) => arr.indexOf(d) === i).sort();
-  return maxOccurrences !== null ? unique.slice(0, Math.max(0, maxOccurrences)) : unique;
+  return out;
 }
 
 export type TimelineKind =
@@ -354,6 +392,7 @@ type RecurringLike = {
   planType?: string;
   installmentCount?: number | null;
   installmentsPaid?: number | null;
+  startDate?: string | null;
 };
 
 type ReconciliationTx = {
@@ -362,6 +401,8 @@ type ReconciliationTx = {
   amount: number;
   recurringId?: number | null;
   expectedIncomeId?: number | null;
+  plannedDate?: string | null;
+  occurrenceNumber?: number | null;
   isDeleted?: boolean;
 };
 
@@ -379,6 +420,7 @@ type ExpectedLike = {
   planType?: string;
   occurrenceCount?: number | null;
   occurrencesReceived?: number | null;
+  startDate?: string | null;
 };
 
 /** Remaining scheduled occurrences for a plan; null = unlimited (recurring). */
@@ -414,9 +456,13 @@ export function buildPlanned(
     const remaining = remainingOccurrences(r);
     if (remaining !== null && remaining <= 0) continue;
     const { base, min, max } = rangeValue(r.amount, r.minAmount, r.maxAmount);
-    for (const date of nextOccurrences(r.nextDueDate, r.frequency, today, horizonEnd, remaining)) {
-      const range = transactions.some((t) => !t.isDeleted && t.type === "expense" && t.recurringId === r.id && t.date === date);
-      if (range) continue;
+    for (const date of planOccurrences(r, today, horizonEnd)) {
+      // A fulfilled occurrence is reconciled by occurrence identity: the
+      // transaction's *planned* date (not its actual, possibly early, date).
+      const fulfilled = transactions.some(
+        (t) => !t.isDeleted && t.type === "expense" && t.recurringId === r.id && (t.plannedDate ?? t.date) === date,
+      );
+      if (fulfilled) continue;
       items.push({
         key: `r-${r.id}-${date}`,
         date,
@@ -438,10 +484,12 @@ export function buildPlanned(
     const remaining = remainingOccurrences(inc);
     if (remaining !== null && remaining <= 0) continue;
     const { base, min, max } = rangeValue(inc.amount, inc.minAmount, inc.maxAmount);
-    for (const date of nextOccurrences(inc.expectedDate, inc.frequency, today, horizonEnd, remaining)) {
+    for (const date of planOccurrences(inc, today, horizonEnd)) {
       // A received occurrence is fulfilled by its linked real transaction.
-      // Match both identity and date to avoid double-counting recurring income.
-      const received = transactions.some((t) => !t.isDeleted && t.type === "income" && t.expectedIncomeId === inc.id && t.date === date);
+      // Match by occurrence identity (planned date) to avoid double-counting.
+      const received = transactions.some(
+        (t) => !t.isDeleted && t.type === "income" && t.expectedIncomeId === inc.id && (t.plannedDate ?? t.date) === date,
+      );
       if (received) continue;
       // Past income never forecasted - REAL vs PLAN separation
       if (date < today) continue;
@@ -466,7 +514,7 @@ export function buildPlanned(
 
 export function buildForecast(params: {
   currentBalance: number;
-  transactions?: Array<{ id: number; date: string; type: string; amount: number; note?: string | null; recurringId?: number | null; expectedIncomeId?: number | null; isDeleted?: boolean }>;
+  transactions?: Array<{ id: number; date: string; type: string; amount: number; note?: string | null; recurringId?: number | null; expectedIncomeId?: number | null; plannedDate?: string | null; occurrenceNumber?: number | null; isDeleted?: boolean }>;
   recurring: RecurringLike[];
   incomes: ExpectedLike[];
   minReserve: number;
@@ -1078,6 +1126,65 @@ export function buildMonthlySeries(params: {
     );
   }
   return result;
+}
+
+/* ============================ Month-scoped summaries ============================ */
+
+export type MonthIncomeSummary = {
+  month: string;
+  label: string;
+  exactBase: number;
+  exactMin: number;
+  estimatedBase: number;
+  estimatedMin: number;
+  estimatedMax: number;
+  base: number;
+  min: number;
+  max: number;
+};
+
+/**
+ * "Aniq kutilmoqda / Taxminiy / Jami prognoz" for the CURRENT month only.
+ * Only open expected-income occurrences (source === "expected") whose planned
+ * date falls inside [monthStart(today), monthEnd(today)] are counted — next
+ * months must not leak into the current month's top statistics.
+ */
+export function buildCurrentMonthIncome(planned: PlannedItem[], today: string): MonthIncomeSummary {
+  const mk = monthKey(today);
+  const items = planned.filter((p) => p.kind === "income" && p.source === "expected" && monthKey(p.date) === mk);
+  const exact = items.filter((p) => p.certainty === "exact");
+  const estimated = items.filter((p) => p.certainty === "estimated");
+  const exactBase = exact.reduce((s, p) => s + p.base, 0);
+  const exactMin = exact.reduce((s, p) => s + p.min, 0);
+  const estimatedBase = estimated.reduce((s, p) => s + p.base, 0);
+  const estimatedMin = estimated.reduce((s, p) => s + p.min, 0);
+  const estimatedMax = estimated.reduce((s, p) => s + p.max, 0);
+  const base = exactBase + estimatedBase;
+  const min = exactMin + estimatedMin;
+  const max = exactBase + estimatedMax;
+  const monthName = UZ_MONTHS[Number(mk.slice(5, 7)) - 1] ?? "";
+  return {
+    month: mk,
+    label: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${mk.slice(0, 4)}`,
+    exactBase: round2(exactBase),
+    exactMin: round2(exactMin),
+    estimatedBase: round2(estimatedBase),
+    estimatedMin: round2(estimatedMin),
+    estimatedMax: round2(estimatedMax),
+    base: round2(base),
+    min: round2(min),
+    max: round2(max),
+  };
+}
+
+/** The cash-flow days belonging to a single month key. */
+export function monthCashflow(cashflow: Forecast["cashflow"], mk: string): Forecast["cashflow"] {
+  return cashflow.filter((c) => monthKey(c.date) === mk);
+}
+
+/** The planned items belonging to a single month key. */
+export function monthPlanned(planned: PlannedItem[], mk: string): PlannedItem[] {
+  return planned.filter((p) => monthKey(p.date) === mk);
 }
 
 /* ============================ Analytics ============================ */

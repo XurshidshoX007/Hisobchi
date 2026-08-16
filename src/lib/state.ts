@@ -16,6 +16,7 @@ import {
 } from "./schema-types";
 import {
   buildAnalytics,
+  buildCurrentMonthIncome,
   buildForecast,
   buildHealth,
   buildMonthlySeries,
@@ -175,6 +176,8 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       source: t.source,
       recurringId: t.recurringId,
       expectedIncomeId: t.expectedIncomeId,
+      plannedDate: t.plannedDate,
+      occurrenceNumber: t.occurrenceNumber,
       isDeleted: false,
     }));
 
@@ -182,7 +185,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const recurringViews: RecurringView[] = recurringRows.map((r) => {
     const { base } = rangeValue(r.amount, r.minAmount, r.maxAmount);
     const daysLeft = dayDiff(today, r.nextDueDate);
-    const paidThisMonth = txViews.some((t) => t.recurringId === r.id && t.date.startsWith(thisMonth));
+    const paidThisMonth = txViews.some((t) => t.recurringId === r.id && (t.plannedDate ?? t.date).startsWith(thisMonth));
     const planType = (r.planType === "term" ? "term" : r.planType === "one_time" || r.frequency === "once" ? "one_time" : "recurring") as
       | "one_time"
       | "recurring"
@@ -190,6 +193,17 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     const remainingInstallments =
       planType === "term" ? Math.max(0, (r.installmentCount ?? 0) - r.installmentsPaid) : planType === "one_time" ? (r.isActive ? 1 : 0) : null;
     const termCompleted = planType === "term" && remainingInstallments === 0;
+    // Annualized total applies ONLY to indefinite recurring plans. Term and
+    // one-time plans must never be multiplied by 12 (a 2-installment term is
+    // worth count × amount, not amount × 12).
+    const annualFactor = r.frequency === "weekly" ? 52 : r.frequency === "yearly" ? 1 : 12;
+    const yearlyTotal = planType === "recurring" ? base * annualFactor : 0;
+    const planTotal =
+      planType === "term"
+        ? round2((r.installmentCount ?? 0) * base)
+        : planType === "one_time"
+          ? round2(base)
+          : null;
     return {
       id: r.id,
       name: r.name,
@@ -209,12 +223,13 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       isActive: r.isActive && !termCompleted,
       daysLeft,
       paidThisMonth,
-      yearlyTotal: round2(r.frequency === "yearly" ? base : base * 12),
+      yearlyTotal: round2(yearlyTotal),
       planType,
       installmentCount: r.installmentCount,
       installmentsPaid: r.installmentsPaid,
       remainingInstallments,
       remainingTotal: remainingInstallments !== null ? round2(remainingInstallments * base) : null,
+      planTotal,
       termCompleted,
     };
   });
@@ -223,7 +238,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const incomeViews: ExpectedIncomeView[] = incomeRows.map((i) => {
     const { base } = rangeValue(i.amount, i.minAmount, i.maxAmount);
     const linkedTransaction = txViews.find(
-      (t) => t.type === "income" && t.expectedIncomeId === i.id && (i.frequency === "once" || t.date.startsWith(thisMonth)),
+      (t) => t.type === "income" && t.expectedIncomeId === i.id && (i.frequency === "once" || (t.plannedDate ?? t.date).startsWith(thisMonth)),
     );
     const received = Boolean(linkedTransaction);
     const planType = (i.planType === "term" ? "term" : i.planType === "one_time" || i.frequency === "once" ? "one_time" : "recurring") as
@@ -233,6 +248,12 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     const remaining =
       planType === "term" ? Math.max(0, (i.occurrenceCount ?? 0) - i.occurrencesReceived) : planType === "one_time" ? (i.isActive ? 1 : 0) : null;
     const termCompleted = planType === "term" && remaining === 0;
+    const planTotal =
+      planType === "term"
+        ? round2((i.occurrenceCount ?? 0) * base)
+        : planType === "one_time"
+          ? round2(base)
+          : null;
     return {
       id: i.id,
       sourceName: i.sourceName,
@@ -254,6 +275,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       occurrenceCount: i.occurrenceCount,
       occurrencesReceived: i.occurrencesReceived,
       remainingOccurrences: remaining,
+      planTotal,
       termCompleted,
     };
   });
@@ -342,7 +364,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const recurringBase = recurringViews.filter((r) => r.isActive).reduce((s, r) => s + r.baseAmount, 0);
   const forecast = buildForecast({
     currentBalance,
-    transactions: txRows.map((t) => ({ id: t.id, date: t.date, type: t.type, amount: t.amount, note: t.note, recurringId: t.recurringId, expectedIncomeId: t.expectedIncomeId, isDeleted: t.isDeleted })),
+    transactions: txRows.map((t) => ({ id: t.id, date: t.date, type: t.type, amount: t.amount, note: t.note, recurringId: t.recurringId, expectedIncomeId: t.expectedIncomeId, plannedDate: t.plannedDate, occurrenceNumber: t.occurrenceNumber, isDeleted: t.isDeleted })),
     recurring: recurringRows,
     incomes: incomeRows.map((i) => ({
       ...i,
@@ -560,6 +582,9 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const severityOrder = { critical: 0, warning: 1, info: 2, success: 3 } as const;
   alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
+  /* ---- current-month expected income summary (Plans → Daromad) ---- */
+  const currentMonthIncome = buildCurrentMonthIncome(forecast.planned, today);
+
   const userView: UserView = {
     id: user.id,
     firstName: user.firstName,
@@ -607,6 +632,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     analytics,
     health,
     monthly,
+    currentMonthIncome,
   } as unknown as AppState;
 }
 

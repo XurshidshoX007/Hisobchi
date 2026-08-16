@@ -20,7 +20,8 @@ import {
   TextArea,
   TextInput,
 } from "@/components/ui";
-import { compact, formatAmount, humanDate, shortDate, todayISO } from "@/lib/money";
+import { addMonths, compact, formatAmount, humanDate, monthKey, monthStart, shortDate, todayISO } from "@/lib/money";
+import { monthCashflow, monthPlanned } from "@/lib/finance";
 import type { ExpectedIncomeView, RecurringView } from "@/lib/finance";
 
 type Tab = "payments" | "income" | "cashflow";
@@ -31,6 +32,8 @@ export default function PlansPage() {
   const [sheet, setSheet] = useState<"recurring" | "income" | null>(null);
   const [editing, setEditing] = useState<RecurringView | null>(null);
   const [editingIncome, setEditingIncome] = useState<ExpectedIncomeView | null>(null);
+  const [cashMonth, setCashMonth] = useState<string>(monthKey(todayISO()));
+  const [deletingPlan, setDeletingPlan] = useState<RecurringView | null>(null);
 
   function closeSheet() {
     setSheet(null);
@@ -44,6 +47,7 @@ export default function PlansPage() {
   const f = state.forecast;
   const monthlyMandatory = state.recurring.filter((r) => r.isActive && r.isMandatory).reduce((s, r) => s + r.baseAmount, 0);
   const monthlyOptional = state.recurring.filter((r) => r.isActive && !r.isMandatory).reduce((s, r) => s + r.baseAmount, 0);
+  const termPlans = state.recurring.filter((r) => r.isActive && r.planType === "term");
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
@@ -68,8 +72,16 @@ export default function PlansPage() {
               <Stat label="Majburiy / oy" value={monthlyMandatory} />
               <Stat label="Ixtiyoriy / oy" value={monthlyOptional} />
               <Stat label="Rejalar soni" value={state.recurring.filter((r) => r.isActive).length} plain />
-              <Stat label="Yillik jami" value={state.recurring.filter((r) => r.isActive).reduce((s, r) => s + r.baseAmount * 12, 0)} />
+              {/* Annualized total counts ONLY indefinite recurring plans — term
+                  plans must not be multiplied by 12. */}
+              <Stat label="Yillik jami" value={state.recurring.filter((r) => r.isActive && r.planType === "recurring").reduce((s, r) => s + r.yearlyTotal, 0)} />
             </div>
+            {termPlans.length ? (
+              <div className="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-4 sm:grid-cols-2">
+                <Stat label="Muddatli reja jami" value={termPlans.reduce((s, r) => s + (r.planTotal ?? 0), 0)} />
+                <Stat label="Muddatli qolgan" value={termPlans.reduce((s, r) => s + (r.remainingTotal ?? 0), 0)} />
+              </div>
+            ) : null}
           </Card>
 
           <div className="flex justify-end">
@@ -151,6 +163,14 @@ export default function PlansPage() {
                           >
                             Tahrir
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingPlan(r)}
+                            className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-negative hover:text-negative-text active:bg-surface-3 touch-manipulation"
+                            aria-label="O‘chirish"
+                          >
+                            O‘chirish
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -176,11 +196,17 @@ export default function PlansPage() {
       {tab === "income" ? (
         <div className="space-y-3.5 sm:space-y-4">
           <Card>
+            <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Joriy oy: {state.currentMonthIncome.label}
+            </p>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <Stat label="Aniq kutilmoqda" value={f.income.exactBase} tone="positive" />
-              <Stat label="Taxminiy (bazaviy)" value={f.income.estimatedBase} tone="muted" />
-              <Stat label="Jami prognoz" value={f.income.base} tone="positive" />
+              <Stat label="Aniq kutilmoqda" value={state.currentMonthIncome.exactBase} tone="positive" />
+              <Stat label="Taxminiy" value={state.currentMonthIncome.estimatedBase} tone="muted" />
+              <Stat label="Jami prognoz" value={state.currentMonthIncome.base} tone="positive" />
             </div>
+            <p className="mt-3 border-t border-line pt-3 text-[11.5px] text-muted">
+              90 kunlik prognoz: <span className="num font-medium text-fg">{compact(f.income.base)} so‘m</span> (aniq {compact(f.income.exactBase)}, taxminiy {compact(f.income.estimatedBase)})
+            </p>
           </Card>
 
           <div className="flex justify-end">
@@ -287,80 +313,20 @@ export default function PlansPage() {
       ) : null}
 
       {tab === "cashflow" ? (
-        <div className="space-y-3.5 sm:space-y-4">
-          <Card>
-            <div className="mb-3 flex items-baseline justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Prognoz balans</p>
-                <div className="mt-1.5 flex flex-wrap items-baseline gap-2">
-                  <Money value={f.scenarios.base.balance} size="xl" />
-                  <Badge tone={f.scenarios.base.delta >= 0 ? "positive" : "negative"}>
-                    {f.scenarios.base.delta >= 0 ? "+" : ""}
-                    {compact(f.scenarios.base.delta)}
-                  </Badge>
-                </div>
-              </div>
-              <div className="shrink-0 text-right text-[11.5px] leading-tight text-muted">
-                <p>min {compact(f.scenarios.min.balance)}</p>
-                <p>max {compact(f.scenarios.max.balance)}</p>
-              </div>
-            </div>
-            <ForecastArea data={f.cashflow} />
-            <Divider />
-            <div className="mt-4 overflow-x-auto">
-              <CashFlowStrip data={f.cashflow} />
-            </div>
-          </Card>
-
-          <Card>
-            <p className="mb-3 text-[15px] font-semibold">Kalendar bo‘yicha reja</p>
-            <div className="divide-y divide-line">
-              {f.planned
-                .filter((p) => p.date >= todayISO())
-                .slice(0, 24)
-                .map((p) => (
-                  <div key={p.key} className="flex items-center gap-2.5 py-2.5">
-                    <span className="num w-14 shrink-0 text-[11.5px] text-muted sm:w-16 sm:text-[12px]">{shortDate(p.date)}</span>
-                    <span className={`shrink-0 text-sm font-medium ${p.kind === "income" ? "text-positive-text" : "text-fg"}`}>
-                      {p.kind === "income" ? "+" : "−"}
-                      {formatAmount(p.base)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] sm:text-[13.5px]">{p.label}</span>
-                    <span className="shrink-0">
-                      <Badge tone={p.mandatory ? "negative" : p.kind === "income" ? "positive" : "neutral"}>
-                        {p.mandatory ? "majburiy" : p.kind === "income" ? (p.certainty === "estimated" ? "taxminiy" : "aniq") : "ixtiyoriy"}
-                      </Badge>
-                    </span>
-                  </div>
-                ))}
-            </div>
-          </Card>
-
-          <Card>
-            <p className="mb-2 text-[15px] font-semibold">⚠️ Xavf kunlari</p>
-            {f.riskDates.length ? (
-              <div className="space-y-2">
-                {f.riskDates.slice(0, 8).map((r) => (
-                  <div key={r.date} className="flex items-center justify-between gap-3 rounded-xl bg-negative-soft px-3.5 py-2.5">
-                    <div className="min-w-0">
-                      <p className="text-[13.5px] font-semibold text-negative-text">{shortDate(r.date)}</p>
-                      <p className="truncate text-[11.5px] text-negative-text/80">{r.cause}</p>
-                    </div>
-                    <span className="num shrink-0 text-[13px] font-semibold text-negative-text">−{compact(r.deficit)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[13px] leading-relaxed text-muted">
-                Kelasi {f.horizonDays} kunda pul yetishmasligi xavfi aniqlanmadi.
-              </p>
-            )}
-          </Card>
-        </div>
+        <CashflowTab
+          cashflow={f.cashflow}
+          planned={f.planned}
+          riskDates={f.riskDates}
+          horizonDays={f.horizonDays}
+          monthLabel={state.monthly?.find((m) => m.monthKey === cashMonth)?.label ?? cashMonth}
+          cashMonth={cashMonth}
+          setCashMonth={setCashMonth}
+        />
       ) : null}
 
       <RecurringSheet open={sheet === "recurring"} onClose={closeSheet} editing={editing} />
       <IncomeSheet open={sheet === "income"} onClose={closeSheet} editing={editingIncome} />
+      <PlanDeleteConfirm plan={deletingPlan} onClose={() => setDeletingPlan(null)} />
     </div>
   );
 }
@@ -387,6 +353,169 @@ function Stat({
         </div>
       )}
     </div>
+  );
+}
+
+function CashflowTab({
+  cashflow,
+  planned,
+  riskDates,
+  horizonDays,
+  monthLabel,
+  cashMonth,
+  setCashMonth,
+}: {
+  cashflow: ReturnType<typeof monthCashflow>;
+  planned: ReturnType<typeof monthPlanned>;
+  riskDates: Array<{ date: string; balance: number; deficit: number; cause: string; recoveryDate?: string | null; recoveryAmount?: number | null }>;
+  horizonDays: number;
+  monthLabel: string;
+  cashMonth: string;
+  setCashMonth: (mk: string) => void;
+}) {
+  const current = monthKey(todayISO());
+  const days = monthCashflow(cashflow, cashMonth);
+  const items = monthPlanned(planned, cashMonth);
+  const risks = riskDates.filter((r) => monthKey(r.date) === cashMonth);
+  const closing = days.length ? days[days.length - 1].projectedBase : 0;
+  const opening = days.length ? days[0].projectedBase : 0;
+
+  return (
+    <div className="space-y-3.5 sm:space-y-4">
+      <Card>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCashMonth(monthKey(addMonths(monthStart(cashMonth), -1)))}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation"
+              aria-label="Oldingi oy"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setCashMonth(monthKey(addMonths(monthStart(cashMonth), 1)))}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation"
+              aria-label="Keyingi oy"
+            >
+              ›
+            </button>
+          </div>
+          <div className="min-w-0 text-right">
+            <p className="truncate text-[15px] font-semibold">{monthLabel}</p>
+            {cashMonth === current ? (
+              <Badge tone="accent">joriy oy</Badge>
+            ) : (
+              <p className="text-[11px] text-muted">kelajak oy</p>
+            )}
+          </div>
+        </div>
+
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Oy oxiri prognoz balans</p>
+            <Money value={closing} size="xl" />
+          </div>
+          <div className="shrink-0 text-right text-[11.5px] leading-tight text-muted">
+            <p>ochilish {compact(opening)}</p>
+            <p>yakun {compact(closing)}</p>
+          </div>
+        </div>
+        <ForecastArea data={days} />
+        <Divider />
+        <div className="mt-4 overflow-x-auto">
+          <CashFlowStrip data={days} />
+        </div>
+      </Card>
+
+      <Card>
+        <p className="mb-3 text-[15px] font-semibold">Kalendar bo‘yicha reja ({monthLabel})</p>
+        {items.length ? (
+          <div className="divide-y divide-line">
+            {items.map((p) => (
+              <div key={p.key} className="flex items-center gap-2.5 py-2.5">
+                <span className="num w-14 shrink-0 text-[11.5px] text-muted sm:w-16 sm:text-[12px]">{shortDate(p.date)}</span>
+                <span className={`shrink-0 text-sm font-medium ${p.kind === "income" ? "text-positive-text" : "text-fg"}`}>
+                  {p.kind === "income" ? "+" : "−"}
+                  {formatAmount(p.base)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[13px] sm:text-[13.5px]">{p.label}</span>
+                <span className="shrink-0">
+                  <Badge tone={p.mandatory ? "negative" : p.kind === "income" ? "positive" : "neutral"}>
+                    {p.mandatory ? "majburiy" : p.kind === "income" ? (p.certainty === "estimated" ? "taxminiy" : "aniq") : "ixtiyoriy"}
+                  </Badge>
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[13px] leading-relaxed text-muted">Bu oyda rejalashtirilgan hodisa yo‘q.</p>
+        )}
+      </Card>
+
+      <Card>
+        <p className="mb-2 text-[15px] font-semibold">⚠️ Xavf kunlari ({monthLabel})</p>
+        {risks.length ? (
+          <div className="space-y-2">
+            {risks.slice(0, 8).map((r) => (
+              <div key={r.date} className="flex items-center justify-between gap-3 rounded-xl bg-negative-soft px-3.5 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-semibold text-negative-text">{shortDate(r.date)}</p>
+                  <p className="truncate text-[11.5px] text-negative-text/80">{r.cause}</p>
+                </div>
+                <span className="num shrink-0 text-[13px] font-semibold text-negative-text">−{compact(r.deficit)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[13px] leading-relaxed text-muted">
+            Bu oyda pul yetishmasligi xavfi aniqlanmadi (butun {horizonDays} kunlik prognoz tekshirildi).
+          </p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function PlanDeleteConfirm({ plan, onClose }: { plan: RecurringView | null; onClose: () => void }) {
+  const { mutate } = useFinance();
+  const [saving, setSaving] = useState(false);
+
+  async function confirm() {
+    if (!plan || saving) return;
+    setSaving(true);
+    try {
+      await mutate("recurring", "delete", { id: plan.id });
+    } finally {
+      setSaving(false);
+      onClose();
+    }
+  }
+
+  return (
+    <Sheet
+      open={Boolean(plan)}
+      onClose={onClose}
+      title="Rejani o‘chirish"
+      footer={
+        <>
+          <Button variant="secondary" className="flex-1" onClick={onClose}>
+            Bekor qilish
+          </Button>
+          <Button variant="danger" className="flex-[2]" onClick={confirm} disabled={saving}>
+            {saving ? "O‘chirilmoqda…" : "O‘chirish"}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-[14px] leading-relaxed">
+        <span className="font-semibold">{plan?.name}</span> rejasi o‘chiriladi.
+      </p>
+      <p className="text-[13px] leading-relaxed text-muted">
+        Kelajakdagi to‘lovlar bekor qilinadi. Tarixdagi to‘lovlar o‘chirilmaydi.
+      </p>
+    </Sheet>
   );
 }
 
