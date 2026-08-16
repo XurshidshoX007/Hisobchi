@@ -61,9 +61,12 @@ export function filterTransactions<T extends FilterableTransaction>(
     if (filters.type !== "all" && transaction.type !== filters.type) return false;
     if (filters.categoryId && String(transaction.categoryId ?? "") !== filters.categoryId) return false;
     if (filters.query) {
-      const query = filters.query.toLowerCase();
+      const query = filters.query.trim().toLowerCase();
       const haystack = `${transaction.note ?? ""} ${transaction.categoryName ?? ""} ${transaction.accountName}`.toLowerCase();
-      if (!haystack.includes(query) && !String(transaction.amount).includes(query)) return false;
+      // Search accepts the same localized decimal/grouping form that History
+      // renders ("7 532,96") while the transaction remains a numeric value.
+      const numericQuery = query.replace(/\s/g, "").replace(",", ".");
+      if (!haystack.includes(query) && !String(transaction.amount).includes(numericQuery)) return false;
     }
     return true;
   });

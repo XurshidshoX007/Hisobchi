@@ -82,6 +82,13 @@ test("History keeps search visible, a minimal summary and only true filters in t
   assert.match(transactionFilter, /floating/);
 });
 
+test("History list, editor and summaries all consume the transaction amount field", () => {
+  assert.match(history, /sum \+ transaction\.amount/);
+  assert.match(history, /value=\{transaction\.type === "expense" \? -transaction\.amount : transaction\.amount\}/);
+  assert.match(history, /setEditing\(transaction\)/);
+  assert.doesNotMatch(history, /parseFloat|toLocaleString|Math\.round/);
+});
+
 test("History controls expose labelled search, floating dialog and active indicator semantics", () => {
   assert.match(history, /htmlFor="history-search"/);
   assert.match(history, /aria-label="Qidiruvni tozalash"/);
