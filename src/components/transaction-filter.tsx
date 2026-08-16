@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useId, useMemo, useState } from "react";
 import type { CategoryView } from "@/lib/finance";
 import {
-  DEFAULT_TRANSACTION_FILTERS,
+  DEFAULT_TRANSACTION_FILTER_STATE,
   localTransactionFilterCount,
   transactionCategoryOptions,
-  type TransactionFilters,
+  type TransactionFilterState,
 } from "@/lib/transaction-filters";
 import { FilterButton, FilterRadioGroup, FilterSection } from "./filter-controls";
 import { Sheet, TextInput } from "./ui";
@@ -21,7 +21,7 @@ export type TransactionFilterContext = {
   clearHref: string;
 };
 
-const TYPE_OPTIONS: ReadonlyArray<{ value: TransactionFilters["type"]; label: string }> = [
+const TYPE_OPTIONS: ReadonlyArray<{ value: TransactionFilterState["type"]; label: string }> = [
   { value: "all", label: "Hammasi" },
   { value: "income", label: "Daromad" },
   { value: "expense", label: "Xarajat" },
@@ -34,8 +34,8 @@ export function TransactionFilter({
   categories,
   contexts,
 }: {
-  filters: TransactionFilters;
-  onChange: (filters: TransactionFilters) => void;
+  filters: TransactionFilterState;
+  onChange: (filters: TransactionFilterState) => void;
   categories: readonly FlatCategory[];
   contexts: readonly TransactionFilterContext[];
 }) {
@@ -43,7 +43,6 @@ export function TransactionFilter({
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [categoryQuery, setCategoryQuery] = useState("");
   const contentId = useId();
-  const searchId = useId();
   const categoryListId = useId();
   const categoryRadioName = useId();
   // Route-owned plan/income scope has its own visible chips. The trigger count
@@ -65,7 +64,7 @@ export function TransactionFilter({
     setCategoryQuery("");
   }
 
-  function changeType(type: TransactionFilters["type"]) {
+  function changeType(type: TransactionFilterState["type"]) {
     const categoryCompatible =
       !selectedCategory || type === "all" || (type !== "transfer" && selectedCategory.type === type);
     onChange({ ...filters, type, categoryId: categoryCompatible ? filters.categoryId : "" });
@@ -86,9 +85,10 @@ export function TransactionFilter({
       <FilterButton
         onClick={() => setOpen(true)}
         open={open}
-        ariaLabel="Tarixni filtrlash"
+        ariaLabel="Filtrlar"
         status={localCount || undefined}
         controlsId={contentId}
+        floating
       />
 
       <Sheet open={open} onClose={close} title="Tarixni filtrlash">
@@ -171,20 +171,6 @@ export function TransactionFilter({
             ) : null}
           </FilterSection>
 
-          <FilterSection label="Qidiruv">
-            <label htmlFor={searchId} className="sr-only">
-              Tarixdan qidirish
-            </label>
-            <TextInput
-              id={searchId}
-              value={filters.query}
-              onChange={(event) => onChange({ ...filters, query: event.target.value })}
-              placeholder="Kategoriya, izoh, summa…"
-              type="search"
-              autoComplete="off"
-            />
-          </FilterSection>
-
           {contexts.length ? (
             <FilterSection label="Kontekst">
               <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface-2">
@@ -210,7 +196,7 @@ export function TransactionFilter({
             <button
               type="button"
               onClick={() => {
-                onChange({ ...DEFAULT_TRANSACTION_FILTERS });
+                onChange({ ...DEFAULT_TRANSACTION_FILTER_STATE });
                 setCategoryOpen(false);
                 setCategoryQuery("");
               }}

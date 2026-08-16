@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_TRANSACTION_FILTERS,
+  DEFAULT_TRANSACTION_FILTER_STATE,
+  composeTransactionFilters,
   filterTransactions,
   localTransactionFilterCount,
   transactionCategoryOptions,
@@ -95,7 +97,25 @@ test("inactive categories never hide old history unless a user filter is explici
   assert.equal(result.length, transactions.length);
 });
 
-test("active local filter count excludes route-owned context", () => {
-  assert.equal(localTransactionFilterCount(defaults()), 0);
-  assert.equal(localTransactionFilterCount({ type: "expense", categoryId: "10", query: "bozor" }), 3);
+test("active local filter count excludes search and route-owned context", () => {
+  assert.equal(localTransactionFilterCount(DEFAULT_TRANSACTION_FILTER_STATE), 0);
+  assert.equal(localTransactionFilterCount({ type: "expense", categoryId: "10" }), 2);
+});
+
+test("independent search and filter state compose with AND semantics", () => {
+  const filterState = { type: "expense" as const, categoryId: "" };
+  const combined = composeTransactionFilters(filterState, "bozor");
+  const result = filterTransactions(transactions, combined, { planId: null, incomeId: null });
+
+  assert.deepEqual(result.map((transaction) => transaction.id), [1]);
+  assert.deepEqual(filterState, { type: "expense", categoryId: "" });
+});
+
+test("clearing either search or filters preserves the other state", () => {
+  const filterState = { type: "expense" as const, categoryId: "10" };
+  assert.deepEqual(composeTransactionFilters(filterState, ""), { ...filterState, query: "" });
+  assert.deepEqual(composeTransactionFilters(DEFAULT_TRANSACTION_FILTER_STATE, "bozor"), {
+    ...DEFAULT_TRANSACTION_FILTER_STATE,
+    query: "bozor",
+  });
 });
