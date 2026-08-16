@@ -35,9 +35,9 @@ export function botIntent(message: string): BotIntent {
   if (command === "forecast" || lower === "📅 reja va prognoz" || lower === "reja va prognoz") return "forecast";
   if (command === "help" || lower === "yordam") return "help";
 
-  if (lower === "➕ kirim" || lower === "kirim") return "add-income";
-  if (lower === "➖ chiqim" || lower === "chiqim") return "add-expense";
-  if (lower === "↔️ transfer" || lower === "↔ transfer" || lower === "transfer") return "add-transfer";
+  if (lower === "💰 kirim" || lower === "➕ kirim" || lower === "kirim") return "add-income";
+  if (lower === "💸 chiqim" || lower === "➖ chiqim" || lower === "chiqim") return "add-expense";
+  if (lower === "🔄 transfer" || lower === "↔️ transfer" || lower === "↔ transfer" || lower === "transfer") return "add-transfer";
   if (lower === "📂 boshqa bo'limlar" || lower === "boshqa bo'limlar" || lower === "boshqa bolimlar") return "more-menu";
   if (lower === "⬅️ asosiy menyu" || lower === "asosiy menyu" || lower === "menyu" || lower === "menu") return "main-menu";
   // Amount-bearing prose is a transaction draft even if it contains words
@@ -46,11 +46,11 @@ export function botIntent(message: string): BotIntent {
   if (lower.includes("hisobot")) return "report";
   if (lower.includes("prognoz") || lower.includes("reja")) return "forecast";
   if (lower.includes("hisob") && !lower.includes("hisobot")) return "accounts";
-  if (lower.includes("kategoriya")) return "categories";
+  if (lower === "📁 kategoriyalar" || lower.includes("kategoriya")) return "categories";
   if (lower.includes("majburiy") || lower.includes("to'lov") || lower.includes("tolov")) return "payments";
-  if (lower.includes("daromad")) return "income-plans";
+  if (lower === "💵 kutilayotgan daromadlar" || lower === "💰 kutilayotgan daromadlar" || lower.includes("kutilayotgan daromad") || (lower.includes("daromad") && !lower.includes("hisobot"))) return "income-plans";
   if (lower.includes("budjet")) return "budget";
-  if (lower.includes("qarz")) return "debts";
+  if (lower.includes("qarzdorlik") || lower.includes("qarz")) return "debts";
   if (lower.includes("maqsad")) return "goals";
   if (lower.includes("eslatma") || lower.includes("xabar")) return "alerts";
   if (lower.includes("sozlam")) return "settings";

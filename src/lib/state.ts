@@ -18,6 +18,7 @@ import {
   buildAnalytics,
   buildForecast,
   buildHealth,
+  buildMonthlySeries,
   rangeValue,
   type AccountView,
   type BudgetView,
@@ -27,11 +28,13 @@ import {
   type GoalView,
   type RecurringView,
   type TxView,
+  type MonthlyView,
 } from "./finance";
 import { addDays, dayDiff, monthKey, monthStart, round2, todayISO } from "./money";
 import type { AppState, LiveAlert, UserView } from "./types";
 
 const HISTORY_DAYS = 190;
+const FORECAST_HORIZON_DAYS = 120;
 
 export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const today = todayISO();
@@ -47,7 +50,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         .from(transactions)
         .where(and(eq(transactions.userId, user.id), gte(transactions.date, historyFrom)))
         .orderBy(desc(transactions.date), desc(transactions.id))
-        .limit(600),
+        .limit(700),
       db.select().from(recurringExpenses).where(eq(recurringExpenses.userId, user.id)),
       db.select().from(expectedIncomes).where(eq(expectedIncomes.userId, user.id)),
       db
@@ -61,7 +64,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         .from(notifications)
         .where(eq(notifications.userId, user.id))
         .orderBy(desc(notifications.createdAt))
-        .limit(25),
+        .limit(30),
     ]);
 
   const accountNames = new Map(accountRows.map((a) => [a.id, a.name]));
@@ -117,8 +120,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
 
   const accountViews: AccountView[] = accountRows.map((a) => {
     const agg = balanceByAccount.get(a.id) ?? { inflow: 0, outflow: 0, transferOut: 0, transferIn: 0, txCount: 0 };
-    const currentBalance =
-      a.initialBalance + agg.inflow - agg.outflow + agg.transferIn - agg.transferOut;
+    const currentBalance = a.initialBalance + agg.inflow - agg.outflow + agg.transferIn - agg.transferOut;
     return {
       id: a.id,
       name: a.name,
@@ -180,9 +182,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const recurringViews: RecurringView[] = recurringRows.map((r) => {
     const { base } = rangeValue(r.amount, r.minAmount, r.maxAmount);
     const daysLeft = dayDiff(today, r.nextDueDate);
-    const paidThisMonth = txViews.some(
-      (t) => t.recurringId === r.id && t.date.startsWith(thisMonth),
-    );
+    const paidThisMonth = txViews.some((t) => t.recurringId === r.id && t.date.startsWith(thisMonth));
     const planType = (r.planType === "term" ? "term" : r.planType === "one_time" || r.frequency === "once" ? "one_time" : "recurring") as
       | "one_time"
       | "recurring"
@@ -222,13 +222,8 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   /* ---- expected incomes ---- */
   const incomeViews: ExpectedIncomeView[] = incomeRows.map((i) => {
     const { base } = rangeValue(i.amount, i.minAmount, i.maxAmount);
-    // A category/amount heuristic marks unrelated income as received (especially
-    // when categoryId is null). The explicit FK is the source of truth.
     const linkedTransaction = txViews.find(
-      (t) =>
-        t.type === "income" &&
-        t.expectedIncomeId === i.id &&
-        (i.frequency === "once" || t.date.startsWith(thisMonth)),
+      (t) => t.type === "income" && t.expectedIncomeId === i.id && (i.frequency === "once" || t.date.startsWith(thisMonth)),
     );
     const received = Boolean(linkedTransaction);
     const planType = (i.planType === "term" ? "term" : i.planType === "one_time" || i.frequency === "once" ? "one_time" : "recurring") as
@@ -324,10 +319,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     const remaining = Math.max(0, g.targetAmount - g.savedAmount);
     const monthsLeft = g.targetDate ? Math.max(0, Math.round(dayDiff(today, g.targetDate) / 30)) : null;
     const requiredMonthly = monthsLeft && monthsLeft > 0 ? remaining / monthsLeft : remaining;
-    const etaDate =
-      g.monthlyContribution > 0 && remaining > 0
-        ? addDays(today, Math.ceil(remaining / g.monthlyContribution) * 30)
-        : null;
+    const etaDate = g.monthlyContribution > 0 && remaining > 0 ? addDays(today, Math.ceil(remaining / g.monthlyContribution) * 30) : null;
     return {
       id: g.id,
       name: g.name,
@@ -358,7 +350,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     minReserve: user.minReserve,
     estimatedConfidence: user.estimatedIncomeConfidence,
     today,
-    horizonDays: 35,
+    horizonDays: FORECAST_HORIZON_DAYS,
   });
 
   const analytics = buildAnalytics({
@@ -377,7 +369,28 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     today,
   });
 
-  /* ---- forecast-aware smart insights (Phase: dynamic, real-state based) ---- */
+  /* ---- monthly finance series (6 months: prev + current + next 4) ---- */
+  let monthly: MonthlyView[] = [];
+  try {
+    const realTxForMonthly = txRows
+      .filter((t) => !t.isDeleted)
+      .map((t) => ({ date: t.date, type: t.type, amount: t.amount }));
+    monthly = buildMonthlySeries({
+      today,
+      currentBalance,
+      transactions: realTxForMonthly,
+      planned: forecast.planned,
+      cashflow: forecast.cashflow,
+      analytics,
+      forecast,
+      monthsBefore: 1,
+      monthsAfter: 4,
+    });
+  } catch {
+    monthly = [];
+  }
+
+  /* ---- forecast-aware smart insights ---- */
   {
     const upcoming = forecast.planned.filter((p) => p.kind === "expense" && p.mandatory && p.date >= today && dayDiff(today, p.date) <= 12);
     if (upcoming.length) {
@@ -390,11 +403,12 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     }
     if (forecast.riskDates.length) {
       const first = forecast.riskDates[0];
+      const recov = first.recoveryDate ? ` ${first.recoveryDate.slice(8, 10)}-avgustda ${Math.round((first.recoveryAmount ?? 0) / 1000)} ming kutilmoqda.` : "";
       analytics.insights.push({
         icon: "🚨",
         tone: "negative",
         title: "Balans minimal darajaga tushishi mumkin",
-        body: `${shortDate(first.date)} kuni taxminiy ${Math.round(first.deficit / 1000)} ming so'm taqchillik kutilmoqda.`,
+        body: `${shortDate(first.date)} kuni taxminiy ${Math.round(first.deficit / 1000)} ming so'm taqchillik kutilmoqda.${recov}`,
       });
     }
     analytics.insights.push({
@@ -494,14 +508,50 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       });
     }
   }
-  if (forecast.riskDates.length && forecast.safeToSpend < 0) {
+  if (forecast.riskDates.length) {
     const first = forecast.riskDates[0];
+    const causeExpense = forecast.planned.filter((p) => p.date === first.date && p.kind === "expense").sort((a, b) => b.base - a.base)[0];
+    const nextIncomes = forecast.planned
+      .filter((p) => p.kind === "income" && p.date >= first.date)
+      .sort((a, b) => (a.date < b.date ? -1 : 1))
+      .slice(0, 2);
+    const nextInc = nextIncomes[0];
+    const severity = first.deficit > currentBalance || first.balance < -500_000 ? "critical" : "warning";
+
+    let detailedBody: string;
+    if (causeExpense) {
+      const projectedBalance = first.balance;
+      detailedBody = [
+        `🔴 ${shortDate(first.date)} kuni ${causeExpense.label} to'lovi bor`,
+        "",
+        "To'lov:",
+        `${Math.round(causeExpense.base).toLocaleString("ru-RU")} UZS`,
+        "",
+        `${shortDate(first.date)} dagi taxminiy balans:`,
+        `${Math.round(projectedBalance).toLocaleString("ru-RU")} UZS`,
+        "",
+        nextInc ? `Kutilayotgan daromad:\n${Math.round(nextInc.base).toLocaleString("ru-RU")} UZS\n${shortDate(nextInc.date)}` : "",
+        "",
+        `Tavsiya:\n${shortDate(first.date)} gacha kamida ${Math.round(first.deficit).toLocaleString("ru-RU")} UZS qo'shimcha mablag' kerak.`,
+        nextInc ? `Keyin ${shortDate(nextInc.date)} kuni balans tiklanadi.` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    } else {
+      const nextIncomeText = nextInc
+        ? ` Kutilayotgan daromad: ${nextInc.label} ${Math.round(nextInc.base / 1000)} ming ${shortDate(nextInc.date)}.`
+        : "";
+      detailedBody = `${shortDate(first.date)} kuni ${first.cause ? `${first.cause} tufayli ` : ""}balans ${Math.round(Math.abs(first.balance) / 1000)} mingga tushishi mumkin (taqchillik ${Math.round(first.deficit / 1000)} ming).${nextIncomeText} ${
+        first.recoveryDate ? `Tuzalish: ${shortDate(first.recoveryDate)}.` : ""
+      }`.trim();
+    }
+
     alerts.push({
       id: "risk-cash",
       type: "risk",
-      severity: "critical",
-      title: "Pul yetishmasligi xavfi",
-      body: `${shortDate(first.date)} kuni majburiy to'lovlar balansdan oshishi mumkin (taxminiy ${Math.round(first.deficit / 1000)} ming taqchillik).`,
+      severity,
+      title: causeExpense ? `${shortDate(first.date)} da ${causeExpense.label} xavfi` : first.deficit > 0 && first.balance < 0 ? "Pul yetishmasligi xavfi" : "Balans pasayishi kutilmoqda",
+      body: detailedBody,
       refDate: first.date,
       amount: first.deficit,
     });
@@ -551,11 +601,12 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       isRead: Boolean(n.readAt),
       createdAt: n.createdAt.toISOString(),
     })),
-    alerts: alerts.slice(0, 8),
+    alerts: alerts.slice(0, 10),
     forecast,
     analytics,
     health,
-  };
+    monthly,
+  } as unknown as AppState;
 }
 
 function formatRange(p: { min: number; max: number; base: number; certainty: string }): string {
@@ -566,8 +617,6 @@ function formatRange(p: { min: number; max: number; base: number; certainty: str
 }
 
 function shortDate(iso: string): string {
-  // Parse the ISO date textually: `new Date(iso)` is UTC-midnight and can
-  // shift the visible day on non-UTC servers.
   const months = ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avg", "sen", "okt", "noy", "dek"];
   const day = Number(iso.slice(8, 10));
   const month = Number(iso.slice(5, 7));

@@ -213,7 +213,7 @@ export async function POST(request: Request) {
               for (let i = 0; i < itemButtons.length; i += 5) itemRows.push(itemButtons.slice(i, i + 5));
               inlineKeyboard = [
                 [
-                  { text: "✅ Barchasini tasdiqlash", callback_data: `batch:${draft.batchId}:confirm` },
+                  { text: "✅ Hammasini tasdiqlash", callback_data: `batch:${draft.batchId}:confirm` },
                   { text: "❌ Bekor qilish", callback_data: `batch:${draft.batchId}:cancel` },
                 ],
                 ...itemRows,
@@ -434,7 +434,7 @@ export async function POST(request: Request) {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: "✅ Barchasini tasdiqlash", callback_data: `batch:${batchId}:confirm` },
+              { text: "✅ Hammasini tasdiqlash", callback_data: `batch:${batchId}:confirm` },
               { text: "❌ Bekor qilish", callback_data: `batch:${batchId}:cancel` },
             ],
             ...itemRows,
