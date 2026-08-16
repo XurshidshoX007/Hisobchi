@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Sheet } from "./ui";
+import { ContextualBottomSheet } from "./ui";
 import { getFabActions, normalizePath, supportsFab, type FabAction, type FabActionDef, type FabContext } from "@/lib/fab";
 
 /**
@@ -136,16 +136,23 @@ export function GlobalAddFab() {
 function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke: (action: FabActionDef) => void }) {
   const [open, setOpen] = useState(false);
   const busyRef = useRef(false);
+  const pendingActionRef = useRef<FabActionDef | null>(null);
   const controlsId = "global-fab-actions";
 
+  const completeActionHandoff = useCallback(() => {
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    if (action) invoke(action);
+  }, [invoke]);
+
   function press() {
-    // One tap opens at most one sheet. Ignore re-entry during the 200ms
-    // open/close transition window.
+    // One tap opens at most one sheet. Ignore re-entry during the 260ms
+    // shared enter window.
     if (busyRef.current) return;
     busyRef.current = true;
     window.setTimeout(() => {
       busyRef.current = false;
-    }, 200);
+    }, 260);
 
     if (actions.length === 1) {
       setOpen(false);
@@ -156,8 +163,11 @@ function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke
   }
 
   function run(action: FabActionDef) {
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = action;
+    // Let the choice sheet finish its exit before the page-owned form enters.
+    // This prevents two portals/backdrops from cross-fading on one selection.
     setOpen(false);
-    invoke(action);
   }
 
   return (
@@ -186,7 +196,12 @@ function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke
         </svg>
       </button>
 
-      <Sheet open={open} onClose={() => setOpen(false)} title="Nima qo‘shamiz?">
+      <ContextualBottomSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        onExitComplete={completeActionHandoff}
+        title="Nima qo‘shamiz?"
+      >
         {/* §9/§12: every action owns its own box (8px gap, no shared edges),
             keeps a 48px touch target and wraps long Uzbek labels. */}
         <div id={controlsId} className="min-w-0 space-y-2">
@@ -214,7 +229,7 @@ function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke
             </button>
           ))}
         </div>
-      </Sheet>
+      </ContextualBottomSheet>
     </>
   );
 }

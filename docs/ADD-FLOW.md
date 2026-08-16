@@ -85,12 +85,17 @@ inventing per-screen grids, chip rows or type switches.
 ## 5. Layers
 
 ```
-page → FAB (z 50) → bottom nav (z 40) → sheet overlay/sheet (z 80)
+page → bottom nav (z 40) → FAB (z 50) → sheet overlay/panel (z 80)
 ```
 
 While any sheet is open, `document.body[data-sheet-open]` makes the FAB recede
 (opacity 0, `pointer-events: none`), so it can never sit above a modal and a
 second tap cannot open a sheet behind the overlay.
+
+`ContextualBottomSheet` is the only motion primitive for Add, Filter, action
+menus and confirms. It retains DOM presence through a 260ms bottom-to-top enter
+and 210ms top-to-bottom exit; backdrop and panel share one easing/state. See
+[`CONTEXTUAL-SHEET-MOTION.md`](./CONTEXTUAL-SHEET-MOTION.md) for the audit.
 
 ## 6. Responsive contract — the add flow is horizontally LOCKED
 
@@ -124,8 +129,8 @@ form fields, choice controls, button groups or summary cards.
 
 | Layer | Rule |
 | --- | --- |
-| `.sheet-layer` | `position: fixed`, `max-width: 100vw`, `overflow: hidden` |
-| `.sheet-dialog` | `width: 100%`, `max-width: 100vw`, `min-width: 0`, `max-h-[92dvh]`, desktop `max-w-[520px]` |
+| `.sheet-layer` | `position: fixed`, `width: 100%`, `max-width: 100vw`, Telegram/dynamic viewport height; no overflow clipping used to hide width bugs |
+| `.sheet-dialog` | `width: 100%`, `max-width: 100vw`, `min-width: 0`, `max-h-[92dvh]`, desktop `max-w-[520px]`; bottom-aligned at every breakpoint |
 | `.sheet-body` | the ONLY scroll container: `overflow-y: auto`, `overflow-x: hidden`, `overscroll-behavior: contain` |
 | `.sheet-form > *` | `min-width: 0`, `max-width: 100%` — one shared rule instead of per-component patches |
 | `.sheet-footer` | `width: 100%`, wrapping button row, safe-area padding |

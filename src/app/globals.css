@@ -77,6 +77,15 @@
   --z-bottom-nav: 40;
   --z-fab: 50;
   --z-sheet: 80;
+
+  /* One motion vocabulary for every contextual bottom sheet. Enter and exit
+     use the same standard curve; only the shorter exit duration differs. */
+  --motion-duration-fast: 180ms;
+  --motion-duration-sheet-enter: 260ms;
+  --motion-duration-sheet-exit: 210ms;
+  --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-distance-sheet: 100%;
+  --app-viewport-height: var(--tg-viewport-height, 100dvh);
 }
 
 .dark {
@@ -175,7 +184,6 @@ body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   touch-action: manipulation;
-  overflow-x: hidden;
 }
 
 /* Numeric data is always tabular so figures never jitter */
@@ -304,7 +312,7 @@ input::placeholder {
 }
 
 /*
- * §39 layer order: page → FAB → bottom nav → sheet overlay → sheet.
+ * §39 layer order: page → bottom nav → FAB → sheet overlay → sheet.
  * While ANY sheet is open the FAB recedes (it never floats over a modal) and
  * stops receiving taps, so a double tap cannot open a second sheet behind the
  * overlay.
@@ -328,16 +336,15 @@ body[data-sheet-open] .global-fab {
    The add flow is horizontally LOCKED: a form sheet scrolls on the y-axis
    only. Three rules make that true without hiding real layout bugs:
 
-     1. `.sheet-layer` is the fixed modal viewport. On a mobile browser the
-        layout viewport (and therefore every `position: fixed` box) grows to
-        the widest content on the page, so the layer is additionally clamped
-        to the visual viewport width and clips whatever would exceed it.
-     2. `.sheet-dialog` never exceeds the layer: `width: 100%`, `max-width:
-        100vw`, `min-width: 0` — and a readable 520px column from `sm` up.
-     3. `.sheet-body` is the ONLY scroll container of the sheet, and it
-        scrolls vertically only. `overflow-y: auto` alone computes
-        `overflow-x: auto` in CSS, which is exactly how the body used to gain
-        a horizontal scrollbar — so the x-axis is stated explicitly.
+     1. `.sheet-layer` is the fixed modal viewport and is explicitly bounded
+        to the viewport. It does not use overflow clipping as a page-width fix.
+     2. `.sheet-dialog` and every direct form child may shrink: `width: 100%`,
+        `max-width: 100vw`, `min-width: 0`. A readable 520px cap applies from
+        `sm` up, while all breakpoints remain bottom-aligned.
+     3. `.sheet-body` is the ONLY scroll container of the sheet. Its explicit
+        x-axis value prevents CSS from computing `overflow-x: auto` when
+        `overflow-y: auto` is set; the child-width rules below are what remove
+        the underlying intrinsic-width cause.
 
    These live in the `components` layer on purpose: a Tailwind utility written
    on the element must still be able to win.
@@ -345,14 +352,44 @@ body[data-sheet-open] .global-fab {
 @layer components {
   .sheet-layer {
     z-index: var(--z-sheet);
+    width: 100%;
     max-width: 100vw;
-    overflow: hidden;
+    height: var(--app-viewport-height);
+    max-height: 100dvh;
+    isolation: isolate;
+  }
+
+  .sheet-backdrop {
+    background: rgb(0 0 0 / 50%);
+    opacity: 0;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition:
+      opacity var(--motion-duration-sheet-exit) var(--motion-ease-standard);
   }
 
   .sheet-dialog {
     width: 100%;
     min-width: 0;
     max-width: 100vw;
+    transform: translateY(var(--motion-distance-sheet));
+    transition:
+      transform var(--motion-duration-sheet-exit) var(--motion-ease-standard);
+    will-change: transform;
+  }
+
+  .sheet-layer[data-motion-state="closed"] .sheet-dialog {
+    pointer-events: none;
+  }
+
+  .sheet-layer[data-motion-state="open"] .sheet-backdrop {
+    opacity: 1;
+    transition-duration: var(--motion-duration-sheet-enter);
+  }
+
+  .sheet-layer[data-motion-state="open"] .sheet-dialog {
+    transform: translateY(0);
+    transition-duration: var(--motion-duration-sheet-enter);
   }
 
   @media (min-width: 640px) {
@@ -425,14 +462,6 @@ body[data-sheet-open] .global-fab {
     transform: scale(1);
   }
 }
-@keyframes sheet-up {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
 @keyframes shimmer {
   0%,
   100% {
@@ -448,10 +477,6 @@ body[data-sheet-open] .global-fab {
 }
 .animate-pop {
   animation: pop-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.animate-sheet {
-  /* §34: 180–240ms — present, never theatrical. */
-  animation: sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .animate-shimmer {
   animation: shimmer 1.6s ease-in-out infinite;
@@ -492,10 +517,14 @@ body[data-sheet-open] .global-fab {
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-pop,
-  .animate-sheet,
   .animate-shimmer,
   .animate-badge-pop {
     animation: none !important;
+  }
+
+  .sheet-backdrop,
+  .sheet-dialog {
+    transition-duration: 0.01ms !important;
   }
 
   .global-fab,

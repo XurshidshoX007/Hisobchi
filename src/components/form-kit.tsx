@@ -24,7 +24,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Sheet, TextArea, TextInput } from "./ui";
+import { ContextualBottomSheet, TextArea, TextInput } from "./ui";
 import { useFinance } from "./providers";
 import {
   QUICK_AMOUNTS,
@@ -158,7 +158,7 @@ export function FormSheet({
   const label = status === "saving" ? submittingLabel : status === "saved" ? savedLabel : submitLabel;
 
   return (
-    <Sheet
+    <ContextualBottomSheet
       open={open}
       onClose={requestClose}
       title={title}
@@ -223,7 +223,7 @@ export function FormSheet({
           </div>
         </div>
       ) : null}
-    </Sheet>
+    </ContextualBottomSheet>
   );
 }
 
