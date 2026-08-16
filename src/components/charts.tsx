@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { compact, formatAmount, monthLabel, shortDate } from "@/lib/money";
+import { formatAmount, formatSigned, monthLabel, shortDate } from "@/lib/money";
 
 type Pt = { x: number; y: number };
 const line = (pts: Pt[]) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
@@ -218,11 +218,11 @@ function ForecastAreaInteractive({
         ) : null}
       </svg>
       {d ? (
-        <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 rounded-xl border border-line bg-surface px-3 py-1.5 text-[11px] shadow-lg">
+        <div className="pointer-events-none absolute left-1/2 top-0 z-10 max-w-[calc(100%-1rem)] -translate-x-1/2 rounded-xl border border-line bg-surface px-3 py-1.5 text-center text-[11px] shadow-lg">
           <span className="font-semibold">{shortDate(d.date)}</span>
-          <span className="num ml-2">{compact(d.projectedBase)}</span>
-          <span className="ml-2 text-muted">
-            {compact(d.projectedMin)}–{compact(d.projectedMax)}
+          <span className="num ml-2 break-words">{formatAmount(d.projectedBase)}</span>
+          <span className="num mt-0.5 block break-words text-muted">
+            {formatAmount(d.projectedMin)}–{formatAmount(d.projectedMax)}
           </span>
           {d.events?.length ? <span className="mt-0.5 block max-w-56 truncate text-muted">Sabab: {d.events.map((event) => event.label).join(", ")}</span> : null}
         </div>
@@ -395,7 +395,7 @@ export function CashFlowStrip({
           <div
             key={d.date}
             className="flex w-[34px] shrink-0 flex-col items-center gap-1"
-            title={`${shortDate(d.date)} · +${compact(d.inflow)} / -${compact(d.outflow)}`}
+            title={`${shortDate(d.date)} · ${formatSigned(d.inflow)} / ${formatAmount(-d.outflow)}`}
           >
             <div className="flex h-20 w-full flex-col justify-end gap-0.5">
               <div

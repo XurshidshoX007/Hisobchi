@@ -86,7 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="mt-6 px-2">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy balans</p>
-          <p className="num mt-1 text-xl font-semibold">{formatAmount(state?.forecast.currentBalance ?? 0)}</p>
+          <p className="num mt-1 break-words text-xl font-semibold">{formatAmount(state?.forecast.currentBalance ?? 0)}</p>
           <p className="text-[11px] text-muted">{state?.accounts.length ?? 0} hisob</p>
         </div>
 
@@ -127,7 +127,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-semibold leading-tight">Salom, {state?.user.firstName ?? "…"} 👋</p>
-                <p className="num truncate text-[11.5px] font-semibold leading-tight">
+                <p className="num break-words text-[11.5px] font-semibold leading-tight">
                   {formatAmount(state?.forecast.currentBalance ?? 0)}{" "}
                   <span className="font-normal text-muted">{state?.user.currency ?? "UZS"}</span>
                 </p>

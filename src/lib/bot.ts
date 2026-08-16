@@ -2,7 +2,7 @@ import type { User } from "@/db/schema";
 import { buildAppState } from "./state";
 import { quickAdd } from "./mutations";
 import { parseDrafts } from "./nlp";
-import { compact, formatAmount, humanDate, shortDate } from "./money";
+import { formatCompactAmount, formatAmount, humanDate, shortDate } from "./money";
 import type { AppState } from "./types";
 import { botIntent } from "./bot-routing";
 
@@ -29,7 +29,7 @@ export type BotReply = {
 };
 
 /**
- * Telegram main keyboard per spec - compact logically grouped.
+ * Telegram main keyboard per spec - compact and logically grouped.
  */
 export const MAIN_MENU: string[][] = [
   ["💰 Kirim", "💸 Chiqim", "🔄 Transfer"],
@@ -48,7 +48,7 @@ export const MORE_MENU: string[][] = [
   ["⬅️ Asosiy menyu"],
 ];
 
-const mon = (n: number) => (n < 0 ? `-${compact(Math.abs(n))}` : compact(n));
+const mon = (n: number) => formatCompactAmount(n);
 
 export async function respondToBotMessage(
   user: User,
@@ -163,7 +163,7 @@ export async function respondToBotMessage(
         "⚙️ Sozlamalar",
         "",
         `Valyuta: ${state.user.currency}`,
-        `Minimal zaxira: ${mon(state.user.minReserve)} so'm`,
+        `Minimal zaxira: ${mon(state.user.minReserve)} so‘m`,
         `Taxminiy daromad ishonchliligi: ${state.user.estimatedIncomeConfidence}%`,
         "",
         "Eslatmalar:",
@@ -231,7 +231,7 @@ export async function respondToBotMessage(
       ? [
           "Quyidagi operatsiyani topdim:",
           "",
-          `Summa: ${formatAmount(drafts[0].amount ?? 0)}${drafts[0].estimated && drafts[0].minAmount && drafts[0].maxAmount ? ` (${formatAmount(drafts[0].minAmount)}–${formatAmount(drafts[0].maxAmount)})` : ""}`,
+          `Summa: ${formatAmount(drafts[0].amount ?? 0)} so‘m${drafts[0].estimated && drafts[0].minAmount && drafts[0].maxAmount ? ` (${formatAmount(drafts[0].minAmount)}–${formatAmount(drafts[0].maxAmount)} so‘m)` : ""}`,
           `Turi: ${typeLabel(drafts[0].type)}`,
           `Kategoriya: ${drafts[0].categoryName ?? "aniqlanmadi"}`,
           `Sana: ${humanDate(drafts[0].date)}`,
@@ -241,7 +241,7 @@ export async function respondToBotMessage(
           "",
           ...drafts.map(
             (d, i) =>
-              `${i + 1}. ${d.type === "income" ? "🟢" : d.type === "transfer" ? "🔄" : "🔴"} ${formatAmount(d.amount ?? 0)} — ${d.categoryName ?? typeLabel(d.type)}${d.date !== state.forecast.today ? ` (${shortDate(d.date)})` : ""}`,
+              `${i + 1}. ${d.type === "income" ? "🟢" : d.type === "transfer" ? "🔄" : "🔴"} ${formatAmount(d.amount ?? 0)} so‘m — ${d.categoryName ?? typeLabel(d.type)}${d.date !== state.forecast.today ? ` (${shortDate(d.date)})` : ""}`,
           ),
           "",
           "Barchasini tasdiqlash yoki alohida tanlashingiz mumkin.",
@@ -278,12 +278,12 @@ function summaryBlock(s: AppState): string {
   const f = s.forecast;
   const m = s.monthly?.find((x) => x.isCurrent);
   return [
-    `💰 REAL BALANS: ${formatAmount(f.currentBalance)} so'm`,
+    `💰 REAL BALANS: ${formatAmount(f.currentBalance)} so‘m`,
     m ? `📅 ${m.label.toUpperCase()}` : "",
-    m ? `💵 Kutilayotgan daromad: ${compact(m.expectedIncomeBase)}` : `💵 Kutilayotgan: ${compact(f.income.base)}`,
-    m ? `📌 Majburiy: -${compact(m.mandatoryExpenseBase)}` : `📌 Majburiy: -${compact(f.expense.mandatoryBase)}`,
-    `✨ Safe-to-Spend: ${formatAmount(f.safeToSpend)} so'm${f.safeToSpend < 0 ? " (yetishmayapti)" : ""}`,
-    `📊 Bu oy: +${mon(s.analytics.monthTotals.income)} / -${mon(s.analytics.monthTotals.expense)}`,
+    m ? `💵 Kutilayotgan daromad: ${formatCompactAmount(m.expectedIncomeBase)} so‘m` : `💵 Kutilayotgan: ${formatCompactAmount(f.income.base)} so‘m`,
+    m ? `📌 Majburiy: ${formatCompactAmount(-m.mandatoryExpenseBase)} so‘m` : `📌 Majburiy: ${formatCompactAmount(-f.expense.mandatoryBase)} so‘m`,
+    `✨ Safe-to-Spend: ${formatAmount(f.safeToSpend)} so‘m${f.safeToSpend < 0 ? " (yetishmayapti)" : ""}`,
+    `📊 Bu oy: +${mon(s.analytics.monthTotals.income)} / ${mon(-s.analytics.monthTotals.expense)}`,
     m ? `🔮 Prognoz balans: ${formatAmount(m.forecastClosingBase)}` : "",
   ]
     .filter(Boolean)
@@ -296,9 +296,9 @@ function reportBlock(s: AppState): string {
     "📊 Hisobot",
     "",
     "Bugun",
-    `• Kirim: ${mon(a.today.income)} so'm`,
-    `• Chiqim: ${mon(a.today.expense)} so'm`,
-    `• Sof: ${mon(a.today.net)} so'm`,
+    `• Kirim: ${mon(a.today.income)} so‘m`,
+    `• Chiqim: ${mon(a.today.expense)} so‘m`,
+    `• Sof: ${mon(a.today.net)} so‘m`,
     "",
     `Bu oy (${a.month})`,
     `• Daromad: ${mon(a.monthTotals.income)}`,
@@ -326,8 +326,8 @@ function forecastBlock(s: AppState): string {
       `${m.label}:`,
       `  Ochilish: ${mon(m.openingBalance)}`,
       `  Kutilayotgan daromad: +${mon(m.expectedIncomeBase)}`,
-      `  Majburiy to'lov: -${mon(m.mandatoryExpenseBase)}`,
-      `  Ixtiyoriy reja: -${mon(m.optionalExpenseBase)}`,
+      `  Majburiy to'lov: ${mon(-m.mandatoryExpenseBase)}`,
+      `  Ixtiyoriy reja: ${mon(-m.optionalExpenseBase)}`,
       `  Prognoz yakun: ${mon(m.forecastClosingBase)}`,
       `  Eng past: ${mon(m.lowestProjected)} ${m.deficitDays ? `🔴 ${m.deficitDays} kun xavf` : ""}`,
     );
@@ -342,7 +342,7 @@ function forecastBlock(s: AppState): string {
     `Prognoz (optimistik): ${mon(f.scenarios.max.balance)}`,
     "",
     `✨ Safe-to-Spend: ${mon(f.safeToSpend)}`,
-    `  Hisob: ${mon(f.safeToSpendParts.balance)} + aniq ${mon(f.safeToSpendParts.confirmedIncome)} + taxminiy ${mon(f.safeToSpendParts.estimatedIncomeWeighted)} - to'lov ${mon(f.safeToSpendParts.mandatoryUpcoming)} - zaxira ${mon(f.safeToSpendParts.minReserve)}`,
+    `  Hisob: ${mon(f.safeToSpendParts.balance)} + aniq ${mon(f.safeToSpendParts.confirmedIncome)} + taxminiy ${mon(f.safeToSpendParts.estimatedIncomeWeighted)} − to'lov ${mon(f.safeToSpendParts.mandatoryUpcoming)} − zaxira ${mon(f.safeToSpendParts.minReserve)}`,
     "",
   );
   if (f.riskDates.length) {
@@ -364,11 +364,11 @@ function accountsBlock(s: AppState): string {
   return [
     "💳 Hisoblar",
     "",
-    ...s.accounts.map((a) => `${a.isActive ? "•" : "○"} ${a.name}: ${formatAmount(a.currentBalance)} so'm`),
+    ...s.accounts.map((a) => `${a.isActive ? "•" : "○"} ${a.name}: ${formatAmount(a.currentBalance)} so‘m`),
     "",
-    `Jami (faol hisoblar): ${formatAmount(s.forecast.currentBalance)} so'm`,
+    `Jami (faol hisoblar): ${formatAmount(s.forecast.currentBalance)} so‘m`,
     ...(archived.length
-      ? [`⚠️ Arxivlangan hisoblarda: ${formatAmount(archived.reduce((t, a) => t + a.currentBalance, 0))} so'm — balansga kirmaydi`]
+      ? [`⚠️ Arxivlangan hisoblarda: ${formatAmount(archived.reduce((t, a) => t + a.currentBalance, 0))} so‘m — balansga kirmaydi`]
       : []),
   ].join("\n");
 }
@@ -421,7 +421,7 @@ function budgetBlock(s: AppState): string {
 function debtsBlock(s: AppState): string {
   const iOwe = s.debts.filter((d) => d.direction === "i_owe");
   const toMe = s.debts.filter((d) => d.direction === "owed_to_me");
-  const fmt = (d: (typeof s.debts)[number]) => `• ${d.personName}: ${formatAmount(d.remainingAmount)} so'm qoldi${d.dueDate ? ` (${shortDate(d.dueDate)})` : ""}`;
+  const fmt = (d: (typeof s.debts)[number]) => `• ${d.personName}: ${formatAmount(d.remainingAmount)} so‘m qoldi${d.dueDate ? ` (${shortDate(d.dueDate)})` : ""}`;
   return [
     "📋 Qarzdorlik",
     "",
@@ -431,7 +431,7 @@ function debtsBlock(s: AppState): string {
     "Menga qarzdor:",
     ...(toMe.length ? toMe.map(fmt) : ["—"]),
     "",
-    `Sof holat: ${formatAmount(toMe.reduce((t, d) => t + d.remainingAmount, 0) - iOwe.reduce((t, d) => t + d.remainingAmount, 0))} so'm`,
+    `Sof holat: ${formatAmount(toMe.reduce((t, d) => t + d.remainingAmount, 0) - iOwe.reduce((t, d) => t + d.remainingAmount, 0))} so‘m`,
   ].join("\n");
 }
 
@@ -442,7 +442,7 @@ function goalsBlock(s: AppState): string {
     "",
     ...s.goals.map(
       (g) =>
-        `${g.icon} ${g.name}: ${compact(g.savedAmount)} / ${compact(g.targetAmount)} (${(g.progress * 100).toFixed(0)}%) — oyda ${compact(g.requiredMonthly)} kerak${g.onTrack ? " ✅" : " ⚠️ ortda"}`,
+        `${g.icon} ${g.name}: ${formatCompactAmount(g.savedAmount)} / ${formatCompactAmount(g.targetAmount)} (${(g.progress * 100).toFixed(0)}%) — oyda ${formatCompactAmount(g.requiredMonthly)} kerak${g.onTrack ? " ✅" : " ⚠️ ortda"}`,
     ),
   ].join("\n");
 }

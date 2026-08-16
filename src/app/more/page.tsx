@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useFinance } from "@/components/providers";
 import { Badge, Card, Money, PageHeader, Progress, Skeleton } from "@/components/ui";
-import { compact } from "@/lib/money";
+import { formatCompactAmount } from "@/lib/money";
 
 const LINKS = [
   { href: "/accounts", icon: "💳", title: "Hisoblar", desc: "Naqd, Uzcard, Humo, bank va hamyon" },
@@ -90,8 +90,8 @@ export default function MorePage() {
                   <span className="truncate text-[13px] font-medium">
                     {g.icon} {g.name}
                   </span>
-                  <span className="num shrink-0 text-[12px] text-muted">
-                    {compact(g.savedAmount)} / {compact(g.targetAmount)}
+                  <span className="num max-w-[55%] break-words text-right text-[12px] text-muted">
+                    {formatCompactAmount(g.savedAmount)} / {formatCompactAmount(g.targetAmount)}
                   </span>
                 </div>
                 <Progress value={g.progress} height={5} />

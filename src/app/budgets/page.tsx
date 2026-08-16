@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
-import { compact, formatAmount, monthLabel } from "@/lib/money";
+import { formatCompactAmount, formatAmount, monthLabel } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
 
 export default function BudgetsPage() {
@@ -100,14 +100,14 @@ export default function BudgetsPage() {
               </div>
               <div className="mt-4">
                 <Progress value={b.usage} />
-                <div className="mt-2 flex items-baseline justify-between text-[12px]">
-                  <span className="num font-medium text-fg-soft">{formatAmount(b.spent)}</span>
-                  <span className="num text-muted">limit {formatAmount(b.amount)}</span>
+                <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[12px]">
+                  <span className="num break-words font-medium text-fg-soft">{formatAmount(b.spent)}</span>
+                  <span className="num break-words text-right text-muted">limit {formatAmount(b.amount)}</span>
                 </div>
                 <p className="mt-1.5 text-[11.5px] leading-snug text-muted">
                   {b.spent > b.amount
-                    ? `Limit ${compact(b.spent - b.amount)} oshdi`
-                    : `Qoldi ${compact(b.amount - b.spent)} · kuniga ${compact(Math.max(0, b.amount - b.spent) / Math.max(1, daysLeft))}`}
+                    ? `Limit ${formatCompactAmount(b.spent - b.amount)} oshdi`
+                    : `Qoldi ${formatCompactAmount(b.amount - b.spent)} · kuniga ${formatCompactAmount(Math.max(0, b.amount - b.spent) / Math.max(1, daysLeft))}`}
                 </p>
               </div>
               <div className="mt-3 flex gap-2">

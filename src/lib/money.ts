@@ -13,33 +13,108 @@ export const UZ_MONTHS = [
   "dekabr",
 ];
 
-/** 12480000 -> "12 480 000" */
-export function formatAmount(value: number | null | undefined): string {
+/** The single sign used for negative financial values throughout the product. */
+export const FINANCIAL_MINUS = "−";
+
+function numericValue(value: number | null | undefined): number {
   const n = Number(value ?? 0);
-  const rounded = Math.round(n * 100) / 100;
-  const [int, dec] = Math.abs(rounded).toString().split(".");
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  const sign = rounded < 0 ? "-" : "";
-  return dec ? `${sign}${grouped}.${dec.slice(0, 2)}` : `${sign}${grouped}`;
+  return Number.isFinite(n) ? n : 0;
 }
 
+function roundCurrency(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function groupInteger(value: string): string {
+  return value.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+/**
+ * Canonical exact amount formatter. Currency is deliberately kept separate.
+ * Integers do not receive a synthetic `.00`; real fractions keep two digits.
+ *
+ * 12480000 -> "12 480 000"
+ * 1250.5   -> "1 250.50"
+ */
+export function formatAmount(value: number | null | undefined): string {
+  const rounded = roundCurrency(Math.abs(numericValue(value)));
+  const [integer, decimals] = rounded.toFixed(2).split(".");
+  const sign = numericValue(value) < 0 && rounded !== 0 ? FINANCIAL_MINUS : "";
+  return `${sign}${groupInteger(integer)}${decimals === "00" ? "" : `.${decimals}`}`;
+}
+
+/** Exact amount plus a caller-selected currency label. */
+export function formatMoney(value: number | null | undefined, currency: string): string {
+  const label = currency.trim();
+  return label ? `${formatAmount(value)} ${label}` : formatAmount(value);
+}
+
+/** Exact amount with a leading plus for income and the canonical minus for expense. */
 export function formatSigned(value: number): string {
-  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
-  return `${sign}${formatAmount(Math.abs(value))}`;
+  if (value > 0) return `+${formatAmount(value)}`;
+  return formatAmount(value);
 }
 
-/** 12 480 000 -> "12,5 mln" */
-export function compact(value: number | null | undefined): string {
-  const n = Math.abs(Number(value ?? 0));
-  if (n >= 1_000_000_000) return `${trim(n / 1_000_000_000)} mlrd`;
-  if (n >= 1_000_000) return `${trim(n / 1_000_000)} mln`;
-  if (n >= 1_000) return `${trim(n / 1_000)} ming`;
-  return formatAmount(n);
+const COMPACT_UNITS = [
+  { value: 1_000_000_000_000, label: "trln" },
+  { value: 1_000_000_000, label: "mlrd" },
+  { value: 1_000_000, label: "mln" },
+  { value: 1_000, label: "ming" },
+] as const;
+
+/**
+ * Human-readable compact amount for secondary prose and crowded summaries.
+ * It decomposes units instead of expressing a larger unit as thousands:
+ * 1_200_000 -> "1 mln 200 ming", never "1200 ming".
+ *
+ * Every integer is represented without rounding loss. Fractional amounts fall
+ * back to the exact formatter because dropping sub-unit digits would alter the
+ * financial meaning.
+ */
+export function formatCompactAmount(value: number | null | undefined): string {
+  const n = numericValue(value);
+  const rounded = roundCurrency(Math.abs(n));
+  if (rounded < 1_000 || !Number.isInteger(rounded)) return formatAmount(n);
+
+  let remainder = rounded;
+  const parts: string[] = [];
+  for (const unit of COMPACT_UNITS) {
+    const count = Math.floor(remainder / unit.value);
+    if (!count) continue;
+    parts.push(`${count} ${unit.label}`);
+    remainder %= unit.value;
+  }
+  if (remainder) parts.push(formatAmount(remainder));
+
+  return `${n < 0 ? FINANCIAL_MINUS : ""}${parts.join(" ")}`;
 }
 
-function trim(n: number): string {
-  const r = Math.round(n * 10) / 10;
-  return Number.isInteger(r) ? String(r) : r.toFixed(1).replace(".", ",");
+function oneDecimal(value: number): string {
+  const rounded = Math.round((value + Number.EPSILON) * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(".", ",");
+}
+
+/**
+ * Intentionally rounded, one-decimal formatter for genuinely tiny visuals
+ * such as chart axes. Financial records and tooltips must use formatAmount.
+ */
+export function formatShortAmount(value: number | null | undefined): string {
+  const n = numericValue(value);
+  const amount = Math.abs(n);
+  if (amount < 1_000) return formatAmount(n);
+
+  let unitIndex = COMPACT_UNITS.findIndex((unit) => amount >= unit.value);
+  let unit = COMPACT_UNITS[unitIndex];
+  let scaled = Math.round(((amount / unit.value) + Number.EPSILON) * 10) / 10;
+
+  // Avoid boundary artifacts such as "1000 ming" after short rounding.
+  if (scaled >= 1_000 && unitIndex > 0) {
+    unitIndex -= 1;
+    unit = COMPACT_UNITS[unitIndex];
+    scaled = Math.round(((amount / unit.value) + Number.EPSILON) * 10) / 10;
+  }
+
+  return `${n < 0 ? FINANCIAL_MINUS : ""}${oneDecimal(scaled)} ${unit.label}`;
 }
 
 export function percent(value: number, digits = 0): string {

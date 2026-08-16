@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BalanceLine, CategoryBars, IncomeExpenseBars, Ring, Sparkline } from "@/components/charts";
 import { useFinance } from "@/components/providers";
 import { Badge, Card, Divider, Money, PageHeader, Progress, Segmented, Skeleton } from "@/components/ui";
-import { compact, monthLabel } from "@/lib/money";
+import { formatAmount, formatCompactAmount, monthLabel } from "@/lib/money";
 
 export default function AnalyticsPage() {
   const { state, loading } = useFinance();
@@ -56,9 +56,9 @@ export default function AnalyticsPage() {
         </div>
         <Divider />
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <MiniStat label="Prognoz oylik xarajat" value={compact(a.monthTotals.projectedMonthExpense)} />
-          <MiniStat label="Doimiy to‘lovlar" value={compact(a.recurringTotal)} />
-          <MiniStat label="Transferlar" value={compact(a.monthTotals.transferTotal)} />
+          <MiniStat label="Prognoz oylik xarajat" value={formatAmount(a.monthTotals.projectedMonthExpense)} />
+          <MiniStat label="Doimiy to‘lovlar" value={formatAmount(a.recurringTotal)} />
+          <MiniStat label="Transferlar" value={formatAmount(a.monthTotals.transferTotal)} />
           <MiniStat label="Oy kunlari" value={`${a.monthTotals.daysElapsed} / ${a.monthTotals.daysInMonth}`} />
         </div>
       </Card>
@@ -84,15 +84,15 @@ export default function AnalyticsPage() {
         <div className="mt-4 grid grid-cols-3 gap-2 text-center sm:gap-3">
           <div className="min-w-0">
             <p className="truncate text-[11px] text-muted">O‘rtacha daromad</p>
-            <p className="num mt-0.5 truncate text-sm font-medium">{compact(monthly.reduce((s, m) => s + m.income, 0) / monthly.length)}</p>
+            <p className="num mt-0.5 break-words text-sm font-medium">{formatAmount(monthly.reduce((s, m) => s + m.income, 0) / monthly.length)}</p>
           </div>
           <div className="min-w-0">
             <p className="truncate text-[11px] text-muted">O‘rtacha xarajat</p>
-            <p className="num mt-0.5 truncate text-sm font-medium">{compact(monthly.reduce((s, m) => s + m.expense, 0) / monthly.length)}</p>
+            <p className="num mt-0.5 break-words text-sm font-medium">{formatAmount(monthly.reduce((s, m) => s + m.expense, 0) / monthly.length)}</p>
           </div>
           <div className="min-w-0">
             <p className="truncate text-[11px] text-muted">O‘rtacha jamg‘arish</p>
-            <p className="num mt-0.5 truncate text-sm font-medium">{compact(monthly.reduce((s, m) => s + m.net, 0) / monthly.length)}</p>
+            <p className="num mt-0.5 break-words text-sm font-medium">{formatAmount(monthly.reduce((s, m) => s + m.net, 0) / monthly.length)}</p>
           </div>
         </div>
       </Card>
@@ -134,7 +134,7 @@ export default function AnalyticsPage() {
                       </span>
                       <span className={`shrink-0 font-medium ${c.change > 0 ? "text-negative-text" : "text-positive-text"}`}>
                         {c.change > 0 ? "+" : ""}
-                        {compact(c.change)} ({(c.changePct * 100).toFixed(0)}%)
+                        {formatAmount(c.change)} ({(c.changePct * 100).toFixed(0)}%)
                       </span>
                     </div>
                   ))}
@@ -163,7 +163,7 @@ export default function AnalyticsPage() {
                       <p className="truncate text-[12.5px] font-medium">{n.name}</p>
                       <p className="text-[11px] text-muted">o‘rtachadan {n.ratio.toFixed(1)}× ortiq</p>
                     </div>
-                    <span className="num shrink-0 text-[12.5px] font-medium">{compact(n.amount)}</span>
+                    <span className="num max-w-[48%] break-words text-right text-[12.5px] font-medium">{formatAmount(n.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -189,8 +189,8 @@ export default function AnalyticsPage() {
             <div className="min-w-0 flex-1">
               <p className="text-[14px] font-medium">Kelasi oy prognozi</p>
               <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
-                Bazaviy ssenariy: {compact(state.forecast.scenarios.base.delta)} (
-                {compact(state.forecast.scenarios.min.balance)} — {compact(state.forecast.scenarios.max.balance)})
+                Bazaviy ssenariy: {formatCompactAmount(state.forecast.scenarios.base.delta)} (
+                {formatCompactAmount(state.forecast.scenarios.min.balance)} — {formatCompactAmount(state.forecast.scenarios.max.balance)})
               </p>
             </div>
           </div>
@@ -260,7 +260,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <p className="truncate text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
-      <p className="num mt-0.5 truncate text-sm font-medium">{value}</p>
+      <p className="num mt-0.5 break-words text-sm font-medium">{value}</p>
     </div>
   );
 }

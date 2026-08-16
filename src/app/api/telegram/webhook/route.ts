@@ -370,9 +370,9 @@ export async function POST(request: Request) {
         "Quyidagi operatsiyani topdim:",
         "",
         draft.type === "income" ? "➕ Kirim" : draft.type === "transfer" ? "↔️ Transfer" : "➖ Chiqim",
-        `Summa: ${formatAmount(draft.amount ?? 0)}${
+        `Summa: ${formatAmount(draft.amount ?? 0)} so‘m${
           draft.estimated && draft.minAmount && draft.maxAmount
-            ? ` (${formatAmount(draft.minAmount)}–${formatAmount(draft.maxAmount)})`
+            ? ` (${formatAmount(draft.minAmount)}–${formatAmount(draft.maxAmount)} so‘m)`
             : ""
         }`,
         `Kategoriya: ${draft.categoryName ?? "aniqlanmadi"}`,
@@ -416,7 +416,7 @@ export async function POST(request: Request) {
         "",
         ...drafts.map(
           (d, i) =>
-            `${i + 1}. ${d.type === "income" ? "➕" : d.type === "transfer" ? "↔️" : "➖"} ${formatAmount(d.amount ?? 0)} — ${
+            `${i + 1}. ${d.type === "income" ? "➕" : d.type === "transfer" ? "↔️" : "➖"} ${formatAmount(d.amount ?? 0)} so‘m — ${
               d.categoryName ?? (d.type === "income" ? "Kirim" : d.type === "transfer" ? "Transfer" : "Chiqim")
             } · ${humanDate(d.date)}`,
         ),

@@ -18,7 +18,7 @@ import {
   Skeleton,
   TextInput,
 } from "@/components/ui";
-import { compact, formatAmount } from "@/lib/money";
+import { formatCompactAmount, formatAmount } from "@/lib/money";
 import type { AccountView, CategoryView } from "@/lib/finance";
 
 const TYPES = [
@@ -98,7 +98,7 @@ export default function AccountsPage() {
                     <span className="truncate text-[13px] font-medium">
                       {TYPE_ICON[a.type] ?? "•"} {a.name}
                     </span>
-                    <span className="num shrink-0 text-[13px]">{formatAmount(a.currentBalance)}</span>
+                    <span className="num max-w-[52%] break-words text-right text-[13px]">{formatAmount(a.currentBalance)}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-surface-3">
                     <div
@@ -131,9 +131,9 @@ export default function AccountsPage() {
                 <div className="mt-3">
                   <Money value={a.currentBalance} size="lg" tone={a.currentBalance < 0 ? "negative" : "default"} />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-[11.5px] text-muted">
-                  <span>tushum {compact(a.inflow)}</span>
-                  <span>chiqim {compact(a.outflow)}</span>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11.5px] text-muted">
+                  <span>tushum {formatCompactAmount(a.inflow)}</span>
+                  <span>chiqim {formatCompactAmount(a.outflow)}</span>
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button

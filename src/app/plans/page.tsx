@@ -23,7 +23,7 @@ import {
 } from "@/components/ui";
 import {
   addMonths,
-  compact,
+  formatCompactAmount,
   dayMonth,
   formatAmount,
   humanDate,
@@ -374,8 +374,8 @@ export default function PlansPage() {
               <StatCard label="Taxminiy" value={state.currentMonthIncome.estimatedBase} context="diapazon o‘rtachasi" tone="muted" />
             </div>
             <p className="mt-3 border-t border-line pt-3 text-[11.5px] leading-snug text-muted">
-              90 kunlik prognoz: <span className="num font-medium text-fg">{compact(f.income.base)} so‘m</span> (aniq{" "}
-              {compact(f.income.exactBase)}, taxminiy {compact(f.income.estimatedBase)})
+              90 kunlik prognoz: <span className="num font-medium text-fg">{formatCompactAmount(f.income.base)} so‘m</span> (aniq{" "}
+              {formatCompactAmount(f.income.exactBase)}, taxminiy {formatCompactAmount(f.income.estimatedBase)})
             </p>
           </Card>
 
@@ -605,7 +605,7 @@ function MonthLoadCard({
         </div>
         <div className="shrink-0 text-right">
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Ixtiyoriy</p>
-          <p className="num mt-1 text-[15px] font-semibold">{compact(month.optionalTotal)}</p>
+          <p className="num mt-1 break-words text-[15px] font-semibold">{formatAmount(month.optionalTotal)}</p>
         </div>
       </div>
 
@@ -628,8 +628,8 @@ function MonthLoadCard({
           <p className="min-w-0 text-[12.5px] font-semibold text-negative-text">
             🔴 {month.overdueCount} ta kechikkan to‘lov
           </p>
-          <span className="num shrink-0 text-[13px] font-semibold text-negative-text">
-            {compact(month.overdueAmount)}
+          <span className="num break-words text-right text-[13px] font-semibold text-negative-text">
+            {formatAmount(month.overdueAmount)}
           </span>
         </div>
       ) : null}
@@ -739,7 +739,7 @@ function PaymentPlanCard({
         <div className="min-w-0">
           {r.certainty === "estimated" && r.minAmount && r.maxAmount ? (
             <p className="num text-lg font-semibold sm:text-xl">
-              {compact(r.minAmount)}–{compact(r.maxAmount)}
+              {formatAmount(r.minAmount)}–{formatAmount(r.maxAmount)}
             </p>
           ) : (
             <Money value={r.baseAmount} size="lg" tone={due.overdue ? "negative" : "default"} />
@@ -861,7 +861,7 @@ function IncomePlanCard({
         <div className="min-w-0">
           {i.certainty === "estimated" && i.minAmount && i.maxAmount ? (
             <p className="num text-lg font-semibold text-positive-text sm:text-xl">
-              {compact(i.minAmount)}–{compact(i.maxAmount)}
+              {formatAmount(i.minAmount)}–{formatAmount(i.maxAmount)}
             </p>
           ) : (
             <Money value={i.baseAmount} size="lg" tone="positive" />
@@ -1251,7 +1251,7 @@ function CashflowTab({
                 <span className="num w-14 shrink-0 text-[11.5px] text-muted sm:w-16 sm:text-[12px]">{shortDate(p.date)}</span>
                 <span className={`shrink-0 text-sm font-medium ${p.kind === "income" ? "text-positive-text" : "text-fg"}`}>
                   {p.kind === "income" ? "+" : "−"}
-                  {compact(p.base)}
+                  {formatAmount(p.base)}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[13px] sm:text-[13.5px]">{p.label}</span>
                 <span className="shrink-0">
@@ -1277,7 +1277,7 @@ function CashflowTab({
                   <p className="text-[13.5px] font-semibold text-negative-text">{shortDate(r.date)}</p>
                   <p className="truncate text-[11.5px] text-negative-text/80">{r.cause}</p>
                 </div>
-                <span className="num shrink-0 text-[13px] font-semibold text-negative-text">−{compact(r.deficit)}</span>
+                <span className="num break-words text-right text-[13px] font-semibold text-negative-text">{formatAmount(-r.deficit)}</span>
               </div>
             ))}
           </div>

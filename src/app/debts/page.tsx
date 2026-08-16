@@ -18,7 +18,7 @@ import {
   Skeleton,
   TextInput,
 } from "@/components/ui";
-import { compact, formatAmount, humanDate } from "@/lib/money";
+import { formatAmount, humanDate } from "@/lib/money";
 import type { DebtView } from "@/lib/finance";
 
 export default function DebtsPage() {
@@ -108,9 +108,9 @@ export default function DebtsPage() {
                     </div>
                     <div className="mt-3">
                       <Progress value={d.progress} height={6} />
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[11.5px] text-muted">to‘langan {compact(d.paidAmount)}</span>
-                        <div className="flex flex-wrap justify-end gap-2">
+                      <div className="mt-2 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <span className="num break-words text-[11.5px] text-muted">to‘langan {formatAmount(d.paidAmount)}</span>
+                        <div className="flex flex-wrap gap-2 sm:justify-end">
                           <button
                             type="button"
                             onClick={() => setPayFor(d)}

@@ -6,7 +6,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
 import { Badge, Button, Card, EmptyState, Money, PageHeader, Segmented, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
-import { compact, humanDate } from "@/lib/money";
+import { formatAmount, formatSigned, humanDate } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
 
 type Filter = "all" | "income" | "expense" | "transfer";
@@ -126,10 +126,10 @@ function TransactionsView() {
           </Select>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
-          <Badge tone="positive">+{compact(totals.income)}</Badge>
-          <Badge tone="neutral">−{compact(totals.expense)}</Badge>
+          <Badge tone="positive">{formatSigned(totals.income)}</Badge>
+          <Badge tone="neutral">{formatAmount(-totals.expense)}</Badge>
           <Badge tone="accent">{totals.count} ta</Badge>
-          <Badge tone="neutral">sof {compact(totals.income - totals.expense)}</Badge>
+          <Badge tone="neutral">sof {formatAmount(totals.income - totals.expense)}</Badge>
         </div>
       </Card>
 
@@ -153,9 +153,9 @@ function TransactionsView() {
               <Card key={date} padded={false} className="overflow-hidden">
                 <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5 sm:py-3">
                   <span className="text-[12px] font-medium text-muted">{humanDate(date)}</span>
-                  <span className="num flex items-center gap-2 text-[12px]">
-                    {dayIn > 0 ? <span className="font-medium text-positive-text">+{compact(dayIn)}</span> : null}
-                    {dayOut > 0 ? <span className="text-fg-soft">−{compact(dayOut)}</span> : null}
+                  <span className="num flex flex-wrap items-center justify-end gap-2 text-[12px]">
+                    {dayIn > 0 ? <span className="break-words font-medium text-positive-text">{formatSigned(dayIn)}</span> : null}
+                    {dayOut > 0 ? <span className="break-words text-fg-soft">{formatAmount(-dayOut)}</span> : null}
                   </span>
                 </div>
                 <div className="divide-y divide-line px-4 sm:px-5">

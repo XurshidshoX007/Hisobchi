@@ -6,7 +6,7 @@ import { ForecastArea } from "@/components/charts";
 import { useFinance } from "@/components/providers";
 import { Badge, Button, Card, EmptyState, Money, SectionTitle, Skeleton } from "@/components/ui";
 import { QuickAddSheet } from "@/components/quick-add";
-import { compact, formatAmount, monthLabel, shortDate } from "@/lib/money";
+import { formatAmount, formatSigned, monthLabel, shortDate } from "@/lib/money";
 import type { FinancialTimelineEvent, MonthlyView } from "@/lib/finance";
 
 function change(current: number, previous: number): string {
@@ -163,7 +163,7 @@ export default function DashboardPage() {
                 <div><p className="text-muted">Kutilayotgan balans</p><div className="mt-1"><Money value={firstRiskDay.projectedMin} size="md" tone="negative" signed /></div></div>
               </div>
               <p className="mt-3 rounded-xl bg-surface/70 p-2.5 text-[12px] leading-relaxed">
-                {recovery ? <><strong>{shortDate(recovery.date)}</strong> kuni +{formatAmount(recoveryIncome)} tushumdan keyin tiklanadi.</> : "Tanlangan davr ichida tiklanish manbasi topilmadi."}
+                {recovery ? <><strong>{shortDate(recovery.date)}</strong> kuni {formatSigned(recoveryIncome)} tushumdan keyin tiklanadi.</> : "Tanlangan davr ichida tiklanish manbasi topilmadi."}
               </p>
             </div>
           </div>
@@ -192,7 +192,7 @@ export default function DashboardPage() {
           <SectionTitle title="Safe-to-Spend" hint={`Bugundan ${shortDate(forecast.safeHorizonEnd)} gacha`} action={<Badge tone={forecast.safeToSpend < 0 ? "negative" : "positive"}>{forecast.safeToSpend < 0 ? "Yetishmayapti" : "Xavfsiz"}</Badge>} />
           <div className="grid gap-3 sm:grid-cols-2">
             <div><p className="text-[10px] font-semibold uppercase text-muted">Majburiyatlardan keyin xavfsiz</p><div className="mt-1"><Money value={forecast.safeToSpend} size="xl" tone={forecast.safeToSpend < 0 ? "negative" : "default"} signed /></div></div>
-            <div className="rounded-xl bg-surface-2 p-3"><p className="text-[10px] font-semibold uppercase text-muted">Rejalardan keyin erkin</p><div className="mt-1"><Money value={forecast.freeToSpend} size="lg" tone={forecast.freeToSpend < 0 ? "negative" : "default"} signed /></div><p className="mt-1 text-[11px] text-muted">Ixtiyoriy reja: −{formatAmount(forecast.safeToSpendParts.optionalPlanned)}</p></div>
+            <div className="rounded-xl bg-surface-2 p-3"><p className="text-[10px] font-semibold uppercase text-muted">Rejalardan keyin erkin</p><div className="mt-1"><Money value={forecast.freeToSpend} size="lg" tone={forecast.freeToSpend < 0 ? "negative" : "default"} signed /></div><p className="mt-1 text-[11px] text-muted">Ixtiyoriy reja: {formatAmount(-forecast.safeToSpendParts.optionalPlanned)}</p></div>
           </div>
           <p className="mt-3 break-words rounded-xl border border-line p-3 text-[11px] leading-relaxed text-muted">
             {formatAmount(forecast.safeToSpendParts.balance)} balans + {formatAmount(forecast.safeToSpendParts.confirmedIncome)} aniq tushum + {formatAmount(forecast.safeToSpendParts.estimatedIncomeWeighted)} vaznlangan tushum − {formatAmount(forecast.safeToSpendParts.mandatoryUpcoming)} majburiy to‘lov − {formatAmount(forecast.safeToSpendParts.minReserve)} zaxira = <strong className="text-fg">{formatAmount(forecast.safeToSpend)}</strong>
@@ -223,7 +223,7 @@ export default function DashboardPage() {
         <Card>
           <SectionTitle title="Oylik trend" hint="Faqat tarixiy REAL operatsiyalar" />
           <div className="grid grid-cols-3 gap-2">
-            {[{ label: "Daromad", value: previousMonth.income, delta: change(previousMonth.income, previous.income) }, { label: "Xarajat", value: previousMonth.expense, delta: change(previousMonth.expense, previous.expense) }, { label: "Net", value: previousMonth.net, delta: change(previousMonth.net, previous.net) }].map((item) => <div key={item.label} className="min-w-0 rounded-xl bg-surface-2 p-3"><p className="text-[10px] text-muted">{item.label}</p><p className="num mt-1 break-words text-xs font-semibold">{compact(item.value)}</p><p className="mt-1 text-[11px] font-semibold text-accent-text">{item.delta}</p></div>)}
+            {[{ label: "Daromad", value: previousMonth.income, delta: change(previousMonth.income, previous.income) }, { label: "Xarajat", value: previousMonth.expense, delta: change(previousMonth.expense, previous.expense) }, { label: "Net", value: previousMonth.net, delta: change(previousMonth.net, previous.net) }].map((item) => <div key={item.label} className="min-w-0 rounded-xl bg-surface-2 p-3"><p className="text-[10px] text-muted">{item.label}</p><p className="num mt-1 break-words text-xs font-semibold">{formatAmount(item.value)}</p><p className="mt-1 text-[11px] font-semibold text-accent-text">{item.delta}</p></div>)}
           </div>
         </Card>
       ) : null}

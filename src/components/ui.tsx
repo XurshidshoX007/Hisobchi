@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { formatAmount } from "@/lib/money";
+import { formatAmount, formatSigned } from "@/lib/money";
 
 export function Card({
   children,
@@ -18,7 +18,7 @@ export function Card({
   return (
     <div
       onClick={onClick}
-      className={`card ${padded ? "p-4 sm:p-5" : ""} ${onClick ? "cursor-pointer transition-transform active:scale-[0.99]" : ""} ${className}`}
+      className={`card min-w-0 ${padded ? "p-4 sm:p-5" : ""} ${onClick ? "cursor-pointer transition-transform active:scale-[0.99]" : ""} ${className}`}
     >
       {children}
     </div>
@@ -144,11 +144,9 @@ export function Money({
     negative: "text-negative-text",
     muted: "text-muted",
   };
-  const sign = signed ? (value > 0 ? "+" : value < 0 ? "−" : "") : "";
   return (
-    <span className={`num ${sizes[size]} ${tones[tone]} break-words`}>
-      {sign}
-      {formatAmount(Math.abs(value))}
+    <span className={`num inline-block max-w-full ${sizes[size]} ${tones[tone]} break-words`}>
+      {signed ? formatSigned(value) : formatAmount(value)}
       {compactSuffix ? <span className="ml-1 text-xs font-normal text-muted">{compactSuffix}</span> : null}
       {currency ? <span className="ml-1 text-[0.62em] font-normal text-muted">{currency}</span> : null}
     </span>
