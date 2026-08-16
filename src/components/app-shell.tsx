@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { formatAmount, humanDate } from "@/lib/money";
+import { getFabActions, supportsFab } from "@/lib/fab";
 import { MENU_ROUTE, showsProfileHeader } from "@/lib/navigation";
 import { useFinance } from "./providers";
-import { FabProvider, GlobalAddFab } from "./fab";
+import { FabProvider, GlobalAddFab, useFab } from "./fab";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
 
 const NAV = [
@@ -18,9 +19,19 @@ const NAV = [
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <FabProvider>
+      <AppShellContent>{children}</AppShellContent>
+    </FabProvider>
+  );
+}
+
+function AppShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { state, error, theme, setTheme, mutate } = useFinance();
+  const { currentContext } = useFab();
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const hasGlobalFab = supportsFab(pathname) && getFabActions({ pathname, ...currentContext }).length > 0;
 
   const unread = (state?.alerts.length ?? 0) + (state?.notifications.filter((n) => !n.isRead).length ?? 0);
   // Route-aware header. No data fetching depends on this flag: profile/balance
@@ -48,8 +59,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <FabProvider>
-    <div className="mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 pb-[calc(env(safe-area-inset-bottom,0px)+148px)] sm:pb-6 lg:pb-10">
+    <>
+    <div className={`app-shell-layout mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 ${hasGlobalFab ? "has-global-fab" : ""}`}>
       {/* Sidebar — desktop */}
       <aside className="sticky top-6 hidden h-fit w-60 shrink-0 flex-col gap-1 lg:flex">
         <div className="mb-5 flex items-center gap-2.5 px-2">
@@ -165,9 +176,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="min-w-0">{children}</div>
       </main>
 
-      {/* Bottom nav — mobile only, 5 items, no FAB */}
-      <nav className="glass-nav fixed inset-x-0 bottom-0 z-40 border-t border-line lg:hidden">
-        <div className="mx-auto flex max-w-lg items-stretch justify-between gap-0.5 px-1 pb-[max(env(safe-area-inset-bottom),6px)] pt-1.5 sm:px-2">
+      {/* Bottom navigation has deterministic geometry; FAB positioning and
+          content clearance consume the same CSS variables. */}
+      <nav className="app-bottom-nav glass-nav fixed inset-x-0 bottom-0 border-t border-line lg:hidden">
+        <div className="mobile-bottom-nav-inner mx-auto flex max-w-lg items-stretch justify-between gap-0.5 px-1 pt-1.5 sm:px-2">
           {NAV.map((item) => (
             <NavItem
               key={item.href}
@@ -251,7 +263,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Sheet>
     </div>
     <GlobalAddFab />
-    </FabProvider>
+    </>
   );
 }
 

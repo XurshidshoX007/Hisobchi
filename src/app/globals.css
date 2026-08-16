@@ -57,6 +57,26 @@
   --shadow-card: 0 1px 2px rgba(12, 18, 34, 0.04), 0 8px 24px -12px rgba(12, 18, 34, 0.12);
   --chart-grid: rgba(12, 18, 34, 0.07);
   --focus: #3b5bdb;
+
+  /* Fixed mobile chrome geometry. One source drives navigation height, FAB
+     offset and the scroll clearance below page content. */
+  --bottom-nav-height: 68px;
+  --fab-size: 56px;
+  --fab-gap: 14px;
+  --content-bottom-gap: 12px;
+  --app-safe-area-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    var(--tg-safe-area-inset-bottom, 0px),
+    var(--tg-content-safe-area-inset-bottom, 0px)
+  );
+  --app-safe-area-right: max(
+    env(safe-area-inset-right, 0px),
+    var(--tg-safe-area-inset-right, 0px),
+    var(--tg-content-safe-area-inset-right, 0px)
+  );
+  --z-bottom-nav: 40;
+  --z-fab: 50;
+  --z-sheet: 80;
 }
 
 .dark {
@@ -229,26 +249,76 @@ input::placeholder {
   -webkit-backdrop-filter: saturate(160%) blur(18px);
 }
 
-.safe-b {
-  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+.sheet-footer-safe {
+  padding-bottom: calc(1rem + var(--app-safe-area-bottom));
+}
+
+.sheet-bottom-safe {
+  padding-bottom: max(8px, var(--app-safe-area-bottom));
 }
 
 /*
- * Global context-aware FAB position (§3): above the bottom navigation on
- * mobile — nav height + safe-area + gap, never a hardcoded `bottom: 80px` —
- * and lower-right on desktop where the sidebar replaces the bottom nav.
+ * Mobile chrome shares one geometry model:
+ *   nav base height + device safe area
+ *   FAB bottom = nav top + 14px visual/touch gap
+ *   page clearance = nav + optional FAB + a small content gap
+ *
+ * This intentionally replaces the old arbitrary 148px utility and the former
+ * hardcoded 72px FAB offset. At 640–1023px the bottom navigation is still
+ * present, so the mobile clearance remains active until the lg breakpoint.
  */
+.app-shell-layout {
+  padding-bottom: calc(
+    var(--app-safe-area-bottom) + var(--bottom-nav-height) + var(--content-bottom-gap)
+  );
+}
+
+.app-shell-layout.has-global-fab {
+  padding-bottom: calc(
+    var(--app-safe-area-bottom) + var(--bottom-nav-height) + var(--fab-size) + var(--fab-gap) +
+      var(--content-bottom-gap)
+  );
+}
+
+.app-bottom-nav {
+  z-index: var(--z-bottom-nav);
+  isolation: isolate;
+}
+
+.mobile-bottom-nav-inner {
+  box-sizing: border-box;
+  height: calc(var(--bottom-nav-height) + var(--app-safe-area-bottom));
+  padding-bottom: max(var(--app-safe-area-bottom), 6px);
+}
+
 .global-fab {
   position: fixed;
-  right: 1rem;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
-  z-index: 50;
+  right: calc(1rem + var(--app-safe-area-right));
+  bottom: calc(var(--app-safe-area-bottom) + var(--bottom-nav-height) + var(--fab-gap));
+  width: var(--fab-size);
+  height: var(--fab-size);
+  z-index: var(--z-fab);
+  isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--primary-fg) 22%, var(--primary));
+  box-shadow: 0 2px 5px rgba(12, 18, 34, 0.18), 0 10px 24px -10px rgba(12, 18, 34, 0.42);
+}
+
+.sheet-layer {
+  z-index: var(--z-sheet);
 }
 
 @media (min-width: 1024px) {
+  .app-shell-layout {
+    padding-bottom: 2.5rem;
+  }
+
+  .app-shell-layout.has-global-fab {
+    padding-bottom: calc(var(--fab-size) + var(--fab-gap) + 2rem);
+  }
+
   .global-fab {
-    right: 2rem;
-    bottom: 2rem;
+    right: calc(2rem + var(--app-safe-area-right));
+    bottom: calc(2rem + var(--app-safe-area-bottom));
   }
 }
 
@@ -309,5 +379,10 @@ input::placeholder {
   .animate-sheet,
   .animate-shimmer {
     animation: none !important;
+  }
+
+  .global-fab,
+  .global-fab svg {
+    transition-duration: 0.01ms !important;
   }
 }

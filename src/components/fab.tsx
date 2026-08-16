@@ -10,28 +10,23 @@ import { getFabActions, normalizePath, supportsFab, type FabAction, type FabActi
  *
  * ONE FAB → MANY CONTEXTUAL ACTIONS.
  *
- * Architecture (§23/§25): the FAB knows nothing about finance. It only resolves
- * the current route/tab context to typed actions and then either
- *   • invokes the page-registered handler directly (single-action contexts), or
- *   • opens a compact action sheet (multi-action contexts).
- * Pages OWN their sheets and register handlers that open them — the same
- * QuickAddSheet / RecurringSheet / … that already exist. No form is duplicated.
- *
- * Cross-page creates (Menu → "+ Hisob", Analytics → "+ To'lov rejasi") are
- * delivered via `route(path, action)`: the pending action is stored in the
- * provider (which survives navigation because it lives in the shell) and the
- * target page consumes it once on mount to open its own sheet.
+ * The FAB knows nothing about finance. It resolves the current route/tab to a
+ * typed action and invokes the page-owned sheet handler. Forms remain owned by
+ * their pages; AppShell mounts this control exactly once.
  */
 
 type FabHandler = (action: FabActionDef) => void;
+type PageFabContext = Partial<Omit<FabContext, "pathname">>;
 
 type FabControllerValue = {
-  /** Page reports its route-specific context (tab / filter). Read lazily. */
-  setContext: (ctx: Partial<Omit<FabContext, "pathname">>) => void;
+  /** Page reports its route-specific context (tab / filter). */
+  setContext: (ctx: PageFabContext) => void;
+  /** Reactive snapshot used for visibility and shell clearance. */
+  currentContext: PageFabContext;
   /** Page registers handlers for the actions it owns. Returns unregister. */
   register: (handlers: Partial<Record<FabAction, FabHandler>>) => () => void;
-  /** Current context snapshot (for the FAB at press time). */
-  context: () => Partial<Omit<FabContext, "pathname">>;
+  /** Current context snapshot, read lazily when needed. */
+  context: () => PageFabContext;
   /** Run the handler registered for `action` (if any). */
   invoke: (action: FabActionDef) => void;
   /** Navigate to `path` and deliver `action` to the target page on mount. */
@@ -48,20 +43,26 @@ export function useFab(): FabControllerValue {
   return value;
 }
 
+function sameContext(a: PageFabContext, b: PageFabContext): boolean {
+  return a.tab === b.tab && a.txFilter === b.txFilter && a.accountsTab === b.accountsTab;
+}
+
 /**
  * Page hook: reports the active context and registers this page's action
- * handlers. Only the mounted page contributes — there is never a conflict
- * between pages and never duplicated route logic in separate components.
+ * handlers. Only the mounted page contributes, so route logic and forms are
+ * never duplicated in the global control.
  */
 export function useFabPage(
-  context: Partial<Omit<FabContext, "pathname">>,
+  pageContext: PageFabContext,
   handlers: Partial<Record<FabAction, FabHandler>>,
 ): void {
   const { register, setContext } = useFab();
-  // No dep array: refresh on every render so tab/filter changes are always
-  // reflected at FAB press time. Both writes are ref mutations (no re-render).
+
+  // Refresh on every render. setContext performs a shallow equality check, so
+  // ordinary page renders remain ref-only while tab changes update FAB
+  // visibility and AppShell clearance immediately after commit.
   useEffect(() => {
-    setContext(context);
+    setContext(pageContext);
   });
   useEffect(() => register(handlers));
 }
@@ -69,11 +70,14 @@ export function useFabPage(
 export function FabProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const handlersRef = useRef<Record<string, FabHandler>>({});
-  const contextRef = useRef<Partial<Omit<FabContext, "pathname">>>({});
+  const contextRef = useRef<PageFabContext>({});
   const pendingRef = useRef<FabActionDef | null>(null);
+  const [currentContext, setCurrentContext] = useState<PageFabContext>({});
 
-  const setContext = useCallback((ctx: Partial<Omit<FabContext, "pathname">>) => {
-    contextRef.current = ctx ?? {};
+  const setContext = useCallback((ctx: PageFabContext) => {
+    const next = { ...ctx };
+    contextRef.current = next;
+    setCurrentContext((previous) => (sameContext(previous, next) ? previous : next));
   }, []);
 
   const register = useCallback((handlers: Partial<Record<FabAction, FabHandler>>) => {
@@ -107,62 +111,47 @@ export function FabProvider({ children }: { children: ReactNode }) {
     return action;
   }, []);
 
-  const value = { setContext, register, context, invoke, route, consume };
+  const value = { setContext, currentContext, register, context, invoke, route, consume };
   return <FabContext.Provider value={value}>{children}</FabContext.Provider>;
 }
 
 /**
- * The single floating button + its action sheet. Rendered once in AppShell —
- * never re-created per route.
+ * The single floating button mounted by AppShell. Contexts with no create
+ * action (Analytics and Plans → Cash-flow) render no misleading plus button.
  */
 export function GlobalAddFab() {
   const pathname = usePathname();
-  const { context, invoke } = useFab();
-  const [open, setOpen] = useState(false);
-  const [explain, setExplain] = useState(false);
-  const [actions, setActions] = useState<FabActionDef[]>([]);
-  const busyRef = useRef(false);
-
+  const { currentContext, invoke } = useFab();
   const route = normalizePath(pathname);
-  const visible = supportsFab(route);
+  const actions = getFabActions({ pathname: route, ...currentContext });
 
-  // §31/§32: any navigation closes the sheet and drops stale state. After a
-  // refresh the FAB is closed and re-resolves from the current route. Uses the
-  // "state from previous render" pattern so no effect + setState is needed.
-  const [prevRoute, setPrevRoute] = useState(route);
-  if (prevRoute !== route) {
-    setPrevRoute(route);
-    setOpen(false);
-    setExplain(false);
-  }
+  if (!supportsFab(route) || actions.length === 0) return null;
 
-  if (!visible) return null;
+  // A context change remounts the local controller. This closes an open action
+  // sheet on route/tab changes without retaining stale overlays.
+  const contextKey = `${route}:${currentContext.tab ?? ""}:${currentContext.txFilter ?? ""}:${currentContext.accountsTab ?? ""}`;
+  return <GlobalFabControl key={contextKey} actions={actions} invoke={invoke} />;
+}
+
+function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke: (action: FabActionDef) => void }) {
+  const [open, setOpen] = useState(false);
+  const busyRef = useRef(false);
+  const controlsId = "global-fab-actions";
 
   function press() {
-    // §29: one tap = one sheet. Ignore re-entry while a transition is running.
+    // One tap opens at most one sheet. Ignore re-entry during the 200ms
+    // open/close transition window.
     if (busyRef.current) return;
     busyRef.current = true;
     window.setTimeout(() => {
       busyRef.current = false;
     }, 200);
 
-    const list = getFabActions({ pathname: route, ...context() });
-
-    if (list.length === 0) {
-      // Cash-flow: no misleading create action — explain instead.
+    if (actions.length === 1) {
       setOpen(false);
-      setExplain(true);
+      invoke(actions[0]);
       return;
     }
-    if (list.length === 1) {
-      // Single unambiguous action: open the target sheet directly.
-      setOpen(false);
-      setExplain(false);
-      invoke(list[0]);
-      return;
-    }
-    setActions(list);
-    setExplain(false);
     setOpen(true);
   }
 
@@ -179,7 +168,8 @@ export function GlobalAddFab() {
         aria-label="Qo‘shish"
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="global-fab grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-fg shadow-md shadow-black/25 transition-all duration-200 hover:bg-primary-hover active:scale-95 touch-manipulation"
+        aria-controls={open ? controlsId : undefined}
+        className="global-fab grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-fg transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-95 touch-manipulation"
       >
         <svg
           width="24"
@@ -197,10 +187,10 @@ export function GlobalAddFab() {
       </button>
 
       <Sheet open={open} onClose={() => setOpen(false)} title="Nima qo‘shamiz?">
-        <div className="-mx-1.5 space-y-0.5">
-          {actions.map((action, i) => (
+        <div id={controlsId} className="-mx-1.5 space-y-0.5">
+          {actions.map((action, index) => (
             <button
-              key={`${action.id}-${action.type ?? "default"}-${i}`}
+              key={`${action.id}-${action.type ?? "default"}-${index}`}
               type="button"
               onClick={() => run(action)}
               className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3.5 text-left text-[14px] font-medium transition-colors hover:bg-surface-2 active:bg-surface-3 touch-manipulation"
@@ -220,16 +210,6 @@ export function GlobalAddFab() {
             </button>
           ))}
         </div>
-      </Sheet>
-
-      <Sheet open={explain} onClose={() => setExplain(false)} title="Qo‘shish">
-        <p className="text-[14px] leading-relaxed">
-          Bu bo‘lim faqat tahlil uchun — bu yerda yangi yozuv qo‘shilmaydi.
-        </p>
-        <p className="text-[13px] leading-relaxed text-muted">
-          Qo‘shish uchun <span className="font-semibold text-fg-soft">Reja → To‘lovlar</span> yoki{" "}
-          <span className="font-semibold text-fg-soft">Reja → Daromad</span> bo‘limiga o‘ting.
-        </p>
       </Sheet>
     </>
   );

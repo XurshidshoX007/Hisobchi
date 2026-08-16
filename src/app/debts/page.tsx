@@ -28,6 +28,11 @@ export default function DebtsPage() {
   const [editing, setEditing] = useState<DebtView | null>(null);
   const [payFor, setPayFor] = useState<DebtView | null>(null);
 
+  function openCreate() {
+    setEditing(null);
+    setSheet(true);
+  }
+
   // Global FAB → existing DebtSheet (no transaction detour).
   useFabPage({}, { debt: () => openCreate() });
 
@@ -37,11 +42,6 @@ export default function DebtsPage() {
     const routed = consume();
     if (routed?.id === "debt") openCreate();
   }, [consume]);
-
-  function openCreate() {
-    setEditing(null);
-    setSheet(true);
-  }
 
   function closeSheet() {
     setSheet(false);
@@ -166,12 +166,7 @@ export default function DebtsPage() {
         <EmptyState
           icon="📋"
           title="Qarzdorlik yozuvlari yo‘q"
-          description="Qarzlarni qo‘shing — tizim muddat va to‘lovlarni kuzatadi."
-          action={
-            <Button type="button" onClick={openCreate}>
-              ➕ Qarz qo‘shish
-            </Button>
-          }
+          description="Pastdagi + tugmasi orqali qarz kiriting — tizim muddat va to‘lovlarni kuzatadi."
         />
       ) : null}
 

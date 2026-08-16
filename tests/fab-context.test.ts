@@ -23,17 +23,12 @@ test("Dashboard resolves to the three transaction directions", () => {
   assert.equal(actions[2].label, "Transfer");
 });
 
-test("History neutral filter defaults to a single Operatsiya action", () => {
-  const actions = getFabActions({ pathname: "/transactions", txFilter: "all" });
-  assert.equal(actions.length, 1);
-  assert.equal(actions[0].label, "Operatsiya");
-  assert.equal(actions[0].type, undefined);
-});
-
-test("History filter becomes the transaction default", () => {
-  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "income" }), ["transaction:income"]);
-  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "expense" }), ["transaction:expense"]);
-  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "transfer" }), ["transaction:transfer"]);
+test("History always resolves to the three transaction directions", () => {
+  const expected = ["transaction:income", "transaction:expense", "transaction:transfer"];
+  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "all" }), expected);
+  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "income" }), expected);
+  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "expense" }), expected);
+  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "transfer" }), expected);
 });
 
 test("Plans tab decides the plan action", () => {
@@ -46,8 +41,9 @@ test("Plans cash-flow offers no misleading create action", () => {
   assert.deepEqual(getFabActions({ pathname: "/plans", tab: "cashflow" }), []);
 });
 
-test("Analytics exposes only meaningful global entries", () => {
-  assert.deepEqual(ids({ pathname: "/analytics" }), ["transaction", "payment_plan", "expected_income"]);
+test("Analytics has no create action", () => {
+  assert.deepEqual(ids({ pathname: "/analytics" }), []);
+  assert.equal(supportsFab("/analytics"), false);
 });
 
 test("Menu exposes the 5 secondary-tool entities", () => {
@@ -76,7 +72,7 @@ test("Settings and unknown routes have no FAB and no actions", () => {
 });
 
 test("All create routes support the FAB", () => {
-  for (const path of ["/", "/transactions", "/plans", "/analytics", "/more", "/accounts", "/debts", "/goals", "/budgets"]) {
+  for (const path of ["/", "/transactions", "/plans", "/more", "/accounts", "/debts", "/goals", "/budgets"]) {
     assert.equal(supportsFab(path), true, path);
   }
 });
@@ -87,7 +83,6 @@ test("action lists stay compact (never a giant menu)", () => {
     { pathname: "/transactions" },
     { pathname: "/plans" },
     { pathname: "/plans", tab: "income" as const },
-    { pathname: "/analytics" },
     { pathname: "/more" },
     { pathname: "/accounts" },
     { pathname: "/debts" },

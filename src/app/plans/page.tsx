@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CashFlowStrip, ForecastArea } from "@/components/charts";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
+import { PlanStatusFilter } from "@/components/plan-status-filter";
 import {
   Badge,
   Button,
@@ -59,13 +60,6 @@ const STATUS_META: Record<PlanLifecycle, { label: string; tone: Tone; icon: stri
   cancelled: { label: "Bekor qilingan", tone: "negative", icon: "✕" },
   completed: { label: "Yakunlangan", tone: "positive", icon: "✓" },
 };
-
-const STATUS_TABS: Array<{ value: PlanListTab; label: string }> = [
-  { value: "open", label: "Faol" },
-  { value: "paused", label: "Pauza" },
-  { value: "completed", label: "Yakunlangan" },
-  { value: "cancelled", label: "Bekor qilingan" },
-];
 
 /** 44px round icon button — the standard secondary touch target of this page. */
 const ICON_BTN =
@@ -159,8 +153,7 @@ export default function PlansPage() {
     },
   );
 
-  // Routed creates (Analytics → "+ To'lov rejasi" / "+ Kutilayotgan daromad")
-  // land here and open the right tab + sheet.
+  // A routed plan create opens the matching tab and reuses its existing sheet.
   const { consume } = useFab();
   useEffect(() => {
     const routed = consume();
@@ -291,29 +284,30 @@ export default function PlansPage() {
       {tab === "payments" ? (
         <div className="space-y-3.5 sm:space-y-4">
           {/* §28/§29: monthly planning first — the annual figures are secondary. */}
-          <MonthLoadCard month={month} nearest={nearest} />
+          <MonthLoadCard month={month} nearest={nearest}>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
+              <StatCard
+                label="Ixtiyoriy / oy"
+                value={monthlyOptional}
+                context={`${optionalCount} ta reja`}
+              />
+              <StatCard label="Faol rejalar" value={activePlans.length} plain context={`${pausedPlans.length} ta pauzada`} />
+              <StatCard
+                label="Yillik yuklama"
+                value={yearlyLoad}
+                context={recurringPlans.length ? "faqat doimiy rejalar" : "doimiy reja yo‘q"}
+              />
+              <StatCard
+                label="Muddatli qoldiq"
+                value={termRemaining}
+                context={termPlans.length ? `${termPlans.length} ta reja` : "muddatli reja yo‘q"}
+              />
+            </div>
+          </MonthLoadCard>
 
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-            <StatCard
-              label="Ixtiyoriy / oy"
-              value={monthlyOptional}
-              context={`${optionalCount} ta reja`}
-            />
-            <StatCard label="Faol rejalar" value={activePlans.length} plain context={`${pausedPlans.length} ta pauzada`} />
-            <StatCard
-              label="Yillik yuklama"
-              value={yearlyLoad}
-              context={recurringPlans.length ? "faqat doimiy rejalar" : "doimiy reja yo‘q"}
-            />
-            <StatCard
-              label="Muddatli qoldiq"
-              value={termRemaining}
-              context={termPlans.length ? `${termPlans.length} ta reja` : "muddatli reja yo‘q"}
-            />
-          </div>
-
-          <div className="mb-1">
-            <Segmented value={planTab} onChange={setPlanTab} options={STATUS_TABS} />
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">To‘lovlar</h2>
+            <PlanStatusFilter value={planTab} onChange={setPlanTab} kind="payments" />
           </div>
 
           {planTab === "open" ? (
@@ -341,18 +335,7 @@ export default function PlansPage() {
               <EmptyState
                 icon="📌"
                 title="Faol reja yo‘q"
-                description="Ijara, kommunal, kredit kabi takrorlanuvchi to‘lovlarni bir marta kiriting — tizim sanani va yukni o‘zi hisoblaydi."
-                action={
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setEditing(null);
-                      setSheet("recurring");
-                    }}
-                  >
-                    ➕ To‘lov rejasi qo‘shish
-                  </Button>
-                }
+                description="Ijara, kommunal, kredit kabi takrorlanuvchi to‘lovlarni pastdagi + tugmasi orqali kiriting."
               />
             )
           ) : tabbedPlans && tabbedPlans.length ? (
@@ -408,8 +391,9 @@ export default function PlansPage() {
             </p>
           </Card>
 
-          <div className="mb-1">
-            <Segmented value={incomeTab} onChange={setIncomeTab} options={STATUS_TABS} />
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">Daromad rejalari</h2>
+            <PlanStatusFilter value={incomeTab} onChange={setIncomeTab} kind="income" />
           </div>
 
           {incomeTab === "open" ? (
@@ -437,18 +421,7 @@ export default function PlansPage() {
               <EmptyState
                 icon="💰"
                 title="Faol daromad rejasi yo‘q"
-                description="Keladigan daromadlarni kiritib prognoz aniqligini oshiring — cash-flow ularni hisobga oladi."
-                action={
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setEditingIncome(null);
-                      setSheet("income");
-                    }}
-                  >
-                    ➕ Daromad rejasi qo‘shish
-                  </Button>
-                }
+                description="Keladigan daromadni pastdagi + tugmasi orqali kiriting — cash-flow uni hisobga oladi."
               />
             )
           ) : tabbedIncomePlans && tabbedIncomePlans.length ? (
@@ -591,6 +564,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function MonthLoadCard({
   month,
   nearest,
+  children,
 }: {
   month: {
     label: string;
@@ -615,6 +589,7 @@ function MonthLoadCard({
     mandatory: boolean;
     status: "overdue" | "today" | "upcoming";
   } | null;
+  children?: React.ReactNode;
 }) {
   return (
     <Card className="space-y-4">
@@ -680,11 +655,13 @@ function MonthLoadCard({
           <p className="mt-1.5 text-[13px] text-muted">Bu oyda ochiq to‘lov qolmadi. 🎉</p>
         )}
       </div>
+
+      {children ? <div className="border-t border-line pt-3">{children}</div> : null}
     </Card>
   );
 }
 
-/** Metric with a label, a value and one short line of context (§5). */
+/** Compact metric section: intentionally unframed so cards never nest. */
 function StatCard({
   label,
   value,
@@ -699,7 +676,7 @@ function StatCard({
   plain?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-xl bg-surface-2 px-3 py-2.5">
+    <div className="min-w-0 px-1 py-1">
       <p className="truncate text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
       <div className="mt-1 min-w-0">
         {plain ? (

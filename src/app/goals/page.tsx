@@ -14,6 +14,11 @@ export default function GoalsPage() {
   const [editing, setEditing] = useState<GoalView | null>(null);
   const [goal, setGoal] = useState<GoalView | null>(null);
 
+  function openCreate() {
+    setEditing(null);
+    setSheet(true);
+  }
+
   // Global FAB → existing GoalSheet.
   useFabPage({}, { goal: () => openCreate() });
 
@@ -23,11 +28,6 @@ export default function GoalsPage() {
     const routed = consume();
     if (routed?.id === "goal") openCreate();
   }, [consume]);
-
-  function openCreate() {
-    setEditing(null);
-    setSheet(true);
-  }
 
   function closeSheet() {
     setSheet(false);
@@ -153,12 +153,7 @@ export default function GoalsPage() {
         <EmptyState
           icon="🏆"
           title="Maqsadlar yo‘q"
-          description="Mashina, zaxira jamg‘arma yoki sayohat uchun maqsad qo‘shing."
-          action={
-            <Button type="button" onClick={openCreate}>
-              ➕ Birinchi maqsad
-            </Button>
-          }
+          description="Pastdagi + tugmasi orqali mashina, zaxira jamg‘arma yoki sayohat uchun maqsad kiriting."
         />
       )}
 

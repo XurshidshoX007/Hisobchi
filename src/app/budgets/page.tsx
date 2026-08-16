@@ -13,6 +13,11 @@ export default function BudgetsPage() {
   const [sheet, setSheet] = useState(false);
   const [editing, setEditing] = useState<BudgetView | null>(null);
 
+  function openCreate() {
+    setEditing(null);
+    setSheet(true);
+  }
+
   // Global FAB → existing BudgetSheet.
   useFabPage({}, { budget: () => openCreate() });
 
@@ -22,11 +27,6 @@ export default function BudgetsPage() {
     const routed = consume();
     if (routed?.id === "budget") openCreate();
   }, [consume]);
-
-  function openCreate() {
-    setEditing(null);
-    setSheet(true);
-  }
 
   function closeSheet() {
     setSheet(false);
@@ -142,12 +142,7 @@ export default function BudgetsPage() {
         <EmptyState
           icon="🎯"
           title="Budjet belgilanmagan"
-          description="Toifalar uchun oylik limit qo‘ying — tizim 80% da ogohlantiradi."
-          action={
-            <Button type="button" onClick={openCreate}>
-              ➕ Birinchi budjet
-            </Button>
-          }
+          description="Pastdagi + tugmasi orqali oylik limit kiriting — tizim 80% da ogohlantiradi."
         />
       )}
 
