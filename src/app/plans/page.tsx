@@ -19,7 +19,6 @@ import {
   NoteField,
   PreviewCard,
 } from "@/components/form-kit";
-import { MonthlyPlanSummary, SecondaryPlanMetrics } from "@/components/plan-summary";
 import {
   Badge,
   Button,
@@ -48,7 +47,7 @@ import {
   todayISO,
 } from "@/lib/money";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
-import { filterPlansByTab, isActivePlanLoad, monthCashflow, monthPlanned } from "@/lib/finance";
+import { filterPlansByTab, monthCashflow, monthPlanned } from "@/lib/finance";
 import type { ExpectedIncomeView, Forecast, PlanLifecycle, PlanListTab, RecurringView } from "@/lib/finance";
 
 type Tab = "payments" | "income" | "cashflow";
@@ -116,12 +115,6 @@ function dueMeta(plan: { nextOccurrenceDate: string; daysLeft: number; status: P
     overdue,
   };
 }
-
-const TONE_TEXT_STAT: Record<"default" | "positive" | "muted", string> = {
-  default: "text-fg",
-  positive: "text-positive-text",
-  muted: "text-muted",
-};
 
 const TONE_TEXT: Record<"muted" | "negative" | "warning" | "positive", string> = {
   muted: "text-muted",
@@ -191,7 +184,6 @@ export default function PlansPage() {
   if (!state) return null;
 
   const f = state.forecast;
-  const month = state.currentMonthPlan;
 
   // Lifecycle buckets (§3/§11): the default "Faol" tab shows ACTIVE plans plus
   // PAUSED ones in a clearly separated section; cancelled/completed live in
@@ -205,35 +197,13 @@ export default function PlansPage() {
   const pausedIncomePlans = state.expectedIncomes.filter((i) => i.status === "paused");
   const tabbedIncomePlans = incomeTab === "open" ? null : filterPlansByTab(state.expectedIncomes, incomeTab);
 
-  // Money load counts ONLY plans that produce future occurrences (§4/§14):
-  // cancelled and completed contribute zero, paused is excluded from the active
-  // load (it has its own section and badge).
-  const loadPlans = state.recurring.filter((r) => isActivePlanLoad(r.status));
-  const monthlyOptional = loadPlans.filter((r) => !r.isMandatory).reduce((s, r) => s + r.baseAmount, 0);
-  const optionalCount = loadPlans.filter((r) => !r.isMandatory).length;
-  // Annualized load applies ONLY to indefinite recurring plans — a term plan is
-  // worth count × amount and must never be multiplied by 12.
-  const recurringPlans = loadPlans.filter((r) => r.planType === "recurring");
-  const yearlyLoad = recurringPlans.reduce((s, r) => s + r.yearlyTotal, 0);
-  const termPlans = loadPlans.filter((r) => r.planType === "term");
-  const termRemaining = termPlans.reduce((s, r) => s + (r.remainingTotal ?? 0), 0);
-
-  // "Eng yaqin to'lov" — this month's next open occurrence, otherwise the next
-  // one on the whole horizon (§15).
-  const nearest =
-    month.nearest ??
-    (f.upcomingPayments[0]
-      ? {
-          id: f.upcomingPayments[0].id,
-          name: f.upcomingPayments[0].name,
-          date: f.upcomingPayments[0].date,
-          daysLeft: f.upcomingPayments[0].daysLeft,
-          base: f.upcomingPayments[0].base,
-          mandatory: f.upcomingPayments[0].mandatory,
-          certainty: f.upcomingPayments[0].certainty,
-          status: f.upcomingPayments[0].status,
-        }
-      : null);
+  /*
+   * NOTE (§2/§10): the monthly load, optional / yearly / term aggregates and the
+   * "eng yaqin to‘lov" pick used to be derived HERE only to feed the removed
+   * summary cards. The source data (`state.currentMonthPlan`, `state.forecast`,
+   * `isActivePlanLoad`, `monthPlanned`, `monthCashflow`) is untouched and stays
+   * available to the Dashboard, Pul oqimi tab and the bot.
+   */
 
   function handlePlanAction(action: PlanRowAction, plan: RecurringView) {
     if (action === "edit") {
@@ -278,10 +248,14 @@ export default function PlansPage() {
   }
 
   return (
-    <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-4 sm:space-y-5">
+    <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
       <PageHeader title="Reja" />
 
-      <div className="mb-1 sm:mb-4">
+      {/*
+       * §8/§9: the tab strip is followed IMMEDIATELY by the tab's own content —
+       * no extra bottom margin left behind by the removed summary cards.
+       */}
+      <div>
         <Segmented
           value={tab}
           onChange={setTab}
@@ -294,36 +268,13 @@ export default function PlansPage() {
       </div>
 
       {tab === "payments" ? (
-        <div className="space-y-3.5 sm:space-y-4">
-          {/* §28/§29: ONE monthly surface + ONE flat metrics strip — no nested cards. */}
-          <MonthlyPlanSummary
-            monthLabel={month.label}
-            mandatory={month.mandatoryTotal}
-            paid={month.paid}
-            remaining={month.remaining}
-            progress={month.progress}
-            paidCount={month.paidCount}
-            remainingCount={month.remainingCount}
-            overdueCount={month.overdueCount}
-            overdueAmount={month.overdueAmount}
-            activeCount={activePlans.length}
-            nearestPayment={nearest}
-            onNearestClick={nearest ? () => router.push(`/transactions?plan=${nearest.id}`) : undefined}
-          />
-
-          {loadPlans.length ? (
-            <SecondaryPlanMetrics
-              optional={monthlyOptional}
-              optionalCount={optionalCount}
-              active={activePlans.length}
-              pausedCount={pausedPlans.length}
-              yearly={yearlyLoad}
-              recurringCount={recurringPlans.length}
-              termRemaining={termRemaining}
-              termCount={termPlans.length}
-            />
-          ) : null}
-
+        <div className="space-y-3 sm:space-y-3.5">
+          {/*
+           * §4: no monthly load / nearest-payment summary card here. Every number
+           * it displayed still lives in `state.currentMonthPlan` and the finance
+           * layer (used by the Dashboard and Pul oqimi) — only the UI is removed,
+           * so the payment list starts right under the tabs.
+           */}
           <div className="flex min-h-11 items-center justify-between gap-3">
             <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">To‘lovlar</h2>
             <PlanStatusFilter value={planTab} onChange={setPlanTab} kind="payments" />
@@ -391,24 +342,13 @@ export default function PlansPage() {
       ) : null}
 
       {tab === "income" ? (
-        <div className="space-y-3.5 sm:space-y-4">
-          <Card>
-            <div className="mb-2.5 flex items-center justify-between gap-2">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">
-                Kutilayotgan daromad · {state.currentMonthIncome.label}
-              </p>
-            </div>
-            <Money value={state.currentMonthIncome.base} size="xl" tone="positive" />
-            <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3">
-              <StatCard label="Aniq" value={state.currentMonthIncome.exactBase} tone="positive" />
-              <StatCard label="Taxminiy" value={state.currentMonthIncome.estimatedBase} tone="muted" />
-            </div>
-            <p className="mt-3 border-t border-line pt-3 text-[11.5px] leading-snug text-muted">
-              90 kunlik prognoz <span className="num font-medium text-fg">{compact(f.income.base)} so‘m</span> · aniq{" "}
-              {compact(f.income.exactBase)} · taxminiy {compact(f.income.estimatedBase)}
-            </p>
-          </Card>
-
+        <div className="space-y-3 sm:space-y-3.5">
+          {/*
+           * §3: no monthly income summary card here. The forecast/expected-income
+           * figures still exist in `state.currentMonthIncome` / `state.forecast`
+           * and are consumed by the Dashboard and Pul oqimi — only this UI block
+           * is gone, so the plan list starts right under the tabs.
+           */}
           <div className="flex min-h-11 items-center justify-between gap-3">
             <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">Daromad rejalari</h2>
             <PlanStatusFilter value={incomeTab} onChange={setIncomeTab} kind="income" />
@@ -571,38 +511,6 @@ export default function PlansPage() {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p className="px-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{children}</p>
-  );
-}
-
-/** Compact metric section: intentionally unframed so cards never nest. */
-function StatCard({
-  label,
-  value,
-  context,
-  tone = "default",
-  plain,
-}: {
-  label: string;
-  value: number;
-  context?: string;
-  tone?: "default" | "positive" | "muted";
-  plain?: boolean;
-}) {
-  return (
-    <div className="min-w-0 px-1 py-1">
-      <p className="truncate text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
-      <div className="mt-1 min-w-0">
-        {plain ? (
-          <p className="num text-lg font-semibold">{value}</p>
-        ) : (
-          // Long UZS amounts must wrap instead of pushing the grid sideways (§5/§33).
-          <p className={`num break-words text-[15px] font-semibold leading-tight sm:text-base ${TONE_TEXT_STAT[tone]}`}>
-            {formatAmount(value)}
-          </p>
-        )}
-      </div>
-      {context ? <p className="mt-0.5 truncate text-[11px] text-muted">{context}</p> : null}
-    </div>
   );
 }
 
