@@ -280,25 +280,59 @@ function NavItem({
   active: boolean;
   badge?: number;
 }) {
+  /*
+   * Motion model (§6–§14):
+   *  - one shared ease-out curve + 200ms duration for background/icon/label/
+   *    indicator so every part of the active state changes in sync;
+   *  - the indicator expands/fades (scaleX + opacity) instead of repainting,
+   *    so the old line "shrinks" while the new one "grows" with no geometry change;
+   *  - the icon scales ~1.06 while active — a "you are here" cue, not a bounce;
+   *  - press feedback is a gentle 0.98 scale (no jump, no flash).
+   * Geometry is fixed: icon box, label baseline and indicator all keep their
+   * exact position and size, so switching tabs never shifts the nav layout.
+   */
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} o‘qilmagan eslatma` : undefined}
-      className="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1.5 transition-colors active:bg-surface-2 touch-manipulation"
+      className="nav-item flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1.5 touch-manipulation"
     >
-      <span className={`relative grid h-7 w-full place-items-center rounded-lg transition-colors ${active ? "bg-accent-soft" : ""}`}>
-        <Icon active={active} />
+      <span
+        className={`relative grid h-7 w-full place-items-center rounded-lg transition-[background-color] duration-200 ease-out ${
+          active ? "bg-accent-soft" : "bg-transparent"
+        }`}
+      >
+        <span
+          className="transition-transform duration-200 ease-out"
+          style={{ transform: active ? "scale(1.06)" : "scale(1)" }}
+        >
+          <Icon active={active} />
+        </span>
         {badge > 0 ? (
-          <span className="absolute right-1/2 top-0 translate-x-[14px] grid h-[15px] min-w-[15px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[8px] font-bold leading-none text-negative-fg">
+          <span
+            key={badge}
+            className="animate-badge-pop absolute right-1/2 top-0 grid h-[15px] min-w-[15px] translate-x-[14px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[8px] font-bold leading-none text-negative-fg"
+          >
             {badge > 9 ? "9+" : badge}
           </span>
         ) : null}
       </span>
-      <span className={`w-full truncate text-center text-[10px] font-medium leading-none ${active ? "text-fg" : "text-muted"}`}>
+      <span
+        className={`w-full truncate text-center text-[10px] leading-none transition-[color,font-weight] duration-200 ease-out ${
+          active ? "font-semibold text-fg" : "font-medium text-muted"
+        }`}
+      >
         {label}
       </span>
-      <span className="mt-0.5 h-[3px] w-4 rounded-full transition-all" style={{ background: active ? "var(--accent)" : "transparent" }} />
+      <span
+        className="mt-0.5 h-[3px] w-4 rounded-full bg-accent transition-[transform,opacity] duration-200 ease-out"
+        style={{
+          transform: active ? "scaleX(1)" : "scaleX(0.5)",
+          opacity: active ? 1 : 0,
+          transformOrigin: "center",
+        }}
+      />
     </Link>
   );
 }
