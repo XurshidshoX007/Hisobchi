@@ -50,6 +50,8 @@ export type CategoryView = {
   children: CategoryView[];
 };
 
+export type PlanLifecycle = "active" | "paused" | "cancelled" | "completed";
+
 export type RecurringView = {
   id: number;
   name: string;
@@ -67,6 +69,8 @@ export type RecurringView = {
   nextDueDate: string;
   reminderDaysBefore: number;
   isActive: boolean;
+  /** Lifecycle state (active | paused | cancelled | completed). */
+  status: PlanLifecycle;
   daysLeft: number;
   paidThisMonth: boolean;
   yearlyTotal: number;
@@ -91,6 +95,8 @@ export type ExpectedIncomeView = {
   frequency: string;
   certainty: "exact" | "estimated";
   isActive: boolean;
+  /** Lifecycle state (active | paused | cancelled | completed). */
+  status: PlanLifecycle;
   note: string | null;
   accountId: number | null;
   categoryId: number | null;

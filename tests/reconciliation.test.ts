@@ -50,8 +50,11 @@ test("completing the final term installment deactivates; revert reactivates", ()
 
 test("one_time payment deactivates and revert reactivates without changing the date", () => {
   const plan = { planType: "one_time", frequency: "once", nextDueDate: "2026-08-20", installmentsPaid: 0, installmentCount: null, isActive: true };
-  assert.deepEqual(advanceRecurringState(plan, "2026-08-20"), { isActive: false });
-  assert.deepEqual(revertRecurringState({ ...plan, isActive: false }, "2026-08-20"), { isActive: true });
+  assert.deepEqual(advanceRecurringState(plan, "2026-08-20"), { isActive: false, status: "completed" });
+  assert.deepEqual(revertRecurringState({ ...plan, isActive: false, status: "completed" }, "2026-08-20"), {
+    isActive: true,
+    status: "active",
+  });
 });
 
 test("recurring payment advances the cursor and revert restores the paid occurrence date", () => {
@@ -73,8 +76,11 @@ test("expected income receive/revert is symmetric for term plans", () => {
 
 test("expected income one_time receive deactivates and revert reactivates", () => {
   const plan = { planType: "one_time", frequency: "once", expectedDate: "2026-08-20", occurrencesReceived: 0, occurrenceCount: null, isActive: true };
-  assert.deepEqual(advanceIncomeState(plan, "2026-08-20"), { isActive: false });
-  assert.deepEqual(revertIncomeState({ ...plan, isActive: false }, "2026-08-20"), { isActive: true });
+  assert.deepEqual(advanceIncomeState(plan, "2026-08-20"), { isActive: false, status: "completed" });
+  assert.deepEqual(revertIncomeState({ ...plan, isActive: false, status: "completed" }, "2026-08-20"), {
+    isActive: true,
+    status: "active",
+  });
 });
 
 /* ============================ TERM TOTAL (no ×12) ============================ */

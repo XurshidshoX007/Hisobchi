@@ -18,6 +18,14 @@ export type OccurrenceIdentity = {
   occurrenceNumber: number;
 };
 
+/** Plan lifecycle state. Semantically distinct from `isActive`:
+ *  - active    → producing future occurrences
+ *  - paused    → user paused (resumable)
+ *  - cancelled → user cancelled/deleted (must NEVER be auto-reactivated)
+ *  - completed → term/one_time finished its occurrences naturally
+ */
+export type PlanStatus = "active" | "paused" | "cancelled" | "completed";
+
 export type PlanLike = {
   planType: string;
   frequency: string;
@@ -25,6 +33,7 @@ export type PlanLike = {
   installmentsPaid: number;
   installmentCount: number | null;
   isActive: boolean;
+  status?: PlanStatus | string | null;
   startDate?: string | null;
 };
 
@@ -35,8 +44,18 @@ export type IncomePlanLike = {
   occurrencesReceived: number;
   occurrenceCount: number | null;
   isActive: boolean;
+  status?: PlanStatus | string | null;
   startDate?: string | null;
 };
+
+/**
+ * Whether a plan was deactivated by explicit user intent (pause or cancel).
+ * Such plans must never be silently reactivated by transaction-delete
+ * reconciliation — only occurrence-level revert happens inside them.
+ */
+export function isUserDeactivated(status: PlanStatus | string | null | undefined): boolean {
+  return status === "cancelled" || status === "paused";
+}
 
 /** Advance a date by the plan frequency (weekly/monthly/yearly). */
 export function advancePeriod(date: string, frequency: string): string {
@@ -79,16 +98,18 @@ export function occurrenceIdentity(
 export function advanceRecurringState(
   plan: PlanLike,
   plannedDate: string,
-): { installmentsPaid?: number; nextDueDate?: string; isActive?: boolean } {
+): { installmentsPaid?: number; nextDueDate?: string; isActive?: boolean; status?: PlanStatus } {
   if (plan.planType === "one_time" || plan.frequency === "once") {
-    return { isActive: false };
+    return { isActive: false, status: "completed" };
   }
   if (plan.planType === "term") {
     const paid = plan.installmentsPaid + 1;
     const finished = plan.installmentCount !== null && paid >= plan.installmentCount;
     return {
       installmentsPaid: paid,
-      ...(finished ? { isActive: false } : { nextDueDate: advancePeriod(plannedDate, plan.frequency) }),
+      ...(finished
+        ? { isActive: false, status: "completed" as const }
+        : { nextDueDate: advancePeriod(plannedDate, plan.frequency) }),
     };
   }
   return { nextDueDate: advancePeriod(plannedDate, plan.frequency) };
@@ -98,18 +119,24 @@ export function advanceRecurringState(
 export function revertRecurringState(
   plan: PlanLike,
   plannedDate: string,
-): { installmentsPaid?: number; nextDueDate?: string; isActive?: boolean } {
+): { installmentsPaid?: number; nextDueDate?: string; isActive?: boolean; status?: PlanStatus } {
   if (plan.planType === "one_time" || plan.frequency === "once") {
-    return { isActive: true };
+    // A cancelled/paused one-time plan stays deactivated — only a plan that
+    // completed (or was still active) returns to active.
+    return isUserDeactivated(plan.status) ? {} : { isActive: true, status: "active" };
   }
   if (plan.planType === "term") {
-    const wasCompleted = plan.installmentCount !== null && plan.installmentsPaid >= plan.installmentCount;
+    // Explicit user deactivation (cancel/pause) wins over occurrence revert:
+    // a cancelled plan must never be resurrected by deleting a payment.
+    const wasCompleted =
+      !isUserDeactivated(plan.status) &&
+      (plan.status === "completed" || (plan.installmentCount !== null && plan.installmentsPaid >= plan.installmentCount));
     return {
       installmentsPaid: Math.max(0, plan.installmentsPaid - 1),
       nextDueDate: plannedDate,
       // Only auto-reactivate when the deleted fulfilment was what completed
-      // the term; a plan the user paused on purpose stays paused.
-      ...(wasCompleted ? { isActive: true } : {}),
+      // the term; a plan the user paused/cancelled on purpose stays inactive.
+      ...(wasCompleted ? { isActive: true, status: "active" as const } : {}),
     };
   }
   return { nextDueDate: plannedDate };
@@ -119,16 +146,18 @@ export function revertRecurringState(
 export function advanceIncomeState(
   plan: IncomePlanLike,
   plannedDate: string,
-): { occurrencesReceived?: number; expectedDate?: string; isActive?: boolean } {
+): { occurrencesReceived?: number; expectedDate?: string; isActive?: boolean; status?: PlanStatus } {
   if (plan.planType === "one_time" || plan.frequency === "once") {
-    return { isActive: false };
+    return { isActive: false, status: "completed" };
   }
   if (plan.planType === "term") {
     const received = plan.occurrencesReceived + 1;
     const finished = plan.occurrenceCount !== null && received >= plan.occurrenceCount;
     return {
       occurrencesReceived: received,
-      ...(finished ? { isActive: false } : { expectedDate: advancePeriod(plannedDate, plan.frequency) }),
+      ...(finished
+        ? { isActive: false, status: "completed" as const }
+        : { expectedDate: advancePeriod(plannedDate, plan.frequency) }),
     };
   }
   return { expectedDate: advancePeriod(plannedDate, plan.frequency) };
@@ -138,16 +167,18 @@ export function advanceIncomeState(
 export function revertIncomeState(
   plan: IncomePlanLike,
   plannedDate: string,
-): { occurrencesReceived?: number; expectedDate?: string; isActive?: boolean } {
+): { occurrencesReceived?: number; expectedDate?: string; isActive?: boolean; status?: PlanStatus } {
   if (plan.planType === "one_time" || plan.frequency === "once") {
-    return { isActive: true };
+    return isUserDeactivated(plan.status) ? {} : { isActive: true, status: "active" };
   }
   if (plan.planType === "term") {
-    const wasCompleted = plan.occurrenceCount !== null && plan.occurrencesReceived >= plan.occurrenceCount;
+    const wasCompleted =
+      !isUserDeactivated(plan.status) &&
+      (plan.status === "completed" || (plan.occurrenceCount !== null && plan.occurrencesReceived >= plan.occurrenceCount));
     return {
       occurrencesReceived: Math.max(0, plan.occurrencesReceived - 1),
       expectedDate: plannedDate,
-      ...(wasCompleted ? { isActive: true } : {}),
+      ...(wasCompleted ? { isActive: true, status: "active" as const } : {}),
     };
   }
   return { expectedDate: plannedDate };

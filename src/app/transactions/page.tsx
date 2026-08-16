@@ -132,8 +132,12 @@ export default function TransactionsPage() {
                         {t.type === "transfer" ? "↔️" : t.categoryIcon}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14px] font-medium">
-                          {t.type === "transfer" ? `${t.accountName} → ${t.toAccountName ?? ""}` : t.categoryName ?? "Boshqa"}
+                        <p className="flex items-center gap-1.5 truncate text-[14px] font-medium">
+                          <span className="truncate">
+                            {t.type === "transfer" ? `${t.accountName} → ${t.toAccountName ?? ""}` : t.categoryName ?? "Boshqa"}
+                          </span>
+                          {t.recurringId ? <Badge tone="accent">Reja to‘lovi</Badge> : null}
+                          {t.expectedIncomeId ? <Badge tone="positive">Kutilgan daromad</Badge> : null}
                         </p>
                         <p className="truncate text-[11.5px] text-muted">
                           {t.note ? `${t.note} · ` : ""}
@@ -187,9 +191,15 @@ export default function TransactionsPage() {
 }
 
 function DeleteConfirm({ tx, onClose }: { tx: TxView | null; onClose: () => void }) {
-  const { mutate } = useFinance();
+  const { state, mutate } = useFinance();
   const [saving, setSaving] = useState(false);
-  const linked = Boolean(tx?.recurringId || tx?.expectedIncomeId);
+  const linkedPlan = tx?.recurringId
+    ? state?.recurring.find((r) => r.id === tx.recurringId) ?? null
+    : null;
+  const linkedIncome = tx?.expectedIncomeId
+    ? state?.expectedIncomes.find((i) => i.id === tx.expectedIncomeId) ?? null
+    : null;
+  const linked = Boolean(linkedPlan || linkedIncome);
 
   async function confirm() {
     if (!tx || saving) return;
@@ -201,6 +211,25 @@ function DeleteConfirm({ tx, onClose }: { tx: TxView | null; onClose: () => void
       onClose();
     }
   }
+
+  // A plan-linked delete reconciles its occurrence: the scheduled date is
+  // restored and (for term plans) the paid counter steps back. A cancelled
+  // plan never re-appears — only its historical payment is removed.
+  const revertNote = linkedPlan
+    ? linkedPlan.planType === "term" && linkedPlan.installmentCount !== null
+      ? `Reja hisobidagi occurrence qayta tiklanadi: ${linkedPlan.installmentsPaid}/${linkedPlan.installmentCount} → ${Math.max(
+          0,
+          linkedPlan.installmentsPaid - 1,
+        )}/${linkedPlan.installmentCount}.`
+      : "Reja hisobidagi occurrence qayta tiklanadi."
+    : linkedIncome
+      ? "Daromad rejasidagi occurrence qayta tiklanadi."
+      : null;
+
+  const cancelledNote =
+    linkedPlan?.status === "cancelled" || linkedIncome?.status === "cancelled"
+      ? " Reja bekor qilinganligi uchun kelajakdagi to‘lovlar qaytmaydi — faqat shu tarixiy to‘lov o‘chiriladi."
+      : "";
 
   return (
     <Sheet
@@ -229,7 +258,7 @@ function DeleteConfirm({ tx, onClose }: { tx: TxView | null; onClose: () => void
       </p>
       <p className="text-[13px] leading-relaxed text-muted">
         {linked
-          ? "Bu amal to‘lovni tarixdan olib tashlaydi va reja hisobini qayta tiklaydi."
+          ? `Bu to‘lov tarixdan o‘chiriladi. ${revertNote ?? ""}${cancelledNote}`
           : "Operatsiya tarixdan olib tashlanadi."}
       </p>
     </Sheet>

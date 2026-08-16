@@ -118,6 +118,7 @@ export default function PlansPage() {
                           · {humanDate(r.nextDueDate)}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
+                          <Badge tone={planStatusTone(r.status)}>{planStatusLabel(r.status)}</Badge>
                           <Badge tone={r.isMandatory ? "negative" : "neutral"}>{r.isMandatory ? "majburiy" : "ixtiyoriy"}</Badge>
                           <Badge tone={r.certainty === "estimated" ? "warning" : "accent"}>
                             {r.certainty === "estimated" ? "taxminiy" : "aniq"}
@@ -128,12 +129,16 @@ export default function PlansPage() {
                             </Badge>
                           ) : null}
                           {r.planType === "one_time" ? <Badge tone="neutral">bir martalik</Badge> : null}
-                          {r.termCompleted ? <Badge tone="positive">yakunlangan</Badge> : !r.isActive ? <Badge tone="neutral">pauza</Badge> : null}
                         </div>
-                        {r.planType === "term" && r.remainingTotal !== null && !r.termCompleted ? (
+                        {r.planType === "term" && r.planTotal !== null ? (
                           <p className="mt-1.5 text-[11.5px] text-muted">
-                            Qolgan: {compact(r.remainingTotal)} so‘m ({r.remainingInstallments} ta to‘lov)
+                            Reja jami: {compact(r.planTotal)} so‘m
+                            {r.remainingTotal !== null && !r.termCompleted
+                              ? ` · Qolgan: ${compact(r.remainingTotal)} so‘m (${r.remainingInstallments} ta to‘lov)`
+                              : ""}
                           </p>
+                        ) : r.planType === "recurring" ? (
+                          <p className="mt-1.5 text-[11.5px] text-muted">Yillik jami: {compact(r.yearlyTotal)} so‘m</p>
                         ) : null}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
@@ -166,10 +171,11 @@ export default function PlansPage() {
                           <button
                             type="button"
                             onClick={() => setDeletingPlan(r)}
-                            className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-negative hover:text-negative-text active:bg-surface-3 touch-manipulation"
-                            aria-label="O‘chirish"
+                            disabled={r.status === "cancelled"}
+                            className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-negative hover:text-negative-text active:bg-surface-3 disabled:pointer-events-none disabled:opacity-50 touch-manipulation"
+                            aria-label="Rejani bekor qilish"
                           >
-                            O‘chirish
+                            Rejani bekor qilish
                           </button>
                         </div>
                       </div>
@@ -497,23 +503,23 @@ function PlanDeleteConfirm({ plan, onClose }: { plan: RecurringView | null; onCl
     <Sheet
       open={Boolean(plan)}
       onClose={onClose}
-      title="Rejani o‘chirish"
+      title="Rejani bekor qilish"
       footer={
         <>
           <Button variant="secondary" className="flex-1" onClick={onClose}>
             Bekor qilish
           </Button>
           <Button variant="danger" className="flex-[2]" onClick={confirm} disabled={saving}>
-            {saving ? "O‘chirilmoqda…" : "O‘chirish"}
+            {saving ? "Bekor qilinmoqda…" : "Rejani bekor qilish"}
           </Button>
         </>
       }
     >
       <p className="text-[14px] leading-relaxed">
-        <span className="font-semibold">{plan?.name}</span> rejasi o‘chiriladi.
+        <span className="font-semibold">{plan?.name}</span> rejasi bekor qilinadi.
       </p>
       <p className="text-[13px] leading-relaxed text-muted">
-        Kelajakdagi to‘lovlar bekor qilinadi. Tarixdagi to‘lovlar o‘chirilmaydi.
+        Bu faqat kelajakdagi to‘lovlarni bekor qiladi. Tarixdagi amalga oshirilgan to‘lovlar saqlanadi.
       </p>
     </Sheet>
   );
@@ -917,4 +923,32 @@ function frequencyLabel(frequency: string): string {
   if (frequency === "yearly") return "har yil";
   if (frequency === "monthly") return "har oy";
   return "bir marta";
+}
+
+type PlanStatus = "active" | "paused" | "cancelled" | "completed";
+
+function planStatusLabel(status: PlanStatus): string {
+  switch (status) {
+    case "active":
+      return "Faol";
+    case "paused":
+      return "Pauza";
+    case "cancelled":
+      return "Bekor qilingan";
+    case "completed":
+      return "Yakunlangan";
+  }
+}
+
+function planStatusTone(status: PlanStatus): "neutral" | "positive" | "negative" | "warning" | "accent" | "info" {
+  switch (status) {
+    case "active":
+      return "accent";
+    case "paused":
+      return "neutral";
+    case "cancelled":
+      return "negative";
+    case "completed":
+      return "positive";
+  }
 }

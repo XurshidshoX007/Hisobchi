@@ -193,6 +193,16 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     const remainingInstallments =
       planType === "term" ? Math.max(0, (r.installmentCount ?? 0) - r.installmentsPaid) : planType === "one_time" ? (r.isActive ? 1 : 0) : null;
     const termCompleted = planType === "term" && remainingInstallments === 0;
+    // Lifecycle: a fully-paid term is "completed"; an explicit cancelled/
+    // paused/completed status is preserved; anything else derives from the
+    // active flag (legacy rows with no status default to active/paused).
+    const status = (termCompleted
+      ? "completed"
+      : r.status === "cancelled" || r.status === "paused" || r.status === "completed"
+        ? r.status
+        : r.isActive
+          ? "active"
+          : "paused") as RecurringView["status"];
     // Annualized total applies ONLY to indefinite recurring plans. Term and
     // one-time plans must never be multiplied by 12 (a 2-installment term is
     // worth count × amount, not amount × 12).
@@ -221,6 +231,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       nextDueDate: r.nextDueDate,
       reminderDaysBefore: r.reminderDaysBefore,
       isActive: r.isActive && !termCompleted,
+      status,
       daysLeft,
       paidThisMonth,
       yearlyTotal: round2(yearlyTotal),
@@ -248,6 +259,13 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     const remaining =
       planType === "term" ? Math.max(0, (i.occurrenceCount ?? 0) - i.occurrencesReceived) : planType === "one_time" ? (i.isActive ? 1 : 0) : null;
     const termCompleted = planType === "term" && remaining === 0;
+    const status = (termCompleted
+      ? "completed"
+      : i.status === "cancelled" || i.status === "paused" || i.status === "completed"
+        ? i.status
+        : i.isActive
+          ? "active"
+          : "paused") as ExpectedIncomeView["status"];
     const planTotal =
       planType === "term"
         ? round2((i.occurrenceCount ?? 0) * base)
@@ -265,6 +283,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       frequency: i.frequency,
       certainty: i.certainty === "estimated" ? "estimated" : "exact",
       isActive: i.isActive && !termCompleted,
+      status,
       note: i.note,
       accountId: i.accountId,
       categoryId: i.categoryId,
