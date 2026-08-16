@@ -95,7 +95,6 @@ function TransactionsView() {
     });
   }
 
-  const net = totals.income - totals.expense;
   const hasSearch = Boolean(searchQuery.trim());
   const hasActiveFilters = localTransactionFilterCount(filterState) > 0 || contexts.length > 0;
 
@@ -164,7 +163,7 @@ function TransactionsView() {
 
       <div
         className="num flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[11.5px] text-fg-soft sm:text-[12px]"
-        aria-label={`Daromad ${totals.income}, xarajat ${totals.expense}, ${totals.count} ta operatsiya, sof ${net}`}
+        aria-label={`Daromad ${totals.income}, xarajat ${totals.expense}, ${totals.count} ta operatsiya`}
         aria-live="polite"
       >
         <span className="font-semibold text-positive-text">+{compact(totals.income)}</span>
@@ -172,10 +171,6 @@ function TransactionsView() {
         <span className="font-medium">−{compact(totals.expense)}</span>
         <span aria-hidden="true" className="text-muted">·</span>
         <span>{totals.count} ta</span>
-        <span aria-hidden="true" className="text-muted">·</span>
-        <span className={net > 0 ? "font-medium text-positive-text" : net < 0 ? "font-medium text-negative-text" : ""}>
-          Sof {net > 0 ? "+" : net < 0 ? "−" : ""}{compact(net)}
-        </span>
       </div>
 
       {grouped.length === 0 ? (

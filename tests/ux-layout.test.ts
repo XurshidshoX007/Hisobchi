@@ -53,8 +53,12 @@ test("plans share one compact single-select status filter", () => {
   assert.doesNotMatch(planFilter + transactionFilter, /Apply|Qo‘llash/);
 });
 
-test("History keeps search visible and only true filters in the shared sheet", () => {
+test("History keeps search visible, a minimal summary and only true filters in the shared sheet", () => {
   assert.match(history, /<PageHeader title="Tarix"/);
+  assert.match(history, /\+\{compact\(totals\.income\)\}/);
+  assert.match(history, /−\{compact\(totals\.expense\)\}/);
+  assert.match(history, /\{totals\.count\} ta/);
+  assert.doesNotMatch(history, /\bSof\b|\bsof\b/);
   assert.match(history, /<TextInput/);
   assert.match(history, /placeholder="Kategoriya, izoh yoki summa"/);
   assert.match(history, /const \[searchQuery, setSearchQuery\]/);
