@@ -6,7 +6,7 @@ import { botIntent, isStartCommand, parseBatchCallback, parseDraftCallback } fro
 import { buildAnalytics, buildForecast, buildPlanned, remainingOccurrences } from "../src/lib/finance";
 import { extractDate, parseDraft, parseDrafts, splitOperations } from "../src/lib/nlp";
 import { addDays, addMonths, dayDiff, monthEnd, monthKey, monthStart } from "../src/lib/money";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { Segmented } from "../src/components/ui";
 
 /* ============================ BOT ROUTING ============================ */
@@ -491,6 +491,34 @@ test("received expected income is reconciled and never forecast twice", () => {
 test("paid recurring occurrence is removed from the planned timeline", () => {
   const planned = buildPlanned([{ id: 8, name: "Kredit", amount: 1_880_000, minAmount: null, maxAmount: null, nextDueDate: "2026-08-17", frequency: "once", isMandatory: true, certainty: "exact", isActive: true, categoryId: null }], [], "2026-08-16", 31, [{ date: "2026-08-17", type: "expense", amount: 1_880_000, recurringId: 8 }]);
   assert.equal(planned.length, 0);
+});
+
+/* ============================ MIGRATION INTEGRITY ============================ */
+
+test("every SQL migration file is registered in the drizzle journal", () => {
+  const journal = JSON.parse(
+    readFileSync(new URL("../drizzle/meta/_journal.json", import.meta.url), "utf8"),
+  ) as { entries: Array<{ tag: string }> };
+  const journalTags = new Set(journal.entries.map((e) => e.tag));
+
+  const sqlFiles = readdirSync(new URL("../drizzle", import.meta.url))
+    .filter((name) => name.endsWith(".sql"))
+    .map((name) => name.replace(/\.sql$/, ""));
+
+  assert.ok(sqlFiles.length > 0, "expected at least one migration SQL file");
+
+  // A migration file that exists on disk but is missing from the journal is
+  // silently skipped by scripts/migrate.mjs — the table/column it defines never
+  // reaches the database, which breaks every query that touches it (e.g. the
+  // `goals.is_deleted` column required by buildAppState).
+  for (const file of sqlFiles) {
+    assert.ok(journalTags.has(file), `migration "${file}.sql" is missing from drizzle/meta/_journal.json`);
+  }
+  // Conversely, a journal entry pointing at a file that no longer exists makes
+  // migrate.mjs throw at deploy time.
+  for (const tag of journalTags) {
+    assert.ok(sqlFiles.includes(tag), `journal entry "${tag}" has no matching .sql file`);
+  }
 });
 
 test("conservative forecast includes estimated minimum income", () => {
