@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import type { PlanListTab } from "@/lib/finance";
 import { FilterButton, FilterRadioGroup } from "./filter-controls";
-import { Sheet } from "./ui";
+import { ContextualBottomSheet } from "./ui";
 
 const STATUS_OPTIONS: Array<{ value: PlanListTab; label: string }> = [
   { value: "open", label: "Faol" },
@@ -42,7 +42,7 @@ export function PlanStatusFilter({
         controlsId={contentId}
       />
 
-      <Sheet open={open} onClose={() => setOpen(false)} title={title}>
+      <ContextualBottomSheet open={open} onClose={() => setOpen(false)} title={title}>
         <FilterRadioGroup
           id={contentId}
           label={title}
@@ -51,7 +51,7 @@ export function PlanStatusFilter({
           options={STATUS_OPTIONS}
           onChange={select}
         />
-      </Sheet>
+      </ContextualBottomSheet>
     </>
   );
 }

@@ -328,7 +328,12 @@ function PaySheet({ debt, onClose }: { debt: DebtView | null; onClose: () => voi
     setAccountId(remembered ? String(remembered) : "");
   }, [debt]);
 
-  const record = debt;
+  // Retain the selected record until the shared primitive finishes its exit;
+  // otherwise clearing page state would unmount the whole sheet mid-motion.
+  const [record, setRecord] = useState<DebtView | null>(debt);
+  useEffect(() => {
+    if (debt) setRecord(debt);
+  }, [debt]);
   const parsed = parseAmountInput(amount);
   const errors: Record<string, string> = {};
   const amountMsg = amountError(amount, "To‘lov summasini kiriting");

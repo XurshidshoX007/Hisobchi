@@ -201,7 +201,7 @@ test("the FAB recedes while any sheet is open", () => {
   assert.match(ui, /openSheetCount = Math\.max\(0, openSheetCount - 1\)/);
   assert.match(css, /body\[data-sheet-open\] \.global-fab/);
   assert.match(css, /pointer-events: none;/);
-  // Layer order stays page → FAB → nav → sheet.
+  // Layer order stays page → bottom nav → FAB → sheet.
   assert.match(css, /--z-fab:\s*50/);
   assert.match(css, /--z-sheet:\s*80/);
 });
@@ -222,5 +222,5 @@ test("shared controls carry labels, states and 44px touch targets", () => {
   assert.match(formKit, /aria-expanded=\{open\}/);
   assert.match(formKit, /aria-busy/);
   assert.match(formKit, /min-h-11/);
-  assert.match(ui, /aria-describedby=\{subtitle \? subtitleId : undefined\}/);
+  assert.match(ui, /aria-describedby=\{content\.subtitle \? subtitleId : undefined\}/);
 });

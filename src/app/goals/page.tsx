@@ -270,7 +270,12 @@ function ContributeSheet({ goal, onClose }: { goal: GoalView | null; onClose: ()
     setTouched(false);
   }, [goal]);
 
-  const record = goal;
+  // Retain the selected record until the shared primitive finishes its exit;
+  // otherwise clearing page state would unmount the whole sheet mid-motion.
+  const [record, setRecord] = useState<GoalView | null>(goal);
+  useEffect(() => {
+    if (goal) setRecord(goal);
+  }, [goal]);
   const parsed = parseAmountInput(amount);
   const errorMsg = amountError(amount, "Jamg‘arma summasini kiriting");
   const valid = !errorMsg;

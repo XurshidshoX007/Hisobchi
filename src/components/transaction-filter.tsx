@@ -10,7 +10,7 @@ import {
   type TransactionFilterState,
 } from "@/lib/transaction-filters";
 import { FilterButton, FilterRadioGroup, FilterSection } from "./filter-controls";
-import { Sheet, TextInput } from "./ui";
+import { ContextualBottomSheet, TextInput } from "./ui";
 
 type FlatCategory = Omit<CategoryView, "children">;
 
@@ -91,7 +91,7 @@ export function TransactionFilter({
         floating
       />
 
-      <Sheet open={open} onClose={close} title="Tarixni filtrlash">
+      <ContextualBottomSheet open={open} onClose={close} title="Tarixni filtrlash">
         <div id={contentId} className="min-w-0 space-y-4">
           <FilterSection label="Operatsiya turi">
             <FilterRadioGroup
@@ -206,7 +206,7 @@ export function TransactionFilter({
             </button>
           ) : null}
         </div>
-      </Sheet>
+      </ContextualBottomSheet>
     </>
   );
 }

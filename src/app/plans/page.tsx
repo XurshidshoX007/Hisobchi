@@ -828,16 +828,30 @@ type MenuTarget = {
  * a cancelled plan cannot be paused, a completed plan cannot be cancelled.
  */
 function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose: () => void }) {
+  const pendingActionRef = useRef<(() => void) | null>(null);
+
   function run(action: () => void) {
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = action;
     onClose();
-    action();
+  }
+
+  function completeActionHandoff() {
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    action?.();
   }
   // §9/§24: the same boxed row grammar as every other choice list in a sheet —
   // own border, 8px gap, wrapping label, 48px touch target.
   const rowClass =
     "flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium leading-tight transition-colors hover:border-line-strong hover:bg-surface-3 active:bg-surface-3 touch-manipulation [overflow-wrap:anywhere]";
   return (
-    <Sheet open={Boolean(plan)} onClose={onClose} title={plan?.title ?? ""}>
+    <Sheet
+      open={Boolean(plan)}
+      onClose={onClose}
+      onExitComplete={completeActionHandoff}
+      title={plan?.title ?? ""}
+    >
       <div className="min-w-0 space-y-2">
         {plan?.status === "active" || plan?.status === "paused" ? (
           <button type="button" className={rowClass} onClick={() => plan && run(plan.onToggle)}>

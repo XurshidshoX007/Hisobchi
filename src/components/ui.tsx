@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable react-hooks/refs, react-hooks/set-state-in-effect -- sheet presence/content intentionally outlive the controlling prop through exit */
 
 import Link from "next/link";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { formatAmount } from "@/lib/money";
 
@@ -296,77 +297,303 @@ export function Progress({
 }
 
 /**
- * Number of sheets currently mounted. The count (not a boolean) is what makes
- * a stacked confirm-over-form case safe: the FAB only returns once the LAST
- * overlay is gone.
+ * Contextual sheet orchestration is deliberately global: overlapping close →
+ * open hand-offs must keep the page locked until the final sheet exits, and
+ * only the top-most dialog may react to Escape/Tab.
  */
 let openSheetCount = 0;
+let sheetInstanceSequence = 0;
+const sheetStack: number[] = [];
 
-export function Sheet({
-  open,
-  onClose,
-  title,
-  subtitle,
-  children,
-  footer,
-}: {
+type ScrollLockSnapshot = {
+  scrollX: number;
+  scrollY: number;
+  body: {
+    overflow: string;
+    position: string;
+    top: string;
+    left: string;
+    right: string;
+    width: string;
+    paddingRight: string;
+  };
+  htmlOverflow: string;
+};
+
+let scrollLockSnapshot: ScrollLockSnapshot | null = null;
+
+function lockPageScroll() {
+  openSheetCount += 1;
+  document.body.dataset.sheetOpen = "1";
+  if (openSheetCount !== 1) return;
+
+  const body = document.body;
+  const root = document.documentElement;
+  const scrollbarGap = Math.max(0, window.innerWidth - root.clientWidth);
+  scrollLockSnapshot = {
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+    body: {
+      overflow: body.style.overflow,
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      paddingRight: body.style.paddingRight,
+    },
+    htmlOverflow: root.style.overflow,
+  };
+
+  // `overflow: hidden` is sufficient on desktop; fixing the body also prevents
+  // the background from rubber-banding in iOS and Telegram WebViews. Scroll
+  // coordinates are restored exactly when the last sheet finishes exiting.
+  body.style.overflow = "hidden";
+  body.style.position = "fixed";
+  body.style.top = `-${scrollLockSnapshot.scrollY}px`;
+  body.style.left = "0";
+  body.style.right = "0";
+  body.style.width = "100%";
+  if (scrollbarGap) body.style.paddingRight = `${scrollbarGap}px`;
+  root.style.overflow = "hidden";
+}
+
+function unlockPageScroll() {
+  openSheetCount = Math.max(0, openSheetCount - 1);
+  if (openSheetCount > 0) return;
+
+  delete document.body.dataset.sheetOpen;
+  const snapshot = scrollLockSnapshot;
+  scrollLockSnapshot = null;
+  if (!snapshot) return;
+
+  const body = document.body;
+  body.style.overflow = snapshot.body.overflow;
+  body.style.position = snapshot.body.position;
+  body.style.top = snapshot.body.top;
+  body.style.left = snapshot.body.left;
+  body.style.right = snapshot.body.right;
+  body.style.width = snapshot.body.width;
+  body.style.paddingRight = snapshot.body.paddingRight;
+  document.documentElement.style.overflow = snapshot.htmlOverflow;
+  window.scrollTo(snapshot.scrollX, snapshot.scrollY);
+}
+
+const FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+const SHEET_EXIT_FALLBACK_MS = 260;
+
+type ContextualBottomSheetProps = {
   open: boolean;
   onClose: () => void;
+  /** Runs once after the visual exit; used for sheet-to-sheet hand-offs. */
+  onExitComplete?: () => void;
   title: string;
   /** Optional one-line context under the title — same grammar in every sheet. */
   subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
-}) {
+};
+
+/**
+ * The one motion/accessibility primitive for Add Flow, Filter, action menus,
+ * confirms and notifications.
+ *
+ * Presence remains mounted through the CSS exit transition. The content
+ * snapshot is also retained while closing, so clearing page-owned selection
+ * state cannot make the panel flash empty before it reaches the viewport edge.
+ */
+export function ContextualBottomSheet({
+  open,
+  onClose,
+  onExitComplete,
+  title,
+  subtitle,
+  children,
+  footer,
+}: ContextualBottomSheetProps) {
+  const [present, setPresent] = useState(open);
+  const [motionState, setMotionState] = useState<"open" | "closed">("closed");
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const onExitCompleteRef = useRef(onExitComplete);
+  const openRef = useRef(open);
+  const exitNotifiedRef = useRef(false);
+  const contentRef = useRef({ title, subtitle, children, footer });
+  const instanceIdRef = useRef(0);
   const titleId = useId();
   const subtitleId = useId();
+
+  if (instanceIdRef.current === 0) instanceIdRef.current = ++sheetInstanceSequence;
+  onCloseRef.current = onClose;
+  onExitCompleteRef.current = onExitComplete;
+  openRef.current = open;
+  if (open) {
+    exitNotifiedRef.current = false;
+    contentRef.current = { title, subtitle, children, footer };
+  }
+
+  const completeExit = useCallback(() => {
+    if (openRef.current || exitNotifiedRef.current) return;
+    exitNotifiedRef.current = true;
+    onExitCompleteRef.current?.();
+    // Keep the now-transparent old layer locked for one frame. A hand-off can
+    // mount its next sheet in that frame, avoiding a body/FAB unlock flash.
+    window.requestAnimationFrame(() => {
+      if (!openRef.current) setPresent(false);
+    });
+  }, []);
+
+  // One state machine handles enter, exit and rapid reversal. Two animation
+  // frames guarantee the browser paints the closed transform before entering.
   useEffect(() => {
-    if (!open) return;
-    // Remember the element that opened the sheet so focus can return to it.
-    const opener = document.activeElement as HTMLElement | null;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    // §39: while a sheet is open the FAB visually recedes instead of floating
-    // above the modal layer.
-    openSheetCount += 1;
-    document.body.dataset.sheetOpen = "1";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    let firstFrame = 0;
+    let secondFrame = 0;
+    let exitTimer = 0;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (open) {
+      if (!present) {
+        setPresent(true);
+        return;
+      }
+      firstFrame = window.requestAnimationFrame(() => {
+        secondFrame = window.requestAnimationFrame(() => setMotionState("open"));
+      });
+    } else if (present) {
+      setMotionState("closed");
+      exitTimer = window.setTimeout(completeExit, reducedMotion ? 0 : SHEET_EXIT_FALLBACK_MS);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(exitTimer);
     };
-    window.addEventListener("keydown", onKey);
-    // Move focus into the dialog for keyboard/screen-reader users — but never
-    // steal it from a field that already autofocused (§36: the amount input
-    // must keep the numeric keypad it just opened).
+  }, [completeExit, open, present]);
+
+  // Scroll lock, focus entry/return, Escape and a minimal focus trap all share
+  // the same presence lifecycle, so none are released halfway through exit.
+  useEffect(() => {
+    if (!present) return;
+    const instanceId = instanceIdRef.current;
+    const opener = document.activeElement as HTMLElement | null;
+    sheetStack.push(instanceId);
+    lockPageScroll();
+
+    // Telegram's native BackButton follows the same close path as Escape and
+    // the visible X. Stacked sheets keep the button alive until the final
+    // presence exits; only the top-most sheet responds.
+    const telegramBackButton = (
+      window as unknown as {
+        Telegram?: {
+          WebApp?: {
+            BackButton?: {
+              show: () => void;
+              hide: () => void;
+              onClick: (callback: () => void) => void;
+              offClick: (callback: () => void) => void;
+            };
+          };
+        };
+      }
+    ).Telegram?.WebApp?.BackButton;
+    const onTelegramBack = () => {
+      if (sheetStack.at(-1) === instanceId && openRef.current) onCloseRef.current();
+    };
+    telegramBackButton?.onClick(onTelegramBack);
+    telegramBackButton?.show();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (sheetStack.at(-1) !== instanceId) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (openRef.current) onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (node) => node.getClientRects().length > 0 && node.getAttribute("aria-hidden") !== "true",
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
     const focusTimer = window.setTimeout(() => {
       const node = dialogRef.current;
-      if (!node || node.contains(document.activeElement)) return;
-      node.focus();
+      if (!node || node.contains(document.activeElement) || sheetStack.at(-1) !== instanceId) return;
+      node.focus({ preventScroll: true });
     }, 40);
+
     return () => {
-      document.body.style.overflow = prev;
-      openSheetCount = Math.max(0, openSheetCount - 1);
-      if (openSheetCount === 0) delete document.body.dataset.sheetOpen;
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKeyDown);
       window.clearTimeout(focusTimer);
-      opener?.focus?.();
+      telegramBackButton?.offClick(onTelegramBack);
+      const stackIndex = sheetStack.lastIndexOf(instanceId);
+      if (stackIndex >= 0) sheetStack.splice(stackIndex, 1);
+      if (sheetStack.length === 0) telegramBackButton?.hide();
+      unlockPageScroll();
+      if (sheetStack.length === 0 && opener?.isConnected) {
+        try {
+          opener.focus({ preventScroll: true });
+        } catch {
+          opener.focus();
+        }
+      }
     };
-  }, [open, onClose]);
-  if (!open || typeof document === "undefined") return null;
+  }, [present]);
+
+  if (!present || typeof document === "undefined") return null;
+
+  const content = contentRef.current;
   const sheet = (
-    <div className="sheet-layer fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden />
+    <div
+      className="sheet-layer fixed inset-0 flex items-end justify-center sm:px-4"
+      data-motion-state={motionState}
+    >
+      <div
+        className="sheet-backdrop absolute inset-0"
+        onClick={() => {
+          if (open) onCloseRef.current();
+        }}
+        aria-hidden="true"
+      />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        aria-describedby={subtitle ? subtitleId : undefined}
+        aria-describedby={content.subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        /* Geometry: `.sheet-dialog` (globals.css) locks width/min-width and the
-           100vw cap; `sm:max-w-[520px]` states the desktop column here too so
-           the value is visible where the component is read. */
-        className="sheet-dialog animate-sheet relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88vh] sm:max-w-[520px] sm:rounded-[20px]"
+        onTransitionEnd={(event) => {
+          if (event.target === event.currentTarget && event.propertyName === "transform" && !open) {
+            completeExit();
+          }
+        }}
+        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-[20px]"
       >
         <div className="shrink-0 px-5 pt-3 sm:hidden">
           <div className="mx-auto h-1.5 w-10 rounded-full bg-line-strong" />
@@ -374,19 +601,19 @@ export function Sheet({
         <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-3">
           <div className="min-w-0 flex-1">
             <h3 id={titleId} className="truncate text-[15px] font-semibold tracking-tight sm:text-base">
-              {title}
+              {content.title}
             </h3>
-            {subtitle ? (
+            {content.subtitle ? (
               <p id={subtitleId} className="mt-0.5 truncate text-[11.5px] leading-snug text-muted">
-                {subtitle}
+                {content.subtitle}
               </p>
             ) : null}
           </div>
-          {/* §12/§37: a 36px glyph with a 48px invisible hit area — a compact
-              header that is still comfortable to tap. */}
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              if (open) onCloseRef.current();
+            }}
             data-hit="expanded"
             className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-surface-3 hover:text-fg active:scale-[0.96] touch-manipulation"
             aria-label="Yopish"
@@ -395,11 +622,11 @@ export function Sheet({
           </button>
         </div>
         <div className="sheet-body min-h-0 flex-1 px-5 pb-4">
-          <div className="sheet-form space-y-4 pb-2">{children}</div>
+          <div className="sheet-form space-y-4 pb-2">{content.children}</div>
         </div>
-        {footer ? (
+        {content.footer ? (
           <div className="sheet-footer-safe sheet-footer sticky bottom-0 shrink-0 border-t border-line bg-surface px-5 pt-4">
-            <div className="flex min-w-0 flex-wrap gap-2.5 [&>*]:min-w-0">{footer}</div>
+            <div className="flex min-w-0 flex-wrap gap-2.5 [&>*]:min-w-0">{content.footer}</div>
           </div>
         ) : (
           <div className="sheet-bottom-safe shrink-0" />
@@ -409,6 +636,9 @@ export function Sheet({
   );
   return createPortal(sheet, document.body);
 }
+
+/** Backwards-compatible name: every legacy call still resolves to ONE primitive. */
+export const Sheet = ContextualBottomSheet;
 
 export function EmptyState({
   icon,

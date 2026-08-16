@@ -50,9 +50,13 @@ const PAGE_SOURCES = {
 
 /* ==================== §2/§3/§32 sheet geometry ==================== */
 
-test("the sheet layer clamps itself to the visual viewport and clips overflow", () => {
-  assert.match(css, /\.sheet-layer\s*\{[^}]*max-width:\s*100vw/);
-  assert.match(css, /\.sheet-layer\s*\{[^}]*overflow:\s*hidden/);
+test("the sheet layer stays viewport-bound without concealing page-width bugs", () => {
+  const layerRule = css.match(/\.sheet-layer\s*\{[^}]*\}/)?.[0] ?? "";
+  assert.match(layerRule, /width:\s*100%/);
+  assert.match(layerRule, /max-width:\s*100vw/);
+  assert.match(layerRule, /height:\s*var\(--app-viewport-height\)/);
+  assert.doesNotMatch(layerRule, /overflow(?:-x)?:\s*(?:hidden|clip)/);
+  assert.doesNotMatch(css, /(?:^|\n)body\s*\{[^}]*overflow-x:\s*(?:hidden|clip)/);
 });
 
 test("the sheet dialog can never exceed the layer", () => {
