@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ForecastArea } from "@/components/charts";
 import { useFinance } from "@/components/providers";
+import { useFabPage } from "@/components/fab";
 import { Badge, Button, Card, EmptyState, Money, Section, SectionTitle, Skeleton } from "@/components/ui";
 import { QuickAddSheet } from "@/components/quick-add";
 import { formatAmount, shortDate } from "@/lib/money";
 import type { FinancialTimelineEvent } from "@/lib/finance";
+import type { FabTransactionType } from "@/lib/fab";
 
 function change(current: number, previous: number): string {
   if (!previous) return current ? "yangi" : "0%";
@@ -29,7 +31,13 @@ function eventLabel(event: FinancialTimelineEvent): string {
 export default function DashboardPage() {
   const { state, loading, error, refresh } = useFinance();
   const [addOpen, setAddOpen] = useState(false);
+  const [defaultType, setDefaultType] = useState<FabTransactionType>("expense");
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+
+  // Global FAB: the Dashboard owns the transaction entry point. The three
+  // contextual directions (Kirim/Chiqim/Transfer) all resolve to the shared
+  // QuickAddSheet with the chosen default type — no second form.
+  useFabPage({}, { transaction: (a) => { setDefaultType(a.type ?? "expense"); setAddOpen(true); } });
 
   const months = useMemo(() => state?.monthly ?? [], [state?.monthly]);
   const currentMonthKey = state?.analytics.month ?? "";
@@ -133,7 +141,6 @@ export default function DashboardPage() {
             </div>
             {!month.isCurrent ? <p className="mt-1 text-[11px] text-muted">Bugungi global balans bilan aralashtirilmagan</p> : null}
           </div>
-          <Button size="sm" onClick={() => setAddOpen(true)} className="shrink-0">＋ Operatsiya</Button>
         </div>
 
         <div className="relative mt-4 grid grid-cols-2 gap-2 border-t border-line pt-3">
@@ -253,7 +260,7 @@ export default function DashboardPage() {
       ) : null}
 
       {!hasReal ? <p className="px-2 text-center text-[12px] text-muted">Bu oy hali operatsiya yo‘q.{hasPlan ? " Rejalashtirilgan holat mavjud." : ""}</p> : null}
-      <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} />
+      <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} defaultType={defaultType} />
     </div>
   );
 }

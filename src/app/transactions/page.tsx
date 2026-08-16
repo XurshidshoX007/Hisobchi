@@ -1,13 +1,16 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect -- routed FAB creates synchronize the sheet to the pending action on mount */
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
+import { useFab, useFabPage } from "@/components/fab";
 import { QuickAddSheet } from "@/components/quick-add";
 import { Badge, Button, EmptyState, Money, PageHeader, Segmented, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, humanDate } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
+import { lastTxType, type FabTransactionType } from "@/lib/fab";
 
 type Filter = "all" | "income" | "expense" | "transfer";
 
@@ -31,8 +34,25 @@ function TransactionsView() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [defaultType, setDefaultType] = useState<FabTransactionType>("expense");
   const [editing, setEditing] = useState<TxView | null>(null);
   const [deleting, setDeleting] = useState<TxView | null>(null);
+
+  // Global FAB: the active filter becomes the QuickAddSheet default so the
+  // user is never asked to re-choose the obvious direction (§6/§27).
+  useFabPage({ txFilter: filter }, { transaction: (a) => { setDefaultType(a.type ?? lastTxType()); openCreate(); } });
+
+  // Routed creates (e.g. Analytics → "+ Operatsiya") land here via the FAB
+  // provider and open the same shared QuickAddSheet.
+  const { consume } = useFab();
+  useEffect(() => {
+    const routed = consume();
+    if (routed && routed.id === "transaction") {
+      setDefaultType(routed.type ?? lastTxType());
+      setEditing(null);
+      setAddOpen(true);
+    }
+  }, [consume]);
 
   function openCreate() {
     setEditing(null);
@@ -85,11 +105,6 @@ function TransactionsView() {
       <PageHeader
         title="Operatsiyalar"
         subtitle={planScope ? `${planScope} rejasi bo‘yicha to‘lovlar tarixi` : "Real pul harakatlari"}
-        action={
-          <Button type="button" size="sm" onClick={openCreate}>
-            ➕ Qo‘shish
-          </Button>
-        }
       />
 
       {planScope ? (
@@ -140,7 +155,13 @@ function TransactionsView() {
           title="Operatsiya topilmadi"
           description="Filtr yoki qidiruv shartlarini o‘zgartiring."
           action={
-            <Button type="button" onClick={openCreate}>
+            <Button
+              type="button"
+              onClick={() => {
+                setDefaultType("expense");
+                openCreate();
+              }}
+            >
               ➕ Operatsiya qo‘shish
             </Button>
           }
@@ -226,7 +247,7 @@ function TransactionsView() {
         Muhim operatsiyalar o‘chirilmaydi — belgilanadi va tarix saqlanadi.
       </p>
 
-      <QuickAddSheet open={addOpen} onClose={closeSheet} editing={editing} />
+      <QuickAddSheet open={addOpen} onClose={closeSheet} editing={editing} defaultType={defaultType} />
       <DeleteConfirm tx={deleting} onClose={() => setDeleting(null)} />
     </div>
   );

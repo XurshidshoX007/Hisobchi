@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
+import { useFab, useFabPage } from "@/components/fab";
 import {
   Badge,
   Button,
@@ -27,6 +28,16 @@ export default function DebtsPage() {
   const [editing, setEditing] = useState<DebtView | null>(null);
   const [payFor, setPayFor] = useState<DebtView | null>(null);
 
+  // Global FAB → existing DebtSheet (no transaction detour).
+  useFabPage({}, { debt: () => openCreate() });
+
+  // Routed creates (Menu → "+ Qarz").
+  const { consume } = useFab();
+  useEffect(() => {
+    const routed = consume();
+    if (routed?.id === "debt") openCreate();
+  }, [consume]);
+
   function openCreate() {
     setEditing(null);
     setSheet(true);
@@ -47,15 +58,7 @@ export default function DebtsPage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
-      <PageHeader
-        title="Qarzdorlik"
-        subtitle="Men qarzdorman / menga qarzdor"
-        action={
-          <Button type="button" size="sm" onClick={openCreate}>
-            ➕ Qarz
-          </Button>
-        }
-      />
+      <PageHeader title="Qarzdorlik" subtitle="Men qarzdorman / menga qarzdor" />
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
         <Card className="p-4">

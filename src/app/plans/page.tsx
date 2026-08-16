@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CashFlowStrip, ForecastArea } from "@/components/charts";
 import { useFinance } from "@/components/providers";
+import { useFab, useFabPage } from "@/components/fab";
 import {
   Badge,
   Button,
@@ -141,6 +142,39 @@ export default function PlansPage() {
   const [restoringIncome, setRestoringIncome] = useState<ExpectedIncomeView | null>(null);
   const [menuPlan, setMenuPlan] = useState<RecurringView | null>(null);
   const [menuIncome, setMenuIncome] = useState<ExpectedIncomeView | null>(null);
+
+  // Global FAB: the active tab decides the action — To'lovlar → payment plan,
+  // Daromad → expected income, Cash-flow → no create action (§7/§8).
+  useFabPage(
+    { tab },
+    {
+      payment_plan: () => {
+        setEditing(null);
+        setSheet("recurring");
+      },
+      expected_income: () => {
+        setEditingIncome(null);
+        setSheet("income");
+      },
+    },
+  );
+
+  // Routed creates (Analytics → "+ To'lov rejasi" / "+ Kutilayotgan daromad")
+  // land here and open the right tab + sheet.
+  const { consume } = useFab();
+  useEffect(() => {
+    const routed = consume();
+    if (!routed) return;
+    if (routed.id === "payment_plan") {
+      setTab("payments");
+      setEditing(null);
+      setSheet("recurring");
+    } else if (routed.id === "expected_income") {
+      setTab("income");
+      setEditingIncome(null);
+      setSheet("income");
+    }
+  }, [consume]);
 
   function closeSheet() {
     setSheet(null);
@@ -278,20 +312,8 @@ export default function PlansPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <Segmented value={planTab} onChange={setPlanTab} options={STATUS_TABS} />
-            </div>
-            <Button
-              type="button"
-              className="w-full shrink-0 sm:w-auto"
-              onClick={() => {
-                setEditing(null);
-                setSheet("recurring");
-              }}
-            >
-              ➕ Yangi to‘lov rejasi
-            </Button>
+          <div className="mb-1">
+            <Segmented value={planTab} onChange={setPlanTab} options={STATUS_TABS} />
           </div>
 
           {planTab === "open" ? (
@@ -386,20 +408,8 @@ export default function PlansPage() {
             </p>
           </Card>
 
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <Segmented value={incomeTab} onChange={setIncomeTab} options={STATUS_TABS} />
-            </div>
-            <Button
-              type="button"
-              className="w-full shrink-0 sm:w-auto"
-              onClick={() => {
-                setEditingIncome(null);
-                setSheet("income");
-              }}
-            >
-              ➕ Kutilayotgan daromad
-            </Button>
+          <div className="mb-1">
+            <Segmented value={incomeTab} onChange={setIncomeTab} options={STATUS_TABS} />
           </div>
 
           {incomeTab === "open" ? (

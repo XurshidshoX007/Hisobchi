@@ -233,6 +233,25 @@ input::placeholder {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
 }
 
+/*
+ * Global context-aware FAB position (§3): above the bottom navigation on
+ * mobile — nav height + safe-area + gap, never a hardcoded `bottom: 80px` —
+ * and lower-right on desktop where the sidebar replaces the bottom nav.
+ */
+.global-fab {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  z-index: 50;
+}
+
+@media (min-width: 1024px) {
+  .global-fab {
+    right: 2rem;
+    bottom: 2rem;
+  }
+}
+
 @keyframes fade-up {
   from {
     opacity: 0;

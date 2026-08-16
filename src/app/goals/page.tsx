@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
+import { useFab, useFabPage } from "@/components/fab";
 import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { GoalView } from "@/lib/finance";
@@ -12,6 +13,16 @@ export default function GoalsPage() {
   const [sheet, setSheet] = useState(false);
   const [editing, setEditing] = useState<GoalView | null>(null);
   const [goal, setGoal] = useState<GoalView | null>(null);
+
+  // Global FAB → existing GoalSheet.
+  useFabPage({}, { goal: () => openCreate() });
+
+  // Routed creates (Menu → "+ Maqsad").
+  const { consume } = useFab();
+  useEffect(() => {
+    const routed = consume();
+    if (routed?.id === "goal") openCreate();
+  }, [consume]);
 
   function openCreate() {
     setEditing(null);
@@ -32,15 +43,7 @@ export default function GoalsPage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
-      <PageHeader
-        title="Maqsadlar"
-        subtitle="Jamg‘arma rejalari va taxminiy muddatlar"
-        action={
-          <Button type="button" size="sm" onClick={openCreate}>
-            ➕ Maqsad
-          </Button>
-        }
-      />
+      <PageHeader title="Maqsadlar" subtitle="Jamg‘arma rejalari va taxminiy muddatlar" />
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
         <Card className="p-4">
