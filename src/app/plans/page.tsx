@@ -3,11 +3,20 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CashFlowStrip, ForecastArea } from "@/components/charts";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { PlanStatusFilter } from "@/components/plan-status-filter";
+import {
+  AdvancedSection,
+  AmountField,
+  Chip,
+  DateField,
+  FormSheet,
+  NoteField,
+  PreviewCard,
+} from "@/components/form-kit";
 import { MonthlyPlanSummary, SecondaryPlanMetrics } from "@/components/plan-summary";
 import {
   Badge,
@@ -22,7 +31,6 @@ import {
   Select,
   Sheet,
   Skeleton,
-  TextArea,
   TextInput,
 } from "@/components/ui";
 import {
@@ -37,6 +45,7 @@ import {
   shortDate,
   todayISO,
 } from "@/lib/money";
+import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { filterPlansByTab, isActivePlanLoad, monthCashflow, monthPlanned } from "@/lib/finance";
 import type { ExpectedIncomeView, Forecast, PlanLifecycle, PlanListTab, RecurringView } from "@/lib/finance";
 
@@ -1181,18 +1190,14 @@ function CashflowTab({
 
 type PlanTypeValue = "one_time" | "recurring" | "term";
 
-function parseMoney(value: string): number | null {
-  const raw = value.trim().replace(/\s/g, "").replace(",", ".");
-  if (!raw) return null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
-}
-
 /**
- * Payment-plan form (§20/§21/§22/§23/§24). Only the fields that belong to the
- * chosen plan type are rendered, every rule is validated inline with a specific
- * message (never a generic "Xatolik"), and a live preview shows exactly what
- * the plan will cost before saving.
+ * Payment-plan form (§14/§15/§16).
+ *
+ * Step 1 — WHAT and HOW MUCH. Step 2 — which kind of commitment it is. Only
+ * the fields that belong to the chosen type are then rendered, every rule is
+ * validated inline with a specific message, and a live preview shows exactly
+ * what the plan will cost before saving. Category, account, mandatory flag and
+ * lifecycle stay collapsed under “Qo‘shimcha”.
  */
 function RecurringSheet({
   open,
@@ -1203,7 +1208,7 @@ function RecurringSheet({
   onClose: () => void;
   editing: RecurringView | null;
 }) {
-  const { state, mutate } = useFinance();
+  const { state, mutate, toast } = useFinance();
   const [name, setName] = useState("");
   const [certainty, setCertainty] = useState<"exact" | "estimated">("exact");
   const [amount, setAmount] = useState("");
@@ -1217,77 +1222,98 @@ function RecurringSheet({
   const [accountId, setAccountId] = useState("");
   const [isMandatory, setIsMandatory] = useState(true);
   const [isActive, setIsActive] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [initialDraft, setInitialDraft] = useState<Record<string, string | boolean>>({});
 
   useEffect(() => {
-    if (open) {
-      setSaving(false);
-      setTouched(false);
-      setName(editing?.name ?? "");
-      setCertainty(editing?.certainty ?? "exact");
-      setAmount(editing?.amount ? String(editing.amount) : "");
-      setMin(editing?.minAmount ? String(editing.minAmount) : "");
-      setMax(editing?.maxAmount ? String(editing.maxAmount) : "");
-      setNextDueDate(editing?.nextDueDate ?? todayISO());
-      setFrequency(editing?.frequency && editing.frequency !== "once" ? editing.frequency : "monthly");
-      setPlanType(editing?.planType ?? "recurring");
-      setInstallmentCount(editing?.installmentCount ? String(editing.installmentCount) : "");
-      setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
-      setAccountId(editing?.accountId ? String(editing.accountId) : "");
-      setIsMandatory(editing?.isMandatory ?? true);
-      setIsActive(editing?.isActive ?? true);
-    }
+    if (!open) return;
+    const draft = {
+      name: editing?.name ?? "",
+      certainty: editing?.certainty ?? "exact",
+      amount: editing?.amount ? formatAmountInput(String(editing.amount)) : "",
+      min: editing?.minAmount ? formatAmountInput(String(editing.minAmount)) : "",
+      max: editing?.maxAmount ? formatAmountInput(String(editing.maxAmount)) : "",
+      nextDueDate: editing?.nextDueDate ?? todayISO(),
+      frequency: editing?.frequency && editing.frequency !== "once" ? editing.frequency : "monthly",
+      planType: editing?.planType ?? "recurring",
+      installmentCount: editing?.installmentCount ? String(editing.installmentCount) : "",
+      categoryId: editing?.categoryId ? String(editing.categoryId) : "",
+      accountId: editing?.accountId ? String(editing.accountId) : "",
+      isMandatory: editing?.isMandatory ?? true,
+      isActive: editing?.isActive ?? true,
+    };
+    setTouched(false);
+    setName(draft.name);
+    setCertainty(draft.certainty as "exact" | "estimated");
+    setAmount(draft.amount);
+    setMin(draft.min);
+    setMax(draft.max);
+    setNextDueDate(draft.nextDueDate);
+    setFrequency(draft.frequency);
+    setPlanType(draft.planType as PlanTypeValue);
+    setInstallmentCount(draft.installmentCount);
+    setCategoryId(draft.categoryId);
+    setAccountId(draft.accountId);
+    setIsMandatory(draft.isMandatory);
+    setIsActive(draft.isActive);
+    setInitialDraft(draft);
   }, [open, editing]);
 
   const categories = (state?.flatCategories ?? []).filter((c) => c.type === "expense" && c.isActive);
   const paidCount = editing?.installmentsPaid ?? 0;
 
-  // §23/§24: field-level validation, mirroring the server rules exactly.
+  // §28: field-level validation, mirroring the server rules exactly.
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
-    if (!name.trim()) e.name = "Reja nomini kiriting.";
+    if (!name.trim()) e.name = "Reja nomini kiriting";
     if (certainty === "exact") {
-      const value = parseMoney(amount);
-      if (value === null) e.amount = "Summani kiriting.";
-      else if (value <= 0) e.amount = "Summa 0 dan katta bo‘lishi kerak.";
+      const message = amountError(amount);
+      if (message) e.amount = message;
     } else {
-      const lo = parseMoney(min);
-      const hi = parseMoney(max);
-      if (lo === null || lo <= 0) e.min = "Minimal summani kiriting.";
-      if (hi === null || hi <= 0) e.max = "Maksimal summani kiriting.";
-      if (lo !== null && hi !== null && lo > hi) e.max = "Maksimal summa minimaldan kichik bo‘lmasligi kerak.";
+      const lo = parseAmountInput(min);
+      const hi = parseAmountInput(max);
+      if (lo === null || lo <= 0) e.min = "Minimal summani kiriting";
+      if (hi === null || hi <= 0) e.max = "Maksimal summani kiriting";
+      if (lo !== null && hi !== null && lo > hi) e.max = "Maksimal summa minimaldan kichik bo‘lmasligi kerak";
     }
-    if (!nextDueDate) e.date = "Sanani tanlang.";
+    if (!nextDueDate) e.date = "Sanani tanlang";
     if (planType === "term") {
       const count = Number(installmentCount);
-      if (!installmentCount.trim()) e.installments = "Bo‘lib to‘lashlar sonini kiriting.";
-      else if (!Number.isInteger(count) || count < 1 || count > 600) e.installments = "1 dan 600 gacha butun son kiriting.";
-      else if (count < paidCount) e.installments = `Allaqachon ${paidCount} ta to‘langan — sonni kamaytirib bo‘lmaydi.`;
+      if (!installmentCount.trim()) e.installments = "Bo‘lib to‘lashlar sonini kiriting";
+      else if (!Number.isInteger(count) || count < 1 || count > 600) e.installments = "1 dan 600 gacha butun son kiriting";
+      else if (count < paidCount) e.installments = `Allaqachon ${paidCount} ta to‘langan — sonni kamaytirib bo‘lmaydi`;
     }
     return e;
   }, [name, certainty, amount, min, max, nextDueDate, planType, installmentCount, paidCount]);
 
-  const invalid = Object.keys(errors).length > 0;
+  const valid = Object.keys(errors).length === 0;
   const showError = (key: string) => (touched ? errors[key] ?? null : null);
 
-  const baseAmount = certainty === "exact" ? parseMoney(amount) ?? 0 : ((parseMoney(min) ?? 0) + (parseMoney(max) ?? 0)) / 2;
+  const baseAmount =
+    certainty === "exact"
+      ? parseAmountInput(amount) ?? 0
+      : ((parseAmountInput(min) ?? 0) + (parseAmountInput(max) ?? 0)) / 2;
   const termCount = Number(installmentCount) || 0;
   const annualFactor = frequency === "weekly" ? 52 : frequency === "yearly" ? 1 : 12;
+  const dirty = isDirtyDraft(
+    { name, certainty, amount, min, max, nextDueDate, frequency, planType, installmentCount, categoryId, accountId, isMandatory, isActive },
+    initialDraft,
+  );
 
-  async function save() {
+  async function submit() {
     setTouched(true);
-    if (invalid || saving) return;
-    setSaving(true);
-    try {
-      const day = Math.min(28, Math.max(1, Number(nextDueDate.slice(8, 10)) || 1));
-      const res = await mutate("recurring", editing ? "update" : "create", {
+    if (!valid) return { ok: false, message: Object.values(errors)[0] };
+    const day = Math.min(28, Math.max(1, Number(nextDueDate.slice(8, 10)) || 1));
+    const res = await mutate(
+      "recurring",
+      editing ? "update" : "create",
+      {
         id: editing?.id,
         name: name.trim(),
         certainty,
-        amount: certainty === "exact" ? amount : null,
-        minAmount: certainty === "estimated" ? min : null,
-        maxAmount: certainty === "estimated" ? max : null,
+        amount: certainty === "exact" ? parseAmountInput(amount) : null,
+        minAmount: certainty === "estimated" ? parseAmountInput(min) : null,
+        maxAmount: certainty === "estimated" ? parseAmountInput(max) : null,
         dueDay: day,
         nextDueDate,
         frequency: planType === "one_time" ? "once" : frequency,
@@ -1297,35 +1323,61 @@ function RecurringSheet({
         accountId: accountId ? Number(accountId) : null,
         isMandatory,
         isActive,
-      });
-      if (res.ok) onClose();
-    } finally {
-      setSaving(false);
-    }
+      },
+      { silent: true },
+    );
+    if (res.ok) toast(editing ? "Reja yangilandi" : `“${name.trim()}” rejasi yaratildi`, "success");
+    return res;
   }
 
   const lockedLifecycle = editing && (editing.status === "cancelled" || editing.status === "completed");
 
   return (
-    <Sheet
+    <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "To‘lov rejasini tahrirlash" : "To‘lov rejasi qo‘shish"}
-      footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Bekor qilish
-          </Button>
-          <Button className="flex-[2]" onClick={save} disabled={saving || (touched && invalid)}>
-            {saving ? "Saqlanmoqda…" : editing ? "Yangilash" : "Saqlash"}
-          </Button>
-        </>
-      }
+      title={editing ? "To‘lov rejasini tahrirlash" : "To‘lov rejasi"}
+      subtitle={editing ? undefined : "Nima uchun va qancha to‘laysiz?"}
+      submitLabel={editing ? "Saqlash" : "Rejani yaratish"}
+      canSubmit={valid}
+      dirty={dirty}
+      onSubmit={submit}
     >
+      {/* 1 · WHAT */}
       <Field label="Nomi" error={showError("name")}>
         <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Ijara / Elektr / Kredit" />
       </Field>
 
+      {/* 2 · HOW MUCH */}
+      {certainty === "exact" ? (
+        <AmountField value={amount} onChange={setAmount} currency="UZS" error={showError("amount")} autoFocus={!editing} />
+      ) : (
+        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+          <AmountField value={min} onChange={setMin} label="Minimal" quick={false} error={showError("min")} />
+          <AmountField value={max} onChange={setMax} label="Maksimal" quick={false} error={showError("max")} />
+        </div>
+      )}
+      <div className="flex gap-2">
+        {(["exact", "estimated"] as const).map((value) => (
+          <Chip
+            key={value}
+            active={certainty === value}
+            onClick={() => {
+              setCertainty(value);
+              if (value === "exact") {
+                setMin("");
+                setMax("");
+              } else {
+                setAmount("");
+              }
+            }}
+          >
+            {value === "exact" ? "Aniq summa" : "Taxminiy diapazon"}
+          </Chip>
+        ))}
+      </div>
+
+      {/* 3 · WHAT KIND OF COMMITMENT */}
       <Field label="To‘lov turi">
         <Segmented
           value={planType}
@@ -1338,45 +1390,15 @@ function RecurringSheet({
         />
       </Field>
 
-      <Field label="Summa turi">
-        <Segmented
-          value={certainty}
-          onChange={(value) => {
-            setCertainty(value);
-            if (value === "exact") {
-              setMin("");
-              setMax("");
-            } else {
-              setAmount("");
-            }
-          }}
-          options={[
-            { value: "exact", label: "Aniq summa" },
-            { value: "estimated", label: "Taxminiy diapazon" },
-          ]}
-        />
-      </Field>
-
-      {certainty === "exact" ? (
-        <Field label="Summa" error={showError("amount")}>
-          <TextInput value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="2500000" />
-        </Field>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-          <Field label="Minimal" error={showError("min")}>
-            <TextInput value={min} onChange={(e) => setMin(e.target.value)} inputMode="decimal" placeholder="300000" />
-          </Field>
-          <Field label="Maksimal" error={showError("max")}>
-            <TextInput value={max} onChange={(e) => setMax(e.target.value)} inputMode="decimal" placeholder="500000" />
-          </Field>
-        </div>
-      )}
-
+      {/* 4 · TYPE-SPECIFIC FIELDS ONLY (§14) */}
       <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-        <Field label={planType === "one_time" ? "To‘lov sanasi" : "Keyingi to‘lov sanasi"} error={showError("date")}>
-          <TextInput type="date" value={nextDueDate} onChange={(e) => setNextDueDate(e.target.value)} />
-        </Field>
-        {/* One-time plans have no cadence and no installment count (§22). */}
+        <DateField
+          value={nextDueDate}
+          onChange={setNextDueDate}
+          label={planType === "one_time" ? "To‘lov sanasi" : planType === "term" ? "Boshlanish sanasi" : "Keyingi to‘lov sanasi"}
+          chips={false}
+          error={showError("date")}
+        />
         {planType !== "one_time" ? (
           <Field label="To‘lov chastotasi">
             <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
@@ -1403,13 +1425,12 @@ function RecurringSheet({
         </Field>
       ) : null}
 
-      {/* Live preview — what this plan actually costs (§20/§21/§22). */}
-      <div className="rounded-xl bg-surface-2 px-3.5 py-3">
-        <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Ko‘rinishi</p>
+      {/* 5 · LIVE PREVIEW — what this plan actually costs (§15/§16) */}
+      <PreviewCard>
         {planType === "term" ? (
           <div className="space-y-1 text-[13px]">
             <p className="num font-semibold">
-              {termCount || 0} × {formatAmount(baseAmount)} = {formatAmount(termCount * baseAmount)} so‘m
+              {formatAmount(baseAmount)} × {termCount || 0} = {formatAmount(termCount * baseAmount)} so‘m
             </p>
             <p className="text-muted">
               {frequencyLabel(frequency)} · boshlanish {nextDueDate ? dayMonth(nextDueDate) : "—"} · qolgan{" "}
@@ -1429,37 +1450,38 @@ function RecurringSheet({
             <p className="num text-muted">{formatAmount(baseAmount)} so‘m · to‘langach yakunlanadi</p>
           </div>
         )}
-      </div>
+      </PreviewCard>
 
-      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-        <Field label="Turi">
-          <Select value={isMandatory ? "1" : "0"} onChange={(e) => setIsMandatory(e.target.value === "1")}>
-            <option value="1">Majburiy</option>
-            <option value="0">Ixtiyoriy</option>
-          </Select>
-        </Field>
-        {/* §13/§24: cancelled / completed plans are never reactivated by a
-            normal Edit → Save — the server enforces it, and the form explains
-            it instead of offering a misleading Faol/Pauza switch. */}
-        {lockedLifecycle ? (
-          <Field label="Holati">
-            <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12px] leading-relaxed text-muted">
-              {editing?.status === "cancelled"
-                ? "Bekor qilingan. Tahrirlash uni faollashtirmaydi — «Qayta faollashtirish» tugmasidan foydalaning."
-                : "Yakunlangan. Tahrirlash uni qayta ochmaydi; bo‘lib to‘lashlar sonini oshirsangiz qolgan to‘lovlar davom etadi."}
-            </p>
-          </Field>
-        ) : (
-          <Field label="Holati">
-            <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
-              <option value="1">Faol</option>
-              <option value="0">Pauza</option>
+      {/* 6 · OPTIONAL DETAILS */}
+      <AdvancedSection>
+        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+          <Field label="Turi">
+            <Select value={isMandatory ? "1" : "0"} onChange={(e) => setIsMandatory(e.target.value === "1")}>
+              <option value="1">Majburiy</option>
+              <option value="0">Ixtiyoriy</option>
             </Select>
           </Field>
-        )}
-      </div>
+          {/* §31: cancelled / completed plans are never reactivated by a
+              normal Edit → Save — the server enforces it, and the form explains
+              it instead of offering a misleading Faol/Pauza switch. */}
+          {lockedLifecycle ? (
+            <Field label="Holati">
+              <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12px] leading-relaxed text-muted">
+                {editing?.status === "cancelled"
+                  ? "Bekor qilingan. Tahrirlash uni faollashtirmaydi — «Qayta faollashtirish» tugmasidan foydalaning."
+                  : "Yakunlangan. Tahrirlash uni qayta ochmaydi; bo‘lib to‘lashlar sonini oshirsangiz qolgan to‘lovlar davom etadi."}
+              </p>
+            </Field>
+          ) : (
+            <Field label="Holati">
+              <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
+                <option value="1">Faol</option>
+                <option value="0">Pauza</option>
+              </Select>
+            </Field>
+          )}
+        </div>
 
-      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
         <Field label="Kategoriya">
           <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
             <option value="">Tanlanmagan</option>
@@ -1485,12 +1507,15 @@ function RecurringSheet({
               ))}
           </Select>
         </Field>
-      </div>
-    </Sheet>
+      </AdvancedSection>
+    </FormSheet>
   );
 }
 
-/** Expected-income form — same validation and preview system as payments. */
+/**
+ * Expected-income form (§17) — same grammar, same validation and the same
+ * preview system as payments: source → amount → date, everything else optional.
+ */
 function IncomeSheet({
   open,
   onClose,
@@ -1500,7 +1525,7 @@ function IncomeSheet({
   onClose: () => void;
   editing: ExpectedIncomeView | null;
 }) {
-  const { state, mutate } = useFinance();
+  const { state, mutate, toast } = useFinance();
   const [sourceName, setSourceName] = useState("");
   const [certainty, setCertainty] = useState<"exact" | "estimated">("exact");
   const [amount, setAmount] = useState("");
@@ -1514,28 +1539,43 @@ function IncomeSheet({
   const [accountId, setAccountId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [note, setNote] = useState("");
-  const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [initialDraft, setInitialDraft] = useState<Record<string, string | boolean>>({});
 
   useEffect(() => {
     if (!open) return;
     // Initialize every field for the selected record. Opening a second record
     // cannot inherit any draft value from the first one.
-    setSaving(false);
+    const draft = {
+      sourceName: editing?.sourceName ?? "",
+      certainty: editing?.certainty ?? "exact",
+      amount: editing?.amount !== null && editing?.amount !== undefined ? formatAmountInput(String(editing.amount)) : "",
+      min: editing?.minAmount !== null && editing?.minAmount !== undefined ? formatAmountInput(String(editing.minAmount)) : "",
+      max: editing?.maxAmount !== null && editing?.maxAmount !== undefined ? formatAmountInput(String(editing.maxAmount)) : "",
+      expectedDate: editing?.expectedDate ?? todayISO(),
+      frequency: editing?.frequency && editing.frequency !== "once" ? editing.frequency : "monthly",
+      planType: editing?.planType ?? "recurring",
+      occurrenceCount: editing?.occurrenceCount ? String(editing.occurrenceCount) : "",
+      categoryId: editing?.categoryId ? String(editing.categoryId) : "",
+      accountId: editing?.accountId ? String(editing.accountId) : "",
+      isActive: editing?.isActive ?? true,
+      note: editing?.note ?? "",
+    };
     setTouched(false);
-    setSourceName(editing?.sourceName ?? "");
-    setCertainty(editing?.certainty ?? "exact");
-    setAmount(editing?.amount !== null && editing?.amount !== undefined ? String(editing.amount) : "");
-    setMin(editing?.minAmount !== null && editing?.minAmount !== undefined ? String(editing.minAmount) : "");
-    setMax(editing?.maxAmount !== null && editing?.maxAmount !== undefined ? String(editing.maxAmount) : "");
-    setExpectedDate(editing?.expectedDate ?? todayISO());
-    setFrequency(editing?.frequency && editing.frequency !== "once" ? editing.frequency : "monthly");
-    setPlanType(editing?.planType ?? "recurring");
-    setOccurrenceCount(editing?.occurrenceCount ? String(editing.occurrenceCount) : "");
-    setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
-    setAccountId(editing?.accountId ? String(editing.accountId) : "");
-    setIsActive(editing?.isActive ?? true);
-    setNote(editing?.note ?? "");
+    setSourceName(draft.sourceName);
+    setCertainty(draft.certainty as "exact" | "estimated");
+    setAmount(draft.amount);
+    setMin(draft.min);
+    setMax(draft.max);
+    setExpectedDate(draft.expectedDate);
+    setFrequency(draft.frequency);
+    setPlanType(draft.planType as PlanTypeValue);
+    setOccurrenceCount(draft.occurrenceCount);
+    setCategoryId(draft.categoryId);
+    setAccountId(draft.accountId);
+    setIsActive(draft.isActive);
+    setNote(draft.note);
+    setInitialDraft(draft);
   }, [open, editing]);
 
   const categories = (state?.flatCategories ?? []).filter((c) => c.type === "income" && c.isActive);
@@ -1544,47 +1584,54 @@ function IncomeSheet({
 
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
-    if (!sourceName.trim()) e.name = "Manba nomini kiriting.";
+    if (!sourceName.trim()) e.name = "Manba nomini kiriting";
     if (certainty === "exact") {
-      const value = parseMoney(amount);
-      if (value === null) e.amount = "Summani kiriting.";
-      else if (value <= 0) e.amount = "Summa 0 dan katta bo‘lishi kerak.";
+      const message = amountError(amount);
+      if (message) e.amount = message;
     } else {
-      const lo = parseMoney(min);
-      const hi = parseMoney(max);
-      if (lo === null || lo <= 0) e.min = "Minimal summani kiriting.";
-      if (hi === null || hi <= 0) e.max = "Maksimal summani kiriting.";
-      if (lo !== null && hi !== null && lo > hi) e.max = "Maksimal summa minimaldan kichik bo‘lmasligi kerak.";
+      const lo = parseAmountInput(min);
+      const hi = parseAmountInput(max);
+      if (lo === null || lo <= 0) e.min = "Minimal summani kiriting";
+      if (hi === null || hi <= 0) e.max = "Maksimal summani kiriting";
+      if (lo !== null && hi !== null && lo > hi) e.max = "Maksimal summa minimaldan kichik bo‘lmasligi kerak";
     }
-    if (!expectedDate) e.date = "Sanani tanlang.";
+    if (!expectedDate) e.date = "Sanani tanlang";
     if (planType === "term") {
       const count = Number(occurrenceCount);
-      if (!occurrenceCount.trim()) e.occurrences = "Takrorlanishlar sonini kiriting.";
-      else if (!Number.isInteger(count) || count < 1 || count > 600) e.occurrences = "1 dan 600 gacha butun son kiriting.";
-      else if (count < receivedCount) e.occurrences = `Allaqachon ${receivedCount} ta qabul qilingan — sonni kamaytirib bo‘lmaydi.`;
+      if (!occurrenceCount.trim()) e.occurrences = "Takrorlanishlar sonini kiriting";
+      else if (!Number.isInteger(count) || count < 1 || count > 600) e.occurrences = "1 dan 600 gacha butun son kiriting";
+      else if (count < receivedCount) e.occurrences = `Allaqachon ${receivedCount} ta qabul qilingan — sonni kamaytirib bo‘lmaydi`;
     }
     return e;
   }, [sourceName, certainty, amount, min, max, expectedDate, planType, occurrenceCount, receivedCount]);
 
-  const invalid = Object.keys(errors).length > 0;
+  const valid = Object.keys(errors).length === 0;
   const showError = (key: string) => (touched ? errors[key] ?? null : null);
-  const baseAmount = certainty === "exact" ? parseMoney(amount) ?? 0 : ((parseMoney(min) ?? 0) + (parseMoney(max) ?? 0)) / 2;
+  const baseAmount =
+    certainty === "exact"
+      ? parseAmountInput(amount) ?? 0
+      : ((parseAmountInput(min) ?? 0) + (parseAmountInput(max) ?? 0)) / 2;
   const termCount = Number(occurrenceCount) || 0;
+  const dirty = isDirtyDraft(
+    { sourceName, certainty, amount, min, max, expectedDate, frequency, planType, occurrenceCount, categoryId, accountId, isActive, note },
+    initialDraft,
+  );
 
-  async function save() {
+  async function submit() {
     setTouched(true);
-    if (invalid || saving) return;
-    setSaving(true);
-    try {
-      const res = await mutate("expectedIncome", editing ? "update" : "create", {
+    if (!valid) return { ok: false, message: Object.values(errors)[0] };
+    const res = await mutate(
+      "expectedIncome",
+      editing ? "update" : "create",
+      {
         id: editing?.id,
         sourceName: sourceName.trim(),
         certainty,
         // Sending explicit nulls is intentional: switching modes clears stale
         // values in the opposite representation at the database boundary.
-        amount: certainty === "exact" ? amount : null,
-        minAmount: certainty === "estimated" ? min : null,
-        maxAmount: certainty === "estimated" ? max : null,
+        amount: certainty === "exact" ? parseAmountInput(amount) : null,
+        minAmount: certainty === "estimated" ? parseAmountInput(min) : null,
+        maxAmount: certainty === "estimated" ? parseAmountInput(max) : null,
         expectedDate,
         frequency: planType === "one_time" ? "once" : frequency,
         planType,
@@ -1593,34 +1640,57 @@ function IncomeSheet({
         accountId: accountId ? Number(accountId) : null,
         isActive,
         note: note.trim() || null,
-      });
-      if (res.ok) onClose();
-    } finally {
-      setSaving(false);
-    }
+      },
+      { silent: true },
+    );
+    if (res.ok) toast(editing ? "Daromad rejasi yangilandi" : `“${sourceName.trim()}” daromadi qo‘shildi`, "success");
+    return res;
   }
 
   const lockedLifecycle = editing && (editing.status === "cancelled" || editing.status === "completed");
 
   return (
-    <Sheet
+    <FormSheet
       open={open}
       onClose={onClose}
       title={editing ? "Kutilayotgan daromadni tahrirlash" : "Kutilayotgan daromad"}
-      footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Bekor qilish
-          </Button>
-          <Button className="flex-[2]" onClick={save} disabled={saving || (touched && invalid)}>
-            {saving ? "Saqlanmoqda…" : editing ? "Yangilash" : "Saqlash"}
-          </Button>
-        </>
-      }
+      subtitle={editing ? undefined : "Qaysi manbadan va qachon?"}
+      submitLabel={editing ? "Saqlash" : "Daromadni qo‘shish"}
+      canSubmit={valid}
+      dirty={dirty}
+      onSubmit={submit}
     >
-      <Field label="Manba nomi" error={showError("name")}>
-        <TextInput value={sourceName} onChange={(e) => setSourceName(e.target.value)} placeholder="Ish haqi / Biznes daromadi" />
+      <Field label="Manba" error={showError("name")}>
+        <TextInput value={sourceName} onChange={(e) => setSourceName(e.target.value)} placeholder="Ish haqi / Avans / Biznes" />
       </Field>
+
+      {certainty === "exact" ? (
+        <AmountField value={amount} onChange={setAmount} currency="UZS" error={showError("amount")} autoFocus={!editing} />
+      ) : (
+        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+          <AmountField value={min} onChange={setMin} label="Minimal" quick={false} error={showError("min")} />
+          <AmountField value={max} onChange={setMax} label="Maksimal" quick={false} error={showError("max")} />
+        </div>
+      )}
+      <div className="flex gap-2">
+        {(["exact", "estimated"] as const).map((value) => (
+          <Chip
+            key={value}
+            active={certainty === value}
+            onClick={() => {
+              setCertainty(value);
+              if (value === "exact") {
+                setMin("");
+                setMax("");
+              } else {
+                setAmount("");
+              }
+            }}
+          >
+            {value === "exact" ? "Aniq" : "Taxminiy"}
+          </Chip>
+        ))}
+      </div>
 
       <Field label="Daromad turi">
         <Segmented
@@ -1634,44 +1704,8 @@ function IncomeSheet({
         />
       </Field>
 
-      <Field label="Summa turi">
-        <Segmented
-          value={certainty}
-          onChange={(value) => {
-            setCertainty(value);
-            if (value === "exact") {
-              setMin("");
-              setMax("");
-            } else {
-              setAmount("");
-            }
-          }}
-          options={[
-            { value: "exact", label: "Aniq summa" },
-            { value: "estimated", label: "Taxminiy diapazon" },
-          ]}
-        />
-      </Field>
-
-      {certainty === "exact" ? (
-        <Field label="Summa" error={showError("amount")}>
-          <TextInput value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="8000000" />
-        </Field>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-          <Field label="Minimal summa" error={showError("min")}>
-            <TextInput value={min} onChange={(e) => setMin(e.target.value)} inputMode="decimal" placeholder="3000000" />
-          </Field>
-          <Field label="Maksimal summa" error={showError("max")}>
-            <TextInput value={max} onChange={(e) => setMax(e.target.value)} inputMode="decimal" placeholder="5000000" />
-          </Field>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-        <Field label="Kutilayotgan sana" error={showError("date")}>
-          <TextInput type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
-        </Field>
+        <DateField value={expectedDate} onChange={setExpectedDate} label="Kutilayotgan sana" chips={false} error={showError("date")} />
         {planType !== "one_time" ? (
           <Field label="Takrorlanish">
             <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
@@ -1698,67 +1732,65 @@ function IncomeSheet({
         </Field>
       ) : null}
 
-      <div className="rounded-xl bg-surface-2 px-3.5 py-3">
-        <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Ko‘rinishi</p>
-        {planType === "term" ? (
-          <p className="num text-[13px] font-semibold">
-            {termCount || 0} × {formatAmount(baseAmount)} = {formatAmount(termCount * baseAmount)} so‘m
-          </p>
-        ) : planType === "recurring" ? (
-          <p className="text-[13px] font-semibold">
-            {frequencyLabel(frequency)} · <span className="num">{formatAmount(baseAmount)}</span> so‘m
-          </p>
+      <PreviewCard>
+        <p className="text-[13px] font-semibold">
+          {expectedDate ? dayMonth(expectedDate) : "—"} · <span className="num text-positive-text">+{formatAmount(baseAmount)}</span> so‘m
+        </p>
+        <p className="mt-0.5 text-[12px] text-muted">
+          {sourceName.trim() || "Manba"} ·{" "}
+          {planType === "term"
+            ? `${termCount || 0} × ${formatAmount(baseAmount)} = ${formatAmount(termCount * baseAmount)}`
+            : planType === "recurring"
+              ? frequencyLabel(frequency)
+              : "Bir martalik"}{" "}
+          · {certainty === "exact" ? "Aniq" : "Taxminiy"}
+        </p>
+      </PreviewCard>
+
+      <AdvancedSection>
+        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+          <Field label="Kategoriya">
+            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+              <option value="">Tanlanmagan</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.icon} {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Qabul qiluvchi hisob">
+            <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              <option value="">Standart hisob</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {a.isActive ? "" : " (arxiv)"}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+
+        {lockedLifecycle ? (
+          <Field label="Holati">
+            <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12px] leading-relaxed text-muted">
+              {editing?.status === "cancelled"
+                ? "Bekor qilingan. Tahrirlash uni faollashtirmaydi — «Qayta faollashtirish» tugmasidan foydalaning."
+                : "Yakunlangan. Tahrirlash uni qayta ochmaydi."}
+            </p>
+          </Field>
         ) : (
-          <p className="text-[13px] font-semibold">
-            Bir martalik · {expectedDate ? humanDate(expectedDate) : "—"} · <span className="num">{formatAmount(baseAmount)}</span> so‘m
-          </p>
+          <Field label="Holati">
+            <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
+              <option value="1">Faol</option>
+              <option value="0">Pauza</option>
+            </Select>
+          </Field>
         )}
-      </div>
 
-      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-        <Field label="Kategoriya">
-          <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">Tanlanmagan</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.icon} {c.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Qabul qiluvchi hisob">
-          <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            <option value="">Standart hisob</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-                {a.isActive ? "" : " (arxiv)"}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
-
-      {lockedLifecycle ? (
-        <Field label="Holati">
-          <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12px] leading-relaxed text-muted">
-            {editing?.status === "cancelled"
-              ? "Bekor qilingan. Tahrirlash uni faollashtirmaydi — «Qayta faollashtirish» tugmasidan foydalaning."
-              : "Yakunlangan. Tahrirlash uni qayta ochmaydi."}
-          </p>
-        </Field>
-      ) : (
-        <Field label="Holati">
-          <Select value={isActive ? "1" : "0"} onChange={(e) => setIsActive(e.target.value === "1")}>
-            <option value="1">Faol</option>
-            <option value="0">Pauza</option>
-          </Select>
-        </Field>
-      )}
-
-      <Field label="Izoh">
-        <TextArea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ixtiyoriy" />
-      </Field>
-    </Sheet>
+        <NoteField value={note} onChange={setNote} multiline />
+      </AdvancedSection>
+    </FormSheet>
   );
 }

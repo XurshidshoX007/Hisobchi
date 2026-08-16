@@ -1,10 +1,12 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- modal contribution drafts synchronize to selected goal */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { AdvancedSection, AmountField, Chip, DateField, FormSheet, PreviewCard } from "@/components/form-kit";
+import { Badge, Card, EmptyState, Field, Money, PageHeader, Progress, Skeleton, TextInput } from "@/components/ui";
+import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { GoalView } from "@/lib/finance";
 
@@ -126,7 +128,7 @@ export default function GoalsPage() {
                   onClick={() => setGoal(g)}
                   className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:bg-surface-3 touch-manipulation"
                 >
-                  Jamg‘arma +
+                  Jamg‘arma
                 </button>
                 <button
                   type="button"
@@ -163,158 +165,202 @@ export default function GoalsPage() {
   );
 }
 
+/**
+ * §19: a goal is a name and a number. Everything else (current savings,
+ * deadline, monthly plan, icon) is optional and stays collapsed.
+ */
 function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: GoalView | null }) {
-  const { mutate } = useFinance();
+  const { mutate, toast } = useFinance();
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("🎯");
   const [targetAmount, setTargetAmount] = useState("");
   const [savedAmount, setSavedAmount] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [monthlyContribution, setMonthlyContribution] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [initialDraft, setInitialDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) return;
-    setName(editing?.name ?? "");
-    setIcon(editing?.icon ?? "🎯");
-    setTargetAmount(editing ? String(editing.targetAmount) : "");
-    setSavedAmount(editing ? String(editing.savedAmount) : "");
-    setTargetDate(editing?.targetDate ?? "");
-    setMonthlyContribution(editing ? String(editing.monthlyContribution) : "");
+    const draft = {
+      name: editing?.name ?? "",
+      icon: editing?.icon ?? "🎯",
+      targetAmount: editing ? formatAmountInput(String(editing.targetAmount)) : "",
+      savedAmount: editing ? formatAmountInput(String(editing.savedAmount)) : "",
+      targetDate: editing?.targetDate ?? "",
+      monthlyContribution: editing ? formatAmountInput(String(editing.monthlyContribution)) : "",
+    };
+    setName(draft.name);
+    setIcon(draft.icon);
+    setTargetAmount(draft.targetAmount);
+    setSavedAmount(draft.savedAmount);
+    setTargetDate(draft.targetDate);
+    setMonthlyContribution(draft.monthlyContribution);
+    setTouched(false);
+    setInitialDraft(draft);
   }, [open, editing]);
 
-  async function save() {
-    const target = Number(targetAmount.replace(/\s/g, ""));
-    if (!name.trim() || !target) return;
-    const res = await mutate("goal", editing ? "update" : "create", {
-      id: editing?.id,
-      name: name.trim(),
-      icon: icon || "🎯",
-      targetAmount: target,
-      savedAmount: Number(savedAmount.replace(/\s/g, "") || 0),
-      targetDate: targetDate || null,
-      monthlyContribution: Number(monthlyContribution.replace(/\s/g, "") || 0),
-    });
-    if (res.ok) onClose();
+  const errors: Record<string, string> = {};
+  if (!name.trim()) errors.name = "Maqsad nomini kiriting";
+  const targetMsg = amountError(targetAmount, "Kerakli summani kiriting");
+  if (targetMsg) errors.targetAmount = targetMsg;
+  const valid = Object.keys(errors).length === 0;
+  const showError = (key: string) => (touched ? errors[key] ?? null : null);
+
+  const target = parseAmountInput(targetAmount) ?? 0;
+  const saved = parseAmountInput(savedAmount) ?? (editing?.savedAmount ?? 0);
+  const dirty = isDirtyDraft({ name, icon, targetAmount, savedAmount, targetDate, monthlyContribution }, initialDraft);
+
+  async function submit() {
+    setTouched(true);
+    if (!valid) return { ok: false, message: Object.values(errors)[0] };
+    const res = await mutate(
+      "goal",
+      editing ? "update" : "create",
+      {
+        id: editing?.id,
+        name: name.trim(),
+        icon: icon || "🎯",
+        targetAmount: target,
+        savedAmount: parseAmountInput(savedAmount) ?? 0,
+        targetDate: targetDate || null,
+        monthlyContribution: parseAmountInput(monthlyContribution) ?? 0,
+      },
+      { silent: true },
+    );
+    if (res.ok) toast(editing ? "Maqsad yangilandi" : `“${name.trim()}” maqsadi saqlandi`, "success");
+    return res;
   }
 
   return (
-    <Sheet
+    <FormSheet
       open={open}
       onClose={onClose}
       title={editing ? "Maqsadni tahrirlash" : "Yangi maqsad"}
-      footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Bekor qilish
-          </Button>
-          <Button className="flex-[2]" onClick={save}>
-            Saqlash
-          </Button>
-        </>
-      }
+      subtitle={editing ? undefined : "Nimaga jamg‘arasiz?"}
+      submitLabel="Maqsadni saqlash"
+      canSubmit={valid}
+      dirty={dirty}
+      onSubmit={submit}
     >
-      <div className="grid grid-cols-[1fr_88px] gap-3">
-        <Field label="Nomi">
-          <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Mashina" />
-        </Field>
-        <Field label="Ikona">
-          <TextInput value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🚗" />
-        </Field>
-      </div>
-      <Field label="Maqsad summasi">
-        <TextInput value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} inputMode="decimal" placeholder="100000000" />
+      <Field label="Maqsad nomi" error={showError("name")}>
+        <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Mashina / iPhone / Zaxira" />
       </Field>
-      {!editing ? (
-        <Field label="Yig‘ilgan">
-          <TextInput value={savedAmount} onChange={(e) => setSavedAmount(e.target.value)} inputMode="decimal" placeholder="25000000" />
-        </Field>
-      ) : (
-        <div className="flat-card flex items-center justify-between p-3 text-sm">
-          <span className="text-muted">Yig‘ilgan summa</span>
-          <Money value={editing.savedAmount} size="sm" tone="positive" />
+
+      <AmountField
+        value={targetAmount}
+        onChange={setTargetAmount}
+        label="Kerakli summa"
+        currency="UZS"
+        error={showError("targetAmount")}
+        autoFocus={!editing}
+      />
+
+      {target > 0 ? (
+        <PreviewCard>
+          <p className="text-[13px] font-semibold">
+            {icon} {name.trim() || "Maqsad"}
+          </p>
+          <p className="num mt-0.5 text-[12.5px] text-muted">
+            {formatAmount(saved)} / {formatAmount(target)} so‘m
+            {targetDate ? ` · ${humanDate(targetDate)} gacha` : ""}
+          </p>
+          <div className="mt-2">
+            <Progress value={target > 0 ? saved / target : 0} height={6} ariaLabel="Maqsad progressi" />
+          </div>
+        </PreviewCard>
+      ) : null}
+
+      <AdvancedSection>
+        <div className="grid grid-cols-[1fr_88px] gap-3">
+          {!editing ? (
+            <Field label="Hozirgi summa">
+              <TextInput
+                value={savedAmount}
+                onChange={(e) => setSavedAmount(formatAmountInput(e.target.value))}
+                inputMode="decimal"
+                placeholder="0"
+              />
+            </Field>
+          ) : (
+            <div className="flat-card flex items-center justify-between p-3 text-sm">
+              <span className="text-muted">Yig‘ilgan</span>
+              <Money value={editing.savedAmount} size="sm" tone="positive" />
+            </div>
+          )}
+          <Field label="Ikona">
+            <TextInput value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🚗" />
+          </Field>
         </div>
-      )}
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Mo‘ljaldangan sana">
-          <TextInput type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-        </Field>
-        <Field label="Oylik jamg‘arma">
+        <DateField value={targetDate} onChange={setTargetDate} label="Muddat (ixtiyoriy)" chips={false} />
+        <Field label="Oylik jamg‘arma" hint="Rejalashtirilgan oylik summa">
           <TextInput
             value={monthlyContribution}
-            onChange={(e) => setMonthlyContribution(e.target.value)}
+            onChange={(e) => setMonthlyContribution(formatAmountInput(e.target.value))}
             inputMode="decimal"
-            placeholder="3000000"
+            placeholder="3 000 000"
           />
         </Field>
-      </div>
-    </Sheet>
+      </AdvancedSection>
+    </FormSheet>
   );
 }
 
+/** Goal contribution — one number, one action. */
 function ContributeSheet({ goal, onClose }: { goal: GoalView | null; onClose: () => void }) {
-  const { mutate } = useFinance();
+  const { mutate, toast } = useFinance();
   const [amount, setAmount] = useState("");
+  const [touched, setTouched] = useState(false);
 
   useEffect(() => {
-    if (!goal) setAmount("");
+    if (!goal) return;
+    setAmount("");
+    setTouched(false);
   }, [goal]);
 
-  if (!goal) return null;
   const record = goal;
+  const parsed = parseAmountInput(amount);
+  const errorMsg = amountError(amount, "Jamg‘arma summasini kiriting");
+  const valid = !errorMsg;
 
-  async function save() {
-    const value = Number(amount.replace(/\s/g, ""));
-    if (!value) return;
-    const res = await mutate("goal", "contribute", { id: record.id, amount: value });
-    if (res.ok) onClose();
+  async function submit() {
+    setTouched(true);
+    if (!record || !valid || parsed === null) return { ok: false, message: errorMsg ?? "" };
+    const res = await mutate("goal", "contribute", { id: record.id, amount: parsed }, { silent: true });
+    if (res.ok) toast(`${formatAmount(parsed)} so‘m jamg‘armaga qo‘shildi`, "success");
+    return res;
   }
 
+  if (!record) return null;
+
   return (
-    <Sheet
+    <FormSheet
       open={Boolean(goal)}
       onClose={onClose}
       title={`${record.icon} ${record.name}`}
-      footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Bekor qilish
-          </Button>
-          <Button className="flex-[2]" onClick={save}>
-            Qo‘shish
-          </Button>
-        </>
-      }
+      subtitle={`Qolgan ${formatAmount(record.remaining)} so‘m`}
+      submitLabel="Jamg‘armani qo‘shish"
+      canSubmit={valid}
+      dirty={Boolean(amount)}
+      onSubmit={submit}
     >
-      <div className="flat-card p-4">
-        <div className="flex items-center justify-between text-[12px]">
-          <span className="text-muted">Yig‘ilgan</span>
-          <Money value={record.savedAmount} size="sm" tone="positive" />
-        </div>
-        <div className="mt-2 flex items-center justify-between text-[12px]">
-          <span className="text-muted">Qolgan</span>
-          <Money value={record.remaining} size="sm" />
-        </div>
-      </div>
-      <Field label="Jamg‘arma summasi">
-        <TextInput
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          inputMode="decimal"
-          placeholder={String(record.monthlyContribution || 500000)}
-        />
-      </Field>
+      <AmountField
+        value={amount}
+        onChange={setAmount}
+        label="Jamg‘arma summasi"
+        currency="UZS"
+        error={touched ? errorMsg : null}
+        autoFocus
+      />
       <div className="flex flex-wrap gap-2">
-        {[record.monthlyContribution, record.requiredMonthly].filter(Boolean).map((v, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => setAmount(String(Math.round(v)))}
-            className="min-h-9 rounded-full border border-line bg-surface px-3 text-xs font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
-          >
-            {compact(v)}
-          </button>
-        ))}
+        {[record.monthlyContribution, record.requiredMonthly]
+          .filter((v) => v > 0)
+          .map((v, i) => (
+            <Chip key={i} onClick={() => setAmount(formatAmountInput(String(Math.round(v))))}>
+              {compact(v)}
+            </Chip>
+          ))}
       </div>
-    </Sheet>
+    </FormSheet>
   );
 }

@@ -1,11 +1,13 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- modal form draft reset is synchronized to open state */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { Badge, Button, Card, EmptyState, Field, Money, PageHeader, Progress, Select, Sheet, Skeleton, TextInput } from "@/components/ui";
-import { compact, formatAmount, monthLabel } from "@/lib/money";
+import { AmountField, Chip, FormSheet, PreviewCard } from "@/components/form-kit";
+import { Badge, Card, EmptyState, Field, Money, PageHeader, Progress, Select, Skeleton } from "@/components/ui";
+import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
+import { addMonths, compact, formatAmount, monthKey, monthLabel, monthStart, todayISO } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
 
 export default function BudgetsPage() {
@@ -151,45 +153,72 @@ export default function BudgetsPage() {
   );
 }
 
+/**
+ * §20: category + limit + month. The product has no alert-threshold column, so
+ * the form does not invent one — the 80% warning stays a system behaviour.
+ */
 function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: BudgetView | null }) {
-  const { state, mutate } = useFinance();
+  const { state, mutate, toast } = useFinance();
   const [categoryId, setCategoryId] = useState("");
   const [amount, setAmount] = useState("");
+  const [month, setMonth] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [initialDraft, setInitialDraft] = useState<Record<string, string>>({});
+
+  const thisMonth = state?.analytics.month ?? monthKey(todayISO());
+  const nextMonth = monthKey(addMonths(monthStart(`${thisMonth}-01`), 1));
 
   useEffect(() => {
     if (!open) return;
-    setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
-    setAmount(editing ? String(editing.amount) : "");
-  }, [open, editing]);
+    const draft = {
+      categoryId: editing?.categoryId ? String(editing.categoryId) : "",
+      amount: editing ? formatAmountInput(String(editing.amount)) : "",
+      month: editing?.month ?? thisMonth,
+    };
+    setCategoryId(draft.categoryId);
+    setAmount(draft.amount);
+    setMonth(draft.month);
+    setTouched(false);
+    setInitialDraft(draft);
+  }, [open, editing, thisMonth]);
 
   const categories = (state?.flatCategories ?? []).filter((c) => c.type === "expense" && c.isActive);
+  const categoryName = categoryId
+    ? categories.find((c) => String(c.id) === categoryId)?.name ?? "Kategoriya"
+    : "Umumiy oylik";
 
-  async function save() {
-    const value = Number(amount.replace(/\s/g, ""));
-    if (!value) return;
-    const res = await mutate("budget", "upsert", {
-      categoryId: categoryId ? Number(categoryId) : null,
-      month: state?.analytics.month,
-      amount: value,
-    });
-    if (res.ok) onClose();
+  const errorMsg = amountError(amount, "Limitni kiriting");
+  const valid = !errorMsg;
+  const parsed = parseAmountInput(amount) ?? 0;
+  const dirty = isDirtyDraft({ categoryId, amount, month }, initialDraft);
+
+  async function submit() {
+    setTouched(true);
+    if (!valid) return { ok: false, message: errorMsg ?? "" };
+    const res = await mutate(
+      "budget",
+      "upsert",
+      {
+        categoryId: categoryId ? Number(categoryId) : null,
+        month: month || thisMonth,
+        amount: parsed,
+      },
+      { silent: true },
+    );
+    if (res.ok) toast(`${categoryName} · ${formatAmount(parsed)} so‘m limit saqlandi`, "success");
+    return res;
   }
 
   return (
-    <Sheet
+    <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Budjetni tahrirlash" : "Budjet limiti"}
-      footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Bekor qilish
-          </Button>
-          <Button className="flex-[2]" onClick={save}>
-            Saqlash
-          </Button>
-        </>
-      }
+      title={editing ? "Budjetni tahrirlash" : "Yangi budjet"}
+      subtitle={editing ? undefined : "Qaysi kategoriyaga oylik limit?"}
+      submitLabel="Budjetni saqlash"
+      canSubmit={valid}
+      dirty={dirty}
+      onSubmit={submit}
     >
       <Field label="Kategoriya" hint="Bo‘sh qoldirilsa — umumiy oylik limit">
         <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={Boolean(editing)}>
@@ -201,9 +230,38 @@ function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () =>
           ))}
         </Select>
       </Field>
-      <Field label="Oylik limit">
-        <TextInput value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="2000000" />
-      </Field>
-    </Sheet>
+
+      <AmountField
+        value={amount}
+        onChange={setAmount}
+        label="Oylik limit"
+        currency="UZS"
+        error={touched ? errorMsg : null}
+        autoFocus={!editing}
+      />
+
+      {!editing ? (
+        <div>
+          <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Oy</span>
+          <div className="flex gap-2">
+            <Chip active={month === thisMonth} onClick={() => setMonth(thisMonth)}>
+              {monthLabel(thisMonth)}
+            </Chip>
+            <Chip active={month === nextMonth} onClick={() => setMonth(nextMonth)}>
+              {monthLabel(nextMonth)}
+            </Chip>
+          </div>
+        </div>
+      ) : null}
+
+      {parsed > 0 ? (
+        <PreviewCard>
+          <p className="text-[13px] font-semibold">{categoryName}</p>
+          <p className="num mt-0.5 text-[12.5px] text-muted">
+            {formatAmount(parsed)} so‘m / {monthLabel(month || thisMonth)} · 80% da ogohlantirish
+          </p>
+        </PreviewCard>
+      ) : null}
+    </FormSheet>
   );
 }
