@@ -223,7 +223,7 @@ export type PlannedItem = {
   max: number;
   certainty: "exact" | "estimated";
   mandatory: boolean;
-  source: "recurring" | "expected";
+  source: "real" | "recurring" | "expected";
   refId: number;
   categoryName?: string | null;
   accountId?: number | null;
@@ -264,6 +264,7 @@ export type Forecast = {
     max: { balance: number; delta: number };
   };
   safeToSpend: number;
+  freeToSpend: number;
   safeToSpendParts: {
     balance: number;
     confirmedIncome: number;
@@ -327,6 +328,15 @@ type RecurringLike = {
   installmentsPaid?: number | null;
 };
 
+type ReconciliationTx = {
+  date: string;
+  type: string;
+  amount: number;
+  recurringId?: number | null;
+  expectedIncomeId?: number | null;
+  isDeleted?: boolean;
+};
+
 type ExpectedLike = {
   id: number;
   sourceName: string;
@@ -366,6 +376,7 @@ export function buildPlanned(
   incomes: ExpectedLike[],
   today: string,
   horizonDays: number,
+  transactions: ReconciliationTx[] = [],
 ): PlannedItem[] {
   const horizonEnd = addDays(today, horizonDays);
   const items: PlannedItem[] = [];
@@ -376,6 +387,8 @@ export function buildPlanned(
     if (remaining !== null && remaining <= 0) continue;
     const { base, min, max } = rangeValue(r.amount, r.minAmount, r.maxAmount);
     for (const date of nextOccurrences(r.nextDueDate, r.frequency, today, horizonEnd, remaining)) {
+      const range = transactions.some((t) => !t.isDeleted && t.type === "expense" && t.recurringId === r.id && t.date === date);
+      if (range) continue;
       items.push({
         key: `r-${r.id}-${date}`,
         date,
@@ -398,6 +411,10 @@ export function buildPlanned(
     if (remaining !== null && remaining <= 0) continue;
     const { base, min, max } = rangeValue(inc.amount, inc.minAmount, inc.maxAmount);
     for (const date of nextOccurrences(inc.expectedDate, inc.frequency, today, horizonEnd, remaining)) {
+      // A received occurrence is fulfilled by its linked real transaction.
+      // Match both identity and date to avoid double-counting recurring income.
+      const received = transactions.some((t) => !t.isDeleted && t.type === "income" && t.expectedIncomeId === inc.id && t.date === date);
+      if (received) continue;
       // Past income never forecasted - REAL vs PLAN separation
       if (date < today) continue;
       items.push({
@@ -421,6 +438,7 @@ export function buildPlanned(
 
 export function buildForecast(params: {
   currentBalance: number;
+  transactions?: Array<{ id: number; date: string; type: string; amount: number; note?: string | null; recurringId?: number | null; expectedIncomeId?: number | null; isDeleted?: boolean }>;
   recurring: RecurringLike[];
   incomes: ExpectedLike[];
   minReserve: number;
@@ -431,7 +449,27 @@ export function buildForecast(params: {
   const today = params.today ?? todayISO();
   const horizonDays = params.horizonDays ?? 90; // extended for monthly planning
   const horizonEnd = addDays(today, horizonDays);
-  const planned = buildPlanned(params.recurring, params.incomes, today, horizonDays);
+  const planned = buildPlanned(params.recurring, params.incomes, today, horizonDays, params.transactions ?? []);
+  // Future-dated real transactions are confirmed ledger events, not plans.
+  // Include them in the same timeline so forecast, calendar and monthly views
+  // cannot disagree. Today and past events are already reflected in balance.
+  for (const tx of params.transactions ?? []) {
+    if (tx.isDeleted || tx.date <= today || tx.type === "transfer" || tx.date > horizonEnd) continue;
+    planned.push({
+      key: `tx-${tx.id}`,
+      date: tx.date,
+      kind: tx.type === "income" ? "income" : "expense",
+      label: tx.note ?? "Qayd etilgan operatsiya",
+      min: tx.amount,
+      base: tx.amount,
+      max: tx.amount,
+      certainty: "exact",
+      mandatory: false,
+      source: "real",
+      refId: tx.id,
+    });
+  }
+  planned.sort((a, b) => a.date.localeCompare(b.date));
 
   const income = {
     exactBase: 0,
@@ -476,13 +514,18 @@ export function buildForecast(params: {
     }
   }
   income.base = income.exactBase + income.estimatedBase;
-  income.min = income.exactMin;
+  // Conservative still includes the lower bound of estimated income;
+  // omitting it made the "minimum" scenario unnecessarily pessimistic and
+  // inconsistent with the scenario definition.
+  income.min = income.exactMin + income.estimatedMin;
   income.max = income.exactBase + income.estimatedMax;
   expense.base = expense.mandatoryBase + expense.optionalBase;
   expense.min = expense.mandatoryMin + expense.optionalMin;
   expense.max = expense.mandatoryMax + expense.optionalMax;
 
-  // SAFE-TO-SPEND: current month window
+  // SAFE-TO-SPEND is what can be spent while preserving mandatory
+  // commitments and reserve. Optional planned spending is deliberately a
+  // separate FREE-TO-SPEND deduction.
   const daysToMonthEnd = dayDiff(today, monthEnd(today));
   const safeHorizonEnd = daysToMonthEnd >= 5 ? monthEnd(today) : addDays(today, 14);
   const safeWindow = planned.filter((p) => p.date <= safeHorizonEnd);
@@ -501,7 +544,8 @@ export function buildForecast(params: {
   const confidence = clamp(params.estimatedConfidence, 0, 100) / 100;
   const safeEstimatedWeighted = safeEstimatedIncome * confidence;
   // Conservative: subtract mandatory and optional (if configured) and reserve
-  const safeToSpend = balance + safeExactIncome + safeEstimatedWeighted - safeMandatory - safeOptional - params.minReserve;
+  const safeToSpend = balance + safeExactIncome + safeEstimatedWeighted - safeMandatory - params.minReserve;
+  const freeToSpend = safeToSpend - safeOptional;
 
   const cashflow: Forecast["cashflow"] = [];
   const riskDates: Forecast["riskDates"] = [];
@@ -608,11 +652,12 @@ export function buildForecast(params: {
     expense,
     scenarios,
     safeToSpend: round2(safeToSpend),
+    freeToSpend: round2(freeToSpend),
     safeToSpendParts: {
       balance,
       confirmedIncome: round2(safeExactIncome),
       estimatedIncomeWeighted: round2(safeEstimatedWeighted),
-      mandatoryUpcoming: round2(safeMandatory + safeOptional),
+      mandatoryUpcoming: round2(safeMandatory),
       optionalPlanned: round2(safeOptional),
       minReserve: params.minReserve,
     },
@@ -955,6 +1000,7 @@ export type Analytics = {
     expense: number;
     net: number;
     avgDaily: number;
+    projectedAvgDaily: number;
     projectedMonthExpense: number;
     savingsRate: number;
     mandatoryRatio: number;
@@ -1196,7 +1242,11 @@ export function buildAnalytics(params: {
       income: round2(income),
       expense: round2(expense),
       net: round2(net),
+      // avgDaily is strictly actual spending. Forecast projections have a
+      // separate name so callers cannot mistake a historical metric for a
+      // planned one.
       avgDaily: round2(expense / daysElapsed),
+      projectedAvgDaily: round2(expense / daysElapsed),
       projectedMonthExpense: round2((expense / daysElapsed) * daysInMonth),
       savingsRate,
       mandatoryRatio,

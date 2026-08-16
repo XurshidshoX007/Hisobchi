@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   accounts,
@@ -33,24 +33,24 @@ import {
 import { addDays, dayDiff, monthKey, monthStart, round2, todayISO } from "./money";
 import type { AppState, LiveAlert, UserView } from "./types";
 
-const HISTORY_DAYS = 190;
 const FORECAST_HORIZON_DAYS = 120;
 
 export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const today = todayISO();
-  const historyFrom = addDays(today, -HISTORY_DAYS);
   const thisMonth = monthKey(today);
 
   const [accountRows, categoryRows, txRows, recurringRows, incomeRows, budgetRows, debtRows, goalRows, notificationRows] =
     await Promise.all([
       db.select().from(accounts).where(eq(accounts.userId, user.id)).orderBy(accounts.sortOrder, accounts.id),
       db.select().from(categories).where(eq(categories.userId, user.id)).orderBy(categories.sortOrder, categories.id),
+      // Analytics must use the complete ledger. The dashboard may render a
+      // slice, but budgets and historical month totals must not silently lose
+      // older transactions (or high-volume users' rows).
       db
         .select()
         .from(transactions)
-        .where(and(eq(transactions.userId, user.id), gte(transactions.date, historyFrom)))
-        .orderBy(desc(transactions.date), desc(transactions.id))
-        .limit(700),
+        .where(and(eq(transactions.userId, user.id), eq(transactions.isDeleted, false)))
+        .orderBy(desc(transactions.date), desc(transactions.id)),
       db.select().from(recurringExpenses).where(eq(recurringExpenses.userId, user.id)),
       db.select().from(expectedIncomes).where(eq(expectedIncomes.userId, user.id)),
       db
@@ -58,7 +58,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
         .from(budgets)
         .where(and(eq(budgets.userId, user.id), eq(budgets.month, thisMonth), eq(budgets.isDeleted, false))),
       db.select().from(debts).where(and(eq(debts.userId, user.id), eq(debts.isDeleted, false))),
-      db.select().from(goals).where(eq(goals.userId, user.id)),
+      db.select().from(goals).where(and(eq(goals.userId, user.id), eq(goals.isDeleted, false))),
       db
         .select()
         .from(notifications)
@@ -342,6 +342,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const recurringBase = recurringViews.filter((r) => r.isActive).reduce((s, r) => s + r.baseAmount, 0);
   const forecast = buildForecast({
     currentBalance,
+    transactions: txRows.map((t) => ({ id: t.id, date: t.date, type: t.type, amount: t.amount, note: t.note, recurringId: t.recurringId, expectedIncomeId: t.expectedIncomeId, isDeleted: t.isDeleted })),
     recurring: recurringRows,
     incomes: incomeRows.map((i) => ({
       ...i,
