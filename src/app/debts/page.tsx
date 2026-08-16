@@ -40,6 +40,7 @@ export default function DebtsPage() {
   const [sheet, setSheet] = useState(false);
   const [editing, setEditing] = useState<DebtView | null>(null);
   const [payFor, setPayFor] = useState<DebtView | null>(null);
+  const [filter, setFilter] = useState<"all" | "i_owe" | "owed_to_me">("all");
 
   function openCreate() {
     setEditing(null);
@@ -71,117 +72,125 @@ export default function DebtsPage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
-      <PageHeader title="Qarzdorlik" subtitle="Men qarzdorman / menga qarzdor" />
+      {/* §22: back + title. Debt totals live here (their ONE primary home) as
+          a compact two-figure summary — no third derived "net" card. */}
+      <PageHeader title="Qarzdorlik" back={{ href: "/more", label: "Menyu" }} />
 
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
-        <Card className="p-4">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Men qarzdorman</p>
-          <div className="mt-1.5">
-            <Money value={iOweTotal} size="lg" tone="negative" />
-          </div>
-          <p className="mt-1 text-[11.5px] text-muted">{iOwe.length} ta yozuv</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Menga qarzdor</p>
-          <div className="mt-1.5">
-            <Money value={toMeTotal} size="lg" tone="positive" />
-          </div>
-          <p className="mt-1 text-[11.5px] text-muted">{toMe.length} ta yozuv</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Sof holat</p>
-          <div className="mt-1.5">
-            <Money value={toMeTotal - iOweTotal} size="lg" tone={toMeTotal - iOweTotal >= 0 ? "positive" : "negative"} />
-          </div>
-          <p className="mt-1 text-[11.5px] text-muted">farqi</p>
-        </Card>
-      </div>
-
-      {(["i_owe", "owed_to_me"] as const).map((dir) => {
-        const list = dir === "i_owe" ? iOwe : toMe;
-        return (
-          <Card key={dir} className="overflow-hidden" padded={false}>
-            <div className="border-b border-line px-4 py-3 sm:px-5">
-              <p className="text-[15px] font-semibold">{dir === "i_owe" ? "Men qarzdorman" : "Menga qarzdor"}</p>
-            </div>
-            {list.length ? (
-              <div className="divide-y divide-line px-4 sm:px-5">
-                {list.map((d) => (
-                  <div key={d.id} className="py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14.5px] font-medium">{d.personName}</p>
-                        <p className="mt-0.5 text-[11.5px] text-muted">
-                          {d.dueDate ? `${humanDate(d.dueDate)} gacha` : "muddat yo‘q"}
-                          {d.daysLeft !== null && d.daysLeft < 0 ? " · kechikkan" : ""}
-                        </p>
-                        {d.note ? <p className="mt-1 text-[11.5px] text-muted">{d.note}</p> : null}
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <Money value={d.remainingAmount} size="md" tone={dir === "i_owe" ? "negative" : "positive"} />
-                        <p className="num mt-0.5 text-[11px] text-muted">/ {formatAmount(d.amount)}</p>
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <Progress value={d.progress} height={6} />
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[11.5px] text-muted">to‘langan {compact(d.paidAmount)}</span>
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setPayFor(d)}
-                            className="min-h-8 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:bg-surface-3 touch-manipulation"
-                          >
-                            To‘lov
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing(d);
-                              setSheet(true);
-                            }}
-                            className="min-h-8 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
-                          >
-                            Tahrir
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => mutate("debt", "delete", { id: d.id })}
-                            className="min-h-8 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-muted transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
-                          >
-                            Arxiv
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    {d.payments.length ? (
-                      <div className="mt-3 space-y-1 border-l-2 border-line pl-3">
-                        {d.payments.slice(0, 3).map((p) => (
-                          <p key={p.id} className="text-[11px] leading-snug text-muted">
-                            {humanDate(p.date)} · {formatAmount(p.amount)} {p.note ? `· ${p.note}` : ""}
-                          </p>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
+      {state.debts.length ? (
+        <>
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+            <Card className="p-4">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Men qarzdorman</p>
+              <div className="mt-1.5">
+                <Money value={iOweTotal > 0 ? -iOweTotal : 0} size="lg" tone="negative" signed />
               </div>
-            ) : (
-              <p className="px-5 py-4 text-[13px] text-muted">
-                {dir === "i_owe" ? "Faol qarz yo‘q — yaxshi holat." : "Qarzdorlar yo‘q."}
-              </p>
-            )}
-          </Card>
-        );
-      })}
+              <p className="mt-1 text-[11.5px] text-muted">{iOwe.length} ta yozuv</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Menga qarzdor</p>
+              <div className="mt-1.5">
+                <Money value={toMeTotal} size="lg" tone="positive" />
+              </div>
+              <p className="mt-1 text-[11.5px] text-muted">{toMe.length} ta yozuv</p>
+            </Card>
+          </div>
 
-      {!state.debts.length ? (
-        <EmptyState
-          icon="📋"
-          title="Qarzdorlik yozuvlari yo‘q"
-          description="Pastdagi + tugmasi orqali qarz kiriting — tizim muddat va to‘lovlarni kuzatadi."
-        />
-      ) : null}
+          {/* §17: direction filter instead of two stacked card sections. */}
+          <div className="max-w-md">
+            <Segmented
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: "all", label: "Hammasi" },
+                { value: "i_owe", label: "Men qarzdorman" },
+                { value: "owed_to_me", label: "Menga qarzdor" },
+              ]}
+            />
+          </div>
+
+          <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
+            {state.debts
+              .filter((d) => filter === "all" || d.direction === filter)
+              .map((d) => (
+                <div key={d.id} className="px-4 py-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14.5px] font-medium">{d.personName}</p>
+                      {/* §16: direction is stated in TEXT, never color alone. */}
+                      <p
+                        className={`mt-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] ${
+                          d.direction === "i_owe" ? "text-negative-text" : "text-positive-text"
+                        }`}
+                      >
+                        {d.direction === "i_owe" ? "Men qarzdorman" : "Menga qarzdor"}
+                      </p>
+                      <p className="mt-0.5 text-[11.5px] text-muted">
+                        {d.dueDate ? `${humanDate(d.dueDate)} gacha` : "muddat yo‘q"}
+                        {d.daysLeft !== null && d.daysLeft < 0 ? " · kechikkan" : ""}
+                      </p>
+                      {d.note ? <p className="mt-1 truncate text-[11.5px] text-muted">{d.note}</p> : null}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <Money value={d.direction === "i_owe" ? -d.remainingAmount : d.remainingAmount} size="md" tone={d.direction === "i_owe" ? "negative" : "positive"} signed />
+                      <p className="num mt-0.5 text-[11px] text-muted">/ {formatAmount(d.amount)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Progress value={d.progress} height={6} ariaLabel={`${d.personName} qarz to‘lovi progressi`} />
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[11.5px] text-muted">to‘langan {compact(d.paidAmount)}</span>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPayFor(d)}
+                          aria-label={`${d.personName} uchun to‘lov kiritish`}
+                          className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:bg-surface-3 touch-manipulation"
+                        >
+                          To‘lov
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditing(d);
+                            setSheet(true);
+                          }}
+                          aria-label={`${d.personName} qarzini tahrirlash`}
+                          className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
+                        >
+                          Tahrir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => mutate("debt", "delete", { id: d.id })}
+                          aria-label={`${d.personName} qarzini arxivlash`}
+                          className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-muted transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
+                        >
+                          Arxiv
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {d.payments.length ? (
+                    <div className="mt-3 space-y-1 border-l-2 border-line pl-3">
+                      {d.payments.slice(0, 3).map((p) => (
+                        <p key={p.id} className="text-[11px] leading-snug text-muted">
+                          {humanDate(p.date)} · {formatAmount(p.amount)} {p.note ? `· ${p.note}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            {state.debts.filter((d) => filter === "all" || d.direction === filter).length === 0 ? (
+              <p className="px-4 py-4 text-[13px] text-muted">
+                {filter === "i_owe" ? "Faol qarz yo‘q — yaxshi holat." : "Qarzdorlar yo‘q."}
+              </p>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <EmptyState icon="📋" title="Qarzlar yo‘q" description="Pastdagi + tugmasi orqali qarz kiriting." />
+      )}
 
       <DebtSheet open={sheet} onClose={closeSheet} editing={editing} />
       <PaySheet debt={payFor} onClose={() => setPayFor(null)} />

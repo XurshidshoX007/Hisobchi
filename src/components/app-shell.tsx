@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { formatAmount, humanDate } from "@/lib/money";
 import { getFabActions, supportsFab } from "@/lib/fab";
-import { MENU_ROUTE, showsProfileHeader } from "@/lib/navigation";
+import { MENU_ROUTE, isMenuSubroute, showsProfileHeader } from "@/lib/navigation";
 import { useFinance } from "./providers";
 import { FabProvider, GlobalAddFab, useFab } from "./fab";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
@@ -34,8 +34,11 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const hasGlobalFab = supportsFab(pathname) && getFabActions({ pathname, ...currentContext }).length > 0;
 
   const unread = (state?.alerts.length ?? 0) + (state?.notifications.filter((n) => !n.isRead).length ?? 0);
-  // Route-aware header. No data fetching depends on this flag: profile/balance
-  // state stays in the provider, only its render location changes (§10).
+  // Route-aware header: TRUE only on `/more`. Internal pages (Hisoblar,
+  // Budjetlar, Qarzdorlik, Maqsadlar, Sozlamalar, Bot) never mount it — no
+  // CSS hiding, the element is simply absent from the DOM there. No data
+  // fetching depends on this flag: profile/balance state stays in the
+  // provider, only its render location changes.
   const profileHeader = showsProfileHeader(pathname);
 
   if (error === "auth") {
@@ -130,10 +133,11 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
       <main className="min-w-0 flex-1">
         {/*
-         * Mobile profile header — Menu route only.
-         * It is not hidden with CSS: on the other routes the element is never
+         * Mobile profile header — `/more` (Menu) route ONLY. Internal pages
+         * reached from Menu start with their own compact PageHeader instead.
+         * It is not hidden with CSS: on every other route the element is never
          * mounted, so it occupies zero height/margin/padding and the page
-         * content starts at the top of the viewport (§3).
+         * content starts at the top of the viewport.
          */}
         {profileHeader ? (
           <header className="glass-bar sticky top-0 z-30 -mx-3.5 mb-3 flex items-center justify-between gap-2 border-b border-line px-3.5 py-2.5 sm:-mx-6 sm:mb-4 sm:px-6 lg:hidden">
@@ -186,7 +190,13 @@ function AppShellContent({ children }: { children: ReactNode }) {
               href={item.href}
               label={item.short}
               icon={item.icon}
-              active={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))}
+              active={
+                pathname === item.href ||
+                (item.href !== "/" && item.href !== MENU_ROUTE && pathname.startsWith(item.href)) ||
+                // Internal pages (Hisoblar, Budjetlar, …) belong to the Menu
+                // tab — keep it highlighted so the user knows where they are.
+                (item.href === MENU_ROUTE && isMenuSubroute(pathname))
+              }
               // The bell now lives in the Menu header only, so the Menu tab
               // carries the unread indicator — notifications stay discoverable
               // from every screen without a global header.

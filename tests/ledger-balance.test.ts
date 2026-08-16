@@ -137,9 +137,16 @@ test("the profile header renders on the Menu route only", () => {
   assert.equal(showsProfileHeader("/more"), true);
 });
 
-test("menu sub-pages keep the header, main tabs never do", () => {
+test("internal pages never show the profile header — Menu owns it exclusively", () => {
   for (const route of ["/accounts", "/budgets", "/debts", "/goals", "/settings", "/bot"]) {
-    assert.equal(showsProfileHeader(route), true, route);
+    assert.equal(showsProfileHeader(route), false, route);
   }
+  // Nested routes and query strings must not resurrect the header either.
+  assert.equal(showsProfileHeader("/accounts/1"), false);
+  assert.equal(showsProfileHeader("/accounts?tab=categories"), false);
+  assert.equal(showsProfileHeader("/debts/archive"), false);
   assert.equal(showsProfileHeader("/transactions?plan=3"), false);
+  // The Menu route keeps it, with or without a query string.
+  assert.equal(showsProfileHeader("/more"), true);
+  assert.equal(showsProfileHeader("/more?x=1"), true);
 });

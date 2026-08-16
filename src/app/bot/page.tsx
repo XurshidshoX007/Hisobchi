@@ -52,7 +52,7 @@ export default function BotPage() {
     const botUrl = BOT_USERNAME ? `https://t.me/${BOT_USERNAME.replace(/^@/, "")}` : null;
     return (
       <div className="animate-fade-up space-y-4">
-        <PageHeader title="🤖 Telegram bot" subtitle="Real Telegram webhook va Mini App — bitta backend" action={<Badge tone="positive">Webhook</Badge>} />
+        <PageHeader title="Telegram bot" back={{ href: "/more", label: "Menyu" }} action={<Badge tone="positive">Webhook</Badge>} />
         <Card>
           <p className="text-[15px] font-semibold">Bot Telegram ichida mustaqil ishlaydi</p>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
@@ -110,7 +110,7 @@ export default function BotPage() {
 
   return (
     <div className="animate-fade-up space-y-4">
-      <PageHeader title="🤖 Bot konsol" subtitle="Telegram bot mantiqi — bir xil backend" action={<Badge tone="accent">POST /api/bot</Badge>} />
+      <PageHeader title="Bot konsol" back={{ href: "/more", label: "Menyu" }} action={<Badge tone="accent">POST /api/bot</Badge>} />
 
       <Card padded={false} className="overflow-hidden">
         <div className="flex max-h-[56dvh] flex-col">

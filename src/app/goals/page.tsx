@@ -39,38 +39,11 @@ export default function GoalsPage() {
   if (loading && !state) return <Skeleton className="h-72 w-full" />;
   if (!state) return null;
 
-  const totalTarget = state.goals.reduce((s, g) => s + g.targetAmount, 0);
-  const totalSaved = state.goals.reduce((s, g) => s + g.savedAmount, 0);
-  const monthly = state.goals.reduce((s, g) => s + g.requiredMonthly, 0);
-
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
-      <PageHeader title="Maqsadlar" subtitle="Jamg‘arma rejalari va taxminiy muddatlar" />
-
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
-        <Card className="p-4">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Jami maqsad</p>
-          <div className="mt-1.5">
-            <Money value={totalTarget} size="lg" />
-          </div>
-        </Card>
-        <Card className="p-4">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Yig‘ilgan</p>
-          <div className="mt-1.5">
-            <Money value={totalSaved} size="lg" tone="positive" />
-          </div>
-          <div className="mt-2">
-            <Progress value={totalTarget > 0 ? totalSaved / totalTarget : 0} height={6} />
-          </div>
-        </Card>
-        <Card className="p-4">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Kerakli oylik</p>
-          <div className="mt-1.5">
-            <Money value={monthly} size="lg" />
-          </div>
-          <p className="mt-1 text-[11.5px] text-muted">barcha maqsadlar uchun</p>
-        </Card>
-      </div>
+      {/* §18/§22: back + title only. No aggregated financial summary — each
+          goal's own progress is the primary information here. */}
+      <PageHeader title="Maqsadlar" back={{ href: "/more", label: "Menyu" }} />
 
       {state.goals.length ? (
         <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
@@ -90,36 +63,19 @@ export default function GoalsPage() {
                 <Badge tone={g.onTrack ? "positive" : "warning"}>{g.onTrack ? "rejada" : "ortda"}</Badge>
               </div>
 
+              {/* §18: primary = progress toward target; secondary = one muted
+                  line (remaining + required monthly + ETA). No 4-cell grid. */}
               <div className="mt-4 flex items-baseline justify-between gap-2">
                 <Money value={g.savedAmount} size="lg" tone="positive" />
                 <span className="num shrink-0 text-[12px] text-muted">/ {formatAmount(g.targetAmount)}</span>
               </div>
               <div className="mt-2">
-                <Progress value={g.progress} />
+                <Progress value={g.progress} ariaLabel={`${g.name} progressi`} />
                 <p className="mt-1.5 text-[11.5px] text-muted">
                   {(g.progress * 100).toFixed(0)}% · qolgan {compact(g.remaining)}
+                  {g.requiredMonthly > 0 ? ` · oyiga ${compact(g.requiredMonthly)}` : ""}
+                  {g.etaDate ? ` · ~${humanDate(g.etaDate)}` : ""}
                 </p>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-3 text-[11.5px]">
-                <div className="min-w-0">
-                  <p className="text-muted">Oylik</p>
-                  <p className="num mt-0.5 truncate text-[13px] font-medium">{formatAmount(g.monthlyContribution)}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-muted">Kerakli oylik</p>
-                  <p className="num mt-0.5 truncate text-[13px] font-medium">{formatAmount(g.requiredMonthly)}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-muted">Taxminiy tugash</p>
-                  <p className="mt-0.5 truncate text-[13px] font-medium">{g.etaDate ? humanDate(g.etaDate) : "—"}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-muted">Holat</p>
-                  <p className="mt-0.5 truncate text-[13px] font-medium">
-                    {g.monthlyContribution >= g.requiredMonthly ? "yetadi" : "tezlashtirish kerak"}
-                  </p>
-                </div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
@@ -152,11 +108,7 @@ export default function GoalsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState
-          icon="🏆"
-          title="Maqsadlar yo‘q"
-          description="Pastdagi + tugmasi orqali mashina, zaxira jamg‘arma yoki sayohat uchun maqsad kiriting."
-        />
+        <EmptyState icon="🏆" title="Maqsadlar yo‘q" description="Pastdagi + tugmasi orqali maqsad yarating." />
       )}
 
       <GoalSheet open={sheet} onClose={closeSheet} editing={editing} />

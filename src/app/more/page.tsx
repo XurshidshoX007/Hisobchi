@@ -4,13 +4,22 @@ import Link from "next/link";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { PageHeader, Section, Skeleton } from "@/components/ui";
-import { compact } from "@/lib/money";
 
 /**
- * MENU owns navigation to secondary tools (§22). Debt balances, goal progress
- * and account balances have their PRIMARY homes on their own pages — here each
- * row carries at most a one-line compact reference, never a duplicate card.
+ * MENU = NAVIGATION HUB (§37). It routes to secondary tools and nothing more.
+ * Balances, budget usage, debt totals and goal progress each have exactly ONE
+ * primary home — their own pages. The Menu renders no metrics, no
+ * descriptions, no mini-dashboard: just icon + title + chevron per row.
  */
+const LINKS: Array<{ href: string; icon: string; title: string }> = [
+  { href: "/accounts", icon: "💳", title: "Hisoblar" },
+  { href: "/budgets", icon: "🎯", title: "Budjetlar" },
+  { href: "/debts", icon: "📋", title: "Qarzdorlik" },
+  { href: "/goals", icon: "🏆", title: "Maqsadlar" },
+  { href: "/bot", icon: "🤖", title: "Telegram bot" },
+  { href: "/settings", icon: "⚙️", title: "Sozlamalar" },
+];
+
 export default function MorePage() {
   const { state, loading } = useFinance();
 
@@ -22,66 +31,33 @@ export default function MorePage() {
     debt: (a) => route("/debts", a),
     goal: (a) => route("/goals", a),
     budget: (a) => route("/budgets", a),
+    // Category creation is owned by Accounts → Kategoriyalar tab (§35).
     category: (a) => route("/accounts", a),
   });
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
 
-  const iOwe = state.debts.filter((d) => d.direction === "i_owe").reduce((s, d) => s + d.remainingAmount, 0);
-  const toMe = state.debts.filter((d) => d.direction === "owed_to_me").reduce((s, d) => s + d.remainingAmount, 0);
-  const activeGoals = state.goals.filter((g) => g.progress < 1);
-  const activeBudgets = state.budgets?.length ?? 0;
-  const activeAccounts = state.accounts.filter((a) => a.isActive).length;
-
-  const links: Array<{ href: string; icon: string; title: string; desc: string; ref?: string; refTone?: "negative" | "positive" | "muted" }> = [
-    { href: "/accounts", icon: "💳", title: "Hisoblar", desc: "Naqd, karta, bank va hamyon", ref: `${activeAccounts} ta faol` },
-    { href: "/budgets", icon: "🎯", title: "Budjetlar", desc: "Toifa va oy uchun limitlar", ref: activeBudgets ? `${activeBudgets} ta limit` : undefined },
-    {
-      href: "/debts",
-      icon: "📋",
-      title: "Qarzdorlik",
-      desc: "Qarzdorman / qarzdorlar",
-      ref: iOwe || toMe ? `−${compact(iOwe)} · +${compact(toMe)}` : "qarz yo‘q",
-      refTone: iOwe > 0 ? "negative" : toMe > 0 ? "positive" : "muted",
-    },
-    {
-      href: "/goals",
-      icon: "🏆",
-      title: "Maqsadlar",
-      desc: "Jamg‘arma rejalari",
-      ref: activeGoals.length ? `${activeGoals.length} ta faol` : "maqsad yo‘q",
-    },
-    { href: "/bot", icon: "🤖", title: "Bot konsol", desc: "Tezkor kiritish va tabiiy til" },
-    { href: "/settings", icon: "⚙️", title: "Sozlamalar", desc: "Valyuta, zaxira, mavzu" },
-  ];
-
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-6">
-      <PageHeader title="Ko‘proq" subtitle="Budjet, qarzdorlik, maqsadlar va sozlamalar" />
+      <PageHeader title="Ko‘proq" />
 
       <Section>
-        <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} className="flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2 active:bg-surface-2 touch-manipulation">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-lg">{l.icon}</div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[14.5px] font-medium">{l.title}</p>
-                <p className="mt-0.5 truncate text-[11.5px] leading-snug text-muted">{l.desc}</p>
-              </div>
-              {l.ref ? (
-                <span
-                  className={`num shrink-0 text-[11.5px] font-medium ${
-                    l.refTone === "negative" ? "text-negative-text" : l.refTone === "positive" ? "text-positive-text" : "text-muted"
-                  }`}
-                >
-                  {l.ref}
-                </span>
-              ) : null}
+        <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-line rounded-2xl border border-line bg-surface">
+          {LINKS.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="flex min-h-12 items-center gap-3 px-4 py-2 transition-colors hover:bg-surface-2 active:bg-surface-2 touch-manipulation"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
+                {l.icon}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium">{l.title}</span>
               <span className="shrink-0 text-muted" aria-hidden="true">›</span>
             </Link>
           ))}
-        </div>
+        </nav>
       </Section>
     </div>
   );
