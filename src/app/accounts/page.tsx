@@ -1,12 +1,12 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- modal form draft reset is synchronized to open state */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
+import { AdvancedSection, AmountField, Chip, FormSheet } from "@/components/form-kit";
 import {
   Badge,
-  Button,
   Card,
   Divider,
   EmptyState,
@@ -15,10 +15,10 @@ import {
   PageHeader,
   Segmented,
   Select,
-  Sheet,
   Skeleton,
   TextInput,
 } from "@/components/ui";
+import { formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { compact, formatAmount } from "@/lib/money";
 import type { AccountView, CategoryView } from "@/lib/finance";
 
@@ -273,6 +273,10 @@ function CategoryRow({ node, onEdit }: { node: CategoryView; onEdit: (category: 
   );
 }
 
+/**
+ * §21: name, type, opening balance. Anything the product already supports
+ * beyond that stays optional.
+ */
 function AccountSheet({
   open,
   onClose,
@@ -282,139 +286,190 @@ function AccountSheet({
   onClose: () => void;
   editing: AccountView | null;
 }) {
-  const { mutate } = useFinance();
+  const { mutate, toast } = useFinance();
   const [name, setName] = useState("");
   const [type, setType] = useState("cash");
   const [initialBalance, setInitialBalance] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [initialDraft, setInitialDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) return;
-    setName(editing?.name ?? "");
-    setType(editing?.type ?? "cash");
-    setInitialBalance(editing ? String(editing.initialBalance) : "");
+    const draft = {
+      name: editing?.name ?? "",
+      type: editing?.type ?? "cash",
+      initialBalance: editing ? formatAmountInput(String(editing.initialBalance)) : "",
+    };
+    setName(draft.name);
+    setType(draft.type);
+    setInitialBalance(draft.initialBalance);
+    setTouched(false);
+    setInitialDraft(draft);
   }, [open, editing]);
 
-  async function save() {
-    if (!name.trim()) return;
-    const res = await mutate("account", editing ? "update" : "create", { id: editing?.id, name: name.trim(), type, initialBalance: Number(initialBalance.replace(/\s/g, "") || 0) });
-    if (res.ok) onClose();
+  const errors: Record<string, string> = {};
+  if (!name.trim()) errors.name = "Hisob nomini kiriting";
+  const valid = Object.keys(errors).length === 0;
+  const dirty = isDirtyDraft({ name, type, initialBalance }, initialDraft);
+
+  async function submit() {
+    setTouched(true);
+    if (!valid) return { ok: false, message: Object.values(errors)[0] };
+    const res = await mutate(
+      "account",
+      editing ? "update" : "create",
+      {
+        id: editing?.id,
+        name: name.trim(),
+        type,
+        initialBalance: parseAmountInput(initialBalance) ?? 0,
+      },
+      { silent: true },
+    );
+    if (res.ok) toast(editing ? "Hisob yangilandi" : `“${name.trim()}” hisobi saqlandi`, "success");
+    return res;
   }
 
   return (
-    <Sheet
+    <FormSheet
       open={open}
       onClose={onClose}
       title={editing ? "Hisobni tahrirlash" : "Yangi hisob"}
-      footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Bekor qilish
-          </Button>
-          <Button className="flex-[2]" onClick={save}>
-            Saqlash
-          </Button>
-        </>
-      }
+      subtitle={editing ? undefined : "Pul qayerda turadi?"}
+      submitLabel="Hisobni saqlash"
+      canSubmit={valid}
+      dirty={dirty}
+      onSubmit={submit}
     >
-      <Field label="Hisob nomi">
+      <Field label="Hisob nomi" error={touched ? errors.name ?? null : null}>
         <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Naqd pul / Humo / Click" />
       </Field>
-      <Field label="Turi">
-        <Select value={type} onChange={(e) => setType(e.target.value)}>
+
+      <div>
+        <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Turi</span>
+        <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 py-0.5">
           {TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
+            <Chip key={t.value} active={type === t.value} onClick={() => setType(t.value)}>
+              <span aria-hidden="true">{TYPE_ICON[t.value] ?? "•"}</span>
               {t.label}
-            </option>
+            </Chip>
           ))}
-        </Select>
-      </Field>
-      <Field label="Boshlang‘ich balans">
-        <TextInput value={initialBalance} onChange={(e) => setInitialBalance(e.target.value)} inputMode="decimal" placeholder="0" />
-      </Field>
-    </Sheet>
+        </div>
+      </div>
+
+      <AmountField
+        value={initialBalance}
+        onChange={setInitialBalance}
+        label="Boshlang‘ich balans"
+        currency="UZS"
+        quick={false}
+      />
+    </FormSheet>
   );
 }
 
+/** §22: name + direction. Icon and hierarchy are optional details. */
 function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: CategoryView | null }) {
-  const { state, mutate } = useFinance();
+  const { state, mutate, toast } = useFinance();
   const [name, setName] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
   const [icon, setIcon] = useState("•");
   const [parentId, setParentId] = useState("");
   const [isEssential, setIsEssential] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const [initialDraft, setInitialDraft] = useState<Record<string, string | boolean>>({});
 
   useEffect(() => {
     if (!open) return;
-    setName(editing?.name ?? "");
-    setType(editing?.type ?? "expense");
-    setIcon(editing?.icon ?? "•");
-    setParentId(editing?.parentId ? String(editing.parentId) : "");
-    setIsEssential(editing?.isEssential ?? false);
+    const draft = {
+      name: editing?.name ?? "",
+      type: editing?.type ?? "expense",
+      icon: editing?.icon ?? "•",
+      parentId: editing?.parentId ? String(editing.parentId) : "",
+      isEssential: editing?.isEssential ?? false,
+    };
+    setName(draft.name);
+    setType(draft.type as "expense" | "income");
+    setIcon(draft.icon);
+    setParentId(draft.parentId);
+    setIsEssential(draft.isEssential);
+    setTouched(false);
+    setInitialDraft(draft);
   }, [open, editing]);
 
   const parents = (state?.categories ?? []).filter((c) => c.type === type && !c.parentId && c.id !== editing?.id);
+  const errors: Record<string, string> = {};
+  if (!name.trim()) errors.name = "Kategoriya nomini kiriting";
+  const valid = Object.keys(errors).length === 0;
+  const dirty = isDirtyDraft({ name, type, icon, parentId, isEssential }, initialDraft);
 
-  async function save() {
-    if (!name.trim()) return;
-    const res = await mutate("category", editing ? "update" : "create", {
-      id: editing?.id,
-      name: name.trim(),
-      type,
-      icon: icon || "•",
-      parentId: parentId ? Number(parentId) : null,
-      isEssential,
-    });
-    if (res.ok) onClose();
+  async function submit() {
+    setTouched(true);
+    if (!valid) return { ok: false, message: Object.values(errors)[0] };
+    const res = await mutate(
+      "category",
+      editing ? "update" : "create",
+      {
+        id: editing?.id,
+        name: name.trim(),
+        type,
+        icon: icon || "•",
+        parentId: parentId ? Number(parentId) : null,
+        isEssential,
+      },
+      { silent: true },
+    );
+    if (res.ok) toast(editing ? "Kategoriya yangilandi" : `“${name.trim()}” kategoriyasi saqlandi`, "success");
+    return res;
   }
 
   return (
-    <Sheet
+    <FormSheet
       open={open}
       onClose={onClose}
       title={editing ? "Kategoriyani tahrirlash" : "Yangi kategoriya"}
-      footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Bekor qilish
-          </Button>
-          <Button className="flex-[2]" onClick={save}>
-            Saqlash
-          </Button>
-        </>
-      }
+      subtitle={editing ? undefined : "Kirim yoki chiqim toifasi"}
+      submitLabel="Kategoriyani saqlash"
+      canSubmit={valid}
+      dirty={dirty}
+      onSubmit={submit}
     >
       <Segmented
         value={type}
         onChange={setType}
         options={[
-          { value: "expense", label: "Xarajat" },
-          { value: "income", label: "Daromad" },
+          { value: "expense", label: "Chiqim" },
+          { value: "income", label: "Kirim" },
         ]}
       />
-      <Field label="Nomi">
+
+      <Field label="Nomi" error={touched ? errors.name ?? null : null}>
         <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Misol: Bolalar" />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Ikona (emoji)">
-          <TextInput value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🧸" />
-        </Field>
-        <Field label="Muhimlik">
-          <Select value={isEssential ? "1" : "0"} onChange={(e) => setIsEssential(e.target.value === "1")}>
-            <option value="0">Ixtiyoriy</option>
-            <option value="1">Majburiy</option>
+
+      <AdvancedSection>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Ikona (emoji)">
+            <TextInput value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🧸" />
+          </Field>
+          <Field label="Muhimlik">
+            <Select value={isEssential ? "1" : "0"} onChange={(e) => setIsEssential(e.target.value === "1")}>
+              <option value="0">Ixtiyoriy</option>
+              <option value="1">Majburiy</option>
+            </Select>
+          </Field>
+        </div>
+        <Field label="Ota kategoriya" hint="Misol: Uy → Ijara">
+          <Select value={parentId} onChange={(e) => setParentId(e.target.value)}>
+            <option value="">Yuqori daraja</option>
+            {parents.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.icon} {p.name}
+              </option>
+            ))}
           </Select>
         </Field>
-      </div>
-      <Field label="Ota kategoriya" hint="Misol: Uy → Ijara">
-        <Select value={parentId} onChange={(e) => setParentId(e.target.value)}>
-          <option value="">Yuqori daraja</option>
-          {parents.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.icon} {p.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
-    </Sheet>
+      </AdvancedSection>
+    </FormSheet>
   );
 }

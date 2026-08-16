@@ -1,16 +1,47 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect -- sheet drafts synchronize to the selected record when opened */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { parseDraft } from "@/lib/nlp";
-import { addDays, humanDate, todayISO } from "@/lib/money";
+import { humanDate, todayISO } from "@/lib/money";
 import type { TxView } from "@/lib/finance";
 import { rememberTxType } from "@/lib/fab";
+import {
+  amountError,
+  formatAmountInput,
+  isDirtyDraft,
+  lastAccountId,
+  parseAmountInput,
+  rememberAccountId,
+  resolveDefaultAccountId,
+  savedMessage,
+} from "@/lib/form-kit";
 import { useFinance } from "./providers";
-import { Button, Field, Segmented, Select, Sheet, TextInput } from "./ui";
+import {
+  AccountPicker,
+  AdvancedSection,
+  AmountField,
+  CategoryPicker,
+  DateField,
+  FormSheet,
+  NoteField,
+  PreviewCard,
+} from "./form-kit";
+import { Button, Money, Segmented, TextInput } from "./ui";
 
-const CHIPS = [10_000, 50_000, 100_000, 500_000, 1_000_000, 2_500_000];
+type TxType = "income" | "expense" | "transfer";
 
+const TYPE_TITLE: Record<TxType, string> = {
+  income: "Kirim qo‘shish",
+  expense: "Chiqim qo‘shish",
+  transfer: "Transfer",
+};
+
+/**
+ * The daily-use form (§7/§36). The direction is already chosen by the global
+ * FAB, so the sheet opens straight on the amount: SUMMA → KATEGORIYA → SAQLASH
+ * is the whole happy path; date, account and note carry smart defaults and stay
+ * one tap away.
+ */
 export function QuickAddSheet({
   open,
   onClose,
@@ -19,11 +50,11 @@ export function QuickAddSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  defaultType?: "income" | "expense" | "transfer";
+  defaultType?: TxType;
   editing?: TxView | null;
 }) {
-  const { state, mutate } = useFinance();
-  const [type, setType] = useState<"income" | "expense" | "transfer">(defaultType);
+  const { state, mutate, toast } = useFinance();
+  const [type, setType] = useState<TxType>(defaultType);
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [accountId, setAccountId] = useState("");
@@ -31,83 +62,130 @@ export function QuickAddSheet({
   const [date, setDate] = useState(todayISO());
   const [note, setNote] = useState("");
   const [quickText, setQuickText] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const [initialDraft, setInitialDraft] = useState<Record<string, string>>({});
+
+  const accounts = useMemo(() => (state?.accounts ?? []).filter((a) => a.isActive), [state?.accounts]);
+  // A background state refresh must never rewrite what the user is typing, so
+  // account defaults are read from a snapshot instead of an effect dependency
+  // (§42: typing never re-runs the draft initializer).
+  const accountsSnapshot = useRef(accounts);
+  useEffect(() => {
+    accountsSnapshot.current = accounts;
+  }, [accounts]);
 
   useEffect(() => {
     if (!open) return;
-    setType(editing?.type ?? defaultType);
-    setAmount(editing ? String(editing.amount) : "");
-    setCategoryId(editing?.categoryId ? String(editing.categoryId) : "");
-    setAccountId(editing?.accountId ? String(editing.accountId) : "");
-    setToAccountId(editing?.toAccountId ? String(editing.toAccountId) : "");
-    setDate(editing?.date ?? todayISO());
-    setNote(editing?.note ?? "");
+    const nextType = editing?.type ?? defaultType;
+    // §37: smart defaults are visible and editable — last used account, today,
+    // and the direction the FAB was tapped with.
+    const fallbackAccount = resolveDefaultAccountId(accountsSnapshot.current, lastAccountId());
+    const nextAccount = editing?.accountId ? String(editing.accountId) : fallbackAccount ? String(fallbackAccount) : "";
+    const nextTo = editing?.toAccountId ? String(editing.toAccountId) : "";
+    const draft = {
+      type: nextType,
+      amount: editing ? formatAmountInput(String(editing.amount)) : "",
+      categoryId: editing?.categoryId ? String(editing.categoryId) : "",
+      accountId: nextAccount,
+      toAccountId: nextTo,
+      date: editing?.date ?? todayISO(),
+      note: editing?.note ?? "",
+    };
+    setType(draft.type);
+    setAmount(draft.amount);
+    setCategoryId(draft.categoryId);
+    setAccountId(draft.accountId);
+    setToAccountId(draft.toAccountId);
+    setDate(draft.date);
+    setNote(draft.note);
     setQuickText("");
-    setSaving(false);
+    setTouched(false);
+    setInitialDraft(draft);
   }, [open, defaultType, editing]);
 
-  const accounts = state?.accounts.filter((a) => a.isActive) ?? [];
+  const draft = useMemo(
+    () => ({ type, amount, categoryId, accountId, toAccountId, date, note }),
+    [type, amount, categoryId, accountId, toAccountId, date, note],
+  );
+  const dirty = isDirtyDraft(draft, initialDraft);
+
+  const parsed = parseAmountInput(amount);
+  const errors = useMemo(() => {
+    const e: Record<string, string> = {};
+    const amountMsg = amountError(amount);
+    if (amountMsg) e.amount = amountMsg;
+    if (type !== "transfer" && !categoryId) e.category = "Kategoriya tanlang";
+    if (type === "transfer") {
+      if (!toAccountId) e.toAccount = "Qaysi hisobga o‘tkazishni tanlang";
+      else if (toAccountId === accountId) e.toAccount = "Boshqa hisobni tanlang";
+    }
+    if (!date) e.date = "Sanani tanlang";
+    return e;
+  }, [amount, type, categoryId, toAccountId, accountId, date]);
+
+  const valid = Object.keys(errors).length === 0;
+  const showError = (key: string) => (touched ? errors[key] ?? null : null);
+
+  const nlpDraft = useMemo(() => (quickText.trim() ? parseDraft(quickText) : null), [quickText]);
   const categories = useMemo(
     () => (state?.flatCategories ?? []).filter((c) => c.type === (type === "income" ? "income" : "expense") && c.isActive),
     [state?.flatCategories, type],
   );
 
-  const draft = useMemo(() => (quickText.trim() ? parseDraft(quickText) : null), [quickText]);
-
   function applyDraft() {
-    if (!draft || draft.amount === null) return;
-    setType(draft.type);
-    setAmount(String(Math.round(draft.amount)));
-    setDate(draft.date);
-    setNote(draft.note);
-    const match = categories.find((c) => c.name === draft.categoryName);
+    if (!nlpDraft || nlpDraft.amount === null) return;
+    setType(nlpDraft.type);
+    setAmount(formatAmountInput(String(Math.round(nlpDraft.amount))));
+    setDate(nlpDraft.date);
+    setNote(nlpDraft.note);
+    const match = categories.find((c) => c.name === nlpDraft.categoryName);
     if (match) setCategoryId(String(match.id));
   }
 
-  async function save() {
-    // Fixed regex: was /\s/g which matches literal \s, now /\s/g
-    const cleaned = amount.replace(/\s/g, "").replace(",", ".");
-    const value = Number(cleaned);
-    if (!value || value <= 0) return;
-    setSaving(true);
-    try {
-      const res = await mutate("transaction", editing ? "update" : "create", {
+  const fromAccount = accounts.find((a) => String(a.id) === accountId);
+  const toAccount = accounts.find((a) => String(a.id) === toAccountId);
+
+  async function submit() {
+    setTouched(true);
+    if (!valid || !parsed) return { ok: false, message: Object.values(errors)[0] };
+    const res = await mutate(
+      "transaction",
+      editing ? "update" : "create",
+      {
         id: editing?.id,
         type,
-        amount: value,
+        amount: parsed,
         categoryId: type === "transfer" ? null : categoryId ? Number(categoryId) : null,
         accountId: accountId ? Number(accountId) : accounts[0]?.id,
         toAccountId: type === "transfer" && toAccountId ? Number(toAccountId) : null,
         date,
         note: note || (type === "income" ? "Kirim" : type === "transfer" ? "Transfer" : "Chiqim"),
         source: "miniapp",
-      });
-      if (res.ok) {
-        // §27: remember the direction so a neutral "+ Operatsiya" reopens it.
-        rememberTxType(type);
-        onClose();
-      }
-    } finally {
-      setSaving(false);
+      },
+      { silent: true },
+    );
+    if (res.ok) {
+      // §37: remember the direction and the account so the next entry is faster.
+      rememberTxType(type);
+      rememberAccountId(Number(accountId) || null);
+      toast(editing ? "Operatsiya yangilandi" : savedMessage(type, parsed, state?.user.currency === "UZS" ? "so‘m" : (state?.user.currency ?? "so‘m")), "success");
     }
+    return res;
   }
 
   return (
-    <Sheet
+    <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Operatsiyani tahrirlash" : "Tezkor operatsiya"}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} className="flex-1">
-            Bekor qilish
-          </Button>
-          <Button onClick={save} disabled={saving || !amount} className="flex-[2]">
-            {saving ? "Saqlanmoqda…" : editing ? "Yangilash" : "Saqlash"}
-          </Button>
-        </>
-      }
+      title={editing ? "Operatsiyani tahrirlash" : TYPE_TITLE[type]}
+      subtitle={editing ? undefined : "Summa va kategoriya — qolgani avtomatik"}
+      submitLabel={editing ? "Saqlash" : "Saqlash"}
+      canSubmit={valid}
+      dirty={dirty}
+      onSubmit={submit}
     >
+      {/* The direction is already chosen by the FAB; this stays only as a
+          one-tap correction, not as a first decision (§7). */}
       <Segmented
         value={type}
         onChange={(v) => {
@@ -115,130 +193,66 @@ export function QuickAddSheet({
           setCategoryId("");
         }}
         options={[
-          { value: "expense", label: "➖ Chiqim" },
-          { value: "income", label: "➕ Kirim" },
-          { value: "transfer", label: "↔️ Transfer" },
+          { value: "expense", label: "Chiqim" },
+          { value: "income", label: "Kirim" },
+          { value: "transfer", label: "Transfer" },
         ]}
       />
 
-      <div className="rounded-2xl border border-line bg-surface-2 p-4">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Summa</span>
-        <div className="mt-1 flex items-baseline gap-2">
-          <input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            inputMode="decimal"
-            placeholder="0"
-            className="num w-full min-w-0 bg-transparent text-[32px] font-bold leading-none outline-none placeholder:text-muted"
-            autoFocus
-          />
-          <span className="shrink-0 text-sm font-medium text-muted">{state?.user.currency ?? "UZS"}</span>
-        </div>
-        <div className="no-scrollbar -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
-          {CHIPS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setAmount(String((Number(amount.replace(/\s/g, "") || 0) || 0) + c))}
-              className="min-h-9 shrink-0 touch-manipulation rounded-full border border-line bg-surface px-3 text-xs font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:scale-95 active:bg-surface-3"
-            >
-              +{c >= 1_000_000 ? `${c / 1_000_000} mln` : `${c / 1000} ming`}
-            </button>
-          ))}
-        </div>
-      </div>
+      <AmountField
+        value={amount}
+        onChange={setAmount}
+        currency={state?.user.currency ?? "UZS"}
+        error={showError("amount")}
+        autoFocus
+      />
 
-      <Field label="Tabiiy tilda" hint="“150 ming ovqatga ketdi” yoki “1,5 mln maosh keldi”">
+      {type !== "transfer" ? (
+        <CategoryPicker type={type === "income" ? "income" : "expense"} value={categoryId} onChange={setCategoryId} error={showError("category")} />
+      ) : (
+        <>
+          <AccountPicker value={accountId} onChange={setAccountId} label="Qayerdan" excludeId={toAccountId} />
+          <AccountPicker value={toAccountId} onChange={setToAccountId} label="Qayerga" excludeId={accountId} error={showError("toAccount")} />
+          {fromAccount && toAccount && parsed ? (
+            <PreviewCard>
+              <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
+                <span className="font-semibold">
+                  {fromAccount.name} → {toAccount.name}
+                </span>
+                <Money value={parsed} size="sm" />
+              </p>
+            </PreviewCard>
+          ) : null}
+        </>
+      )}
+
+      <DateField value={date} onChange={setDate} error={showError("date")} />
+
+      {type !== "transfer" ? <AccountPicker value={accountId} onChange={setAccountId} /> : null}
+
+      <NoteField value={note} onChange={setNote} />
+
+      <AdvancedSection label="Tabiiy tilda kiritish">
         <div className="flex gap-2">
           <TextInput
             value={quickText}
             onChange={(e) => setQuickText(e.target.value)}
             placeholder="150 ming ovqatga ketdi"
+            aria-label="Tabiiy tilda kiritish"
             className="min-w-0"
           />
-          <Button variant="secondary" onClick={applyDraft} disabled={!draft?.ok} className="shrink-0">
+          <Button variant="secondary" onClick={applyDraft} disabled={!nlpDraft?.ok} className="shrink-0">
             To‘ldir
           </Button>
         </div>
-        {draft && draft.amount ? (
-          <p className="mt-2 rounded-xl bg-accent-soft px-3 py-2 text-[11.5px] leading-snug text-accent-text">
-            {draft.type === "income" ? "Kirim" : draft.type === "transfer" ? "Transfer" : "Chiqim"} ·{" "}
-            {Math.round(draft.amount).toLocaleString("ru-RU")} · {draft.categoryName ?? "kategoriya yo‘q"} ·{" "}
-            {humanDate(draft.date)}
+        {nlpDraft && nlpDraft.amount ? (
+          <p className="rounded-xl bg-accent-soft px-3 py-2 text-[11.5px] leading-snug text-accent-text">
+            {nlpDraft.type === "income" ? "Kirim" : nlpDraft.type === "transfer" ? "Transfer" : "Chiqim"} ·{" "}
+            {Math.round(nlpDraft.amount).toLocaleString("ru-RU")} · {nlpDraft.categoryName ?? "kategoriya yo‘q"} ·{" "}
+            {humanDate(nlpDraft.date)}
           </p>
         ) : null}
-      </Field>
-
-      {type !== "transfer" ? (
-        <Field label="Kategoriya">
-          <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">Tanlanmagan</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.icon} {c.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      ) : null}
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label={type === "transfer" ? "Qaysi hisobdan" : "Hisob"}>
-          <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        {type === "transfer" ? (
-          <Field label="Qaysi hisobga">
-            <Select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        ) : (
-          <Field label="Sana">
-            <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
-        )}
-      </div>
-
-      {type === "transfer" ? (
-        <Field label="Sana">
-          <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </Field>
-      ) : null}
-
-      <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
-        {[
-          { label: "Bugun", value: todayISO() },
-          { label: "Kecha", value: addDays(todayISO(), -1) },
-          { label: "Ertaga", value: addDays(todayISO(), 1) },
-        ].map((d) => (
-          <button
-            key={d.label}
-            type="button"
-            onClick={() => setDate(d.value)}
-            className={`min-h-9 shrink-0 touch-manipulation whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors ${
-              date === d.value
-                ? "border-accent bg-accent-soft text-accent-text"
-                : "border-line bg-surface text-muted hover:border-line-strong hover:text-fg"
-            }`}
-          >
-            {d.label}
-          </button>
-        ))}
-      </div>
-
-      <Field label="Izoh">
-        <TextInput value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ixtiyoriy" />
-      </Field>
-    </Sheet>
+      </AdvancedSection>
+    </FormSheet>
   );
 }

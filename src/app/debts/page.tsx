@@ -1,12 +1,19 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- modal payment drafts synchronize to selected debt */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import {
-  Badge,
-  Button,
+  AccountPicker,
+  AmountField,
+  Chip,
+  DateField,
+  FormSheet,
+  NoteField,
+  PreviewCard,
+} from "@/components/form-kit";
+import {
   Card,
   EmptyState,
   Field,
@@ -14,11 +21,17 @@ import {
   PageHeader,
   Progress,
   Segmented,
-  Select,
-  Sheet,
   Skeleton,
   TextInput,
 } from "@/components/ui";
+import {
+  amountError,
+  formatAmountInput,
+  isDirtyDraft,
+  lastAccountId,
+  parseAmountInput,
+  rememberAccountId,
+} from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { DebtView } from "@/lib/finance";
 
@@ -176,53 +189,80 @@ export default function DebtsPage() {
   );
 }
 
+/**
+ * §18: the debt form asks the ONE question that changes everything first
+ * (which way does the money go?), then person → amount → deadline. Everything
+ * else is optional and collapsed.
+ */
 function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: DebtView | null }) {
-  const { mutate } = useFinance();
+  const { mutate, toast } = useFinance();
   const [direction, setDirection] = useState<"i_owe" | "owed_to_me">("i_owe");
   const [personName, setPersonName] = useState("");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [note, setNote] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [initialDraft, setInitialDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) return;
-    setDirection(editing?.direction ?? "i_owe");
-    setPersonName(editing?.personName ?? "");
-    setAmount(editing ? String(editing.amount) : "");
-    setDueDate(editing?.dueDate ?? "");
-    setNote(editing?.note ?? "");
+    const draft = {
+      direction: editing?.direction ?? "i_owe",
+      personName: editing?.personName ?? "",
+      amount: editing ? formatAmountInput(String(editing.amount)) : "",
+      dueDate: editing?.dueDate ?? "",
+      note: editing?.note ?? "",
+    };
+    setDirection(draft.direction);
+    setPersonName(draft.personName);
+    setAmount(draft.amount);
+    setDueDate(draft.dueDate);
+    setNote(draft.note);
+    setTouched(false);
+    setInitialDraft(draft);
   }, [open, editing]);
 
-  async function save() {
-    const value = Number(amount.replace(/\s/g, ""));
-    if (!personName.trim() || !value) return;
-    const res = await mutate("debt", editing ? "update" : "create", {
-      id: editing?.id,
-      direction,
-      personName: personName.trim(),
-      amount: value,
-      remainingAmount: value,
-      dueDate: dueDate || null,
-      note: note.trim() || null,
-    });
-    if (res.ok) onClose();
+  const errors: Record<string, string> = {};
+  if (!personName.trim()) errors.personName = "Shaxs yoki tashkilot nomini kiriting";
+  const amountMsg = amountError(amount);
+  if (amountMsg) errors.amount = amountMsg;
+  const valid = Object.keys(errors).length === 0;
+  const showError = (key: string) => (touched ? errors[key] ?? null : null);
+  const parsed = parseAmountInput(amount) ?? 0;
+
+  const dirty = isDirtyDraft({ direction, personName, amount, dueDate, note }, initialDraft);
+
+  async function submit() {
+    setTouched(true);
+    if (!valid) return { ok: false, message: Object.values(errors)[0] };
+    const res = await mutate(
+      "debt",
+      editing ? "update" : "create",
+      {
+        id: editing?.id,
+        direction,
+        personName: personName.trim(),
+        amount: parsed,
+        remainingAmount: parsed,
+        dueDate: dueDate || null,
+        note: note.trim() || null,
+      },
+      { silent: true },
+    );
+    if (res.ok) toast(editing ? "Qarz yangilandi" : `${formatAmount(parsed)} so‘mlik qarz saqlandi`, "success");
+    return res;
   }
 
   return (
-    <Sheet
+    <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Qarzdorlikni tahrirlash" : "Yangi qarzdorlik"}
-      footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Bekor qilish
-          </Button>
-          <Button className="flex-[2]" onClick={save}>
-            Saqlash
-          </Button>
-        </>
-      }
+      title={editing ? "Qarzni tahrirlash" : "Yangi qarz"}
+      subtitle={editing ? undefined : "Kim kimga qarzdor?"}
+      submitLabel="Qarzni saqlash"
+      canSubmit={valid}
+      dirty={dirty}
+      onSubmit={submit}
     >
       <Segmented
         value={direction}
@@ -232,103 +272,105 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
           { value: "owed_to_me", label: "Menga qarzdor" },
         ]}
       />
-      <Field label="Kimga / kim">
+
+      <Field label="Shaxs" error={showError("personName")}>
         <TextInput value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="Alisher / Bank NBU" />
       </Field>
-      <Field label="Summa">
-        <TextInput value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="1500000" />
-      </Field>
-      <Field label="Qaytarish sanasi">
-        <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-      </Field>
-      <Field label="Izoh">
-        <TextInput value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ixtiyoriy" />
-      </Field>
-    </Sheet>
+
+      <AmountField value={amount} onChange={setAmount} error={showError("amount")} currency="UZS" autoFocus={!editing} />
+
+      <DateField value={dueDate} onChange={setDueDate} label="Muddat (ixtiyoriy)" chips={false} />
+
+      <NoteField value={note} onChange={setNote} />
+
+      {parsed > 0 && personName.trim() ? (
+        <PreviewCard>
+          <p className="text-[13px]">
+            <span className="font-semibold">{personName.trim()}</span> ·{" "}
+            <span className="num">{formatAmount(parsed)}</span> so‘m ·{" "}
+            <span className={direction === "i_owe" ? "text-negative-text" : "text-positive-text"}>
+              {direction === "i_owe" ? "men qarzdorman" : "menga qarzdor"}
+            </span>
+            {dueDate ? ` · ${humanDate(dueDate)} gacha` : ""}
+          </p>
+        </PreviewCard>
+      ) : null}
+    </FormSheet>
   );
 }
 
+/** Debt repayment — same grammar as every other sheet, one primary action. */
 function PaySheet({ debt, onClose }: { debt: DebtView | null; onClose: () => void }) {
-  const { state, mutate } = useFinance();
+  const { mutate, toast } = useFinance();
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [touched, setTouched] = useState(false);
 
   useEffect(() => {
-    if (debt) {
-      setAmount("");
-      setAccountId("");
-    }
+    if (!debt) return;
+    setAmount("");
+    setTouched(false);
+    const remembered = lastAccountId();
+    setAccountId(remembered ? String(remembered) : "");
   }, [debt]);
 
-  if (!debt) return null;
   const record = debt;
+  const parsed = parseAmountInput(amount);
+  const errors: Record<string, string> = {};
+  const amountMsg = amountError(amount, "To‘lov summasini kiriting");
+  if (amountMsg) errors.amount = amountMsg;
+  else if (record && parsed !== null && parsed > record.remainingAmount) {
+    errors.amount = `Qolgan qarz ${formatAmount(record.remainingAmount)} so‘m — undan katta bo‘lmasin`;
+  }
+  const valid = Object.keys(errors).length === 0;
 
-  async function save() {
-    const value = Number(amount.replace(/\s/g, ""));
-    if (!value) return;
-    const res = await mutate("debt", "pay", {
-      id: record.id,
-      amount: value,
-      accountId: accountId ? Number(accountId) : null,
-    });
-    if (res.ok) onClose();
+  async function submit() {
+    setTouched(true);
+    if (!record || !valid || parsed === null) return { ok: false, message: Object.values(errors)[0] };
+    const res = await mutate(
+      "debt",
+      "pay",
+      { id: record.id, amount: parsed, accountId: accountId ? Number(accountId) : null },
+      { silent: true },
+    );
+    if (res.ok) {
+      rememberAccountId(Number(accountId) || null);
+      toast(`${formatAmount(parsed)} so‘mlik to‘lov qayd etildi`, "success");
+    }
+    return res;
   }
 
+  if (!record) return null;
+
   return (
-    <Sheet
+    <FormSheet
       open={Boolean(debt)}
       onClose={onClose}
       title={`To‘lov: ${record.personName}`}
-      footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Bekor qilish
-          </Button>
-          <Button className="flex-[2]" onClick={save}>
-            Qayd etish
-          </Button>
-        </>
-      }
+      subtitle={`Qoldi ${formatAmount(record.remainingAmount)} so‘m`}
+      submitLabel="To‘lovni qayd etish"
+      canSubmit={valid}
+      dirty={Boolean(amount)}
+      onSubmit={submit}
     >
-      <div className="flat-card p-4">
-        <div className="flex items-center justify-between text-[12px]">
-          <span className="text-muted">Qoldi</span>
-          <Money value={record.remainingAmount} size="sm" tone={record.direction === "i_owe" ? "negative" : "positive"} />
-        </div>
-        <Divider />
-        <div className="mt-2 flex items-center justify-between text-[12px]">
-          <span className="text-muted">To‘langan</span>
-          <Money value={record.paidAmount} size="sm" />
-        </div>
+      <AmountField
+        value={amount}
+        onChange={setAmount}
+        label="To‘lov summasi"
+        currency="UZS"
+        error={touched ? errors.amount ?? null : null}
+        autoFocus
+      />
+      <div className="flex flex-wrap gap-2">
+        <Chip onClick={() => setAmount(formatAmountInput(String(Math.round(record.remainingAmount))))}>
+          To‘liq {compact(record.remainingAmount)}
+        </Chip>
       </div>
-      <Field label="To‘lov summasi">
-        <TextInput
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          inputMode="decimal"
-          placeholder={String(record.remainingAmount)}
-        />
-      </Field>
-      <Field
-        label="Hisob"
-        hint={record.direction === "i_owe" ? "Xarajat sifatida qayd etiladi" : "Kirim sifatida qayd etiladi"}
-      >
-        <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-          <option value="">Standart hisob</option>
-          {(state?.accounts ?? []).map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      <div className="rounded-xl bg-accent-soft px-3 py-2.5 text-[11.5px] leading-snug text-accent-text">
-        To‘lov avtomatik operatsiyalar tarixiga tushadi.
-      </div>
-    </Sheet>
+      <AccountPicker value={accountId} onChange={setAccountId} />
+      <p className="text-[11.5px] leading-snug text-muted">
+        {record.direction === "i_owe" ? "Xarajat sifatida qayd etiladi" : "Kirim sifatida qayd etiladi"} va
+        operatsiyalar tarixiga tushadi.
+      </p>
+    </FormSheet>
   );
-}
-
-function Divider() {
-  return <div className="my-2 h-px w-full bg-line" />;
 }
