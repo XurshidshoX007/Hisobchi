@@ -23,12 +23,11 @@ test("Dashboard resolves to the three transaction directions", () => {
   assert.equal(actions[2].label, "Transfer");
 });
 
-test("History always resolves to the three transaction directions", () => {
-  const expected = ["transaction:income", "transaction:expense", "transaction:transfer"];
-  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "all" }), expected);
-  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "income" }), expected);
-  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "expense" }), expected);
-  assert.deepEqual(ids({ pathname: "/transactions", txFilter: "transfer" }), expected);
+test("History has no create action or FAB support", () => {
+  assert.deepEqual(ids({ pathname: "/transactions" }), []);
+  assert.deepEqual(ids({ pathname: "/transactions?plan=3" }), []);
+  assert.equal(supportsFab("/transactions"), false);
+  assert.equal(supportsFab("/transactions?income=4"), false);
 });
 
 test("Plans tab decides the plan action", () => {
@@ -72,7 +71,7 @@ test("Settings and unknown routes have no FAB and no actions", () => {
 });
 
 test("All create routes support the FAB", () => {
-  for (const path of ["/", "/transactions", "/plans", "/more", "/accounts", "/debts", "/goals", "/budgets"]) {
+  for (const path of ["/", "/plans", "/more", "/accounts", "/debts", "/goals", "/budgets"]) {
     assert.equal(supportsFab(path), true, path);
   }
 });
@@ -80,7 +79,6 @@ test("All create routes support the FAB", () => {
 test("action lists stay compact (never a giant menu)", () => {
   for (const ctx of [
     { pathname: "/" },
-    { pathname: "/transactions" },
     { pathname: "/plans" },
     { pathname: "/plans", tab: "income" as const },
     { pathname: "/more" },

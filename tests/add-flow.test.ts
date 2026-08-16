@@ -18,9 +18,10 @@ const ui = read("components/ui.tsx");
 const css = read("app/globals.css");
 const fab = read("components/fab.tsx");
 
+const history = read("app/transactions/page.tsx");
+
 const CREATE_PAGES = {
   dashboard: read("app/page.tsx"),
-  history: read("app/transactions/page.tsx"),
   plans: read("app/plans/page.tsx"),
   accounts: read("app/accounts/page.tsx"),
   debts: read("app/debts/page.tsx"),
@@ -39,10 +40,16 @@ test("every create screen registers with the global FAB instead of owning a + bu
 });
 
 test("no page renders its own floating add control", () => {
-  for (const [name, source] of Object.entries(CREATE_PAGES)) {
+  for (const [name, source] of Object.entries({ ...CREATE_PAGES, history })) {
     assert.doesNotMatch(source, /global-fab/, `${name} must not restyle the global FAB`);
     assert.doesNotMatch(source, /fixed bottom-\d/, `${name} must not float its own button`);
   }
+});
+
+test("History does not register transaction creation but keeps the shared editor", () => {
+  assert.doesNotMatch(history, /useFabPage|useFab\(/);
+  assert.match(history, /<QuickAddSheet[\s\S]*?editing=\{editing\}/);
+  assert.doesNotMatch(history, /openCreate|defaultType/);
 });
 
 /* ==================== §5/§25 ONE sheet grammar, ONE primary action ==================== */

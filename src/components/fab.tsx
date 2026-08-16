@@ -44,7 +44,7 @@ export function useFab(): FabControllerValue {
 }
 
 function sameContext(a: PageFabContext, b: PageFabContext): boolean {
-  return a.tab === b.tab && a.txFilter === b.txFilter && a.accountsTab === b.accountsTab;
+  return a.tab === b.tab && a.accountsTab === b.accountsTab;
 }
 
 /**
@@ -129,7 +129,7 @@ export function GlobalAddFab() {
 
   // A context change remounts the local controller. This closes an open action
   // sheet on route/tab changes without retaining stale overlays.
-  const contextKey = `${route}:${currentContext.tab ?? ""}:${currentContext.txFilter ?? ""}:${currentContext.accountsTab ?? ""}`;
+  const contextKey = `${route}:${currentContext.tab ?? ""}:${currentContext.accountsTab ?? ""}`;
   return <GlobalFabControl key={contextKey} actions={actions} invoke={invoke} />;
 }
 

@@ -14,7 +14,7 @@ the sheets; the FAB owns the decision of *which* sheet a context may open.
 | Route (+ context) | FAB actions | Sheet opened | Mutation (unchanged) |
 | --- | --- | --- | --- |
 | `/` Dashboard | Kirim · Chiqim · Transfer | `QuickAddSheet` | `transaction.create` |
-| `/transactions` History (any filter) | Kirim · Chiqim · Transfer | `QuickAddSheet` | `transaction.create/update` |
+| `/transactions` History | — (read/filter/edit/delete only) | `QuickAddSheet` for an existing row only | `transaction.update/delete` |
 | `/plans` → To‘lovlar | To‘lov rejasi (1 → opens directly) | `RecurringSheet` | `recurring.create/update` |
 | `/plans` → Daromad | Kutilayotgan daromad (1 → opens directly) | `IncomeSheet` | `expectedIncome.create/update` |
 | `/plans` → Cash-flow | — (analysis only) | — | — |
@@ -96,7 +96,7 @@ second tap cannot open a sheet behind the overlay.
 
 A form sheet has **exactly one scroll axis: vertical**. Horizontal scrolling is
 allowed in exactly one place in the product: a genuinely long *navigation* tab
-strip (`Segmented` in `ui.tsx`, e.g. Plans tabs, History filter). Never for
+strip (`Segmented` in `ui.tsx`, e.g. Plans tabs). Never for
 form fields, choice controls, button groups or summary cards.
 
 ### Why the sheet used to drift sideways
