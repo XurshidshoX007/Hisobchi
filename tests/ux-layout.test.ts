@@ -32,8 +32,16 @@ test("AppShell mounts one global add FAB and reserves the shared slot for Histor
   assert.match(css, /--z-sheet:\s*80/);
 });
 
+test("Add and History filter reuse one floating action foundation", () => {
+  assert.match(ui, /export function FloatingActionButton/);
+  assert.match(ui, /global-fab grid h-14 w-14/);
+  assert.match(fab, /<FloatingActionButton/);
+  assert.match(filterControls, /<FloatingActionButton/);
+});
+
 test("global FAB remains solid and exposes the required dialog semantics", () => {
-  assert.match(fab, /bg-primary text-primary-fg/);
+  assert.match(ui, /export function FloatingActionButton/);
+  assert.match(ui, /bg-primary text-primary-fg/);
   assert.match(fab, /aria-label="Qo‘shish"/);
   assert.match(fab, /aria-expanded=\{open\}/);
   assert.match(fab, /aria-haspopup="dialog"/);
@@ -79,7 +87,7 @@ test("History controls expose labelled search, floating dialog and active indica
   assert.match(history, /aria-label="Qidiruvni tozalash"/);
   assert.match(transactionFilter, /ariaLabel="Filtrlar"/);
   assert.match(filterControls, /aria-haspopup="dialog"/);
-  assert.match(filterControls, /global-fab/);
+  assert.match(filterControls, /<FloatingActionButton/);
   assert.match(filterControls, /ta faol filtr/);
   assert.match(filterControls, /role="radiogroup"/);
   assert.match(transactionFilter, /overflow-y-auto overflow-x-hidden/);

@@ -2,7 +2,15 @@
 /* eslint-disable react-hooks/refs, react-hooks/set-state-in-effect -- sheet presence/content intentionally outlive the controlling prop through exit */
 
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { formatAmount } from "@/lib/money";
 
@@ -44,6 +52,27 @@ export function SectionTitle({
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
+  );
+}
+
+/**
+ * Shared visual and interaction foundation for the global Add and contextual
+ * Filter floating actions. Position, safe-area, elevation and modal layering
+ * stay centralized in `.global-fab`; callers only provide semantics and icon.
+ */
+export function FloatingActionButton({
+  children,
+  className = "",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className={`global-fab grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-fg transition-[background-color,opacity,transform] duration-200 hover:bg-primary-hover active:scale-95 touch-manipulation ${className}`}
+    >
+      {children}
+    </button>
   );
 }
 
