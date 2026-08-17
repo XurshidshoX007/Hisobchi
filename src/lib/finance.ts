@@ -345,6 +345,12 @@ export type RecurringView = {
   nextOccurrenceDate: string;
   /** Scheduled date already passed and its occurrence is still unfulfilled. */
   isOverdue: boolean;
+  /**
+   * Credit schedule installments (irregular dates/amounts). Populated only for
+   * term plans created from a bot-parsed credit schedule; `paid` is derived
+   * from the real transactions fulfilling each occurrence.
+   */
+  installments: Array<{ date: string; amount: number; occurrenceNumber: number; paid: boolean }> | null;
 };
 
 export type ExpectedIncomeView = {
@@ -683,6 +689,12 @@ type RecurringLike = {
   installmentCount?: number | null;
   installmentsPaid?: number | null;
   startDate?: string | null;
+  /**
+   * Credit schedule installments (irregular dates/amounts). When present for a
+   * `term` plan, the forecast uses these exact occurrences instead of a
+   * generated monthly cadence.
+   */
+  installments?: Array<{ date: string; amount: number; occurrenceNumber: number }> | null;
 };
 
 type ReconciliationTx = {
@@ -752,6 +764,33 @@ export function buildPlanned(
     const remaining = remainingOccurrences(r);
     if (remaining !== null && remaining <= 0) continue;
     const { base, min, max } = rangeValue(r.amount, r.minAmount, r.maxAmount);
+    const certainty = (r.certainty === "estimated" ? "estimated" : "exact") as "exact" | "estimated";
+    // Credit schedule: each installment carries its OWN date AND amount (§6/§7),
+    // so the forecast must not spread a single amount over a monthly cadence
+    // nor annualize it (§21/§22/§23). Each unpaid installment is counted once.
+    if (r.planType === "term" && r.installments && r.installments.length) {
+      for (const inst of r.installments) {
+        if (inst.date > horizonEnd) continue;
+        const fulfilled = transactions.some(
+          (t) => !t.isDeleted && t.type === "expense" && t.recurringId === r.id && (t.plannedDate ?? t.date) === inst.date,
+        );
+        if (fulfilled) continue;
+        items.push({
+          key: `r-${r.id}-${inst.date}`,
+          date: inst.date,
+          kind: "expense",
+          label: r.name,
+          min: inst.amount,
+          base: inst.amount,
+          max: inst.amount,
+          certainty: "exact",
+          mandatory: r.isMandatory,
+          source: "recurring",
+          refId: r.id,
+        });
+      }
+      continue;
+    }
     for (const date of planOccurrences(r, today, horizonEnd)) {
       // A fulfilled occurrence is reconciled by occurrence identity: the
       // transaction's *planned* date (not its actual, possibly early, date).
@@ -767,7 +806,7 @@ export function buildPlanned(
         min,
         base,
         max,
-        certainty: (r.certainty === "estimated" ? "estimated" : "exact") as "exact" | "estimated",
+        certainty,
         mandatory: r.isMandatory,
         source: "recurring",
         refId: r.id,

@@ -4,6 +4,7 @@ import {
   accounts,
   budgets,
   categories,
+  creditInstallments,
   debtPayments,
   debts,
   expectedIncomes,
@@ -47,33 +48,55 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const today = todayISO();
   const thisMonth = monthKey(today);
 
-  const [accountRows, categoryRows, txRows, recurringRows, incomeRows, budgetRows, debtRows, goalRows, notificationRows] =
-    await Promise.all([
-      db.select().from(accounts).where(eq(accounts.userId, user.id)).orderBy(accounts.sortOrder, accounts.id),
-      db.select().from(categories).where(eq(categories.userId, user.id)).orderBy(categories.sortOrder, categories.id),
-      // Analytics must use the complete ledger. The dashboard may render a
-      // slice, but budgets and historical month totals must not silently lose
-      // older transactions (or high-volume users' rows).
-      db
-        .select()
-        .from(transactions)
-        .where(and(eq(transactions.userId, user.id), eq(transactions.isDeleted, false)))
-        .orderBy(desc(transactions.date), desc(transactions.id)),
-      db.select().from(recurringExpenses).where(eq(recurringExpenses.userId, user.id)),
-      db.select().from(expectedIncomes).where(eq(expectedIncomes.userId, user.id)),
-      db
-        .select()
-        .from(budgets)
-        .where(and(eq(budgets.userId, user.id), eq(budgets.month, thisMonth), eq(budgets.isDeleted, false))),
-      db.select().from(debts).where(and(eq(debts.userId, user.id), eq(debts.isDeleted, false))),
-      db.select().from(goals).where(and(eq(goals.userId, user.id), eq(goals.isDeleted, false))),
-      db
-        .select()
-        .from(notifications)
-        .where(eq(notifications.userId, user.id))
-        .orderBy(desc(notifications.createdAt))
-        .limit(30),
-    ]);
+  const [
+    accountRows,
+    categoryRows,
+    txRows,
+    recurringRows,
+    incomeRows,
+    budgetRows,
+    debtRows,
+    goalRows,
+    notificationRows,
+    creditRows,
+  ] = await Promise.all([
+    db.select().from(accounts).where(eq(accounts.userId, user.id)).orderBy(accounts.sortOrder, accounts.id),
+    db.select().from(categories).where(eq(categories.userId, user.id)).orderBy(categories.sortOrder, categories.id),
+    // Analytics must use the complete ledger. The dashboard may render a
+    // slice, but budgets and historical month totals must not silently lose
+    // older transactions (or high-volume users' rows).
+    db
+      .select()
+      .from(transactions)
+      .where(and(eq(transactions.userId, user.id), eq(transactions.isDeleted, false)))
+      .orderBy(desc(transactions.date), desc(transactions.id)),
+    db.select().from(recurringExpenses).where(eq(recurringExpenses.userId, user.id)),
+    db.select().from(expectedIncomes).where(eq(expectedIncomes.userId, user.id)),
+    db
+      .select()
+      .from(budgets)
+      .where(and(eq(budgets.userId, user.id), eq(budgets.month, thisMonth), eq(budgets.isDeleted, false))),
+    db.select().from(debts).where(and(eq(debts.userId, user.id), eq(debts.isDeleted, false))),
+    db.select().from(goals).where(and(eq(goals.userId, user.id), eq(goals.isDeleted, false))),
+    db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, user.id))
+      .orderBy(desc(notifications.createdAt))
+      .limit(30),
+    db
+      .select()
+      .from(creditInstallments)
+      .where(eq(creditInstallments.userId, user.id))
+      .orderBy(creditInstallments.occurrenceNumber),
+  ]);
+
+  const creditByPlan = new Map<number, typeof creditRows>();
+  for (const row of creditRows) {
+    const list = creditByPlan.get(row.planId) ?? [];
+    list.push(row);
+    creditByPlan.set(row.planId, list);
+  }
 
   const accountNames = new Map(accountRows.map((a) => [a.id, a.name]));
   const catById = new Map(categoryRows.map((c) => [c.id, c]));
@@ -161,7 +184,6 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   /* ---- recurring / payment plans ---- */
   const recurringViews: RecurringView[] = recurringRows.map((r) => {
     const { base } = rangeValue(r.amount, r.minAmount, r.maxAmount);
-    const daysLeft = dayDiff(today, r.nextDueDate);
     const planType = (r.planType === "term" ? "term" : r.planType === "one_time" || r.frequency === "once" ? "one_time" : "recurring") as
       | "one_time"
       | "recurring"
@@ -171,41 +193,75 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     // termCompleted / status, which is exactly how the three concepts used to
     // drift apart between the list, the stats and the projection.
     const status = resolvePlanLifecycle(r);
-    const termCompleted = planType === "term" && status === "completed";
-    const remainingInstallments =
-      planType === "term"
-        ? Math.max(0, (r.installmentCount ?? 0) - r.installmentsPaid)
-        : planType === "one_time"
-          ? status === "completed" || status === "cancelled"
-            ? 0
-            : 1
-          : null;
     // §18: a "paid this month" tick is a RECONCILED fact, not decoration.
     // It requires a real, non-deleted EXPENSE transaction that fulfils an
     // occurrence (plannedDate) of THIS plan inside the current month — so
     // deleting that transaction makes the tick disappear, and an income or a
     // foreign transaction can never produce one.
     const planPayments = txViews.filter((t) => t.type === "expense" && t.recurringId === r.id);
+    const paidDates = new Set(planPayments.map((t) => t.plannedDate ?? t.date));
+
+    // Credit schedule: a term plan whose installments are stored explicitly
+    // (irregular dates + amounts). `paid` is derived from the real payments.
+    const creditRows = creditByPlan.get(r.id) ?? [];
+    const installments =
+      planType === "term" && creditRows.length
+        ? creditRows.map((c) => ({
+            date: c.date,
+            amount: c.amount,
+            occurrenceNumber: c.occurrenceNumber,
+            paid: paidDates.has(c.date),
+          }))
+        : null;
+
+    const installmentsPaid = installments ? installments.filter((i) => i.paid).length : r.installmentsPaid;
+    const totalCount = installments ? installments.length : (r.installmentCount ?? 0);
+    // The cursor is the next UNPAID installment for credit plans (irregular
+    // dates), and the stored nextDueDate for every other plan kind.
+    const effectiveNextDueDate = installments
+      ? (installments.find((i) => !i.paid)?.date ?? installments[installments.length - 1].date)
+      : r.nextDueDate;
+    const daysLeft = dayDiff(today, effectiveNextDueDate);
+    const termCompleted = planType === "term" && status === "completed";
+    const remainingInstallments =
+      planType === "term"
+        ? Math.max(0, totalCount - installmentsPaid)
+        : planType === "one_time"
+          ? status === "completed" || status === "cancelled"
+            ? 0
+            : 1
+          : null;
     const monthPayments = planPayments.filter((t) => (t.plannedDate ?? t.date).startsWith(thisMonth));
     // A cancelled plan has no live "paid" state to advertise.
     const paidThisMonth = status !== "cancelled" && monthPayments.length > 0;
     // Annualized total applies ONLY to indefinite recurring plans. Term and
     // one-time plans must never be multiplied by 12 (a 2-installment term is
-    // worth count × amount, not amount × 12).
+    // worth count × amount, not amount × 12) — and a credit's real worth is
+    // the SUM of its actual installments, never count × average (§23).
     const annualFactor = r.frequency === "weekly" ? 52 : r.frequency === "yearly" ? 1 : 12;
     const yearlyTotal = planType === "recurring" ? base * annualFactor : 0;
     const planTotal =
       planType === "term"
-        ? round2((r.installmentCount ?? 0) * base)
+        ? installments
+          ? round2(installments.reduce((sum, i) => sum + i.amount, 0))
+          : round2((r.installmentCount ?? 0) * base)
         : planType === "one_time"
           ? round2(base)
           : null;
-    // The date this plan would really resume on (§26): a schedule parked in
-    // the past is rolled forward instead of resurrecting a stale occurrence.
-    const nextOccurrenceDate = nextScheduleDate(
-      { planType, frequency: r.frequency, cursor: r.nextDueDate },
-      today,
-    );
+    const remainingTotal =
+      planType === "term"
+        ? installments
+          ? round2(installments.filter((i) => !i.paid).reduce((sum, i) => sum + i.amount, 0))
+          : round2(Math.max(0, totalCount - installmentsPaid) * base)
+        : remainingInstallments !== null
+          ? round2(remainingInstallments * base)
+          : null;
+    // The date this plan would really resume on (§26): for credit plans the
+    // next unpaid installment (never rolled forward — its dates are fixed);
+    // for regular plans a schedule parked in the past is rolled forward.
+    const nextOccurrenceDate = installments
+      ? (installments.find((i) => !i.paid)?.date ?? installments[installments.length - 1].date)
+      : nextScheduleDate({ planType, frequency: r.frequency, cursor: r.nextDueDate }, today);
     return {
       id: r.id,
       name: r.name,
@@ -220,7 +276,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       frequency: r.frequency,
       isMandatory: r.isMandatory,
       certainty: r.certainty === "estimated" ? "estimated" : "exact",
-      nextDueDate: r.nextDueDate,
+      nextDueDate: effectiveNextDueDate,
       reminderDaysBefore: r.reminderDaysBefore,
       isActive: status === "active",
       status,
@@ -228,10 +284,10 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       paidThisMonth,
       yearlyTotal: round2(yearlyTotal),
       planType,
-      installmentCount: r.installmentCount,
-      installmentsPaid: r.installmentsPaid,
+      installmentCount: installments ? installments.length : r.installmentCount,
+      installmentsPaid,
       remainingInstallments,
-      remainingTotal: remainingInstallments !== null ? round2(remainingInstallments * base) : null,
+      remainingTotal,
       planTotal,
       termCompleted,
       paymentsCount: planPayments.length,
@@ -239,6 +295,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       lastPaymentDate: planPayments.map((t) => t.date).sort().at(-1) ?? null,
       nextOccurrenceDate,
       isOverdue: status === "active" && daysLeft < 0,
+      installments,
     };
   });
 
@@ -398,7 +455,15 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const forecast = buildForecast({
     currentBalance,
     transactions: txRows.map((t) => ({ id: t.id, date: t.date, type: t.type, amount: t.amount, note: t.note, recurringId: t.recurringId, expectedIncomeId: t.expectedIncomeId, plannedDate: t.plannedDate, occurrenceNumber: t.occurrenceNumber, isDeleted: t.isDeleted })),
-    recurring: recurringRows,
+    recurring: recurringRows.map((r) => ({
+      ...r,
+      installments:
+        creditByPlan.get(r.id)?.map((c) => ({
+          date: c.date,
+          amount: c.amount,
+          occurrenceNumber: c.occurrenceNumber,
+        })) ?? undefined,
+    })),
     incomes: incomeRows.map((i) => ({
       ...i,
       linkedTransactionId: incomeViews.find((v) => v.id === i.id)?.linkedTransactionId ?? null,
