@@ -167,6 +167,13 @@ test("Dashboard presentation contains only the approved hierarchy and preserves 
   assert.match(visibleSource, /Balans/i);
   assert.match(visibleSource, /Daromad kategoriyalari/);
   assert.match(visibleSource, /Xarajat kategoriyalari/);
+  assert.doesNotMatch(page, /Dashboard oyi|<time\b/);
+  assert.doesNotMatch(components, />Hamyon<\/p>/);
+  assert.match(
+    components,
+    /items-start justify-between[\s\S]{0,500}>Balans<\/p>[\s\S]{0,500}<Money whole value=\{facts\.balance\}[\s\S]{0,500}<WalletIcon/,
+  );
+  assert.equal((components.match(/<Money whole/g) ?? []).length, 4, "every dashboard amount must hide fractional tiyin");
   assert.doesNotMatch(visibleSource, /sof natija|safe.?to.?spend|prognoz|kutilayotgan daromad|majburiy to['‘’]?lov|cash.?flow|insight/i);
   assert.doesNotMatch(page, /charts|buildForecast|buildMonthlyView/);
   assert.match(page, /useFabPage/);

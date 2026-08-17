@@ -27,6 +27,7 @@ export function FilterButton({
   if (floating) {
     return (
       <FloatingActionButton
+        portal
         onClick={onClick}
         aria-label={ariaLabel}
         aria-expanded={open}

@@ -14,6 +14,12 @@ import {
 import { createPortal } from "react-dom";
 import { formatAmount } from "@/lib/money";
 
+/** One body-level portal keeps every viewport layer out of transformed pages. */
+function BodyPortal({ children }: { children: ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+}
+
 export function Card({
   children,
   className = "",
@@ -59,13 +65,24 @@ export function SectionTitle({
  * Shared visual and interaction foundation for the global Add and contextual
  * Filter floating actions. Position, safe-area, elevation and modal layering
  * stay centralized in `.global-fab`; callers only provide semantics and icon.
+ *
+ * A page can request a body portal when one of its ancestors animates with a
+ * transform. Without that escape hatch, CSS makes `position: fixed` relative
+ * to the transformed page (and the action scrolls away from the viewport).
  */
 export function FloatingActionButton({
   children,
   className = "",
+  portal = false,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
+}: ButtonHTMLAttributes<HTMLButtonElement> & { portal?: boolean }) {
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    if (portal) setPortalReady(true);
+  }, [portal]);
+
+  const button = (
     <button
       type="button"
       {...props}
@@ -74,6 +91,10 @@ export function FloatingActionButton({
       {children}
     </button>
   );
+
+  if (!portal) return button;
+  if (!portalReady) return null;
+  return <BodyPortal>{button}</BodyPortal>;
 }
 
 export function Button({
@@ -151,6 +172,7 @@ export function Money({
   size = "md",
   tone = "default",
   signed = false,
+  whole = false,
   zeroSign,
   currency,
   compactSuffix,
@@ -159,6 +181,8 @@ export function Money({
   size?: "xs" | "sm" | "md" | "lg" | "xl" | "hero";
   tone?: "default" | "positive" | "negative" | "muted";
   signed?: boolean;
+  /** Display-only rounding to the nearest whole currency unit. */
+  whole?: boolean;
   /** Optional semantic sign for a zero movement (for example “+0” income). */
   zeroSign?: "+" | "−";
   currency?: string;
@@ -178,11 +202,12 @@ export function Money({
     negative: "text-negative-text",
     muted: "text-muted",
   };
-  const sign = signed ? (value > 0 ? "+" : value < 0 ? "−" : zeroSign ?? "") : "";
+  const magnitude = whole ? Math.round(Math.abs(value)) : Math.abs(value);
+  const sign = signed ? (magnitude === 0 ? zeroSign ?? "" : value > 0 ? "+" : "−") : "";
   return (
     <span className={`num ${sizes[size]} ${tones[tone]} break-words`}>
       {sign}
-      {formatAmount(Math.abs(value))}
+      {formatAmount(magnitude)}
       {compactSuffix ? <span className="ml-1 text-xs font-normal text-muted">{compactSuffix}</span> : null}
       {currency ? <span className="ml-1 text-[0.62em] font-normal text-muted">{currency}</span> : null}
     </span>
@@ -666,7 +691,7 @@ export function ContextualBottomSheet({
       </div>
     </div>
   );
-  return createPortal(sheet, document.body);
+  return <BodyPortal>{sheet}</BodyPortal>;
 }
 
 /** Backwards-compatible name: every legacy call still resolves to ONE primitive. */
