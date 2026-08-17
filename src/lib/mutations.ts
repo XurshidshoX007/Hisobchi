@@ -4,6 +4,7 @@ import {
   accounts,
   budgets,
   categories,
+  creditInstallments,
   debtPayments,
   debts,
   expectedIncomes,
@@ -16,6 +17,11 @@ import {
 import type { User } from "@/db/schema";
 import { addMonths, monthKey, roundMoney, todayISO } from "./money";
 import { parseDraft } from "./nlp";
+import {
+  advanceCreditTerm,
+  revertCreditTerm,
+  type CreditInstallmentInput,
+} from "./installments";
 import {
   advanceIncomeState,
   advanceRecurringState,
@@ -303,10 +309,45 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               .limit(1);
             if (rec[0]) {
               const plannedDate = existing[0].plannedDate ?? existing[0].date;
-              await tx
-                .update(recurringExpenses)
-                .set(revertRecurringState(rec[0], plannedDate))
-                .where(and(eq(recurringExpenses.id, rec[0].id), eq(recurringExpenses.userId, userId)));
+              // Credit schedule: deleting a payment un-pays exactly that
+              // installment (2/5 → 1/5, §15). The parent plan is preserved;
+              // its counters and cursor are recomputed from the installments
+              // that remain unpaid. A cancelled/paused plan stays deactivated.
+              if (rec[0].planType === "term") {
+                const creditRows = await tx
+                  .select()
+                  .from(creditInstallments)
+                  .where(and(eq(creditInstallments.planId, rec[0].id), eq(creditInstallments.userId, userId)))
+                  .orderBy(creditInstallments.occurrenceNumber);
+                if (creditRows.length) {
+                  const paidRows = await tx
+                    .select({ plannedDate: transactions.plannedDate, date: transactions.date })
+                    .from(transactions)
+                    .where(
+                      and(
+                        eq(transactions.recurringId, rec[0].id),
+                        eq(transactions.userId, userId),
+                        eq(transactions.isDeleted, false),
+                      ),
+                    );
+                  const paidDates = new Set(paidRows.map((t) => t.plannedDate ?? t.date));
+                  paidDates.delete(plannedDate);
+                  await tx
+                    .update(recurringExpenses)
+                    .set(revertCreditTerm(rec[0], creditRows, paidDates))
+                    .where(and(eq(recurringExpenses.id, rec[0].id), eq(recurringExpenses.userId, userId)));
+                } else {
+                  await tx
+                    .update(recurringExpenses)
+                    .set(revertRecurringState(rec[0], plannedDate))
+                    .where(and(eq(recurringExpenses.id, rec[0].id), eq(recurringExpenses.userId, userId)));
+                }
+              } else {
+                await tx
+                  .update(recurringExpenses)
+                  .set(revertRecurringState(rec[0], plannedDate))
+                  .where(and(eq(recurringExpenses.id, rec[0].id), eq(recurringExpenses.userId, userId)));
+              }
             }
           }
           if (existing[0].expectedIncomeId) {
@@ -519,6 +560,21 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
           .limit(1);
         if (!existingRec[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
+        // Credit schedules keep their installments as explicit rows — the
+        // count is owned by that schedule, not by the generic form, so an
+        // ordinary edit must not silently detach the list from its plan.
+        if (existingRec[0].planType === "term") {
+          const creditCount = await db
+            .select({ id: creditInstallments.id })
+            .from(creditInstallments)
+            .where(and(eq(creditInstallments.planId, existingRec[0].id), eq(creditInstallments.userId, userId)));
+          if (creditCount.length && installmentCount !== null && installmentCount !== creditCount.length) {
+            return {
+              ok: false,
+              message: "Bu kredit rejasining to'lov jadvali alohida saqlanadi — to'lovlar sonini shu yerda o'zgartirib bo'lmaydi.",
+            };
+          }
+        }
         // §24: an edit must never corrupt already fulfilled occurrences —
         // 5/12 can become 5/24, never 5/4.
         if (planType === "term" && installmentCount !== null && installmentCount < existingRec[0].installmentsPaid) {
@@ -575,6 +631,70 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           const guard = await accountForPosting(userId, paymentAccountId, "source");
           if (!guard.ok) return { ok: false, message: guard.message };
         }
+        // Credit schedule: pay the NEXT UNPAID installment (its own date and
+        // amount), not a synthetic monthly occurrence. "To‘landi" fulfils the
+        // specific occurrence and the cursor advances to the following unpaid
+        // installment (§14/§15).
+        if (rec[0].planType === "term") {
+          const creditRows = await db
+            .select()
+            .from(creditInstallments)
+            .where(and(eq(creditInstallments.planId, id), eq(creditInstallments.userId, userId)))
+            .orderBy(creditInstallments.occurrenceNumber);
+          if (creditRows.length) {
+            const paidRows = await db
+              .select({ plannedDate: transactions.plannedDate, date: transactions.date })
+              .from(transactions)
+              .where(and(eq(transactions.recurringId, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)));
+            const paidDates = new Set(paidRows.map((t) => t.plannedDate ?? t.date));
+            const next = creditRows.find((i) => !paidDates.has(i.date));
+            if (!next) return { ok: false, message: "Bu to'lov muddati allaqachon tugagan" };
+            const installmentAmount = next.amount;
+            const installmentDate = next.date;
+            const nextState = advanceCreditTerm(creditRows, paidDates, installmentDate);
+            const paid = await db.transaction(async (tx) => {
+              const claimed = await tx
+                .update(recurringExpenses)
+                .set(nextState)
+                .where(
+                  and(
+                    eq(recurringExpenses.id, id),
+                    eq(recurringExpenses.userId, userId),
+                    eq(recurringExpenses.isActive, true),
+                    eq(recurringExpenses.nextDueDate, rec[0].nextDueDate),
+                    eq(recurringExpenses.installmentsPaid, rec[0].installmentsPaid),
+                  ),
+                )
+                .returning({ id: recurringExpenses.id });
+              if (!claimed[0]) return false;
+              await tx.insert(transactions).values({
+                userId,
+                accountId: paymentAccountId,
+                categoryId: rec[0].categoryId,
+                type: "expense",
+                amount: installmentAmount,
+                date: isoDate(d.date, today) ?? today,
+                note: `${rec[0].name} (reja bajarildi)`,
+                source: "auto",
+                recurringId: rec[0].id,
+                plannedDate: installmentDate,
+                occurrenceNumber: next.occurrenceNumber,
+                currency: user.currency,
+              });
+              return true;
+            });
+            if (!paid) return { ok: false, message: "Bu to'lov allaqachon qayd etilgan" };
+            const done = nextState.installmentsPaid;
+            return {
+              ok: true,
+              message:
+                done >= creditRows.length
+                  ? `${rec[0].name} yakunlandi 🎉 (${done}/${creditRows.length})`
+                  : `${rec[0].name} to'landi (${done}/${creditRows.length})`,
+            };
+          }
+        }
+
         // The occurrence being paid is the plan's current scheduled date. The
         // actual transaction date may be earlier (early payment); the planned
         // date is stored separately so deletion can restore the exact schedule.
@@ -676,7 +796,30 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           // §26: reactivating must not silently revive a stale schedule. A plan
           // cancelled three months ago comes back on its NEXT real occurrence,
           // not on a due date that already passed while it was inactive.
-          const schedule = restoreRecurringState(planRow[0], today);
+          // Credit schedules re-anchor to their next UNPAID installment (their
+          // dates are fixed; a monthly roll-forward would invent a date that
+          // exists nowhere in the schedule).
+          let schedule: { isActive: true; status: "active"; nextDueDate: string };
+          if (planRow[0].planType === "term") {
+            const creditRows = await db
+              .select()
+              .from(creditInstallments)
+              .where(and(eq(creditInstallments.planId, id), eq(creditInstallments.userId, userId)))
+              .orderBy(creditInstallments.occurrenceNumber);
+            if (creditRows.length) {
+              const paidRows = await db
+                .select({ plannedDate: transactions.plannedDate, date: transactions.date })
+                .from(transactions)
+                .where(and(eq(transactions.recurringId, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)));
+              const paidDates = new Set(paidRows.map((t) => t.plannedDate ?? t.date));
+              const next = creditRows.find((i) => !paidDates.has(i.date));
+              schedule = { isActive: true, status: "active", nextDueDate: next?.date ?? creditRows[creditRows.length - 1].date };
+            } else {
+              schedule = restoreRecurringState(planRow[0], today);
+            }
+          } else {
+            schedule = restoreRecurringState(planRow[0], today);
+          }
           const restored = await db
             .update(recurringExpenses)
             .set(schedule)
@@ -1321,6 +1464,105 @@ async function ownsCategory(userId: number, categoryId: number): Promise<boolean
     .where(and(eq(categories.id, categoryId), eq(categories.userId, userId), eq(categories.isActive, true)))
     .limit(1);
   return Boolean(rows[0]);
+}
+
+/**
+ * Atomic creation of ONE `term` payment plan from a parsed credit schedule
+ * (§8/§9/§10): parent plan + every installment in a single transaction, so a
+ * failure can never leave a half-written credit schedule behind.
+ *
+ *   1 kredit = 1 reja (planType "term")
+ *   1 reja   = N ta installment (credit_installments rows)
+ *
+ * The parent stores the average amount as its nominal `amount`; the real,
+ * possibly-irregular per-installment amounts live on the installment rows and
+ * drive forecast / remaining-total / monthly load.
+ */
+export async function createCreditTermPlan(
+  user: User,
+  input: {
+    name: string;
+    installments: CreditInstallmentInput[];
+    isMandatory?: boolean;
+    categoryId?: number | null;
+    accountId?: number | null;
+  },
+): Promise<{ ok: boolean; message: string; id?: number }> {
+  const userId = user.id;
+  const name = str(input.name);
+  if (!name) return { ok: false, message: "Kredit nomi kerak" };
+
+  const rawItems = Array.isArray(input.installments) ? input.installments : [];
+  if (!rawItems.length) return { ok: false, message: "To'lovlar topilmadi" };
+  if (rawItems.length > 24) return { ok: false, message: "Jadval juda uzun (maksimal 24 ta to'lov)" };
+
+  const categoryId = int(input.categoryId);
+  const accountId = int(input.accountId);
+  if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
+  if (accountId && !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+
+  // Validate and normalize every installment: valid ISO date, positive amount.
+  const items: Array<{ date: string; amount: number }> = [];
+  for (let i = 0; i < rawItems.length; i++) {
+    const it = rawItems[i];
+    const date = isoDate(it?.date);
+    const amount = num(it?.amount);
+    if (!date) return { ok: false, message: `${i + 1}-to'lov sanasi topilmadi. Sanani tuzatib qayta yuboring.` };
+    if (!amount || amount <= 0) return { ok: false, message: `${i + 1}-to'lov summasi topilmadi. Summani tuzatib qayta yuboring.` };
+    items.push({ date, amount });
+  }
+  items.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  for (let i = 1; i < items.length; i++) {
+    if (items[i].date === items[i - 1].date) {
+      return { ok: false, message: `${items[i].date} sanasi takrorlangan. Har bir to'lov alohida sanada bo'lishi kerak.` };
+    }
+  }
+
+  const total = items.reduce((sum, it) => sum + it.amount, 0);
+  const average = roundMoney(total / items.length);
+  const first = items[0];
+  const dueDay = Math.min(28, Math.max(1, Number(first.date.slice(8, 10)) || 1));
+  const isMandatory = input.isMandatory !== false;
+
+  const created = await db.transaction(async (tx) => {
+    const [plan] = await tx
+      .insert(recurringExpenses)
+      .values({
+        userId,
+        categoryId,
+        accountId,
+        name,
+        amount: average,
+        minAmount: null,
+        maxAmount: null,
+        dueDay,
+        frequency: "monthly",
+        isMandatory,
+        certainty: "exact",
+        nextDueDate: first.date,
+        startDate: first.date,
+        planType: "term",
+        installmentCount: items.length,
+        installmentsPaid: 0,
+        status: "active",
+        isActive: true,
+        reminderDaysBefore: 1,
+      })
+      .returning();
+    await tx.insert(creditInstallments).values(
+      items.map((it, i) => ({
+        userId,
+        planId: plan.id,
+        occurrenceNumber: i + 1,
+        date: it.date,
+        amount: it.amount,
+      })),
+    );
+    return plan;
+  });
+
+  if (!created) return { ok: false, message: "Saqlashda xatolik. Qayta urinib ko'ring." };
+  return { ok: true, id: created.id, message: `${name} kredit rejasiga qo'shildi` };
 }
 
 /** Quick-add from free text (bot + mini app quick input share this path). */
