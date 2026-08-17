@@ -30,17 +30,18 @@ export type BotReply = {
 };
 
 /**
- * Telegram main keyboard per spec - compact logically grouped.
+ * Telegram main keyboard per spec — the three core finance actions only.
+ * Every deeper section (Hisobot, Reja, Hisoblar, Budjet, Qarzdorlik,
+ * Maqsadlar, Eslatmalar, Sozlamalar, …) keeps working: the text routing in
+ * bot-routing.ts is untouched, so typed messages, legacy pinned keyboards
+ * and the Mini App console still resolve to the same intents.
  */
-export const MAIN_MENU: string[][] = [
-  ["💰 Daromad", "💸 Xarajat", "🔄 Transfer"],
-  ["📊 Hisobot", "📅 Reja"],
-  ["💳 Hisoblar", "📁 Kategoriyalar"],
-  ["📌 To‘lovlar", "💵 Kutilayotgan daromad"],
-  ["🎯 Budjet", "💳 Qarzdorlik", "🏆 Maqsadlar"],
-  ["🔔 Eslatmalar", "⚙️ Sozlamalar"],
-];
+export const MAIN_MENU: string[][] = [["💰 Daromad", "💸 Xarajat", "🔄 Transfer"]];
 
+/**
+ * Deep-section keyboard, still used when an old flow is reached by text.
+ * Not part of the main keyboard; removal is a separate product decision.
+ */
 export const MORE_MENU: string[][] = [
   ["💳 Hisoblar", "📁 Kategoriyalar"],
   ["📌 To‘lovlar", "💵 Kutilayotgan daromad"],
