@@ -2,7 +2,8 @@ import type { User } from "@/db/schema";
 import { buildAppState } from "./state";
 import { quickAdd } from "./mutations";
 import { parseDrafts } from "./nlp";
-import { compact, formatAmount, humanDate, shortDate } from "./money";
+import { isPaymentScheduleCandidate, parsePaymentSchedule, type PaymentSchedule } from "./payment-schedule-parser";
+import { compact, formatAmount, humanDate, parseISO, shortDate, UZ_MONTHS } from "./money";
 import type { AppState } from "./types";
 import { botIntent } from "./bot-routing";
 import { TERMS, TX_LABEL } from "./copy";
@@ -27,6 +28,7 @@ export type BotReply = {
   draft?: BotDraft;
   drafts?: BotDraft[];
   failedSegments?: string[];
+  schedule?: PaymentSchedule;
 };
 
 /**
@@ -189,6 +191,47 @@ export async function respondToBotMessage(
       ].join("\n"),
       keyboard: MAIN_MENU,
     };
+  }
+
+  // Payment schedule detection — must run before normal transaction parsing
+  // so a single credit message with many installments is not split into
+  // independent expenses.
+  if (isPaymentScheduleCandidate(text)) {
+    const parsed = parsePaymentSchedule(text, state.forecast.today ?? state.forecast.today);
+    if (parsed.ok && parsed.schedule && parsed.schedule.items.length >= 2) {
+      const total = parsed.schedule.totalAmount;
+      const scheduleDateLabel = (iso: string) => {
+        const d = parseISO(iso);
+        return `${d.getDate()} ${UZ_MONTHS[d.getMonth()]}`;
+      };
+      const lines = [
+        "📋 Kredit jadvali topildi",
+        "",
+        parsed.schedule.name,
+        "",
+        ...parsed.schedule.items.map((it, idx) => `${idx + 1}. ${scheduleDateLabel(it.date)} — ${formatAmount(it.amount)} so'm`),
+        "",
+        `Jami: ${formatAmount(total)} so'm`,
+        `${parsed.schedule.items.length} ta to'lov`,
+      ];
+      return {
+        text: lines.join("\n"),
+        keyboard: [["✅ Hammasini qo‘shish", "❌ Bekor qilish"], ...MAIN_MENU],
+        schedule: parsed.schedule,
+      };
+    }
+    if (parsed.schedule && parsed.schedule.items.length === 1) {
+      return {
+        text: "1 ta to‘lov topildi. Bu kredit rejasimi yoki oddiy to‘lovmi? Agar kredit jadvali bo‘lsa, to‘liq jadvalni yuboring.",
+        keyboard: MAIN_MENU,
+      };
+    }
+    if (parsed.errors.length) {
+      return {
+        text: `⚠️ Kredit jadvalida xatolik:\n${parsed.errors.slice(0, 3).join("\n")}\nQayta tekshirib yuboring.`,
+        keyboard: MAIN_MENU,
+      };
+    }
   }
 
   const batch = parseDrafts(text);

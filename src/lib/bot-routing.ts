@@ -121,3 +121,11 @@ export function parseCategoryPickCallback(data: string): { draftId: number; cate
   if (!Number.isSafeInteger(categoryId) || categoryId <= 0) return null;
   return { draftId, categoryId };
 }
+
+/** Payment schedule callbacks: `schedule:<batchId>:confirm` or `schedule:<batchId>:cancel`. */
+export function parseScheduleCallback(data: string): { batchId: string; action: "confirm" | "cancel" } | null {
+  if (data.length > 64) return null;
+  const match = data.match(/^schedule:([a-zA-Z0-9_-]{4,64}):(confirm|cancel)$/);
+  if (!match) return null;
+  return { batchId: match[1], action: match[2] as "confirm" | "cancel" };
+}
