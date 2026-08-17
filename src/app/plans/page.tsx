@@ -589,6 +589,27 @@ function PaymentPlanRow({
         </div>
       ) : null}
 
+      {/* Credit schedule: the installments live INSIDE the one card (§12) —
+          each with its own date and amount. Paid ones are struck through. */}
+      {isTerm && r.installments && r.installments.length ? (
+        <div className="mt-2 space-y-1 rounded-xl bg-surface-2 px-3 py-2">
+          {r.installments.map((inst) => (
+            <div key={inst.occurrenceNumber} className="flex items-center gap-2 text-[11.5px] leading-snug">
+              <span className={`num w-14 shrink-0 ${inst.paid ? "text-muted line-through" : "text-fg-soft"}`}>
+                {dayMonth(inst.date)}
+              </span>
+              <span className={`num shrink-0 ${inst.paid ? "text-muted line-through" : "text-fg"}`}>
+                {formatAmount(inst.amount)}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-muted">
+                {inst.paid ? "to‘langan" : ""}
+              </span>
+              {inst.paid ? <span className="shrink-0 text-[11px] text-positive-text">✓</span> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div className="mt-2.5 flex items-center gap-2">
         {status === "active" ? (
           <Button variant="positive" size="sm" className="min-w-0 flex-1 sm:max-w-44" onClick={() => onAction("pay", r)}>

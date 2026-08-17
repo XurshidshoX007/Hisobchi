@@ -2,8 +2,9 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { categories as categoriesTable, idempotencyKeys, pendingDrafts, recurringExpenses, telegramUpdates } from "@/db/schema";
+import { categories as categoriesTable, idempotencyKeys, pendingDrafts, telegramUpdates } from "@/db/schema";
 import { respondToBotMessage, MAIN_MENU } from "@/lib/bot";
+import { createCreditTermPlan } from "@/lib/mutations";
 import {
   isStartCommand,
   parseBatchCallback,
@@ -442,29 +443,28 @@ export async function POST(request: Request) {
                   .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
                 ack = "✅ Kredit jadvali avval qo‘shilgan";
               } else {
+                // §8/§9/§10: the whole schedule is saved by ONE atomic business
+                // operation in the shared mutation layer — one `term` plan plus
+                // every installment, all-or-nothing. No per-installment
+                // one_time plans are created here anymore.
+                let created: { ok: boolean; message: string; id?: number };
                 try {
-                  const toCreate = payload.items.map((it) => ({
-                    userId: user.id,
+                  created = await createCreditTermPlan(user, {
                     name: payload.name,
-                    amount: it.amount,
-                    minAmount: null,
-                    maxAmount: null,
-                    dueDay: Math.min(28, Math.max(1, Number(it.date.slice(8, 10)))),
-                    frequency: "once" as const,
+                    installments: payload.items,
                     isMandatory: true,
-                    certainty: "exact" as const,
-                    nextDueDate: it.date,
-                    startDate: it.date,
-                    planType: "one_time" as const,
-                    installmentCount: null,
-                    installmentsPaid: 0,
-                    status: "active" as const,
-                    isActive: true,
-                    reminderDaysBefore: 1,
-                  }));
-                  await db.transaction(async (tx) => {
-                    await tx.insert(recurringExpenses).values(toCreate);
                   });
+                } catch {
+                  created = { ok: false, message: "Saqlashda xatolik. Qayta urinib ko‘ring." };
+                }
+                if (!created.ok) {
+                  await db
+                    .update(pendingDrafts)
+                    .set({ status: "pending", resolvedAt: null })
+                    .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
+                  await db.delete(idempotencyKeys).where(and(eq(idempotencyKeys.userId, user.id), eq(idempotencyKeys.key, idemKey), eq(idempotencyKeys.scope, scope))).catch(() => undefined);
+                  ack = `⛔ ${created.message}`;
+                } else {
                   await db
                     .update(idempotencyKeys)
                     .set({ status: "completed" })
@@ -487,15 +487,8 @@ export async function POST(request: Request) {
                     outcome: "success",
                     requestId: sec.requestId,
                     ipHash: sec.ipKey,
-                    metadata: { batchId, count: payload.items.length },
+                    metadata: { batchId, count: payload.items.length, planId: created.id ?? null },
                   });
-                } catch (e) {
-                  await db
-                    .update(pendingDrafts)
-                    .set({ status: "pending", resolvedAt: null })
-                    .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
-                  await db.delete(idempotencyKeys).where(and(eq(idempotencyKeys.userId, user.id), eq(idempotencyKeys.key, idemKey), eq(idempotencyKeys.scope, scope))).catch(() => undefined);
-                  ack = "⛔ Saqlashda xatolik. Qayta urinib ko‘ring.";
                 }
               }
             }

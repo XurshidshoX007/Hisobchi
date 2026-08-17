@@ -3,6 +3,7 @@ import { buildAppState } from "./state";
 import { quickAdd } from "./mutations";
 import { parseDrafts } from "./nlp";
 import { isPaymentScheduleCandidate, parsePaymentSchedule, type PaymentSchedule } from "./payment-schedule-parser";
+import { creditSchedulesMatch } from "./installments";
 import { compact, formatAmount, humanDate, parseISO, shortDate, UZ_MONTHS } from "./money";
 import type { AppState } from "./types";
 import { botIntent } from "./bot-routing";
@@ -204,16 +205,34 @@ export async function respondToBotMessage(
         const d = parseISO(iso);
         return `${d.getDate()} ${UZ_MONTHS[d.getMonth()]}`;
       };
+      // §17 duplicate protection: warn (never silently merge) when an active
+      // credit plan with the same merchant and the same (date, amount) set
+      // already exists. The user still explicitly confirms to proceed.
+      const duplicateActive = state.recurring.some(
+        (p) =>
+          p.status === "active" &&
+          p.planType === "term" &&
+          p.installments !== null &&
+          p.installments !== undefined &&
+          creditSchedulesMatch(
+            p.name,
+            p.installments.map((i) => ({ date: i.date, amount: i.amount })),
+            parsed.schedule!.name,
+            parsed.schedule!.items.map((i) => ({ date: i.date, amount: i.amount })),
+          ),
+      );
       const lines = [
-        "📋 Kredit jadvali topildi",
+        "📋 Kredit jadvali",
         "",
         parsed.schedule.name,
         "",
         ...parsed.schedule.items.map((it, idx) => `${idx + 1}. ${scheduleDateLabel(it.date)} — ${formatAmount(it.amount)} so'm`),
         "",
-        `Jami: ${formatAmount(total)} so'm`,
-        `${parsed.schedule.items.length} ta to'lov`,
+        `${parsed.schedule.items.length} ta to'lov · jami ${formatAmount(total)} so'm`,
       ];
+      if (duplicateActive) {
+        lines.push("", "⚠️ Shunga o'xshash faol kredit rejasi mavjud.");
+      }
       return {
         text: lines.join("\n"),
         keyboard: [["✅ Hammasini qo‘shish", "❌ Bekor qilish"], ...MAIN_MENU],

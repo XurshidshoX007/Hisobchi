@@ -228,6 +228,43 @@ export const recurringExpenses = pgTable(
   ],
 );
 
+/**
+ * Credit schedule installments (§1 kredit = 1 term plan, 1 plan = N installment).
+ *
+ * A credit parsed from a Telegram message is stored as ONE `term` plan in
+ * `recurringExpenses`; each installment is a separate row here with its OWN
+ * date and amount (dates and amounts may both be irregular — 5 avg, 7 sen,
+ * 5 okt …). Rows are schedule occurrences, NOT plans: the Mini App renders a
+ * single card with a progress bar, never one card per installment.
+ *
+ * The `paid` state is deliberately NOT stored here — it is derived from the
+ * real transactions that fulfil each occurrence (`transactions.recurring_id`
+ * + `planned_date`), the same reconciliation rule the whole product already
+ * uses. Deleting a payment from History therefore un-pays exactly that
+ * installment without a second source of truth to keep in sync.
+ */
+export const creditInstallments = pgTable(
+  "credit_installments",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => recurringExpenses.id, { onDelete: "cascade" }),
+    /** 1-based sequence index within the parent plan. */
+    occurrenceNumber: integer("occurrence_number").notNull(),
+    /** The original scheduled date (irregular dates are preserved as-is). */
+    date: date("date", { mode: "string" }).notNull(),
+    /** The original installment amount (amounts may differ per installment). */
+    amount: money("amount").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("credit_installments_plan_idx").on(t.planId, t.occurrenceNumber),
+    index("credit_installments_user_idx").on(t.userId),
+    check("credit_installments_amount_check", sql`${t.amount} > 0`),
+    check("credit_installments_occurrence_check", sql`${t.occurrenceNumber} > 0`),
+  ],
+);
+
 export const expectedIncomes = pgTable(
   "expected_incomes",
   {
@@ -514,6 +551,7 @@ export type Account = typeof accounts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type RecurringExpense = typeof recurringExpenses.$inferSelect;
+export type CreditInstallment = typeof creditInstallments.$inferSelect;
 export type ExpectedIncome = typeof expectedIncomes.$inferSelect;
 export type Budget = typeof budgets.$inferSelect;
 export type Debt = typeof debts.$inferSelect;

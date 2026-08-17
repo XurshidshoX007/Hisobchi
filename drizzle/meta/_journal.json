@@ -50,6 +50,13 @@
       "when": 1786783452321,
       "tag": "0006_image_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786783452322,
+      "tag": "0007_credit_installments",
+      "breakpoints": true
     }
   ]
 }
