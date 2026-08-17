@@ -6,12 +6,12 @@ import { Card, Money, Section, Skeleton } from "./ui";
 function WalletIcon() {
   return (
     <svg
-      width="25"
-      height="25"
+      width="32"
+      height="32"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.7"
+      strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -57,7 +57,7 @@ export function DashboardHero({ facts, currency }: { facts: DashboardFacts; curr
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold tracking-tight text-fg-soft">Balans</p>
             <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} signed />
+              <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} />
               <span className={`text-xs font-semibold sm:text-sm ${facts.balance < 0 ? "text-negative-text" : "text-muted"}`}>{unit}</span>
             </div>
           </div>
@@ -74,7 +74,7 @@ export function DashboardHero({ facts, currency }: { facts: DashboardFacts; curr
             <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Daromad</span>
           </div>
           <div className="mt-2 min-w-0 leading-tight">
-            <Money whole value={facts.income} size="lg" tone="positive" signed zeroSign="+" currency={unit} />
+            <Money whole value={facts.income} size="lg" tone="positive" zeroSign="+" currency={unit} />
           </div>
         </div>
         <div className="min-w-0 border-l border-line px-4 py-4 sm:px-6 sm:py-5">
@@ -83,7 +83,7 @@ export function DashboardHero({ facts, currency }: { facts: DashboardFacts; curr
             <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Xarajat</span>
           </div>
           <div className="mt-2 min-w-0 leading-tight">
-            <Money whole value={-facts.expense} size="lg" tone="negative" signed currency={unit} />
+            <Money whole value={-facts.expense} size="lg" tone="negative" currency={unit} />
           </div>
         </div>
       </div>
