@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { categories as categoriesTable, pendingDrafts, telegramUpdates } from "@/db/schema";
+import { categories as categoriesTable, idempotencyKeys, pendingDrafts, recurringExpenses, telegramUpdates } from "@/db/schema";
 import { respondToBotMessage, MAIN_MENU } from "@/lib/bot";
 import {
   isStartCommand,
@@ -10,6 +10,7 @@ import {
   parseCategoryPickCallback,
   parseDraftCallback,
   parseDraftEditCallback,
+  parseScheduleCallback,
 } from "@/lib/bot-routing";
 import { telegramApi } from "@/lib/telegram";
 import { resolveUser } from "@/lib/user";
@@ -21,7 +22,8 @@ import type { ImageDraft } from "@/lib/image/types";
 import { appUrl, demoModeEnabled, isProduction, telegramWebhookSecret } from "@/lib/env";
 import { writeAudit, writeSecurityEvent } from "@/lib/audit";
 import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from "@/lib/security";
-import { formatAmount, humanDate } from "@/lib/money";
+import { createHash } from "node:crypto";
+import { formatAmount, humanDate, shortDate } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -354,6 +356,179 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      const scheduleCallback = parseScheduleCallback(data);
+      if (scheduleCallback) {
+        const { batchId, action } = scheduleCallback;
+        const rows = await db
+          .select()
+          .from(pendingDrafts)
+          .where(and(eq(pendingDrafts.batchId, batchId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.chatId, chatId)))
+          .orderBy(asc(pendingDrafts.id));
+
+        let ack = "So'rov topilmadi";
+        if (!rows.length) {
+          void writeSecurityEvent({
+            userId: user.id,
+            event: "foreign_or_missing_schedule_callback",
+            severity: "warning",
+            requestId: sec.requestId,
+            ipHash: sec.ipKey,
+            metadata: { batchId },
+          });
+        } else {
+          const draft = rows[0];
+          // Schedule stored as single row per batch
+          const scheduleRow = rows.find((r) => r.kind === "payment_schedule") ?? draft;
+          if (scheduleRow.status !== "pending") {
+            ack = "Bu so'rov avval yakunlangan";
+          } else if (scheduleRow.expiresAt && scheduleRow.expiresAt.getTime() < Date.now()) {
+            await db
+              .update(pendingDrafts)
+              .set({ status: "expired", resolvedAt: new Date() })
+              .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id)));
+            ack = "Tasdiqlash muddati tugagan";
+          } else if (action === "cancel") {
+            const cancelled = await db
+              .update(pendingDrafts)
+              .set({ status: "cancelled", resolvedAt: new Date() })
+              .where(and(eq(pendingDrafts.batchId, batchId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
+              .returning({ id: pendingDrafts.id });
+            ack = cancelled.length ? "Bekor qilindi" : "Bu so'rov avval yakunlangan";
+            await writeAudit({
+              userId: user.id,
+              actorRole: user.role,
+              action: "cancel_schedule",
+              entity: "recurring",
+              outcome: cancelled.length ? "success" : "denied",
+              requestId: sec.requestId,
+              ipHash: sec.ipKey,
+              metadata: { batchId },
+            });
+          } else {
+            // confirm - atomic claim + idempotency + transaction
+            const claimed = await db
+              .update(pendingDrafts)
+              .set({ status: "processing" })
+              .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
+              .returning({ id: pendingDrafts.id });
+            if (!claimed[0]) {
+              ack = "Bu so'rov avval qayta ishlangan";
+            } else {
+              const payload = scheduleRow.payload as unknown as { name: string; items: Array<{ date: string; amount: number }>; totalAmount: number };
+              // Idempotency fingerprint
+              const fingerprint = createHash("sha256")
+                .update(JSON.stringify({ name: payload.name, items: payload.items.map((i) => ({ date: i.date, amount: i.amount })) }))
+                .digest("hex");
+              const idemKey = `schedule:${fingerprint.slice(0, 32)}`;
+              const scope = "payment_schedule";
+              // Try to claim idempotency
+              let isDuplicate = false;
+              try {
+                const claimedIdem = await db
+                  .insert(idempotencyKeys)
+                  .values({ userId: user.id, key: idemKey, scope, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) })
+                  .onConflictDoNothing()
+                  .returning({ id: idempotencyKeys.id });
+                if (!claimedIdem[0]) {
+                  isDuplicate = true;
+                }
+              } catch {
+                isDuplicate = true;
+              }
+              if (isDuplicate) {
+                await db
+                  .update(pendingDrafts)
+                  .set({ status: "confirmed", resolvedAt: new Date() })
+                  .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
+                ack = "✅ Kredit jadvali avval qo‘shilgan";
+              } else {
+                try {
+                  const toCreate = payload.items.map((it) => ({
+                    userId: user.id,
+                    name: payload.name,
+                    amount: it.amount,
+                    minAmount: null,
+                    maxAmount: null,
+                    dueDay: Math.min(28, Math.max(1, Number(it.date.slice(8, 10)))),
+                    frequency: "once" as const,
+                    isMandatory: true,
+                    certainty: "exact" as const,
+                    nextDueDate: it.date,
+                    startDate: it.date,
+                    planType: "one_time" as const,
+                    installmentCount: null,
+                    installmentsPaid: 0,
+                    status: "active" as const,
+                    isActive: true,
+                    reminderDaysBefore: 1,
+                  }));
+                  await db.transaction(async (tx) => {
+                    await tx.insert(recurringExpenses).values(toCreate);
+                  });
+                  await db
+                    .update(idempotencyKeys)
+                    .set({ status: "completed" })
+                    .where(and(eq(idempotencyKeys.userId, user.id), eq(idempotencyKeys.key, idemKey), eq(idempotencyKeys.scope, scope)));
+                  await db
+                    .update(pendingDrafts)
+                    .set({ status: "confirmed", resolvedAt: new Date() })
+                    .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
+                  const total = payload.totalAmount ?? payload.items.reduce((s, i) => s + i.amount, 0);
+                  const nearest = [...payload.items].sort((a, b) => a.date.localeCompare(b.date))[0];
+                  ack = `✅ Kredit jadvali qo‘shildi`;
+                  // Send success details as follow-up message (ack is callback answer, details via sendMessage later)
+                  // Store details for later send
+                  (scheduleRow as unknown as Record<string, unknown>).__successDetails = JSON.stringify({ name: payload.name, count: payload.items.length, total, nearest });
+                  await writeAudit({
+                    userId: user.id,
+                    actorRole: user.role,
+                    action: "confirm_schedule",
+                    entity: "recurring",
+                    outcome: "success",
+                    requestId: sec.requestId,
+                    ipHash: sec.ipKey,
+                    metadata: { batchId, count: payload.items.length },
+                  });
+                } catch (e) {
+                  await db
+                    .update(pendingDrafts)
+                    .set({ status: "pending", resolvedAt: null })
+                    .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
+                  await db.delete(idempotencyKeys).where(and(eq(idempotencyKeys.userId, user.id), eq(idempotencyKeys.key, idemKey), eq(idempotencyKeys.scope, scope))).catch(() => undefined);
+                  ack = "⛔ Saqlashda xatolik. Qayta urinib ko‘ring.";
+                }
+              }
+            }
+          }
+        }
+        await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: ack.slice(0, 190) });
+        if (cq.message) {
+          await callTelegram("editMessageReplyMarkup", {
+            chat_id: cq.message.chat.id,
+            message_id: cq.message.message_id,
+            reply_markup: { inline_keyboard: [] },
+          });
+          // If confirmed, send short success summary
+          const rowsNow = await db.select().from(pendingDrafts).where(and(eq(pendingDrafts.batchId, batchId), eq(pendingDrafts.userId, user.id))).limit(1);
+          const isConfirmed = rowsNow[0]?.status === "confirmed";
+          let followText = ack;
+          if (isConfirmed && ack.startsWith("✅")) {
+            try {
+              const payload = rowsNow[0].payload as unknown as { name: string; items: Array<{ date: string; amount: number }>; totalAmount: number };
+              const total = payload.totalAmount ?? payload.items.reduce((s, i) => s + i.amount, 0);
+              const nearest = [...payload.items].sort((a, b) => a.date.localeCompare(b.date))[0];
+              followText = `✅ Kredit jadvali qo‘shildi\n\n${payload.name}\n${payload.items.length} ta to‘lov · jami ${formatAmount(total)} so‘m\n\nEng yaqin:\n${shortDate(nearest.date)} · ${formatAmount(nearest.amount)} so‘m`;
+            } catch {}
+          }
+          await callTelegram("sendMessage", {
+            chat_id: cq.message.chat.id,
+            text: followText,
+            reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
+          });
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       /* ------- item-level edit of an image draft (§22) ------- */
       const editCallback = parseDraftEditCallback(data);
       const pickCallback = editCallback ? null : parseCategoryPickCallback(data);
@@ -564,6 +739,34 @@ export async function POST(request: Request) {
     const text = update.message?.text ?? "";
     if (text.length > 2_000) return NextResponse.json({ ok: true });
     const reply = await respondToBotMessage(user, text);
+
+    // Payment schedule drafts (single batch)
+    if (reply.schedule) {
+      const schedule = reply.schedule;
+      const batchId = randomBytes(8).toString("hex");
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      await db.insert(pendingDrafts).values({
+        userId: user.id,
+        chatId,
+        kind: "payment_schedule",
+        batchId,
+        payload: schedule as unknown as Record<string, unknown>,
+        expiresAt,
+      });
+      await callTelegram("sendMessage", {
+        chat_id: chatId,
+        text: reply.text,
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "✅ Hammasini qo‘shish", callback_data: `schedule:${batchId}:confirm` },
+              { text: "❌ Bekor qilish", callback_data: `schedule:${batchId}:cancel` },
+            ],
+          ],
+        },
+      });
+      return NextResponse.json({ ok: true });
+    }
 
     const drafts = reply.drafts ?? (reply.draft ? [reply.draft] : []);
     if (drafts.length === 1) {
