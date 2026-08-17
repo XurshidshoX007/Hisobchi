@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../src/components/app-shell.tsx", import.meta.url), "utf8");
@@ -100,52 +100,55 @@ test("History controls expose labelled search, floating dialog and active indica
   assert.match(transactionFilter, /overflow-y-auto overflow-x-hidden/);
 });
 
-/* ==================== Plans → To‘lovlar: ONE compact monthly surface ==================== */
+/* ============ Plans → To‘lovlar / Daromad: no summary cards above the lists ============ */
 
-const planSummary = readFileSync(new URL("../src/components/plan-summary.tsx", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../src/components/ui.tsx", import.meta.url), "utf8");
 
-test("payments tab renders one monthly summary plus one flat metrics strip", () => {
-  assert.equal((plans.match(/<MonthlyPlanSummary/g) ?? []).length, 1);
-  assert.equal((plans.match(/<SecondaryPlanMetrics/g) ?? []).length, 1);
-  // The old heavy composition is gone: no MonthLoadCard, no StatCard grid on payments.
-  assert.doesNotMatch(plans, /MonthLoadCard/);
-  assert.doesNotMatch(plans, /Ixtiyoriy \/ oy|Yillik yuklama|Muddatli qoldiq|label="Faol rejalar"/);
+test("the plan summary component no longer exists in the tree", () => {
+  assert.equal(existsSync(new URL("../src/components/plan-summary.tsx", import.meta.url)), false);
+  assert.doesNotMatch(plans, /plan-summary/);
+  assert.doesNotMatch(plans, /MonthlyPlanSummary|SecondaryPlanMetrics|MonthLoadCard|StatCard/);
 });
 
-test("monthly summary is a single surface — no nested Card and no per-metric frames", () => {
-  assert.doesNotMatch(planSummary, /<Card\b/);
-  assert.doesNotMatch(planSummary, /flat-card/);
-  // Exactly one framed surface (`card`), the metrics strip stays borderless.
-  assert.equal((planSummary.match(/className="card /g) ?? []).length, 2); // primary + empty state variant
-  assert.doesNotMatch(planSummary, /border border-line/);
-  assert.match(planSummary, /rounded-2xl bg-surface-2/);
+test("payments tab renders no monthly summary block", () => {
+  const paymentsTab = plans.slice(plans.indexOf('{tab === "payments" ?'), plans.indexOf('{tab === "income" ?'));
+  for (const removed of ["Bu oy · ", "majburiy yuk", "Eng yaqin to‘lov", "<Progress", "Yillik yuklama", "Muddatli qoldiq"]) {
+    assert.equal(paymentsTab.includes(removed), false, `payments summary leftover: ${removed}`);
+  }
+  // The list heading + its filter is the FIRST thing under the tabs.
+  // The list heading + its filter is the FIRST rendered element under the tabs.
+  assert.match(paymentsTab, /<div className="space-y-3[\s\S]{0,600}?To‘lovlar<\/h2>/);
 });
 
-test("secondary metrics degrade to 2x2 on narrow screens and 4 columns from 390px", () => {
-  // Container query: 362px == a 390px viewport minus the shell's page gutters.
-  assert.match(planSummary, /@container/);
-  assert.match(planSummary, /grid-cols-2[\s\S]*@min-\[362px\]:grid-cols-4/);
-  for (const label of ["Ixtiyoriy", "Faol", "Yillik", "Muddatli"]) {
-    assert.match(planSummary, new RegExp(`label: "${label}"`));
+test("income tab renders no expected-income summary block", () => {
+  const incomeTab = plans.slice(plans.indexOf('{tab === "income" ?'), plans.indexOf('{tab === "cashflow" ?'));
+  for (const removed of ["Kutilayotgan daromad", "90 kunlik prognoz", "taxminiy ", 'label="Aniq"']) {
+    assert.equal(incomeTab.includes(removed), false, `income summary leftover: ${removed}`);
+  }
+  assert.match(incomeTab, /<div className="space-y-3[\s\S]{0,600}?Daromad rejalari<\/h2>/);
+});
+
+test("both lists keep their reusable status filter next to the heading", () => {
+  assert.match(plans, /To‘lovlar<\/h2>\s*<PlanStatusFilter value=\{planTab\} onChange=\{setPlanTab\} kind="payments" \/>/);
+  assert.match(plans, /Daromad rejalari<\/h2>\s*<PlanStatusFilter value=\{incomeTab\} onChange=\{setIncomeTab\} kind="income" \/>/);
+});
+
+test("spacing collapses after the removed summaries — no stale gap under the tabs", () => {
+  // Tab strip carries no bottom margin of its own any more.
+  assert.doesNotMatch(plans, /className="mb-1 sm:mb-4"/);
+  for (const tabKey of ['{tab === "payments" ?', '{tab === "income" ?']) {
+    const block = plans.slice(plans.indexOf(tabKey), plans.indexOf(tabKey) + 400);
+    assert.match(block, /className="space-y-3 sm:space-y-3\.5"/);
   }
 });
 
-test("monthly summary keeps every level of the hierarchy", () => {
-  assert.match(planSummary, /Bu oy · \{monthLabel\}/);
-  assert.match(planSummary, /majburiy yuk/);
-  assert.match(planSummary, /To‘langan/);
-  assert.match(planSummary, /Qolgan/);
-  assert.match(planSummary, /Eng yaqin to‘lov/);
-  // Global balance and forecast-only metrics do not belong in this summary.
-  assert.doesNotMatch(planSummary, /Safe-to-spend|Haqiqiy balans|Oy oxiri/i);
-});
-
-test("compact states live inside the same summary card", () => {
-  assert.match(planSummary, /Rejalashtirilgan to‘lovlar yo‘q\./); // empty
-  assert.match(planSummary, /✓ Reja yakunlangan/); // completed
-  assert.match(planSummary, /Kechikkan/); // overdue nearest row
-  assert.match(planSummary, /ta kechikkan to‘lov/); // overdue rollup, still inline
+test("the business logic behind the removed summaries is still available", () => {
+  const state = readFileSync(new URL("../src/lib/state.ts", import.meta.url), "utf8");
+  const finance = readFileSync(new URL("../src/lib/finance.ts", import.meta.url), "utf8");
+  assert.match(state, /currentMonthPlan/);
+  assert.match(state, /currentMonthIncome/);
+  assert.match(finance, /export function buildCurrentMonthPlan/);
+  assert.match(finance, /export function isActivePlanLoad/);
 });
 
 test("progress exposes accessible values and stays visually light", () => {
@@ -153,8 +156,6 @@ test("progress exposes accessible values and stays visually light", () => {
   assert.match(ui, /aria-valuenow=/);
   assert.match(ui, /aria-valuemin=\{0\}/);
   assert.match(ui, /aria-valuemax=\{100\}/);
-  assert.match(planSummary, /height=\{5\}/);
-  assert.match(planSummary, /ariaLabel=\{`Bu oy majburiy to‘lovlar bajarildi: \$\{pct\}%`\}/);
 });
 
 test("plans page keeps the global FAB as the only creation entry point", () => {

@@ -191,7 +191,7 @@ same viewport**:
 | `frequency` / "chastota" | **INTERNAL ONLY** | "Takrorlanish" |
 | `baseAmount`, `installmentCount`, `installmentsPaid` | **INTERNAL ONLY** | "Summa", "Bo‘lib to‘lashlar soni" |
 | `planType: recurring \| term \| one_time` | **INTERNAL ONLY** | "Doimiy / Muddatli / Bir martalik" |
-| `CashFlowStrip`, `ForecastArea`, `MonthlyPlanSummary` (components) | **INTERNAL ONLY** | tab label "Pul oqimi" |
+| `CashFlowStrip`, `ForecastArea` (components) | **INTERNAL ONLY** | tab label "Pul oqimi" |
 | `cashflow` (tab key) | **INTERNAL ONLY** | "Pul oqimi" |
 | `GET /api/state`, `POST /api/mutate`, `POST /api/bot` badges | **REPLACE** → removed from Settings / Bot pages | — |
 | `pending / completed / cancelled / paid / failed / processing` (DB) | **INTERNAL ONLY** | `STATUS_LABEL` dictionary |
@@ -275,7 +275,7 @@ trailing space after `Eng past`.
 `app/layout.tsx`
 
 **Components:** `app-shell.tsx`, `charts.tsx`, `form-kit.tsx`,
-`plan-summary.tsx`, `providers.tsx`, `quick-add.tsx`,
+`providers.tsx`, `quick-add.tsx`,
 `transaction-filter.tsx`, `ui.tsx`
 
 **Lib:** `lib/bot.ts`, `lib/bot-routing.ts`, `lib/fab.ts`, `lib/form-kit.ts`,
