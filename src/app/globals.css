@@ -463,6 +463,16 @@ body[data-sheet-open] .global-fab {
     transform: scale(1);
   }
 }
+@keyframes dashboard-value-in {
+  from {
+    opacity: 0.72;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 @keyframes shimmer {
   0%,
   100% {
@@ -478,6 +488,9 @@ body[data-sheet-open] .global-fab {
 }
 .animate-pop {
   animation: pop-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dashboard-value-transition {
+  animation: dashboard-value-in 0.24s var(--motion-ease-standard) both;
 }
 .animate-shimmer {
   animation: shimmer 1.6s ease-in-out infinite;
@@ -518,6 +531,7 @@ body[data-sheet-open] .global-fab {
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-pop,
+  .dashboard-value-transition,
   .animate-shimmer,
   .animate-badge-pop {
     animation: none !important;
