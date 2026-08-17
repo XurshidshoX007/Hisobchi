@@ -109,8 +109,8 @@ test("no add-flow form contains a horizontal scroll container", () => {
   }
   // Choice rows wrap instead of scrolling.
   assert.match(formKit, /flex w-full min-w-0 max-w-full flex-wrap gap-2/);
-  // The amount ladder wraps inside the field.
-  assert.match(formKit, /mt-3 flex min-w-0 flex-wrap gap-2/);
+  // The amount ladder wraps below the field.
+  assert.match(formKit, /mt-2 flex min-w-0 flex-wrap gap-1\.5/);
 });
 
 test("form type switches use the compact grid, navigation keeps the scrollable Segmented", () => {

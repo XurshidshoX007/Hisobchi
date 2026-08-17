@@ -32,10 +32,11 @@ import {
   dateQuickChips,
   formatAmountInput,
   matchesQuery,
+  parseAmountInput,
   quickAmountLabel,
   rankCategoryIds,
 } from "@/lib/form-kit";
-import { todayISO } from "@/lib/money";
+import { compact, todayISO } from "@/lib/money";
 import { ERRORS, LOADING } from "@/lib/copy";
 
 /* ============================ Feedback ============================ */
@@ -561,6 +562,11 @@ function ChipRow({ children }: { children: ReactNode }) {
  * §8: THE field. Numeric keypad, live `1 200 000` grouping, optional quick
  * ladder, inline error. The parent still owns the raw string state so the
  * stored numeric value is never mutated behind its back.
+ *
+ * Visual grammar: the box holds ONLY the number (plus a currency badge and a
+ * clear affordance) — the quick ladder lives below it, so the hero amount
+ * stays calm and uncluttered. The type scales down for very long sums instead
+ * of clipping, and a live "≈ 1,2 mln" readout confirms the zeros.
  */
 export function AmountField({
   value,
@@ -583,21 +589,46 @@ export function AmountField({
 }) {
   const id = useId();
   const errorId = `${id}-error`;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const parsed = parseAmountInput(value);
+  const hasValue = value.trim().length > 0;
+  // Long sums shrink instead of overflowing — 12 digits is already `999 mlrd`.
+  const digits = value.replace(/\D/g, "").length;
+  const sizeClass =
+    digits > 12
+      ? "text-[21px] sm:text-[23px]"
+      : digits > 9
+        ? "text-[26px] sm:text-[28px]"
+        : "text-[31px] sm:text-[33px]";
   return (
     <div className="min-w-0">
-      <label
-        htmlFor={id}
-        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted"
-      >
-        {label}
-      </label>
+      <div className="mb-1.5 flex min-w-0 items-baseline justify-between gap-2">
+        <label
+          htmlFor={id}
+          className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-muted"
+        >
+          {label}
+        </label>
+        {quick && parsed !== null && parsed >= 1_000 ? (
+          // Live magnitude readout — the cheapest possible "did I type the
+          // right number of zeros?" check, in the label row so the box itself
+          // never changes height while typing.
+          <span aria-hidden="true" className="num shrink-0 text-[11.5px] font-semibold text-accent-text">
+            ≈ {compact(parsed)}
+          </span>
+        ) : null}
+      </div>
       <div
-        className={`min-w-0 rounded-2xl border bg-surface-2 px-4 py-3 transition-colors ${
-          error ? "border-negative" : "border-line focus-within:border-accent"
+        onClick={() => inputRef.current?.focus()}
+        className={`min-w-0 cursor-text rounded-2xl border bg-surface-2 px-4 py-3.5 transition-[border-color,box-shadow] duration-150 ${
+          error
+            ? "border-negative shadow-[0_0_0_3px_var(--negative-soft)]"
+            : "border-line focus-within:border-accent focus-within:bg-surface focus-within:shadow-[0_0_0_3px_var(--accent-soft)]"
         }`}
       >
-        <div className="flex min-w-0 items-baseline gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
           <input
+            ref={inputRef}
             id={id}
             value={value}
             onChange={(e) => onChange(formatAmountInput(e.target.value))}
@@ -608,27 +639,45 @@ export function AmountField({
             aria-describedby={error ? errorId : undefined}
             placeholder={placeholder}
             autoFocus={autoFocus}
-            className="num w-full min-w-0 max-w-full bg-transparent text-[30px] font-bold leading-none outline-none placeholder:text-faint sm:text-[32px]"
+            className={`num w-full min-w-0 max-w-full bg-transparent font-bold leading-none tracking-[-0.01em] outline-none placeholder:font-semibold placeholder:text-faint ${sizeClass}`}
           />
-          {currency ? <span className="shrink-0 text-sm font-medium text-muted">{currency}</span> : null}
+          {hasValue ? (
+            <button
+              type="button"
+              aria-label="Summani tozalash"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange("");
+                inputRef.current?.focus();
+              }}
+              className="grid h-7 w-7 shrink-0 touch-manipulation place-items-center rounded-full bg-surface-3 text-[13px] leading-none text-muted transition-colors hover:text-fg active:scale-95"
+            >
+              ✕
+            </button>
+          ) : null}
+          {currency ? (
+            <span className="shrink-0 rounded-lg bg-surface-3 px-2 py-1 text-[11.5px] font-semibold tracking-[0.02em] text-muted">
+              {currency}
+            </span>
+          ) : null}
         </div>
-        {quick ? (
-          // §13: the quick ladder wraps inside the field instead of becoming a
-          // second horizontal scroller inside the sheet.
-          <div className="mt-3 flex min-w-0 flex-wrap gap-2">
-            {QUICK_AMOUNTS.map((amount) => (
-              <button
-                key={amount}
-                type="button"
-                onClick={() => onChange(addQuickAmount(value, amount))}
-                className="min-h-9 min-w-0 max-w-full touch-manipulation rounded-full border border-line bg-surface px-3 text-[12px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:scale-95"
-              >
-                {quickAmountLabel(amount)}
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
+      {quick ? (
+        // §13: the quick ladder wraps below the field — never a second
+        // horizontal scroller, never clutter inside the hero box.
+        <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+          {QUICK_AMOUNTS.map((amount) => (
+            <button
+              key={amount}
+              type="button"
+              onClick={() => onChange(addQuickAmount(value, amount))}
+              className="num min-h-9 min-w-0 max-w-full touch-manipulation rounded-full border border-line bg-surface-2 px-3.5 text-[12px] font-semibold text-fg-soft transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-text active:scale-95"
+            >
+              {quickAmountLabel(amount)}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {error ? (
         <p id={errorId} className="mt-1.5 text-[11.5px] font-medium leading-snug text-negative-text">
           {error}
