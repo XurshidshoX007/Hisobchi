@@ -31,25 +31,63 @@ test("main/more menu buttons route to the correct intents", () => {
 
 /* ============================ COPY / TERMINOLOGY ============================ */
 
-test("every bot keyboard button routes to a real intent (Mini App vocabulary)", () => {
-  // The bot keyboard and the Mini App speak ONE vocabulary: Daromad / Xarajat /
-  // To‘lovlar / Reja. Every button must still resolve to a concrete intent —
-  // never fall through to the natural-language parser.
+test("the Telegram main keyboard is exactly the three core finance actions", () => {
+  // Product spec: the persistent MAIN keyboard shows only
+  // 💰 Daromad / 💸 Xarajat / 🔄 Transfer — one row, three buttons.
   // The keyboard is read from source: importing lib/bot would pull in the DB.
   const botSource = readFileSync(new URL("../src/lib/bot.ts", import.meta.url), "utf8");
-  const menus = botSource.slice(botSource.indexOf("export const MAIN_MENU"), botSource.indexOf("const mon ="));
-  const buttons = [...menus.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
-  assert.ok(buttons.length >= 15, "keyboard buttons should be discovered");
+  const mainMenu = botSource.slice(botSource.indexOf("export const MAIN_MENU"), botSource.indexOf("export const MORE_MENU"));
+  const rows = [...mainMenu.matchAll(/\[[^\][]+\]/g)].map((row) => [...row[0].matchAll(/"([^"]+)"/g)].map((match) => match[1]));
+  assert.equal(rows.length, 1, "MAIN_MENU must be a single row");
+  assert.deepEqual(rows[0], ["💰 Daromad", "💸 Xarajat", "🔄 Transfer"], "exactly the three core finance actions, in order");
+  // The keyboard buttons and the Mini App speak ONE vocabulary.
+  assert.equal(botIntent("💰 Daromad"), "add-income");
+  assert.equal(botIntent("💸 Xarajat"), "add-expense");
+  assert.equal(botIntent("🔄 Transfer"), "add-transfer");
+  for (const button of rows[0]) {
+    assert.notEqual(botIntent(button), "natural", `${button} must route to an intent`);
+  }
+});
+
+test("retained MORE_MENU buttons still route to real intents", () => {
+  // MORE_MENU is retained on purpose: deep-section flows answer with it, and
+  // typed text can still reach it. Every remaining button must resolve to a
+  // concrete intent — never fall through to the natural-language parser.
+  const botSource = readFileSync(new URL("../src/lib/bot.ts", import.meta.url), "utf8");
+  const moreMenu = botSource.slice(botSource.indexOf("export const MORE_MENU"), botSource.indexOf("const mon ="));
+  const buttons = [...moreMenu.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+  assert.ok(buttons.length >= 9, "MORE_MENU buttons should be discovered");
   for (const button of buttons) {
     assert.notEqual(botIntent(button), "natural", `${button} must route to an intent`);
   }
-  // Uzbek terminology of the CURRENT keyboard.
-  assert.equal(botIntent("💰 Daromad"), "add-income");
-  assert.equal(botIntent("💸 Xarajat"), "add-expense");
   assert.equal(botIntent("📌 To‘lovlar"), "payments");
   assert.equal(botIntent("📅 Reja"), "forecast");
+});
+
+test("removed main-menu buttons keep their text routing (backward compatibility)", () => {
+  // The buttons left the MAIN keyboard, not the routing: a user who types the
+  // old label — or answers from a stale pinned keyboard — lands in the same
+  // flow as before the simplification.
+  assert.equal(botIntent("/report@hisobchi_bot"), "report");
+  assert.equal(botIntent("Hisobot"), "report");
+  assert.equal(botIntent("📊 Hisobot"), "report");
+  assert.equal(botIntent("Reja"), "forecast");
+  assert.equal(botIntent("📅 Reja"), "forecast");
+  assert.equal(botIntent("Hisoblar"), "accounts");
+  assert.equal(botIntent("Kategoriyalar"), "categories");
+  assert.equal(botIntent("📌 To‘lovlar"), "payments");
+  assert.equal(botIntent("Kutilayotgan daromad"), "income-plans");
+  assert.equal(botIntent("Budjet"), "budget");
+  assert.equal(botIntent("Qarzdorlik"), "debts");
+  assert.equal(botIntent("Maqsadlar"), "goals");
+  assert.equal(botIntent("Eslatmalar"), "alerts");
+  assert.equal(botIntent("Sozlamalar"), "settings");
+  assert.equal(botIntent("⬅️ Asosiy menyu"), "main-menu");
+  assert.equal(botIntent("📂 Boshqa bo'limlar"), "more-menu");
   // Legacy keyboards pinned in existing chats keep working (Kirim/Chiqim, ’/').
   assert.equal(botIntent("➕ Kirim"), "add-income");
+  assert.equal(botIntent("➖ Chiqim"), "add-expense");
+  assert.equal(botIntent("↔️ Transfer"), "add-transfer");
   assert.equal(botIntent("📌 Majburiy to'lovlar"), "payments");
   assert.equal(botIntent("📌 Majburiy to‘lovlar"), "payments");
 });
