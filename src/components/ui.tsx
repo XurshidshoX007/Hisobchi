@@ -151,6 +151,7 @@ export function Money({
   size = "md",
   tone = "default",
   signed = false,
+  zeroSign,
   currency,
   compactSuffix,
 }: {
@@ -158,6 +159,8 @@ export function Money({
   size?: "xs" | "sm" | "md" | "lg" | "xl" | "hero";
   tone?: "default" | "positive" | "negative" | "muted";
   signed?: boolean;
+  /** Optional semantic sign for a zero movement (for example “+0” income). */
+  zeroSign?: "+" | "−";
   currency?: string;
   compactSuffix?: string;
 }) {
@@ -165,9 +168,9 @@ export function Money({
     xs: "text-xs",
     sm: "text-sm",
     md: "text-[14.5px] sm:text-[15px]",
-    lg: "text-lg sm:text-xl",
+    lg: "text-[clamp(0.95rem,4.5vw,1.125rem)] sm:text-xl",
     xl: "text-[22px] sm:text-3xl font-semibold",
-    hero: "text-[28px] font-bold leading-none tracking-tight sm:text-[40px]",
+    hero: "text-[clamp(1.75rem,8.2vw,2.5rem)] font-bold leading-none tracking-tight",
   };
   const tones: Record<string, string> = {
     default: "text-fg",
@@ -175,7 +178,7 @@ export function Money({
     negative: "text-negative-text",
     muted: "text-muted",
   };
-  const sign = signed ? (value > 0 ? "+" : value < 0 ? "−" : "") : "";
+  const sign = signed ? (value > 0 ? "+" : value < 0 ? "−" : zeroSign ?? "") : "";
   return (
     <span className={`num ${sizes[size]} ${tones[tone]} break-words`}>
       {sign}
