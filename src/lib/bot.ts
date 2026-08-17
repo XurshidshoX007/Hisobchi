@@ -3,7 +3,7 @@ import { buildAppState } from "./state";
 import { quickAdd } from "./mutations";
 import { parseDrafts } from "./nlp";
 import { isPaymentScheduleCandidate, parsePaymentSchedule, type PaymentSchedule } from "./payment-schedule-parser";
-import { compact, formatAmount, humanDate, shortDate } from "./money";
+import { compact, formatAmount, humanDate, parseISO, shortDate, UZ_MONTHS } from "./money";
 import type { AppState } from "./types";
 import { botIntent } from "./bot-routing";
 import { TERMS, TX_LABEL } from "./copy";
@@ -200,12 +200,16 @@ export async function respondToBotMessage(
     const parsed = parsePaymentSchedule(text, state.forecast.today ?? state.forecast.today);
     if (parsed.ok && parsed.schedule && parsed.schedule.items.length >= 2) {
       const total = parsed.schedule.totalAmount;
+      const scheduleDateLabel = (iso: string) => {
+        const d = parseISO(iso);
+        return `${d.getDate()} ${UZ_MONTHS[d.getMonth()]}`;
+      };
       const lines = [
         "📋 Kredit jadvali topildi",
         "",
         parsed.schedule.name,
         "",
-        ...parsed.schedule.items.map((it, idx) => `${idx + 1}. ${humanDate(it.date)} — ${formatAmount(it.amount)} so'm`),
+        ...parsed.schedule.items.map((it, idx) => `${idx + 1}. ${scheduleDateLabel(it.date)} — ${formatAmount(it.amount)} so'm`),
         "",
         `Jami: ${formatAmount(total)} so'm`,
         `${parsed.schedule.items.length} ta to'lov`,
