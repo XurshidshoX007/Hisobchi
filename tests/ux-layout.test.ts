@@ -32,11 +32,13 @@ test("AppShell mounts one global add FAB and reserves the shared slot for Histor
   assert.match(css, /--z-sheet:\s*80/);
 });
 
-test("Add and History filter reuse one floating action foundation", () => {
+test("Add and History filter reuse one viewport-fixed action foundation", () => {
   assert.match(ui, /export function FloatingActionButton/);
   assert.match(ui, /global-fab grid h-14 w-14/);
   assert.match(fab, /<FloatingActionButton/);
-  assert.match(filterControls, /<FloatingActionButton/);
+  assert.match(filterControls, /<FloatingActionButton\s+portal/);
+  assert.match(ui, /return <BodyPortal>\{button\}<\/BodyPortal>/);
+  assert.match(ui, /createPortal\(children, document\.body\)/);
 });
 
 test("global FAB remains solid and exposes the required dialog semantics", () => {

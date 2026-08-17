@@ -53,19 +53,17 @@ export function DashboardHero({ facts, currency }: { facts: DashboardFacts; curr
       <div className="pointer-events-none absolute right-9 top-9 h-20 w-20 rounded-full border border-accent opacity-[0.06]" aria-hidden="true" />
 
       <div key={valueKey} className="dashboard-value-transition relative min-w-0 px-5 pb-5 pt-5 sm:px-7 sm:pb-6 sm:pt-6">
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-accent-soft text-accent-text">
+        <div className="flex min-w-0 items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-semibold tracking-tight text-fg-soft">Balans</p>
+            <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} signed />
+              <span className={`text-xs font-semibold sm:text-sm ${facts.balance < 0 ? "text-negative-text" : "text-muted"}`}>{unit}</span>
+            </div>
+          </div>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-accent-soft text-accent-text">
             <WalletIcon />
           </span>
-          <p className="text-[14px] font-semibold tracking-tight text-fg-soft">Hamyon</p>
-        </div>
-
-        <div className="mt-6 min-w-0 sm:mt-7">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-            <Money value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} signed />
-            <span className={`text-xs font-semibold sm:text-sm ${facts.balance < 0 ? "text-negative-text" : "text-muted"}`}>{unit}</span>
-          </div>
-          <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.09em] text-muted">Balans</p>
         </div>
       </div>
 
@@ -76,7 +74,7 @@ export function DashboardHero({ facts, currency }: { facts: DashboardFacts; curr
             <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Daromad</span>
           </div>
           <div className="mt-2 min-w-0 leading-tight">
-            <Money value={facts.income} size="lg" tone="positive" signed zeroSign="+" currency={unit} />
+            <Money whole value={facts.income} size="lg" tone="positive" signed zeroSign="+" currency={unit} />
           </div>
         </div>
         <div className="min-w-0 border-l border-line px-4 py-4 sm:px-6 sm:py-5">
@@ -85,7 +83,7 @@ export function DashboardHero({ facts, currency }: { facts: DashboardFacts; curr
             <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Xarajat</span>
           </div>
           <div className="mt-2 min-w-0 leading-tight">
-            <Money value={-facts.expense} size="lg" tone="negative" signed currency={unit} />
+            <Money whole value={-facts.expense} size="lg" tone="negative" signed currency={unit} />
           </div>
         </div>
       </div>
@@ -139,7 +137,7 @@ export function DashboardCategorySection({
                     <span className="truncate">{item.name}</span>
                   </span>
                   <span className="max-w-[48%] shrink-0 text-right leading-tight">
-                    <Money value={item.amount} size="sm" currency={unit} />
+                    <Money whole value={item.amount} size="sm" currency={unit} />
                   </span>
                 </div>
                 <div
@@ -171,12 +169,15 @@ export function DashboardCategorySection({
 export function DashboardLoading() {
   return (
     <div className="space-y-4 sm:space-y-5" aria-label="Ma’lumotlar yuklanmoqda" aria-busy="true">
-      <div className="flex justify-center"><Skeleton className="h-9 w-36 rounded-full" /></div>
       <div className="card overflow-hidden">
         <div className="p-5 sm:p-7">
-          <div className="flex items-center gap-3"><Skeleton className="h-10 w-10" /><Skeleton className="h-4 w-20" /></div>
-          <Skeleton className="mt-7 h-9 w-4/5 max-w-80" />
-          <Skeleton className="mt-2 h-3 w-14" />
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <Skeleton className="h-4 w-14" />
+              <Skeleton className="mt-2 h-9 w-4/5 max-w-80" />
+            </div>
+            <Skeleton className="h-11 w-11 shrink-0 rounded-[14px]" />
+          </div>
         </div>
         <div className="grid grid-cols-2 border-t border-line bg-surface-2/60">
           <div className="p-4 sm:p-6"><Skeleton className="h-5 w-24" /><Skeleton className="mt-2 h-6 w-4/5" /></div>
