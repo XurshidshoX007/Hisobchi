@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { BalanceBreakdownSheet } from "@/components/balance-breakdown";
 import { DashboardCategorySection, DashboardHero, DashboardLoading } from "@/components/dashboard";
 import { useFabPage } from "@/components/fab";
 import { useFinance } from "@/components/providers";
@@ -13,6 +14,7 @@ export default function DashboardPage() {
   const { state, loading, error, refresh } = useFinance();
   const [addOpen, setAddOpen] = useState(false);
   const [defaultType, setDefaultType] = useState<FabTransactionType>("expense");
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   // Keep the existing global add flow. Successful Mini App mutations replace
   // provider state with the server-built state, so every fact below updates
@@ -43,7 +45,11 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-fade-up min-w-0 space-y-4 sm:space-y-5">
-      <DashboardHero facts={facts} currency={state.user.currency} />
+      <DashboardHero
+        facts={facts}
+        currency={state.user.currency}
+        onOpenBreakdown={facts.hasBalanceBreakdown ? () => setBreakdownOpen(true) : undefined}
+      />
 
       <div key={facts.monthLabel} className="dashboard-value-transition grid min-w-0 gap-5 md:grid-cols-2 md:gap-6">
         <DashboardCategorySection
@@ -65,6 +71,13 @@ export default function DashboardPage() {
       </div>
 
       <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} defaultType={defaultType} />
+      <BalanceBreakdownSheet
+        open={breakdownOpen}
+        onClose={() => setBreakdownOpen(false)}
+        groups={facts.balanceGroups}
+        total={facts.balance}
+        currency={state.user.currency}
+      />
     </div>
   );
 }

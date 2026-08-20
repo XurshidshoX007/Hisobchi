@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildAnalytics, computeLedgerBalances } from "../src/lib/finance";
+import { buildAnalytics, computeLedgerBalances, type AccountView } from "../src/lib/finance";
 import { selectDashboardFacts } from "../src/lib/dashboard";
 
 const TODAY = "2026-08-16";
@@ -159,6 +159,87 @@ test("category identity is based on id, positive rows are sorted and the dashboa
   assert.deepEqual(sameName.map((category) => category.id).sort(), [10, 11]);
 });
 
+function makeAccount(overrides: Partial<AccountView> & Pick<AccountView, "id" | "name" | "type" | "currentBalance">): AccountView {
+  return {
+    currency: "UZS",
+    initialBalance: overrides.currentBalance,
+    isActive: true,
+    inflow: 0,
+    outflow: 0,
+    txCount: 0,
+    ...overrides,
+  };
+}
+
+test("balanceGroups collapses card families, drops empty types and shares only positive totals", () => {
+  const balances = computeLedgerBalances(ACCOUNTS, [], TODAY);
+  const currentBalance = [...balances.values()].reduce((sum, account) => sum + account.currentBalance, 0);
+  const analytics = buildAnalytics({
+    transactions: [],
+    categories: CATEGORIES,
+    recurringBase: 0,
+    currentBalance,
+    today: TODAY,
+  });
+
+  const accounts: AccountView[] = [
+    makeAccount({ id: 1, name: "Naqd", type: "cash", currentBalance: 5_220_000 }),
+    makeAccount({ id: 2, name: "Uzcard", type: "uzcard", currentBalance: 3_130_000 }),
+    makeAccount({ id: 3, name: "Humo", type: "humo", currentBalance: 2_500_000 }),
+    makeAccount({ id: 4, name: "Kapital", type: "bank", currentBalance: 1_600_000 }),
+    makeAccount({ id: 5, name: "Payme", type: "ewallet", currentBalance: 0 }),
+    makeAccount({ id: 6, name: "Arxiv", type: "cash", currentBalance: 900_000, isActive: false }),
+  ];
+
+  const facts = selectDashboardFacts({ currentBalance, analytics, accounts });
+
+  // Cash + cards + bank stay; the zero ewallet and inactive account drop out.
+  assert.deepEqual(
+    facts.balanceGroups.map((group) => ({ key: group.key, amount: group.amount, accounts: group.accounts.length })),
+    [
+      { key: "cash", amount: 5_220_000, accounts: 1 },
+      { key: "cards", amount: 5_630_000, accounts: 2 },
+      { key: "bank", amount: 1_600_000, accounts: 1 },
+    ],
+  );
+
+  const total = facts.balanceGroups.reduce((sum, group) => sum + group.amount, 0);
+  assert.equal(total, 12_450_000);
+  const sharesSum = facts.balanceGroups.reduce((sum, group) => sum + group.share, 0);
+  assert.ok(Math.abs(sharesSum - 1) < 1e-9, "positive shares must sum to 1");
+  assert.equal(facts.hasBalanceBreakdown, true);
+
+  // Cards are sorted inside their bucket by balance desc so the sheet reads Uzcard first.
+  const cards = facts.balanceGroups.find((group) => group.key === "cards");
+  assert.deepEqual(cards?.accounts.map((account) => account.type), ["uzcard", "humo"]);
+});
+
+test("balanceGroups tolerates missing accounts and hides the breakdown when it would say nothing new", () => {
+  const balances = computeLedgerBalances(ACCOUNTS, [], TODAY);
+  const currentBalance = [...balances.values()].reduce((sum, account) => sum + account.currentBalance, 0);
+  const analytics = buildAnalytics({
+    transactions: [],
+    categories: CATEGORIES,
+    recurringBase: 0,
+    currentBalance,
+    today: TODAY,
+  });
+
+  // Legacy call sites (no `accounts`) keep working.
+  const legacy = selectDashboardFacts({ currentBalance, analytics });
+  assert.deepEqual(legacy.balanceGroups, []);
+  assert.equal(legacy.hasBalanceBreakdown, false);
+
+  // A single non-empty group is not worth a dedicated peek.
+  const single = selectDashboardFacts({
+    currentBalance,
+    analytics,
+    accounts: [makeAccount({ id: 1, name: "Naqd", type: "cash", currentBalance: 100_000 })],
+  });
+  assert.equal(single.balanceGroups.length, 1);
+  assert.equal(single.hasBalanceBreakdown, false);
+});
+
 test("Dashboard presentation contains only the approved hierarchy and preserves shared add/error flows", () => {
   const page = readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const components = readFileSync(new URL("../src/components/dashboard.tsx", import.meta.url), "utf8");
@@ -181,6 +262,12 @@ test("Dashboard presentation contains only the approved hierarchy and preserves 
   assert.match(page, /Qayta urinish/);
   assert.match(components, /md:grid-cols-2/);
   assert.match(components, /min-w-0/);
+
+  // The balance composition reference lives inside the hero (single card) and
+  // opens the peek sheet from the same page — no new card, no new tab.
+  assert.match(components, /BalanceDistributionBar/);
+  assert.match(page, /BalanceBreakdownSheet/);
+  assert.match(page, /onOpenBreakdown/);
 });
 
 test("sync and user-isolation guards remain in the shared state/mutation paths", () => {

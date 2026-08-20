@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { DashboardCategory, DashboardFacts } from "@/lib/dashboard";
 import { currencyLabel } from "@/lib/money";
+import { BalanceDistributionBar } from "./balance-breakdown";
 import { Card, Money, Section, Skeleton } from "./ui";
 
 function WalletIcon() {
@@ -43,7 +44,16 @@ function TrendIcon({ direction }: { direction: "up" | "down" }) {
 }
 
 /** One balance source, one primary balance UI. */
-export function DashboardHero({ facts, currency }: { facts: DashboardFacts; currency: string }) {
+export function DashboardHero({
+  facts,
+  currency,
+  onOpenBreakdown,
+}: {
+  facts: DashboardFacts;
+  currency: string;
+  /** Opens the account-composition sheet. Omit to keep the bar as pure display. */
+  onOpenBreakdown?: () => void;
+}) {
   const unit = currencyLabel(currency);
   const valueKey = `${facts.monthLabel}-${facts.balance}-${facts.income}-${facts.expense}`;
 
@@ -65,6 +75,10 @@ export function DashboardHero({ facts, currency }: { facts: DashboardFacts; curr
             <WalletIcon />
           </span>
         </div>
+
+        {facts.hasBalanceBreakdown && onOpenBreakdown ? (
+          <BalanceDistributionBar groups={facts.balanceGroups} onOpen={onOpenBreakdown} />
+        ) : null}
       </div>
 
       <div className="relative grid min-w-0 grid-cols-2 border-t border-line bg-surface-2/60">
