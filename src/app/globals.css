@@ -185,6 +185,9 @@ body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   touch-action: manipulation;
+  /* Swipe-back temporarily translates the active page. Keep that animation
+     from widening the document and shifting the Menu horizontally. */
+  overflow-x: clip;
 }
 
 /* Numeric data is always tabular so figures never jitter */
