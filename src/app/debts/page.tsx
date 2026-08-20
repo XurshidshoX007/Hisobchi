@@ -20,7 +20,6 @@ import {
   EmptyState,
   Field,
   Money,
-  PageHeader,
   Progress,
   Segmented,
   Skeleton,
@@ -74,9 +73,7 @@ export default function DebtsPage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
-      {/* §22: back + title. Debt totals live here (their ONE primary home) as
-          a compact two-figure summary — no third derived "net" card. */}
-      <PageHeader back={{ href: "/more", label: "Menyu" }} />
+      {/* §22: swipe-back replaces the old ‹ Menyu back link. */}
 
       {state.debts.length ? (
         <>

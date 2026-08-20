@@ -14,9 +14,9 @@
 export const MENU_ROUTE = "/more";
 
 /**
- * Pages reached FROM Menu. They render NO profile header — each starts with a
- * compact back affordance (`‹ Menyu`) and no section-name headline. The list is
- * kept for navigation helpers and regression tests.
+ * Pages reached FROM Menu. They render NO profile header — navigation back
+ * is handled by the swipe-back gesture. The list is kept for navigation
+ * helpers and regression tests.
  */
 export const MENU_SUBROUTES = ["/accounts", "/budgets", "/debts", "/goals", "/settings", "/bot"] as const;
 

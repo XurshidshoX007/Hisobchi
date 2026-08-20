@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Button, Card, PageHeader, Skeleton, TextInput } from "@/components/ui";
+import { Button, Card, Skeleton, TextInput } from "@/components/ui";
 import { ERRORS } from "@/lib/copy";
 import { formatAmount } from "@/lib/money";
 
@@ -54,7 +54,6 @@ export default function BotPage() {
     const botUrl = BOT_USERNAME ? `https://t.me/${BOT_USERNAME.replace(/^@/, "")}` : null;
     return (
       <div className="animate-fade-up space-y-4">
-        <PageHeader back={{ href: "/more", label: "Menyu" }} />
         <Card>
           <p className="text-[15px] font-semibold">Bot Telegram ichida ishlaydi</p>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
@@ -112,8 +111,6 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
 
   return (
     <div className="animate-fade-up space-y-4">
-      <PageHeader back={{ href: "/more", label: "Menyu" }} />
-
       <Card padded={false} className="overflow-hidden">
         <div className="flex max-h-[56dvh] flex-col">
           <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-3.5 sm:p-4">

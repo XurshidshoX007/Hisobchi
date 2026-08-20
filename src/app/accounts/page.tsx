@@ -11,7 +11,6 @@ import {
   EmptyState,
   Field,
   Money,
-  PageHeader,
   Segmented,
   Select,
   Skeleton,
@@ -82,9 +81,7 @@ export default function AccountsPage() {
 
   return (
     <div className="animate-fade-up space-y-4">
-      {/* §22: internal page = compact back + title. No profile/balance header —
-          the global real balance lives on the Dashboard only (§12/§26). */}
-      <PageHeader back={{ href: "/more", label: "Menyu" }} />
+      {/* §22: swipe-back replaces the old ‹ Menyu back link. */}
 
       <div className="max-w-md">
         <Segmented

@@ -9,6 +9,7 @@ import { MENU_ROUTE, isMenuSubroute, showsProfileHeader } from "@/lib/navigation
 import { useFinance } from "./providers";
 import { FabProvider, GlobalAddFab, useFab } from "./fab";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
+import { SwipeBack } from "./swipe-back";
 
 const NAV = [
   { href: "/", label: "Asosiy", short: "Asosiy", icon: HomeIcon },
@@ -44,6 +45,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
   // fetching depends on this flag: profile/balance state stays in the
   // provider, only its render location changes.
   const profileHeader = showsProfileHeader(pathname);
+  const isSub = isMenuSubroute(pathname);
 
   if (error === "auth") {
     return (
@@ -177,7 +179,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
           </header>
         ) : null}
 
-        <div className="min-w-0">{children}</div>
+        <SwipeBack enabled={isSub}>
+          <div className="min-w-0">{children}</div>
+        </SwipeBack>
       </main>
 
       {/* Bottom navigation has deterministic geometry; FAB positioning and
