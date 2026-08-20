@@ -43,7 +43,7 @@ export default function GoalsPage() {
     <div className="animate-fade-up space-y-4 sm:space-y-5">
       {/* §18/§22: back + title only. No aggregated financial summary — each
           goal's own progress is the primary information here. */}
-      <PageHeader title="Maqsadlar" back={{ href: "/more", label: "Menyu" }} />
+      <PageHeader back={{ href: "/more", label: "Menyu" }} />
 
       {state.goals.length ? (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">

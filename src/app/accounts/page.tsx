@@ -84,7 +84,7 @@ export default function AccountsPage() {
     <div className="animate-fade-up space-y-4">
       {/* §22: internal page = compact back + title. No profile/balance header —
           the global real balance lives on the Dashboard only (§12/§26). */}
-      <PageHeader title="Hisoblar" back={{ href: "/more", label: "Menyu" }} />
+      <PageHeader back={{ href: "/more", label: "Menyu" }} />
 
       <div className="max-w-md">
         <Segmented

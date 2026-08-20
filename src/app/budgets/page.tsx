@@ -47,13 +47,9 @@ export default function BudgetsPage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
-      {/* §22: back + title only. The month context is one muted line, not a
-          second header block. */}
-      <PageHeader
-        title="Budjetlar"
-        subtitle={`${monthLabel(state.analytics.month)} · ${daysLeft} kun qoldi`}
-        back={{ href: "/more", label: "Menyu" }}
-      />
+      {/* §22: back affordance only — no section-name headline. The month
+          context is one muted line, not a second header block. */}
+      <PageHeader back={{ href: "/more", label: "Menyu" }} />
 
       {/* §15: Budgets owns limits + usage — ONE summary card, no Dashboard
           balance and no per-status count grid (statuses already live on each

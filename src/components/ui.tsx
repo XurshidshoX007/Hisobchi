@@ -755,18 +755,27 @@ export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-shimmer rounded-xl bg-surface-3 ${className}`} />;
 }
 
+/**
+ * Compact page header.
+ *
+ * Section names are intentionally NOT rendered: when a section opens, its name
+ * is not shown in a headline at the top (§38). The header carries only the
+ * optional back affordance (`‹ Menyu`) and an optional action slot — the page
+ * content itself starts at the very top of the viewport.
+ */
 export function PageHeader({
   title,
   subtitle,
   action,
   back,
 }: {
-  title: string;
+  /** Optional for API compatibility; never rendered as a headline. */
+  title?: string;
   subtitle?: string;
   action?: ReactNode;
   /**
    * Compact back affordance for internal pages (§11/§22): a small `‹ Menyu`
-   * link above the title. Never a second profile/balance header.
+   * link. Never a second profile/balance header.
    */
   back?: { href: string; label: string };
 }) {
@@ -782,13 +791,7 @@ export function PageHeader({
           {back.label}
         </Link>
       ) : null}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-bold tracking-tight sm:text-[22px]">{title}</h1>
-          {subtitle ? <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-muted">{subtitle}</p> : null}
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }

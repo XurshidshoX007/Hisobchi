@@ -6,7 +6,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
 import { TransactionFilter, type TransactionFilterContext } from "@/components/transaction-filter";
-import { Badge, Button, EmptyState, Money, PageHeader, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { Badge, Button, EmptyState, Money, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, humanDate } from "@/lib/money";
 import { LOADING } from "@/lib/copy";
 import type { TxView } from "@/lib/finance";
@@ -100,8 +100,7 @@ function TransactionsView() {
 
   return (
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
-      <PageHeader title="Tarix" />
-
+      {/* No section-name headline: the page content starts at the top (§38). */}
       <div className="relative min-w-0">
         <label htmlFor="history-search" className="sr-only">
           Tarixdan qidirish

@@ -56,7 +56,7 @@ export default function SettingsPage() {
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
       {/* §19/§22: back + title only — no repeated profile header. */}
-      <PageHeader title="Sozlamalar" back={{ href: "/more", label: "Menyu" }} />
+      <PageHeader back={{ href: "/more", label: "Menyu" }} />
 
       <Card>
         <p className="mb-4 text-[15px] font-semibold">Profil</p>
