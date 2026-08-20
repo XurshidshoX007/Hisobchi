@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { AdvancedSection, AmountField, Chip, DateField, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
-import { Badge, Card, EmptyState, Field, Money, PageHeader, Progress, Skeleton, TextInput } from "@/components/ui";
+import { Badge, Card, EmptyState, Field, Money, Progress, Skeleton, TextInput } from "@/components/ui";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { GoalView } from "@/lib/finance";
@@ -41,9 +41,7 @@ export default function GoalsPage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
-      {/* §18/§22: back + title only. No aggregated financial summary — each
-          goal's own progress is the primary information here. */}
-      <PageHeader back={{ href: "/more", label: "Menyu" }} />
+      {/* §18/§22: swipe-back replaces the old ‹ Menyu back link. */}
 
       {state.goals.length ? (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">

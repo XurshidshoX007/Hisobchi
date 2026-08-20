@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { AmountField, Chip, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
-import { Badge, Card, EmptyState, Field, Money, PageHeader, Progress, Select, Skeleton } from "@/components/ui";
+import { Badge, Card, EmptyState, Field, Money, Progress, Select, Skeleton } from "@/components/ui";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { addMonths, compact, formatAmount, monthKey, monthLabel, monthStart, todayISO } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
@@ -47,9 +47,7 @@ export default function BudgetsPage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
-      {/* §22: back affordance only — no section-name headline. The month
-          context is one muted line, not a second header block. */}
-      <PageHeader back={{ href: "/more", label: "Menyu" }} />
+      {/* §22: swipe-back replaces the old ‹ Menyu back link. */}
 
       {/* §15: Budgets owns limits + usage — ONE summary card, no Dashboard
           balance and no per-status count grid (statuses already live on each

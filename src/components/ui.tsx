@@ -759,9 +759,9 @@ export function Skeleton({ className = "" }: { className?: string }) {
  * Compact page header.
  *
  * Section names are intentionally NOT rendered: when a section opens, its name
- * is not shown in a headline at the top (§38). The header carries only the
- * optional back affordance (`‹ Menyu`) and an optional action slot — the page
- * content itself starts at the very top of the viewport.
+ * is not shown in a headline at the top (§38). The header carries only
+ * an optional action slot — the page content itself starts at the very top
+ * of the viewport. Navigation back is handled by the swipe-back gesture.
  */
 export function PageHeader({
   title,

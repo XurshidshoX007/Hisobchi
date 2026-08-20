@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Button, Card, Divider, Field, PageHeader, Segmented, Select, Skeleton, TextInput } from "@/components/ui";
+import { Button, Card, Divider, Field, Segmented, Select, Skeleton, TextInput } from "@/components/ui";
 import { formatAmount } from "@/lib/money";
 import { TERMS } from "@/lib/copy";
 
@@ -55,8 +55,7 @@ export default function SettingsPage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
-      {/* §19/§22: back + title only — no repeated profile header. */}
-      <PageHeader back={{ href: "/more", label: "Menyu" }} />
+      {/* §19/§22: swipe-back replaces the old ‹ Menyu back link. */}
 
       <Card>
         <p className="mb-4 text-[15px] font-semibold">Profil</p>
