@@ -16,8 +16,9 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef } from "react";
 
 const EDGE_ZONE = 24; // px — touch must start within this distance from left
-const THRESHOLD = 0.35; // fraction of viewport width required to trigger back
+const THRESHOLD = 0.28; // fraction of viewport width required to trigger back
 const MAX_TRANSLATE = 260; // px — maximum page translation during swipe
+const RESET_DURATION = 280;
 
 export function SwipeBack({ children, enabled }: { children: ReactNode; enabled: boolean }) {
   const router = useRouter();
@@ -42,7 +43,10 @@ export function SwipeBack({ children, enabled }: { children: ReactNode; enabled:
         arrowRef.current.style.opacity = "0";
       }
       if (triggerBack) {
-        setTimeout(() => router.back(), 120);
+        // Let the exit animation finish before changing the route. Navigating
+        // halfway through it leaves the shell with a stale horizontal
+        // transform and makes the Menu cards appear shifted on return.
+        setTimeout(() => router.back(), RESET_DURATION);
       }
     },
     [router],
@@ -72,6 +76,10 @@ export function SwipeBack({ children, enabled }: { children: ReactNode; enabled:
       const dx = touch.clientX - startXRef.current;
       const dy = touch.clientY - startYRef.current;
 
+      // A leftward gesture from the edge is not a back gesture. In
+      // particular, never apply a negative transform: that creates page
+      // overflow and makes the underlying Menu jump sideways.
+
       // On the first significant move, decide whether this is horizontal or vertical.
       if (!lockedRef.current) {
         if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
@@ -83,8 +91,13 @@ export function SwipeBack({ children, enabled }: { children: ReactNode; enabled:
         }
       }
 
-      // Only block default for rightward horizontal swipes
-      if (dx > 0) e.preventDefault();
+      // Only block default for rightward horizontal swipes. A leftward move
+      // must remain completely native and must not touch the page transform.
+      if (dx <= 0) {
+        swipingRef.current = false;
+        return;
+      }
+      e.preventDefault();
 
       const el = containerRef.current;
       if (!el) return;
@@ -136,7 +149,12 @@ export function SwipeBack({ children, enabled }: { children: ReactNode; enabled:
       document.removeEventListener("touchmove", onTouchMove);
       document.removeEventListener("touchend", onTouchEnd);
       document.removeEventListener("touchcancel", onTouchCancel);
-      // Clean up leftover arrow element
+      // Always restore inline state as well as removing the indicator. This is
+      // important when the route changes without completing a gesture.
+      if (containerRef.current) {
+        containerRef.current.style.transform = "";
+        containerRef.current.style.transition = "";
+      }
       if (arrowRef.current?.isConnected) {
         arrowRef.current.remove();
         arrowRef.current = null;
