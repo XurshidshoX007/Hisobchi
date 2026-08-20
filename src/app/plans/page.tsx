@@ -26,7 +26,6 @@ import {
   EmptyState,
   Field,
   Money,
-  PageHeader,
   Progress,
   Segmented,
   Select,
@@ -249,8 +248,7 @@ export default function PlansPage() {
 
   return (
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
-      <PageHeader title="Reja" />
-
+      {/* No section-name headline: the tab strip starts at the top (§38). */}
       {/*
        * §8/§9: the tab strip is followed IMMEDIATELY by the tab's own content —
        * no extra bottom margin left behind by the removed summary cards.

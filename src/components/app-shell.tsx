@@ -134,7 +134,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
       <main className="min-w-0 flex-1">
         {/*
          * Mobile profile header — `/more` (Menu) route ONLY. Internal pages
-         * reached from Menu start with their own compact PageHeader instead.
+         * reached from Menu start with their own compact back affordance instead.
          * It is not hidden with CSS: on every other route the element is never
          * mounted, so it occupies zero height/margin/padding and the page
          * content starts at the top of the viewport.

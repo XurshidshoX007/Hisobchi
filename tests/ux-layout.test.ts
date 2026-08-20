@@ -64,7 +64,8 @@ test("plans share one compact single-select status filter", () => {
 });
 
 test("History keeps search visible, a minimal summary and only true filters in the shared sheet", () => {
-  assert.match(history, /<PageHeader title="Tarix"/);
+  assert.doesNotMatch(history, /<PageHeader[^>]*title=/);
+  assert.doesNotMatch(history, /<h1\b[^>]*>Tarix/);
   assert.match(history, /\+\{compact\(totals\.income\)\}/);
   assert.match(history, /−\{compact\(totals\.expense\)\}/);
   assert.match(history, /\{totals\.count\} ta/);
@@ -163,4 +164,31 @@ test("progress exposes accessible values and stays visually light", () => {
 test("plans page keeps the global FAB as the only creation entry point", () => {
   assert.doesNotMatch(plans, /Yangi to‘lov rejasi/);
   assert.match(plans, /[Pp]astdagi \+ tugmasi/);
+});
+
+/* ============ §38: no section name is rendered as a top headline ============ */
+
+test("every section page starts with content — no section-name headline at the top", () => {
+  const pages: Array<{ page: string; name: string }> = [
+    { page: "accounts", name: "Hisoblar" },
+    { page: "bot", name: "Telegram bot" },
+    { page: "budgets", name: "Budjetlar" },
+    { page: "debts", name: "Qarzdorlik" },
+    { page: "goals", name: "Maqsadlar" },
+    { page: "more", name: "Menyu" },
+    { page: "plans", name: "Reja" },
+    { page: "settings", name: "Sozlamalar" },
+    { page: "transactions", name: "Tarix" },
+  ];
+  for (const { page, name } of pages) {
+    const src = readFileSync(new URL(`../src/app/${page}/page.tsx`, import.meta.url), "utf8");
+    assert.doesNotMatch(src, /<PageHeader[^>]*title=/, `${page} still renders a PageHeader section title`);
+    assert.doesNotMatch(src, new RegExp(`<h1\\b[^>]*>${name}`), `${page} renders its name in an <h1> headline`);
+    assert.doesNotMatch(src, /<h1\b/, `${page} renders a top-level <h1> headline`);
+  }
+  // The Tahlil section is a "coming soon" placeholder: it keeps its own content
+  // message but never renders the section name ("Tahlil") as a headline.
+  const analytics = readFileSync(new URL("../src/app/analytics/page.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(analytics, /<h1\b[^>]*>Tahlil/);
+  assert.match(analytics, /<h1\b[^>]*>Tez kunda/);
 });

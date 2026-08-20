@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { PageHeader, Section, Skeleton } from "@/components/ui";
+import { Section, Skeleton } from "@/components/ui";
 
 /**
  * MENU = NAVIGATION HUB (§37). It routes to secondary tools and nothing more.
@@ -40,8 +40,8 @@ export default function MorePage() {
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-6">
-      <PageHeader title="Menyu" />
-
+      {/* No section-name headline: the profile header + menu list start at the
+          top. The Menu route owns the profile header, not a "Menyu" title. */}
       <Section>
         <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-line rounded-2xl border border-line bg-surface">
           {LINKS.map((l) => (

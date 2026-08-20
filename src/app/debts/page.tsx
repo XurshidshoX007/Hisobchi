@@ -76,7 +76,7 @@ export default function DebtsPage() {
     <div className="animate-fade-up space-y-4 sm:space-y-5">
       {/* §22: back + title. Debt totals live here (their ONE primary home) as
           a compact two-figure summary — no third derived "net" card. */}
-      <PageHeader title="Qarzdorlik" back={{ href: "/more", label: "Menyu" }} />
+      <PageHeader back={{ href: "/more", label: "Menyu" }} />
 
       {state.debts.length ? (
         <>
