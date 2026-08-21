@@ -10,19 +10,23 @@
  * ~/.hisobchi-pglite so a re-run reuses seeded demo data.
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
-import net from "node:net";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 const repoRoot = process.cwd();
-const pgPort = Number(process.env.HISOBCHI_PG_PORT ?? 5432);
-const pgHost = "127.0.0.1";
 const appPort = Number(process.env.PORT ?? 3000);
 const dbDir = process.env.HISOBCHI_PG_DIR ?? path.join(os.homedir(), ".hisobchi-pglite");
-const databaseUrl = `postgresql://postgres:postgres@${pgHost}:${pgPort}/hisobchi`;
+// PostgreSQL socket-directory layout: node-postgres connects to
+// `<host>/.s.PGSQL.<port>`, so the PGlite socket lives at that exact path.
+// A unix socket (vs TCP) keeps the embedded database off the network, so it
+// never shows up as a second preview/port.
+const socketDir = process.env.HISOBCHI_PG_SOCKET_DIR ?? "/tmp/hisobchi-pg";
+const socketPath = path.join(socketDir, ".s.PGSQL.5432");
+const databaseUrl = `postgresql://postgres:postgres@/hisobchi?host=${encodeURIComponent(socketDir)}`;
 
 mkdirSync(dbDir, { recursive: true });
+mkdirSync(socketDir, { recursive: true });
 
 function run(cmd, args, env = process.env, cwd = repoRoot) {
   return new Promise((resolve, reject) => {
@@ -32,25 +36,13 @@ function run(cmd, args, env = process.env, cwd = repoRoot) {
   });
 }
 
-async function portOpen(port, host, timeoutMs = 20_000) {
+async function waitForSocket(socket, timeoutMs = 20_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const ready = await new Promise((resolve) => {
-      const socket = net.connect({ port, host });
-      socket.once("connect", () => {
-        socket.destroy();
-        resolve(true);
-      });
-      socket.once("error", () => resolve(false));
-      socket.setTimeout(500, () => {
-        socket.destroy();
-        resolve(false);
-      });
-    });
-    if (ready) return;
+    if (existsSync(socket)) return;
     await new Promise((r) => setTimeout(r, 200));
   }
-  throw new Error(`Timed out waiting for ${host}:${port}`);
+  throw new Error(`Timed out waiting for ${socket}`);
 }
 
 async function ensurePglite() {
@@ -63,9 +55,11 @@ async function ensurePglite() {
 async function main() {
   await ensurePglite();
 
+  rmSync(socketPath, { force: true });
+
   const db = spawn(
     path.join(repoRoot, "node_modules", ".bin", "pglite-server"),
-    ["--db", dbDir, "--port", String(pgPort), "--host", pgHost, "-m", "4"],
+    ["--db", dbDir, "--path", socketPath, "-m", "4"],
     { stdio: "inherit" },
   );
   let dbExited = false;
@@ -73,8 +67,8 @@ async function main() {
     dbExited = true;
   });
 
-  console.log(`[preview] Waiting for embedded Postgres on ${pgHost}:${pgPort} …`);
-  await portOpen(pgPort, pgHost);
+  console.log(`[preview] Waiting for embedded Postgres on ${socketPath} …`);
+  await waitForSocket(socketPath);
   if (dbExited) throw new Error("Embedded Postgres exited before becoming ready");
 
   const appEnv = {
@@ -105,7 +99,14 @@ async function main() {
     } catch {
       /* noop */
     }
-    setTimeout(() => process.exit(0), 300);
+    setTimeout(() => {
+      try {
+        rmSync(socketPath, { force: true });
+      } catch {
+        /* noop */
+      }
+      process.exit(0);
+    }, 300);
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);

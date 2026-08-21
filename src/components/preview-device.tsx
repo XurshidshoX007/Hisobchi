@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect -- window.self/window.top are only defined after hydration */
+/* eslint-disable react-hooks/set-state-in-effect -- window.name is only defined after hydration */
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -16,25 +16,33 @@ import { useFinance } from "./providers";
  * Safety rails:
  *  - Renders only for the demo user (`state.user.isDemo`), so production
  *    Telegram users never see it.
- *  - Renders only in the TOP browsing context (`window.self === window.top`);
- *    the framed app therefore never renders a second control (no recursion).
+ *  - Recursion guard via `window.name`: the phone frame is opened with a
+ *    dedicated window name, and the app inside that frame skips rendering the
+ *    control. Window names survive client-side navigation, so the nested app
+ *    stays clean while the user moves between pages. (We intentionally do NOT
+ *    check `window.self === window.top` — the preview panel itself embeds the
+ *    app in an iframe, and the toggle must still be visible there.)
  *  - The frame is a real iframe, so `position: fixed`, `100dvh`, safe-area
  *    insets and bottom navigation all behave exactly as on a device.
  */
+
+/** Window name given to the phone frame; the nested app hides its toggle. */
+const DEVICE_FRAME_NAME = "hisobchi-device-frame";
+
 export function PreviewDevice() {
   const { state } = useFinance();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  const [isTop, setIsTop] = useState(false);
+  const [deviceFrame, setDeviceFrame] = useState(false);
   const [mobile, setMobile] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    setIsTop(window.self === window.top);
+    setDeviceFrame(window.name === DEVICE_FRAME_NAME);
   }, []);
 
   const isDemo = Boolean(state?.user.isDemo);
-  if (!mounted || !isTop || !isDemo) return null;
+  if (!mounted || !isDemo || deviceFrame) return null;
 
   const href = `${pathname || "/"}${window.location.search}`;
 
@@ -73,6 +81,7 @@ export function PreviewDevice() {
             </div>
             <iframe
               key={href}
+              name={DEVICE_FRAME_NAME}
               src={href}
               title="Mobil qurilma ko‘rinishi"
               className="h-full w-full flex-1 border-0 bg-bg"
