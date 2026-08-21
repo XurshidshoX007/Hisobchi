@@ -16,7 +16,11 @@ const contentSecurityPolicy = [
   "base-uri 'self'",
   "form-action 'self'",
   // Telegram Web may embed the Mini App; arbitrary origins may not.
-  "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org",
+  // In development the app is embedded by the local preview proxy (and any
+  // Telegram web client), so framing is left open; production stays locked down.
+  isProd
+    ? "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org"
+    : "frame-ancestors *",
   isProd ? "upgrade-insecure-requests" : "",
 ]
   .filter(Boolean)
@@ -45,6 +49,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
+  // Preview proxies (e.g. *.e2b.app) may forward requests to the dev server
+  // from a non-localhost host; allow them so Next dev does not 403 internal
+  // resources. This is a development-only setting and is ignored in production.
+  allowedDevOrigins: ["*.e2b.app"],
   async headers() {
     return [
       {

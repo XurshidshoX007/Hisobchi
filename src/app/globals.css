@@ -173,6 +173,26 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Text selection carries the brand accent instead of the OS default so
+   copying an amount/note in either theme feels native to the product. */
+::selection {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.dark ::selection {
+  color: #0b0f18;
+}
+
+/* Headings balance their line breaks so short Uzbek labels don't leave a
+   single orphan word dangling on the last line. */
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+}
+
 html,
 body {
   background: var(--bg);
@@ -201,6 +221,23 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
+}
+
+/*
+ * Primary hero card: a soft accent wash from the top-right corner over a
+ * vertical surface gradient. Sits on top of the shared `.card` base, so the
+ * two single-class selectors resolve by source order (this one wins).
+ */
+.hero-card {
+  background:
+    radial-gradient(120% 90% at 100% 0%, var(--accent-soft) 0%, transparent 55%),
+    linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+}
+
+.dark .hero-card {
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--accent) 16%, transparent) 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg-elevated) 0%, var(--surface) 100%);
 }
 
 .flat-card {

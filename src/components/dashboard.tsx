@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { DashboardCategory, DashboardFacts } from "@/lib/dashboard";
-import { currencyLabel } from "@/lib/money";
+import { compact, currencyLabel } from "@/lib/money";
 import { BalanceDistributionBar } from "./balance-breakdown";
 import { Card, Money, Section, Skeleton } from "./ui";
 
@@ -56,9 +56,11 @@ export function DashboardHero({
 }) {
   const unit = currencyLabel(currency);
   const valueKey = `${facts.monthLabel}-${facts.balance}-${facts.income}-${facts.expense}`;
+  // Current-month net movement (income − expense) shown as a compact pill.
+  const net = facts.income - facts.expense;
 
   return (
-    <Card padded={false} className="relative overflow-hidden">
+    <Card padded={false} className="hero-card relative overflow-hidden">
       <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-accent opacity-[0.06]" aria-hidden="true" />
       <div className="pointer-events-none absolute right-9 top-9 h-20 w-20 rounded-full border border-accent opacity-[0.06]" aria-hidden="true" />
 
@@ -81,23 +83,40 @@ export function DashboardHero({
         ) : null}
       </div>
 
-      <div className="relative grid min-w-0 grid-cols-2 border-t border-line bg-surface-2/60">
-        <div className="min-w-0 px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex min-w-0 items-center gap-2 text-positive-text">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-positive-soft"><TrendIcon direction="up" /></span>
-            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Daromad</span>
-          </div>
-          <div className="mt-2 min-w-0 leading-tight">
-            <Money whole value={facts.income} size="lg" tone="positive" zeroSign="+" currency={unit} />
-          </div>
+      <div className="relative border-t border-line bg-surface-2/60">
+        <div className="flex min-w-0 items-center justify-between gap-3 border-b border-line px-4 pb-2 pt-2.5 sm:px-6">
+          <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Shu oy</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="num text-[11px] font-semibold text-fg-soft">{facts.monthLabel}</span>
+            <span
+              className={`num shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
+                net > 0 ? "bg-positive-soft text-positive-text" : net < 0 ? "bg-negative-soft text-negative-text" : "bg-surface-3 text-muted"
+              }`}
+              aria-label={`Oylik sof oqim: ${net > 0 ? "+" : ""}${compact(net)}`}
+            >
+              {net > 0 ? "+" : net < 0 ? "−" : ""}
+              {compact(net)}
+            </span>
+          </span>
         </div>
-        <div className="min-w-0 border-l border-line px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex min-w-0 items-center gap-2 text-negative-text">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-negative-soft"><TrendIcon direction="down" /></span>
-            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Xarajat</span>
+        <div className="grid min-w-0 grid-cols-2">
+          <div className="min-w-0 px-4 py-4 sm:px-6 sm:py-5">
+            <div className="flex min-w-0 items-center gap-2 text-positive-text">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-positive-soft"><TrendIcon direction="up" /></span>
+              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Daromad</span>
+            </div>
+            <div className="mt-2 min-w-0 leading-tight">
+              <Money whole value={facts.income} size="lg" tone="positive" zeroSign="+" currency={unit} />
+            </div>
           </div>
-          <div className="mt-2 min-w-0 leading-tight">
-            <Money whole value={-facts.expense} size="lg" tone="negative" currency={unit} />
+          <div className="min-w-0 border-l border-line px-4 py-4 sm:px-6 sm:py-5">
+            <div className="flex min-w-0 items-center gap-2 text-negative-text">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-negative-soft"><TrendIcon direction="down" /></span>
+              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Xarajat</span>
+            </div>
+            <div className="mt-2 min-w-0 leading-tight">
+              <Money whole value={-facts.expense} size="lg" tone="negative" currency={unit} />
+            </div>
           </div>
         </div>
       </div>
