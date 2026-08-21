@@ -84,10 +84,10 @@ export function DashboardHero({
       </div>
 
       <div className="relative border-t border-line bg-surface-2/60">
-        <div className="flex min-w-0 items-center justify-between gap-3 border-b border-line px-4 pb-2 pt-2.5 sm:px-6">
-          <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Shu oy</span>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-4 pb-2 pt-2.5 sm:px-6">
+          <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Shu oy</span>
           <span className="flex min-w-0 items-center gap-2">
-            <span className="num text-[11px] font-semibold text-fg-soft">{facts.monthLabel}</span>
+            <span className="num truncate text-[11px] font-semibold text-fg-soft">{facts.monthLabel}</span>
             <span
               className={`num shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
                 net > 0 ? "bg-positive-soft text-positive-text" : net < 0 ? "bg-negative-soft text-negative-text" : "bg-surface-3 text-muted"

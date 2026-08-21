@@ -6,8 +6,10 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   // Telegram SDK + Next runtime. `unsafe-inline` is currently required by the
   // Next App Router runtime; move to nonce-based CSP when a nonce middleware
-  // is introduced.
-  "script-src 'self' 'unsafe-inline' https://telegram.org",
+  // is introduced. `unsafe-eval` is added in DEVELOPMENT only — React's dev
+  // runtime needs eval() for stack reconstruction; production React never
+  // evaluates code and stays eval-free.
+  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} https://telegram.org`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",

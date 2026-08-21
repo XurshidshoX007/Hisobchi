@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { FinanceProvider } from "@/components/providers";
 import { AppShell } from "@/components/app-shell";
+import { PreviewDevice } from "@/components/preview-device";
 
 export const metadata: Metadata = {
   title: "Hisobchi — Shaxsiy moliya",
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <FinanceProvider>
           <AppShell>{children}</AppShell>
+          <PreviewDevice />
         </FinanceProvider>
       </body>
     </html>
