@@ -19,6 +19,17 @@ export function currencyLabel(currency: string): string {
 }
 
 /**
+ * Hard upper bound for any single money value accepted at an input boundary.
+ *
+ * Chosen so precision can NEVER silently degrade: with 2 decimal places the
+ * cents-domain integer is amount×100 ≤ 999 999 999 999 999, safely below the
+ * IEEE-754 exact-integer limit 2^53 ≈ 9 007 199 254 740 992. Every accepted
+ * amount therefore round-trips exactly through numeric(18,2) ⇄ JS number.
+ * ~10 trillion UZS per value is far beyond any personal-finance reality.
+ */
+export const MAX_MONEY = 9_999_999_999_999.99;
+
+/**
  * The canonical numeric boundary for money in this project.
  * PostgreSQL stores numeric(18,2); every JS boundary therefore normalizes to
  * the same two-decimal contract before a value is rendered or aggregated.

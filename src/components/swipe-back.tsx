@@ -20,10 +20,20 @@ const THRESHOLD = 0.28; // fraction of viewport width required to trigger back
 const MAX_TRANSLATE = 260; // px — maximum page translation during swipe
 const RESET_DURATION = 280;
 
+/**
+ * While the page is translated, the document must not gain horizontal
+ * overflow (that shifts the underlying Menu). `globals.css` scopes
+ * `overflow-x: clip` to this attribute so the clip exists ONLY during the
+ * gesture and its exit animation — never permanently, where it would conceal
+ * page-width bugs.
+ */
+const SWIPE_ATTR = "data-swipe-back";
+
 export function SwipeBack({ children, enabled }: { children: ReactNode; enabled: boolean }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const arrowRef = useRef<HTMLDivElement | null>(null);
+  const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Refs for touch state — never cause re-renders during gesture tracking.
   const startXRef = useRef(0);
@@ -42,18 +52,30 @@ export function SwipeBack({ children, enabled }: { children: ReactNode; enabled:
           "opacity 280ms cubic-bezier(0.22, 1, 0.36, 1)";
         arrowRef.current.style.opacity = "0";
       }
-      if (triggerBack) {
-        // Let the exit animation finish before changing the route. Navigating
-        // halfway through it leaves the shell with a stale horizontal
-        // transform and makes the Menu cards appear shifted on return.
-        setTimeout(() => router.back(), RESET_DURATION);
-      }
+      if (releaseTimerRef.current) clearTimeout(releaseTimerRef.current);
+      releaseTimerRef.current = setTimeout(() => {
+        releaseTimerRef.current = null;
+        if (triggerBack) {
+          // Let the exit animation finish before changing the route. Navigating
+          // halfway through it leaves the shell with a stale horizontal
+          // transform and makes the Menu cards appear shifted on return.
+          // The attribute stays on until the route-change cleanup below runs,
+          // so the translated frame never widens the document.
+          router.back();
+        } else {
+          document.body.removeAttribute(SWIPE_ATTR);
+        }
+      }, RESET_DURATION);
     },
     [router],
   );
 
   useEffect(() => {
     if (!enabled) return;
+    // Capture the container node once per effect run: the cleanup must reset
+    // the SAME element the gesture animated, not whatever the ref points to
+    // after a route change (react-hooks/exhaustive-deps ref guidance).
+    const container = containerRef.current;
 
     function onTouchStart(e: TouchEvent) {
       // Don't interfere when a sheet is open
@@ -95,6 +117,13 @@ export function SwipeBack({ children, enabled }: { children: ReactNode; enabled:
       // must remain completely native and must not touch the page transform.
       if (dx <= 0) {
         swipingRef.current = false;
+        // The gesture may have already translated the page on earlier frames —
+        // release the overflow clip and any residual transform immediately.
+        document.body.removeAttribute(SWIPE_ATTR);
+        if (containerRef.current) {
+          containerRef.current.style.transform = "";
+          containerRef.current.style.transition = "";
+        }
         return;
       }
       e.preventDefault();
@@ -104,6 +133,10 @@ export function SwipeBack({ children, enabled }: { children: ReactNode; enabled:
 
       const clamped = Math.min(dx, MAX_TRANSLATE);
       const ratio = clamped / MAX_TRANSLATE;
+
+      // The page is about to be translated — clip horizontal overflow for the
+      // duration of the gesture only (see SWIPE_ATTR).
+      document.body.setAttribute(SWIPE_ATTR, "");
 
       el.style.transition = "none";
       el.style.transform = `translateX(${clamped}px)`;
@@ -151,9 +184,14 @@ export function SwipeBack({ children, enabled }: { children: ReactNode; enabled:
       document.removeEventListener("touchcancel", onTouchCancel);
       // Always restore inline state as well as removing the indicator. This is
       // important when the route changes without completing a gesture.
-      if (containerRef.current) {
-        containerRef.current.style.transform = "";
-        containerRef.current.style.transition = "";
+      if (releaseTimerRef.current) {
+        clearTimeout(releaseTimerRef.current);
+        releaseTimerRef.current = null;
+      }
+      document.body.removeAttribute(SWIPE_ATTR);
+      if (container) {
+        container.style.transform = "";
+        container.style.transition = "";
       }
       if (arrowRef.current?.isConnected) {
         arrowRef.current.remove();

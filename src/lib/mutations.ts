@@ -15,7 +15,7 @@ import {
   transactions,
 } from "@/db/schema";
 import type { User } from "@/db/schema";
-import { addMonths, monthKey, roundMoney, todayISO } from "./money";
+import { MAX_MONEY, addMonths, monthKey, roundMoney, todayISO } from "./money";
 import { parseDraft } from "./nlp";
 import {
   advanceCreditTerm,
@@ -41,7 +41,10 @@ export type MutateInput = {
   data?: Record<string, unknown>;
 };
 
-const MAX_MONEY = 999_999_999_999_999;
+/**
+ * Boundary for any single money value — see MAX_MONEY in money.ts for the
+ * IEEE-754 exact-precision rationale (amount×100 stays below 2^53).
+ */
 const MAX_TEXT = 1_000;
 
 /** Decimal-safe boundary normalization: finite, bounded, max 2 decimals. */

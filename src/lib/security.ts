@@ -12,6 +12,27 @@ const globalSecurity = globalThis as typeof globalThis & {
 const buckets = globalSecurity.__pfosRateBuckets ?? new Map<string, RateBucket>();
 if (process.env.NODE_ENV !== "production") globalSecurity.__pfosRateBuckets = buckets;
 
+/**
+ * One warning per process: production fell back from the shared Redis limiter
+ * to the per-instance memory limiter. The fallback is intentional (fail-safe,
+ * still limits abuse), but an operator must SEE it — a silent downgrade would
+ * weaken multi-instance limits without any signal.
+ */
+let memoryFallbackWarned = false;
+function warnMemoryFallback(scope: string, reason: "unset" | "unavailable") {
+  if (memoryFallbackWarned || process.env.NODE_ENV !== "production") return;
+  memoryFallbackWarned = true;
+  console.warn(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      event: "rate_limiter_memory_fallback",
+      scope,
+      reason,
+      detail: "Redis limiter unavailable; per-instance memory limiter active",
+    }),
+  );
+}
+
 export type SecurityContext = {
   requestId: string;
   ipKey: string;
@@ -69,7 +90,10 @@ export async function checkRateLimit(params: {
     } catch {
       // Degrade to the per-process limiter. Production startup already checks
       // Redis presence, while this fallback keeps transient outages contained.
+      warnMemoryFallback(params.scope, "unavailable");
     }
+  } else {
+    warnMemoryFallback(params.scope, "unset");
   }
 
   const key = `${params.scope}:${params.identity}`;

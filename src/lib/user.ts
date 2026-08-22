@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ensureSeed } from "./seed";
 import { INIT_DATA_MAX_AGE_SECONDS, demoModeEnabled, requireVerifiedIdentity, telegramBotToken } from "./env";
+import { MAX_MONEY } from "./money";
 import { bootstrapNewUser } from "./bootstrap-user";
 
 export type SessionUser = typeof users.$inferSelect;
@@ -123,7 +124,7 @@ export async function updateUserSettings(userId: number, patch: Partial<SessionU
   if (typeof patch.theme === "string" && ["light", "dark", "system"].includes(patch.theme)) {
     allowed.theme = patch.theme;
   }
-  if (typeof patch.minReserve === "number" && Number.isFinite(patch.minReserve) && patch.minReserve >= 0 && patch.minReserve <= 999_999_999_999_999) {
+  if (typeof patch.minReserve === "number" && Number.isFinite(patch.minReserve) && patch.minReserve >= 0 && patch.minReserve <= MAX_MONEY) {
     allowed.minReserve = Math.round(patch.minReserve * 100) / 100;
   }
   if (

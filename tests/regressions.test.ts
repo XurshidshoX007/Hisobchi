@@ -645,3 +645,18 @@ test("conservative forecast includes estimated minimum income", () => {
   assert.equal(forecast.scenarios.min.balance, -780_000);
   assert.equal(forecast.riskDates[0]?.date, "2026-08-17");
 });
+
+/* ============================ MONEY PRECISION BOUND ============================ */
+
+test("MAX_MONEY keeps every accepted amount exact in the IEEE-754 cents domain", async () => {
+  const { MAX_MONEY, roundMoney } = await import("../src/lib/money");
+  // amount×100 must stay an exactly-representable integer (< 2^53), otherwise
+  // numeric(18,2) ⇄ JS number round-trips could silently lose tiyin precision.
+  assert.ok(Math.round(MAX_MONEY * 100) <= Number.MAX_SAFE_INTEGER);
+  // The bound itself round-trips through the canonical two-decimal contract.
+  assert.equal(roundMoney(MAX_MONEY), MAX_MONEY);
+  // One tiyin below the bound is still distinguishable — no precision collapse.
+  const nearBound = roundMoney(MAX_MONEY - 0.01);
+  assert.notEqual(nearBound, MAX_MONEY);
+  assert.equal(Math.round((MAX_MONEY - nearBound) * 100), 1);
+});

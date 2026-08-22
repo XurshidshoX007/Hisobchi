@@ -10,6 +10,15 @@ export const metadata: Metadata = {
   description: "Balans, daromad, xarajat, reja va prognoz — Telegram bot va Mini App.",
 };
 
+/**
+ * Every page is rendered per request so the CSP nonce generated in
+ * src/proxy.ts is stamped onto each framework script. A statically
+ * prerendered shell would ship nonce-less inline scripts that a nonce-aware
+ * browser must block. The pages are thin client shells (all data arrives via
+ * /api/state on the client), so per-request rendering costs microseconds.
+ */
+export const dynamic = "force-dynamic";
+
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
