@@ -99,14 +99,14 @@ secret reaches source control or logs.
 
 ## 3. Build and startup
 
-Railway uses the Dockerfile. Startup order is:
+Railway uses the Dockerfile. Deployment/startup order is:
 
-1. Validate required production env.
-2. Run `node scripts/migrate.mjs` using `DATABASE_URL`.
-3. Drizzle applies only versioned migrations from `drizzle/` and records them
-   in its migration journal.
-4. Start Next.js on Railway's `$PORT`.
-5. Railway checks `GET /api/health`.
+1. Railway runs `node scripts/migrate.mjs` once as the `preDeployCommand`, using `DATABASE_URL`.
+2. The migration runner serializes overlapping deploys with a PostgreSQL advisory lock, applies only versioned migrations from `drizzle/`, and records them in its migration journal.
+3. The container validates required production env and starts Next.js on Railway's `$PORT` (it intentionally does **not** run DDL a second time).
+4. Railway checks `GET /api/health`.
+
+If a migration fails, open the **pre-deploy logs**: the runner prints the PostgreSQL error code and message. Confirm `DATABASE_URL` is exactly `${{Postgres.DATABASE_URL}}` and that the Postgres service is in the same Railway project/environment before retrying.
 
 Never run `drizzle-kit push` against production. All schema changes must be a
 reviewed migration generated with:

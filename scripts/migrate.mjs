@@ -11,6 +11,9 @@ if (!databaseUrl) {
 
 const migrationsFolder = "./drizzle";
 const journalTable = "__drizzle_migrations";
+// A fixed, application-specific PostgreSQL advisory-lock key. This serializes
+// migrations when Railway briefly overlaps deployments/restarts.
+const migrationLockKey = 4_889_042_171;
 
 const pool = new pg.Pool({
   connectionString: databaseUrl,
@@ -48,7 +51,15 @@ function readMigrations() {
 
 try {
   const client = await pool.connect();
+  let hasMigrationLock = false;
   try {
+    // Avoid two deployments applying the same DDL at the same time. The lock
+    // belongs to this connection and is always released in finally below.
+    await client.query("SET lock_timeout = '60s'");
+    await client.query("SET statement_timeout = '120s'");
+    await client.query("SELECT pg_advisory_lock($1)", [migrationLockKey]);
+    hasMigrationLock = true;
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.${journalTable} (
         id SERIAL PRIMARY KEY,
@@ -82,10 +93,19 @@ try {
     }
     console.log("Database migrations applied");
   } finally {
+    if (hasMigrationLock) {
+      try {
+        await client.query("SELECT pg_advisory_unlock($1)", [migrationLockKey]);
+      } catch {
+        // The connection release below also releases session advisory locks.
+      }
+    }
     client.release();
   }
 } catch (error) {
-  console.error("Database migration failed", error instanceof Error ? error.message : "unknown error");
+  const message = error instanceof Error ? error.message : "unknown error";
+  const code = typeof error === "object" && error && "code" in error ? ` (code: ${String(error.code)})` : "";
+  console.error(`Database migration failed${code}: ${message}`);
   process.exitCode = 1;
 } finally {
   await pool.end();

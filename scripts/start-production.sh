@@ -36,5 +36,8 @@ case "$NEXT_PUBLIC_APP_URL" in
   *) echo "NEXT_PUBLIC_APP_URL must use HTTPS" >&2; exit 1 ;;
 esac
 
-node scripts/migrate.mjs
+# Railway runs the migration once as its pre-deploy step (railway.json).
+# Do not run it again here: Railway can start/restart a container while another
+# deployment is still finishing, and concurrent schema changes can deadlock or
+# fail the otherwise healthy container.
 exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p "${PORT:-3000}"
