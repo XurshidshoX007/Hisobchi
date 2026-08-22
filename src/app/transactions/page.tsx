@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
+import { SwipeActions } from "@/components/swipe-actions";
 import { TransactionFilter, type TransactionFilterContext } from "@/components/transaction-filter";
 import { Badge, Button, EmptyState, Money, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, humanDate } from "@/lib/money";
@@ -38,6 +39,9 @@ function TransactionsView() {
   const [filterState, setFilterState] = useState<TransactionFilterState>({ ...DEFAULT_TRANSACTION_FILTER_STATE });
   const [editing, setEditing] = useState<TxView | null>(null);
   const [deleting, setDeleting] = useState<TxView | null>(null);
+  // Row actions are swipe-revealed (never permanently visible); at most one
+  // row stays open at a time.
+  const [openRowId, setOpenRowId] = useState<number | null>(null);
 
   const grouped = useMemo(() => {
     // Keep the established filtering pipeline and compose its input here. The
@@ -208,75 +212,85 @@ function TransactionsView() {
                 </div>
                 <div className="divide-y divide-line px-1">
                   {items.map((transaction) => (
-                    <div key={transaction.id} className="group flex min-w-0 items-center gap-2.5 py-3 sm:gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">
-                        {transaction.type === "transfer" ? "↔️" : transaction.categoryIcon}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="flex min-w-0 items-center gap-1.5 truncate text-[14px] font-medium">
-                          <span className="truncate">
-                            {transaction.type === "transfer"
-                              ? `${transaction.accountName} → ${transaction.toAccountName ?? ""}`
-                              : transaction.categoryName ?? "Boshqa"}
-                          </span>
-                          {transaction.recurringId ? <Badge tone="accent">To‘lov</Badge> : null}
-                          {transaction.expectedIncomeId ? <Badge tone="positive">Reja</Badge> : null}
-                          {transaction.debtId ? <Badge tone={transaction.debtPaymentId ? "accent" : "neutral"}>Qarz</Badge> : null}
-                          {transaction.date > state.forecast.today ? <Badge tone="warning">Kelajak</Badge> : null}
-                          {accountById.get(transaction.accountId)?.isActive === false ? (
-                            <Badge tone="neutral">Arxiv</Badge>
-                          ) : null}
-                        </p>
-                        <p className="truncate text-[11.5px] text-muted">
-                          {transaction.note ? `${transaction.note} · ` : ""}
-                          {transaction.accountName}
-                        </p>
-                      </div>
-                      <Money
-                        value={transaction.type === "expense" ? -transaction.amount : transaction.amount}
-                        size="sm"
-                        signed
-                        tone={transaction.type === "income" ? "positive" : transaction.type === "expense" ? "default" : "muted"}
-                      />
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => (transaction.debtId ? null : setEditing(transaction))}
-                          disabled={Boolean(transaction.debtId)}
-                          title={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : undefined}
-                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
-                          aria-label={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : "Tahrirlash"}
-                        >
-                          {/* Inline SVG, not a text glyph: the Unicode pencil (✎ U+270E
-                              “lower right pencil”) points to the LOWER right, so it reads
-                              mirrored and its rendering varies by font. SVG pins the standard
-                              edit orientation — tip at the lower LEFT, body to the upper right. */}
-                          <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
+                    // Row actions hide in the swipe underlay at rest; the row
+                    // body itself keeps its exact resting layout.
+                    <SwipeActions
+                      key={transaction.id}
+                      open={openRowId === transaction.id}
+                      onOpenChange={(next) => setOpenRowId(next ? transaction.id : null)}
+                      actions={
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => (transaction.debtId ? null : setEditing(transaction))}
+                            disabled={Boolean(transaction.debtId)}
+                            title={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : undefined}
+                            className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
+                            aria-label={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : "Tahrirlash"}
                           >
-                            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => (transaction.debtId && !transaction.debtPaymentId ? null : setDeleting(transaction))}
-                          disabled={Boolean(transaction.debtId && !transaction.debtPaymentId)}
-                          title={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : undefined}
-                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
-                          aria-label={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : "Bekor qilish"}
-                        >
-                          ✕
-                        </button>
+                            {/* Inline SVG, not a text glyph: the Unicode pencil (✎ U+270E
+                                “lower right pencil”) points to the LOWER right, so it reads
+                                mirrored and its rendering varies by font. SVG pins the standard
+                                edit orientation — tip at the lower LEFT, body to the upper right. */}
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => (transaction.debtId && !transaction.debtPaymentId ? null : setDeleting(transaction))}
+                            disabled={Boolean(transaction.debtId && !transaction.debtPaymentId)}
+                            title={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : undefined}
+                            className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
+                            aria-label={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : "Bekor qilish"}
+                          >
+                            ✕
+                          </button>
+                        </>
+                      }
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5 py-3 sm:gap-3">
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">
+                          {transaction.type === "transfer" ? "↔️" : transaction.categoryIcon}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="flex min-w-0 items-center gap-1.5 truncate text-[14px] font-medium">
+                            <span className="truncate">
+                              {transaction.type === "transfer"
+                                ? `${transaction.accountName} → ${transaction.toAccountName ?? ""}`
+                                : transaction.categoryName ?? "Boshqa"}
+                            </span>
+                            {transaction.recurringId ? <Badge tone="accent">To‘lov</Badge> : null}
+                            {transaction.expectedIncomeId ? <Badge tone="positive">Reja</Badge> : null}
+                            {transaction.debtId ? <Badge tone={transaction.debtPaymentId ? "accent" : "neutral"}>Qarz</Badge> : null}
+                            {transaction.date > state.forecast.today ? <Badge tone="warning">Kelajak</Badge> : null}
+                            {accountById.get(transaction.accountId)?.isActive === false ? (
+                              <Badge tone="neutral">Arxiv</Badge>
+                            ) : null}
+                          </p>
+                          <p className="truncate text-[11.5px] text-muted">
+                            {transaction.note ? `${transaction.note} · ` : ""}
+                            {transaction.accountName}
+                          </p>
+                        </div>
+                        <Money
+                          value={transaction.type === "expense" ? -transaction.amount : transaction.amount}
+                          size="sm"
+                          signed
+                          tone={transaction.type === "income" ? "positive" : transaction.type === "expense" ? "default" : "muted"}
+                        />
                       </div>
-                    </div>
+                    </SwipeActions>
                   ))}
                 </div>
               </section>
