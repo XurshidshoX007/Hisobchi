@@ -45,13 +45,15 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-fade-up min-w-0 space-y-4 sm:space-y-5">
-      <DashboardHero
-        facts={facts}
-        currency={state.user.currency}
-        onOpenBreakdown={facts.hasBalanceBreakdown ? () => setBreakdownOpen(true) : undefined}
-      />
+      <div className="animate-hero-in">
+        <DashboardHero
+          facts={facts}
+          currency={state.user.currency}
+          onOpenBreakdown={facts.hasBalanceBreakdown ? () => setBreakdownOpen(true) : undefined}
+        />
+      </div>
 
-      <div key={facts.monthLabel} className="dashboard-value-transition grid min-w-0 gap-5 md:grid-cols-2 md:gap-6">
+      <div key={facts.monthLabel} className="dashboard-value-transition animate-category-in grid min-w-0 gap-5 md:grid-cols-2 md:gap-6">
         <DashboardCategorySection
           title="Daromad kategoriyalari"
           emptyText="Daromad hali kiritilmagan."
