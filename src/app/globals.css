@@ -258,6 +258,36 @@ input::placeholder {
   scrollbar-width: none;
 }
 
+/*
+ * Swipe-to-reveal rows (History transactions). Row actions live in an
+ * underlay and are NEVER visible at rest — touch devices slide the
+ * foreground aside via src/components/swipe-actions.tsx, while a real
+ * pointer (and keyboard focus) gets the same reveal declaratively here.
+ * The foreground's transition runs only for committed open/close and CSS
+ * reveals; the gesture itself sets `transition: none` inline per frame.
+ * Keep --swipe-actions-reveal in sync with SWIPE_ACTIONS_WIDTH.
+ */
+:root {
+  --swipe-actions-reveal: 82px;
+}
+
+.swipe-actions-foreground {
+  will-change: transform;
+  transition: transform var(--motion-duration-sheet-enter) var(--motion-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .swipe-actions:hover .swipe-actions-foreground {
+    transform: translateX(calc(-1 * var(--swipe-actions-reveal)));
+  }
+}
+
+/* Keyboard users: the actions stay in the tab order, so focusing one must
+   reveal the strip on any device, touch included. */
+.swipe-actions:focus-within .swipe-actions-foreground {
+  transform: translateX(calc(-1 * var(--swipe-actions-reveal)));
+}
+
 .glass-nav {
   background: color-mix(in srgb, var(--bg) 86%, transparent);
   backdrop-filter: saturate(180%) blur(22px);
@@ -597,6 +627,11 @@ body[data-sheet-open] .global-fab {
 
   .global-fab,
   .global-fab svg {
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Swipe-revealed rows snap open/closed instantly. */
+  .swipe-actions-foreground {
     transition-duration: 0.01ms !important;
   }
 
