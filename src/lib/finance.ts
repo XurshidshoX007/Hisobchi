@@ -19,6 +19,8 @@ export type TxView = {
   source: string;
   recurringId: number | null;
   expectedIncomeId: number | null;
+  debtId: number | null;
+  debtPaymentId: number | null;
   /** Scheduled occurrence date this transaction fulfils (occurrence identity). */
   plannedDate: string | null;
   occurrenceNumber: number | null;

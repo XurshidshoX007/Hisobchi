@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   accounts,
@@ -95,7 +95,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
     recurring: ["create", "update", "pay", "toggle", "restore", "delete"],
     expectedIncome: ["create", "update", "receive", "toggle", "restore", "delete"],
     budget: ["upsert", "delete"],
-    debt: ["create", "update", "pay", "delete"],
+    debt: ["create", "update", "pay", "delete", "cancel"],
     goal: ["create", "contribute", "update", "delete"],
     notification: ["read", "readAll"],
   };
@@ -229,6 +229,9 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
           .limit(1);
         if (!existing[0]) return { ok: false, message: "Operatsiya topilmadi yoki ruxsat yo'q" };
+        if (existing[0].debtId) {
+          return { ok: false, message: "Qarzga bog'langan operatsiyani Qarzdorlik bo'limidan boshqaring" };
+        }
 
         const type = allowed(str(d.type, existing[0].type), ["income", "expense", "transfer"], existing[0].type) as
           | "income"
@@ -299,6 +302,9 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
           .limit(1);
         if (!existing[0]) return { ok: false, message: "Operatsiya topilmadi yoki ruxsat yo'q" };
+        if (existing[0].debtId && !existing[0].debtPaymentId) {
+          return { ok: false, message: "Qarz ochilishi operatsiyasini Qarzdorlik bo'limidan boshqaring" };
+        }
 
         const deleted = await db.transaction(async (tx) => {
           // Reconcile the parent plan BEFORE marking the transaction deleted so
@@ -367,6 +373,33 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
                 .where(and(eq(expectedIncomes.id, inc[0].id), eq(expectedIncomes.userId, userId)));
             }
           }
+          if (existing[0].debtPaymentId) {
+            const payment = await tx
+              .select()
+              .from(debtPayments)
+              .where(and(eq(debtPayments.id, existing[0].debtPaymentId), eq(debtPayments.userId, userId)))
+              .limit(1);
+            if (payment[0]) {
+              const debt = await tx
+                .select()
+                .from(debts)
+                .where(and(eq(debts.id, payment[0].debtId), eq(debts.userId, userId)))
+                .limit(1);
+              if (debt[0]) {
+                await tx
+                  .update(debts)
+                  .set({
+                    remainingAmount: Math.min(debt[0].amount, debt[0].remainingAmount + payment[0].amount),
+                    status: "active",
+                  })
+                  .where(and(eq(debts.id, debt[0].id), eq(debts.userId, userId)));
+              }
+              await tx
+                .delete(debtPayments)
+                .where(and(eq(debtPayments.id, payment[0].id), eq(debtPayments.userId, userId)));
+            }
+          }
+
           const [row] = await tx
             .update(transactions)
             .set({ isDeleted: true, deletedAt: new Date() })
@@ -1163,7 +1196,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             userId, accountId, type: direction === "i_owe" ? "income" : "expense",
             amount, date: isoDate(d.date, today) ?? today,
             note: direction === "i_owe" ? `Qarz olindi: ${personName}` : `Qarz berildi: ${personName}`,
-            source: "miniapp", currency: user.currency,
+            source: "miniapp", currency: user.currency, debtId: created.id,
           });
           return [created];
         });
@@ -1190,21 +1223,70 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const dueDate = d.dueDate === null || d.dueDate === "" ? null : isoDate(d.dueDate);
         if (d.dueDate && !dueDate) return { ok: false, message: "Sana noto'g'ri" };
         const remainingAmount = amount - paidAmount;
-        const updated = await db
-          .update(debts)
-          .set({
-            direction,
-            personName,
-            amount,
-            remainingAmount,
-            dueDate,
-            note: str(d.note),
-            status: remainingAmount === 0 ? "settled" : "active",
-          })
-          .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false)))
-          .returning({ id: debts.id });
-        if (!updated[0]) return { ok: false, message: "Qarz topilmadi yoki ruxsat yo'q" };
-        return { ok: true, id: updated[0].id, message: "Qarz yangilandi" };
+        const oldOpeningNote = existing[0].direction === "i_owe" ? `Qarz olindi: ${existing[0].personName}` : `Qarz berildi: ${existing[0].personName}`;
+        const nextOpeningNote = direction === "i_owe" ? `Qarz olindi: ${personName}` : `Qarz berildi: ${personName}`;
+        const nextOpeningType = direction === "i_owe" ? "income" : "expense";
+
+        const updated = await db.transaction(async (tx) => {
+          const [debtRow] = await tx
+            .update(debts)
+            .set({
+              direction,
+              personName,
+              amount,
+              remainingAmount,
+              dueDate,
+              note: str(d.note),
+              status: remainingAmount === 0 ? "settled" : "active",
+            })
+            .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false)))
+            .returning({ id: debts.id });
+          if (!debtRow) return null;
+
+          // Keep the debt-owned opening cash movement in History in sync.
+          // This fixes the stale "+ old amount" problem after editing a debt.
+          const [linkedOpening] = await tx
+            .select({ id: transactions.id })
+            .from(transactions)
+            .where(and(eq(transactions.userId, userId), eq(transactions.debtId, id), isNull(transactions.debtPaymentId), eq(transactions.isDeleted, false)))
+            .limit(1);
+
+          const openingId = linkedOpening?.id ?? (await (async () => {
+            // Legacy rows created before transactions.debt_id existed can be
+            // adopted safely only when their controlled note/type/amount match
+            // the original debt opening movement.
+            const [legacy] = await tx
+              .select({ id: transactions.id })
+              .from(transactions)
+              .where(and(
+                eq(transactions.userId, userId),
+                eq(transactions.isDeleted, false),
+                eq(transactions.source, "miniapp"),
+                eq(transactions.type, existing[0].direction === "i_owe" ? "income" : "expense"),
+                eq(transactions.amount, existing[0].amount),
+                sql`${transactions.note} = ${oldOpeningNote}`,
+              ))
+              .limit(1);
+            return legacy?.id ?? null;
+          })());
+
+          if (openingId) {
+            await tx
+              .update(transactions)
+              .set({
+                debtId: id,
+                debtPaymentId: null,
+                type: nextOpeningType,
+                amount,
+                note: nextOpeningNote,
+                updatedAt: new Date(),
+              })
+              .where(and(eq(transactions.id, openingId), eq(transactions.userId, userId), eq(transactions.isDeleted, false)));
+          }
+          return debtRow;
+        });
+        if (!updated) return { ok: false, message: "Qarz topilmadi yoki ruxsat yo'q" };
+        return { ok: true, id: updated.id, message: "Qarz yangilandi" };
       }
       if (input.action === "pay") {
         const id = int(d.id);
@@ -1213,7 +1295,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const row = await db
           .select()
           .from(debts)
-          .where(and(eq(debts.id, id), eq(debts.userId, userId)))
+          .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false)))
           .limit(1);
         if (!row[0]) return { ok: false, message: "Qarz topilmadi" };
         if (amount > row[0].remainingAmount) return { ok: false, message: "To'lov qolgan qarzdan katta bo'lmasligi kerak" };
@@ -1234,7 +1316,11 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false), sql`${debts.remainingAmount} >= ${amount}`))
             .returning({ id: debts.id });
           if (!updated[0]) return false;
-          await tx.insert(debtPayments).values({ userId, debtId: id, amount, date: isoDate(d.date, today) ?? today, note: str(d.note) });
+          const paymentDate = isoDate(d.date, today) ?? today;
+          const [payment] = await tx
+            .insert(debtPayments)
+            .values({ userId, debtId: id, amount, date: paymentDate, note: str(d.note) })
+            .returning({ id: debtPayments.id });
           // A repayment is also a real money movement.
           if (row[0].direction === "i_owe") {
             await tx.insert(transactions).values({
@@ -1242,10 +1328,12 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               accountId: paymentAccountId,
               type: "expense",
               amount,
-              date: isoDate(d.date, today) ?? today,
+              date: paymentDate,
               note: `Qarz to'lovi: ${row[0].personName}`,
               source: "miniapp",
               currency: user.currency,
+              debtId: id,
+              debtPaymentId: payment.id,
             });
           } else {
             await tx.insert(transactions).values({
@@ -1253,10 +1341,12 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               accountId: paymentAccountId,
               type: "income",
               amount,
-              date: isoDate(d.date, today) ?? today,
+              date: paymentDate,
               note: `Qarz qaytdi: ${row[0].personName}`,
               source: "miniapp",
               currency: user.currency,
+              debtId: id,
+              debtPaymentId: payment.id,
             });
           }
           return true;
@@ -1274,6 +1364,57 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .returning({ id: debts.id });
         if (!deleted[0]) return { ok: false, message: "Qarz topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: deleted[0].id, message: "Qarz arxivlandi" };
+      }
+      if (input.action === "cancel") {
+        const id = int(d.id);
+        if (!id) return { ok: false, message: "Yozuv tanlanmadi" };
+        const existing = await db
+          .select()
+          .from(debts)
+          .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false)))
+          .limit(1);
+        if (!existing[0]) return { ok: false, message: "Qarz topilmadi yoki ruxsat yo'q" };
+        if (existing[0].amount !== existing[0].remainingAmount) {
+          return { ok: false, message: "To'lov kiritilgan qarzni bekor qilib bo'lmaydi. Avval to'lovlarni bekor qiling." };
+        }
+        const oldOpeningNote = existing[0].direction === "i_owe" ? `Qarz olindi: ${existing[0].personName}` : `Qarz berildi: ${existing[0].personName}`;
+        const cancelled = await db.transaction(async (tx) => {
+          const [debtRow] = await tx
+            .update(debts)
+            .set({ isDeleted: true, status: "settled" })
+            .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false), eq(debts.amount, existing[0].remainingAmount)))
+            .returning({ id: debts.id });
+          if (!debtRow) return null;
+          const [linkedOpening] = await tx
+            .select({ id: transactions.id })
+            .from(transactions)
+            .where(and(eq(transactions.userId, userId), eq(transactions.debtId, id), isNull(transactions.debtPaymentId), eq(transactions.isDeleted, false)))
+            .limit(1);
+          const openingId = linkedOpening?.id ?? (await (async () => {
+            const [legacy] = await tx
+              .select({ id: transactions.id })
+              .from(transactions)
+              .where(and(
+                eq(transactions.userId, userId),
+                eq(transactions.isDeleted, false),
+                eq(transactions.source, "miniapp"),
+                eq(transactions.type, existing[0].direction === "i_owe" ? "income" : "expense"),
+                eq(transactions.amount, existing[0].amount),
+                sql`${transactions.note} = ${oldOpeningNote}`,
+              ))
+              .limit(1);
+            return legacy?.id ?? null;
+          })());
+          if (openingId) {
+            await tx
+              .update(transactions)
+              .set({ debtId: id, debtPaymentId: null, isDeleted: true, deletedAt: new Date(), updatedAt: new Date() })
+              .where(and(eq(transactions.id, openingId), eq(transactions.userId, userId), eq(transactions.isDeleted, false)));
+          }
+          return debtRow;
+        });
+        if (!cancelled) return { ok: false, message: "Qarz allaqachon o'zgargan. Qayta yuklab urinib ko'ring." };
+        return { ok: true, id: cancelled.id, message: "Qarz va uning boshlang'ich operatsiyasi bekor qilindi" };
       }
       return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
     }

@@ -304,65 +304,6 @@ export const expectedIncomes = pgTable(
   ],
 );
 
-export const transactions = pgTable(
-  "transactions",
-  {
-    id: serial("id").primaryKey(),
-    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    accountId: integer("account_id").notNull().references(() => accounts.id, { onDelete: "restrict" }),
-    toAccountId: integer("to_account_id").references(() => accounts.id, { onDelete: "restrict" }),
-    categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),
-    type: text("type").notNull(), // income | expense | transfer
-    amount: money("amount").notNull(),
-    currency: text("currency").notNull().default("UZS"),
-    date: date("date", { mode: "string" }).notNull(),
-    note: text("note"),
-    source: text("source").notNull().default("miniapp"), // bot | miniapp | api | auto
-    recurringId: integer("recurring_id").references(() => recurringExpenses.id, { onDelete: "set null" }),
-    expectedIncomeId: integer("expected_income_id").references(() => expectedIncomes.id, { onDelete: "set null" }),
-    /**
-     * Occurrence identity for plan ↔ transaction reconciliation.
-     * `plannedDate` is the *scheduled* date of the occurrence this real
-     * transaction fulfils; it is immutable once a payment is recorded and is
-     * distinct from `date` (the *actual* payment/receipt date). This lets an
-     * early payment (actual 15th, planned 20th) be un-done without corrupting
-     * the schedule. `occurrenceNumber` is the 1-based sequence index.
-     */
-    plannedDate: date("planned_date", { mode: "string" }),
-    occurrenceNumber: integer("occurrence_number"),
-    isDeleted: boolean("is_deleted").notNull().default(false),
-    deletedAt: timestamp("deleted_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    index("tx_user_date_idx").on(t.userId, t.date),
-    index("tx_type_idx").on(t.userId, t.type),
-    check("transactions_type_check", sql`${t.type} in ('income', 'expense', 'transfer')`),
-    check("transactions_amount_check", sql`${t.amount} > 0`),
-    check("transactions_currency_check", sql`${t.currency} in ('UZS', 'USD', 'EUR')`),
-  ],
-);
-
-export const budgets = pgTable(
-  "budgets",
-  {
-    id: serial("id").primaryKey(),
-    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    categoryId: integer("category_id").references(() => categories.id, { onDelete: "cascade" }),
-    month: text("month").notNull(), // YYYY-MM
-    amount: money("amount").notNull(),
-    rollover: boolean("rollover").notNull().default(false),
-    isDeleted: boolean("is_deleted").notNull().default(false),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    uniqueIndex("budget_unique_idx").on(t.userId, t.categoryId, t.month),
-    check("budgets_amount_check", sql`${t.amount} > 0`),
-    check("budgets_month_check", sql`${t.month} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`),
-  ],
-);
-
 export const debts = pgTable(
   "debts",
   {
@@ -400,6 +341,69 @@ export const debtPayments = pgTable(
   (t) => [
     index("debt_payments_debt_idx").on(t.debtId),
     check("debt_payments_amount_check", sql`${t.amount} > 0`),
+  ],
+);
+
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    accountId: integer("account_id").notNull().references(() => accounts.id, { onDelete: "restrict" }),
+    toAccountId: integer("to_account_id").references(() => accounts.id, { onDelete: "restrict" }),
+    categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),
+    type: text("type").notNull(), // income | expense | transfer
+    amount: money("amount").notNull(),
+    currency: text("currency").notNull().default("UZS"),
+    date: date("date", { mode: "string" }).notNull(),
+    note: text("note"),
+    source: text("source").notNull().default("miniapp"), // bot | miniapp | api | auto
+    recurringId: integer("recurring_id").references(() => recurringExpenses.id, { onDelete: "set null" }),
+    expectedIncomeId: integer("expected_income_id").references(() => expectedIncomes.id, { onDelete: "set null" }),
+    debtId: integer("debt_id").references(() => debts.id, { onDelete: "set null" }),
+    debtPaymentId: integer("debt_payment_id").references(() => debtPayments.id, { onDelete: "set null" }),
+    /**
+     * Occurrence identity for plan ↔ transaction reconciliation.
+     * `plannedDate` is the *scheduled* date of the occurrence this real
+     * transaction fulfils; it is immutable once a payment is recorded and is
+     * distinct from `date` (the *actual* payment/receipt date). This lets an
+     * early payment (actual 15th, planned 20th) be un-done without corrupting
+     * the schedule. `occurrenceNumber` is the 1-based sequence index.
+     */
+    plannedDate: date("planned_date", { mode: "string" }),
+    occurrenceNumber: integer("occurrence_number"),
+    isDeleted: boolean("is_deleted").notNull().default(false),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("tx_user_date_idx").on(t.userId, t.date),
+    index("tx_type_idx").on(t.userId, t.type),
+    index("tx_debt_idx").on(t.userId, t.debtId),
+    index("tx_debt_payment_idx").on(t.userId, t.debtPaymentId),
+    check("transactions_type_check", sql`${t.type} in ('income', 'expense', 'transfer')`),
+    check("transactions_amount_check", sql`${t.amount} > 0`),
+    check("transactions_currency_check", sql`${t.currency} in ('UZS', 'USD', 'EUR')`),
+  ],
+);
+
+export const budgets = pgTable(
+  "budgets",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    categoryId: integer("category_id").references(() => categories.id, { onDelete: "cascade" }),
+    month: text("month").notNull(), // YYYY-MM
+    amount: money("amount").notNull(),
+    rollover: boolean("rollover").notNull().default(false),
+    isDeleted: boolean("is_deleted").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("budget_unique_idx").on(t.userId, t.categoryId, t.month),
+    check("budgets_amount_check", sql`${t.amount} > 0`),
+    check("budgets_month_check", sql`${t.month} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`),
   ],
 );
 

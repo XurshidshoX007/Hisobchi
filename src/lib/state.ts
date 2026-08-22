@@ -176,6 +176,8 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       source: t.source,
       recurringId: t.recurringId,
       expectedIncomeId: t.expectedIncomeId,
+      debtId: t.debtId,
+      debtPaymentId: t.debtPaymentId,
       plannedDate: t.plannedDate,
       occurrenceNumber: t.occurrenceNumber,
       isDeleted: false,
