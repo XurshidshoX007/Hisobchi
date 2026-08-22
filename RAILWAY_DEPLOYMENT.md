@@ -149,7 +149,8 @@ Production behaviour:
 - All user-resource queries are scoped by current authenticated user.
 - Financial mutations require `Idempotency-Key` and are rate-limited.
 - Webhook requires `secret_token`, update idempotency and callback ownership.
-- CSP, HSTS, MIME sniffing, referrer and permissions policies are enabled.
+- CSP (per-request script nonce in production), HSTS, MIME sniffing, referrer
+  and permissions policies are enabled.
 - Security/audit logs contain request IDs and hashed network identifiers, not
   tokens, initData, DB credentials or request bodies.
 

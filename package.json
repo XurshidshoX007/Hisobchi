@@ -1,5 +1,5 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "hisobchi",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -32,5 +32,6 @@
     "tailwindcss": "4.1.17",
     "tsx": "^4.23.12",
     "typescript": "5.9.3"
-  }
+  },
+  "version": "1.0.0"
 }

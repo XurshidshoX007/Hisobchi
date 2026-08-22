@@ -2,28 +2,12 @@ import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
 
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  // Telegram SDK + Next runtime. `unsafe-inline` is currently required by the
-  // Next App Router runtime; move to nonce-based CSP when a nonce middleware
-  // is introduced.
-  "script-src 'self' 'unsafe-inline' https://telegram.org",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
-  "connect-src 'self' https://api.telegram.org",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  // Telegram Web may embed the Mini App; arbitrary origins may not.
-  "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org",
-  isProd ? "upgrade-insecure-requests" : "",
-]
-  .filter(Boolean)
-  .join("; ");
-
+// Content-Security-Policy is OWNED by src/proxy.ts: it must be generated per
+// request so a fresh nonce can replace 'unsafe-inline' script execution in
+// every modern browser. Keeping a second static copy here would create two
+// competing policies (browsers enforce their intersection), so this file
+// carries every security header EXCEPT the CSP.
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "no-referrer" },
   { key: "X-DNS-Prefetch-Control", value: "off" },

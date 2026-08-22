@@ -185,8 +185,17 @@ body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   touch-action: manipulation;
-  /* Swipe-back temporarily translates the active page. Keep that animation
-     from widening the document and shifting the Menu horizontally. */
+}
+
+/*
+ * Swipe-back temporarily translates the active page. ONLY while that gesture
+ * (or its exit animation) is running, keep the transform from widening the
+ * document and shifting the Menu horizontally. The attribute is set/removed
+ * by <SwipeBack>; outside the gesture the body never clips the x-axis, so a
+ * page-width bug still surfaces as a visible horizontal scrollbar in dev
+ * (see tests/add-flow-responsive.test.ts).
+ */
+body[data-swipe-back] {
   overflow-x: clip;
 }
 
