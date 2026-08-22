@@ -221,6 +221,7 @@ function TransactionsView() {
                           </span>
                           {transaction.recurringId ? <Badge tone="accent">To‘lov</Badge> : null}
                           {transaction.expectedIncomeId ? <Badge tone="positive">Reja</Badge> : null}
+                          {transaction.debtId ? <Badge tone={transaction.debtPaymentId ? "accent" : "neutral"}>Qarz</Badge> : null}
                           {transaction.date > state.forecast.today ? <Badge tone="warning">Kelajak</Badge> : null}
                           {accountById.get(transaction.accountId)?.isActive === false ? (
                             <Badge tone="neutral">Arxiv</Badge>
@@ -240,17 +241,21 @@ function TransactionsView() {
                       <div className="flex shrink-0 items-center gap-0.5">
                         <button
                           type="button"
-                          onClick={() => setEditing(transaction)}
-                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
-                          aria-label="Tahrirlash"
+                          onClick={() => (transaction.debtId ? null : setEditing(transaction))}
+                          disabled={Boolean(transaction.debtId)}
+                          title={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : undefined}
+                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
+                          aria-label={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : "Tahrirlash"}
                         >
                           ✎
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeleting(transaction)}
-                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
-                          aria-label="Bekor qilish"
+                          onClick={() => (transaction.debtId && !transaction.debtPaymentId ? null : setDeleting(transaction))}
+                          disabled={Boolean(transaction.debtId && !transaction.debtPaymentId)}
+                          title={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : undefined}
+                          className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation sm:opacity-0 sm:group-hover:opacity-100"
+                          aria-label={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : "Bekor qilish"}
                         >
                           ✕
                         </button>

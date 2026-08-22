@@ -158,6 +158,16 @@ export default function DebtsPage() {
                         >
                           Tahrir
                         </button>
+                        {d.paidAmount === 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => mutate("debt", "cancel", { id: d.id })}
+                            aria-label={`${d.personName} qarzini bekor qilish`}
+                            className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-muted transition-colors hover:text-negative-text active:bg-surface-3 touch-manipulation"
+                          >
+                            Bekor
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => mutate("debt", "delete", { id: d.id })}
@@ -207,6 +217,7 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
   const [direction, setDirection] = useState<"i_owe" | "owed_to_me">("i_owe");
   const [personName, setPersonName] = useState("");
   const [amount, setAmount] = useState("");
+  const [accountId, setAccountId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [note, setNote] = useState("");
   const [touched, setTouched] = useState(false);
@@ -218,12 +229,14 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
       direction: editing?.direction ?? "i_owe",
       personName: editing?.personName ?? "",
       amount: editing ? formatAmountInput(String(editing.amount)) : "",
+      accountId: editing ? "" : String(lastAccountId() ?? ""),
       dueDate: editing?.dueDate ?? "",
       note: editing?.note ?? "",
     };
     setDirection(draft.direction);
     setPersonName(draft.personName);
     setAmount(draft.amount);
+    setAccountId(draft.accountId);
     setDueDate(draft.dueDate);
     setNote(draft.note);
     setTouched(false);
@@ -238,7 +251,7 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
   const showError = (key: string) => (touched ? errors[key] ?? null : null);
   const parsed = parseAmountInput(amount) ?? 0;
 
-  const dirty = isDirtyDraft({ direction, personName, amount, dueDate, note }, initialDraft);
+  const dirty = isDirtyDraft({ direction, personName, amount, accountId, dueDate, note }, initialDraft);
 
   async function submit() {
     setTouched(true);
@@ -252,12 +265,16 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
         personName: personName.trim(),
         amount: parsed,
         remainingAmount: parsed,
+        accountId: accountId ? Number(accountId) : null,
         dueDate: dueDate || null,
         note: note.trim() || null,
       },
       { silent: true },
     );
-    if (res.ok) toast(editing ? "Qarz yangilandi" : `${formatAmount(parsed)} so‘mlik qarz saqlandi`, "success");
+    if (res.ok) {
+      if (!editing) rememberAccountId(Number(accountId) || null);
+      toast(editing ? "Qarz yangilandi" : `${formatAmount(parsed)} so‘mlik qarz saqlandi`, "success");
+    }
     return res;
   }
 
@@ -289,6 +306,8 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
       </Field>
 
       <AmountField value={amount} onChange={setAmount} error={showError("amount")} currency="UZS" autoFocus={!editing} />
+
+      {!editing ? <AccountPicker value={accountId} onChange={setAccountId} /> : null}
 
       <DateField value={dueDate} onChange={setDueDate} label="Muddat (ixtiyoriy)" chips={false} />
 

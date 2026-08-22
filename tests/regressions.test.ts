@@ -660,3 +660,22 @@ test("MAX_MONEY keeps every accepted amount exact in the IEEE-754 cents domain",
   assert.notEqual(nearBound, MAX_MONEY);
   assert.equal(Math.round((MAX_MONEY - nearBound) * 100), 1);
 });
+
+test("debt ledger rows are linked and managed from the debt module", () => {
+  const schema = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
+  const mutations = readFileSync(new URL("../src/lib/mutations.ts", import.meta.url), "utf8");
+  const history = readFileSync(new URL("../src/app/transactions/page.tsx", import.meta.url), "utf8");
+  const debtsPage = readFileSync(new URL("../src/app/debts/page.tsx", import.meta.url), "utf8");
+
+  assert.match(schema, /debtId: integer\("debt_id"\)\.references\(\(\) => debts\.id/);
+  assert.match(schema, /debtPaymentId: integer\("debt_payment_id"\)\.references\(\(\) => debtPayments\.id/);
+  assert.match(mutations, /debt: \["create", "update", "pay", "delete", "cancel"\]/);
+  assert.match(mutations, /debtId: created\.id/);
+  assert.match(mutations, /Keep the debt-owned opening cash movement in History in sync/);
+  assert.match(mutations, /debtPaymentId: payment\.id/);
+  assert.match(mutations, /Qarzga bog'langan operatsiyani Qarzdorlik bo'limidan boshqaring/);
+  assert.match(mutations, /Qarz va uning boshlang'ich operatsiyasi bekor qilindi/);
+  assert.match(history, /transaction\.debtId \? <Badge/);
+  assert.match(history, /disabled=\{Boolean\(transaction\.debtId\)\}/);
+  assert.match(debtsPage, /mutate\("debt", "cancel"/);
+});
