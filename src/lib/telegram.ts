@@ -122,8 +122,34 @@ export type TelegramHealth = {
   hasLastWebhookError: boolean;
 };
 
+// Deep diagnostics (/api/health) may be polled by dashboards; cache the two
+// Bot API round-trips briefly so repeated probes never stack outbound calls.
+const TELEGRAM_HEALTH_TTL_MS = 60_000;
+const globalTelegramHealth = globalThis as typeof globalThis & {
+  __pfosTelegramHealthCache?: { value: TelegramHealth; expiresAt: number };
+  __pfosTelegramHealthInFlight?: Promise<TelegramHealth>;
+};
+
 /** Checks Bot API identity and the actual webhook registered at Telegram. */
 export async function telegramHealth(): Promise<TelegramHealth> {
+  const cached = globalTelegramHealth.__pfosTelegramHealthCache;
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (globalTelegramHealth.__pfosTelegramHealthInFlight) return globalTelegramHealth.__pfosTelegramHealthInFlight;
+  const run = fetchTelegramHealth().then((value) => {
+    // Only successful lookups are cached; an "error" answer should be retried
+    // by the next probe rather than pinned for a minute.
+    if (value.status !== "error") {
+      globalTelegramHealth.__pfosTelegramHealthCache = { value, expiresAt: Date.now() + TELEGRAM_HEALTH_TTL_MS };
+    }
+    return value;
+  });
+  globalTelegramHealth.__pfosTelegramHealthInFlight = run.finally(() => {
+    globalTelegramHealth.__pfosTelegramHealthInFlight = undefined;
+  });
+  return globalTelegramHealth.__pfosTelegramHealthInFlight;
+}
+
+async function fetchTelegramHealth(): Promise<TelegramHealth> {
   if (!telegramBotToken()) {
     return { status: "unset", username: null, webhookUrlMatches: null, pendingUpdates: null, hasLastWebhookError: false };
   }
