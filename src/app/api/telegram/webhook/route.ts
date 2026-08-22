@@ -731,7 +731,7 @@ export async function POST(request: Request) {
 
     /* ---------------- MESSAGES ---------------- */
     const text = update.message?.text ?? "";
-    if (text.length > 2_000) return NextResponse.json({ ok: true });
+    if (text.length > 4_096) return NextResponse.json({ ok: true });
     const reply = await respondToBotMessage(user, text);
 
     // Payment schedule drafts (single batch)

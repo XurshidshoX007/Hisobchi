@@ -1,4 +1,4 @@
-import { extractDate, parseAmountRange } from "./nlp";
+import { parseAmountRange } from "./nlp";
 import { todayISO } from "./money";
 
 /**
@@ -29,6 +29,10 @@ export type PaymentScheduleParseResult = {
   rawInput: string;
 };
 
+export const MIN_SCHEDULE_ITEMS = 2;
+export const MAX_SCHEDULE_ITEMS = 60;
+export const MAX_SCHEDULE_ERROR = "Kredit jadvali ko‘pi bilan 60 ta to‘lovdan iborat bo‘lishi mumkin.";
+
 const SCHEDULE_KEYWORDS = [
   "kredit",
   "nasiya",
@@ -51,6 +55,7 @@ const SCHEDULE_KEYWORDS = [
 ];
 
 const INSTALLMENT_LABEL_RE = /\b\d+\s*-+\s*to['’`ʻ´]?lov\b/gi;
+const LEADING_NUMBER_OR_BULLET_RE = /^\s*(?:\d+[\.\)\:\-–]\s+|\d+\s*-+\s*to['’`ʻ´]?lov\s*|[-•–]\s*)/i;
 
 function normalizeApostrophe(s: string): string {
   return s.toLocaleLowerCase("uz").replace(/[’‘`ʻ´]/g, "'");
@@ -135,8 +140,8 @@ type DateMatch = {
 function findAllDateMatches(text: string): DateMatch[] {
   const matches: DateMatch[] = [];
   const isoRe = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
-  const numericRe = /\b(\d{1,2})\s*[-./]\s*(\d{1,2})(?:\s*[-./]\s*(\d{4}))?\b/g;
-  const textualRe = new RegExp(`\\b(\\d{1,2})\\s*[-–]?\\s*(${MONTH_ALTS})[a-z']*`, "gi");
+  const numericRe = /\b(\d{1,2})[-./](\d{1,2})(?:[-./](\d{4}))?\b/g;
+  const textualRe = new RegExp(`\\b(\\d{1,2})\\s*[-–]?\\s*(${MONTH_ALTS})[a-z']*(?:\\s+(20\\d{2})\\b)?`, "gi");
 
   let pos = 0;
   while (pos < text.length) {
@@ -176,6 +181,7 @@ function findAllDateMatches(text: string): DateMatch[] {
       }
     } else {
       day = Number(winner.groups[1]);
+      if (winner.groups[3]) year = Number(winner.groups[3]);
       const mStr = winner.groups[2].toLowerCase().replace(/[’']/g, "");
       // map short to month number
       const norm = normalizeUzbekMonths(mStr).toLowerCase();
@@ -253,7 +259,7 @@ export function isPaymentScheduleCandidate(
   _baseDate = todayISO(),
 ): boolean {
   if (!text || text.trim().length < 10) return false;
-  if (text.length > 2000) return false;
+  if (text.length > 4096) return false;
   const lower = normalizeApostrophe(text);
   // Must contain a number
   if (!/\d/.test(text)) return false;
@@ -291,7 +297,7 @@ function splitForDetection(text: string): string[] {
   // simplified split similar to nlp splitOperations but for detection
   const parts = text
     .split(/\n+|;+|,(?!\d)|\s+(?:va|hamda)\s+(?=\d)/i)
-    .map((s) => s.trim().replace(/^[-•–]\s*/, ""))
+    .map((s) => s.trim().replace(LEADING_NUMBER_OR_BULLET_RE, "").trim())
     .filter(Boolean);
   const out: string[] = [];
   for (const p of parts) {
@@ -314,7 +320,6 @@ function extractScheduleName(text: string, firstDateIndex: number | null): strin
     return fallback;
   }
   let prefix = text.slice(0, firstDateIndex).trim();
-  // If prefix contains newline, take last line before date? Actually prefix is everything before first date, which includes header plus maybe earlier. We want the header line closest to date.
   // If prefix contains colon, prefer text before colon but near date.
   const colonBeforeDate = prefix.lastIndexOf(":");
   if (colonBeforeDate !== -1) {
@@ -323,14 +328,15 @@ function extractScheduleName(text: string, firstDateIndex: number | null): strin
     // If beforeColon contains installment label like "5 oyga", skip
     const cand = cleanNameCandidate(beforeColon);
     if (cand) return cand;
-    // else try after colon? not needed
   }
+  // Remove trailing list numbering prefix before date, e.g. "1." or "1 -"
+  prefix = prefix.replace(/\s*\d+[\.\)\:\-–]?\s*$/, "").trim();
   // Remove trailing punctuation
   prefix = prefix.replace(/[:;,\-]+$/g, "").trim();
   // Remove installment numbering at start like "1-to'lov"
   prefix = prefix.replace(INSTALLMENT_LABEL_RE, " ").trim();
-  // Remove leading bullet
-  prefix = prefix.replace(/^[-•–\d\s]+/, "").trim();
+  // Remove leading bullet or numbering
+  prefix = prefix.replace(LEADING_NUMBER_OR_BULLET_RE, "").trim();
   const cand = cleanNameCandidate(prefix);
   if (cand) return cand;
   // Fallback try first line before colon regardless of date position
@@ -351,11 +357,12 @@ function cleanNameCandidate(raw: string): string | null {
   s = s.replace(INSTALLMENT_LABEL_RE, " ").replace(/\b\d+\s*-\s*to['’`ʻ´]?lov\b/gi, " ").trim();
   // Remove patterns like "5 oyga", "5 oy", "5 ta", "5ta to'lov" etc that are not brand
   s = s.replace(/\b\d+\s*(oyga|oy|ta|marta)\b/gi, " ").replace(/\s+/g, " ").trim();
-  // Remove leading keywords that are not brand? Keep kredit/nasiya as part of name, so not removing
+  // Remove leading number or bullet prefixes
+  s = s.replace(LEADING_NUMBER_OR_BULLET_RE, "").trim();
   // Remove isolated numbers
   s = s.replace(/\b\d+\b/g, " ").replace(/\s+/g, " ").trim();
   // Remove trailing/leading punctuation
-  s = s.replace(/^[,:\-–\s]+|[,:\-–\s]+$/g, "").trim();
+  s = s.replace(/^[,:\-–\.\s]+|[,:\-–\.\s]+$/g, "").trim();
   if (!s) return null;
   if (s.length < 2 || s.length > 60) {
     // if too long, maybe truncated header like whole sentence, try to extract brand words (first 3 words)
@@ -374,11 +381,8 @@ function cleanNameCandidate(raw: string): string | null {
     .split(/\s+/)
     .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
     .join(" ");
-  // If s is just "Kredit" alone, fallback to more generic? But keep as is, fallback handled elsewhere.
-  // If s equals "Kredit" or "Kredit:" etc, we might want fallback? But spec fallback is "Kredit to'lovi" when not found.
-  // If s is single word "Kredit" without brand, keep but it's okay, but we prefer fallback? We'll keep if length>3
+  // If s is single word "Kredit" without brand, keep but prefer fallback when no brand
   if (s.toLowerCase() === "kredit" && raw.toLowerCase().includes("kredit")) {
-    // Could be just "Kredit:" header with no brand -> fallback
     return null;
   }
   return s;
@@ -417,8 +421,8 @@ export function parsePaymentSchedule(
 
   // Quick limits check for absurd installment count (e.g., 500 lines)
   const lines = text.split(/\n/).length;
-  if (lines > 30) {
-    return { ok: false, schedule: null, errors: ["Jadval juda uzun (max 24 ta to'lov)"], confidence: 0, rawInput };
+  if (lines > 100) {
+    return { ok: false, schedule: null, errors: [MAX_SCHEDULE_ERROR], confidence: 0, rawInput };
   }
 
   // Find all date matches in whole text to determine name extraction boundary
@@ -431,10 +435,8 @@ export function parsePaymentSchedule(
   // We reuse a simple split: newline, semicolon, comma not in decimal, " va " + digit
   const rawSegments = text
     .split(/\n+|;+|,(?!\d)|\s+(?:va|hamda)\s+(?=\d)/i)
-    .map((s) => s.trim().replace(/^[-•–]\s*/, ""))
+    .map((s) => s.trim().replace(LEADING_NUMBER_OR_BULLET_RE, "").trim())
     .filter(Boolean);
-
-  // Further handle "hamda" etc? Already.
 
   // Build outSegments that merge segments without digits into previous (like nlp)
   const segments: string[] = [];
@@ -443,28 +445,28 @@ export function parsePaymentSchedule(
     else segments[segments.length - 1] += `, ${p}`;
   }
 
-  const items: ScheduleItem[] = [];
-  const errors: string[] = [];
+  type ProvisionalItem = {
+    day: number;
+    month: number;
+    explicitYear?: number;
+    rawDate: string;
+    amount: number;
+    rawSegment: string;
+  };
 
-  let globalIndex = 0;
+  const provisionalItems: ProvisionalItem[] = [];
+  const errors: string[] = [];
 
   for (let segIdx = 0; segIdx < segments.length; segIdx++) {
     const seg = segments[segIdx];
     if (!seg) continue;
 
     // Skip header-like segment that is before first date and contains no date but may contain name
-    // We'll detect if seg is header: contains schedule keyword and no date+amount pairing
     const segDates = findAllDateMatches(seg);
     if (segDates.length === 0) {
-      // Check if seg contains amount without date -> potential error but filter small numbers
       const cleanedForAmtCheck = seg.replace(INSTALLMENT_LABEL_RE, " ").trim();
-      // Remove date tokens already none
       const amtCheck = parseAmountRange(cleanedForAmtCheck);
       if (amtCheck.amount !== null && amtCheck.amount >= 1000) {
-        // amount without date in a segment that should be paired
-        // But if this seg is header like "Kredit Uzum:" amt would be null, so not here
-        // For schedule, every segment with amount must have date, so this is error
-        // However header with "5 oyga kredit:" would have amt 5 (<1000) so not flagged
         errors.push(`"${seg.slice(0, 60)}" uchun sana topilmadi`);
       }
       continue;
@@ -476,157 +478,104 @@ export function parsePaymentSchedule(
       for (let i = 0; i < segDates.length; i++) {
         const start = i === 0 ? 0 : segDates[i].index;
         const end = i + 1 < segDates.length ? segDates[i + 1].index : seg.length;
-        // For first subsegment, include from 0 to next date; for others from date i to next
-        // This captures amount before date for first date as well
         const sub = seg.slice(start, end).trim();
-        // Special handling for first date: if start !==0, we used start=segDates[i].index, but first sub should be from 0
-        // Actually for i===0 we already use 0, good.
-        // For i>0, we use date index, which excludes preceding amount between dates that belongs to previous installment? But the slice from previous date to next date already includes up to next date, so the gap between dates is fully accounted in first subsegment.
-        // For second and beyond, we start at its date, so its preceding amount (if amount is before date) would be incorrectly assigned to previous subsegment's tail.
-        // To handle amount before date for subsequent dates, we should ensure subsegment for i>0 starts at previous date's end? Complicated.
-        // Simpler: for i>0, start should be segDates[i-1].index + segDates[i-1].length? No.
-        // Let's instead define subSegments as slices between dates inclusive of trailing text up to next date.
-        // For i===0: slice 0 to segDates[1].index
-        // For i>0: slice segDates[i].index to (i+1< len ? segDates[i+1].index : end)
-        // This means amount that appears BEFORE second date but AFTER first date's amount would be in first subsegment's tail, not second's head. But amount before second date that belongs to second installment would be between first date's amount and second date, i.e., in the gap. How to know which installment gap belongs to?
-        // Typically pattern is "DATE AMOUNT DATE AMOUNT", so amount is immediately after date, not before. So gap between amounts is small. Our slicing from date to next date will give "DATE AMOUNT" correctly because amount follows date. So second subsegment starting at second date will be "DATE AMOUNT" for second.
-        // So it's fine.
         if (sub) subSegments.push(sub);
       }
-      // Edge: if first subsegment starts at 0 but segDates[0].index >0, it includes header text before first date within same segment (e.g., "Uzum 20 avg 750 ming"). That's okay header text will be ignored after date removal but kept for name? Already name extracted separately.
     } else {
       subSegments = [seg];
     }
 
     for (const sub of subSegments) {
       if (!sub.trim()) continue;
-      // Find next date in sub (should be exactly one)
       const subDates = findAllDateMatches(sub);
       if (subDates.length === 0) {
-        // Should not happen because we split by dates, but skip
         continue;
       }
-      // We expect one date per sub; if multiple still, take first
       const dm = subDates[0];
-      let isoDate: string | null = null;
-      if (dm.type === "iso") {
-        isoDate = `${dm.year}-${String(dm.month).padStart(2, "0")}-${String(dm.day).padStart(2, "0")}`;
-      } else if (dm.type === "numeric") {
-        if (dm.year !== undefined) {
-          const y = dm.year < 100 ? 2000 + dm.year : dm.year;
-          isoDate = `${y}-${String(dm.month).padStart(2, "0")}-${String(dm.day).padStart(2, "0")}`;
-        } else {
-          isoDate = inferYearForDayMonth(dm.day, dm.month, baseDate);
-        }
-      } else {
-        // textual
-        isoDate = inferYearForDayMonth(dm.day, dm.month, baseDate);
-      }
-
-      // Validate isoDate is valid
-      if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
-        errors.push(`${dm.raw} sanasi noto'g'ri`);
-        continue;
-      }
-      const parsed = new Date(`${isoDate}T00:00:00Z`);
-      if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== isoDate) {
-        errors.push(`${dm.raw} sanasi noto'g'ri`);
-        continue;
-      }
 
       // Amount extraction: remove date token from sub
-      let cleaned = sub.slice(0, dm.index - (sub === seg ? subDates[0].index - (subSegments.length>1? 0:0):0)) + sub.slice(dm.index + dm.length);
-      // But sub is slice of seg from some offset, so dm.index is relative to sub, not seg. For subSegments derived from seg, we already sliced, so dm.index in sub is relative.
-      // Simpler: recreate cleaned by removing first occurrence of dm.raw from sub
-      cleaned = sub.replace(dm.raw, " ");
-      // Also handle normalized short month? dm.raw may be original short form, replacement works.
-
-      // Also remove installment label
-      cleaned = cleaned.replace(INSTALLMENT_LABEL_RE, " ").trim();
-
-      // For textual dates where dm.raw is like "20 avg", after normalize the actual text in sub may be "20 avg" as well, replacement works.
-      // But for cases where we normalized before matching, raw still matches original.
+      const cleaned = sub.replace(dm.raw, " ").replace(INSTALLMENT_LABEL_RE, " ").trim();
 
       const amtRes = parseAmountFromSegment(cleaned);
       if (amtRes.amount === null || amtRes.amount <= 0) {
-        // Try alternative: maybe amount is before date and we removed date but amount before date still in cleaned, parseAmountRange should find it.
-        // If still null, error
-        const idx = items.length + 1;
+        const idx = provisionalItems.length + 1;
         errors.push(`${idx}-to'lov uchun summa topilmadi`);
         continue;
       }
-      // Validate duplicate amount? Not needed
 
-      // Special case: if cleaned still contains another date (should not), but ignore
-
-      globalIndex += 1;
-      items.push({
-        index: globalIndex,
-        date: isoDate,
+      provisionalItems.push({
+        day: dm.day,
+        month: dm.month,
+        explicitYear: dm.year,
+        rawDate: dm.raw,
         amount: Math.round(amtRes.amount),
         rawSegment: sub,
       });
     }
   }
 
-  // After initial loop, we have provisional items with year inference based on baseDate
-  // Now apply monotonic year adjustment (ensure chronological order) and duplicate detection
+  // Chronological date resolution & duplicate detection
+  let lastDate: string | null = null;
+  const seenDates = new Set<string>();
+  const items: ScheduleItem[] = [];
+  let globalIndex = 0;
 
-  // Duplicate detection before monotonic bump
-  const seen = new Map<string, number>();
-  const duplicateIndices: number[] = [];
-  for (const it of items) {
-    if (seen.has(it.date)) {
-      duplicateIndices.push(it.index);
-      // Don't bump duplicate, keep error
-      if (!errors.some((e) => e.includes("takroriy") || e.includes("duplicate"))) {
-        errors.push(`Takroriy sana aniqlandi: ${it.date}`);
-      }
+  for (const it of provisionalItems) {
+    let isoDate: string;
+    if (it.explicitYear !== undefined) {
+      const y = it.explicitYear < 100 ? 2000 + it.explicitYear : it.explicitYear;
+      isoDate = `${y}-${String(it.month).padStart(2, "0")}-${String(it.day).padStart(2, "0")}`;
+    } else if (!lastDate) {
+      isoDate = inferYearForDayMonth(it.day, it.month, baseDate);
     } else {
-      seen.set(it.date, it.index);
+      let candYear = Number(lastDate.slice(0, 4));
+      let candidate = `${candYear}-${String(it.month).padStart(2, "0")}-${String(it.day).padStart(2, "0")}`;
+      let guard = 0;
+      while (candidate <= lastDate && guard < 10) {
+        // If consecutive items have the exact same month & day, it is a duplicate date
+        if (candidate.slice(5) === lastDate.slice(5)) {
+          break;
+        }
+        candYear += 1;
+        candidate = `${candYear}-${String(it.month).padStart(2, "0")}-${String(it.day).padStart(2, "0")}`;
+        guard += 1;
+      }
+      isoDate = candidate;
     }
+
+    // Validate ISO date is a real calendar date (e.g. not 31 fevral)
+    const parsed = new Date(`${isoDate}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== isoDate) {
+      errors.push(`${it.rawDate} sanasi noto'g'ri`);
+      continue;
+    }
+
+    if (seenDates.has(isoDate)) {
+      if (!errors.some((e) => e.includes("Takroriy sana") || e.includes("takroriy"))) {
+        errors.push(`Takroriy sana aniqlandi: ${isoDate}`);
+      }
+    }
+    seenDates.add(isoDate);
+    lastDate = isoDate;
+
+    globalIndex += 1;
+    items.push({
+      index: globalIndex,
+      date: isoDate,
+      amount: it.amount,
+      rawSegment: it.rawSegment,
+    });
   }
 
-  // If duplicates found, we don't auto-bump those duplicates
-  // Now monotonic adjustment for non-duplicate items
-  // We need to iterate in order of appearance (items already in appearance order)
-  // For each i where items[i].date <= items[i-1].date and not duplicate, bump year
-  for (let i = 1; i < items.length; i++) {
-    // skip if duplicate already flagged (both dates equal)
-    if (items[i].date === items[i - 1].date) continue;
-    let curr = items[i].date;
-    const prev = items[i - 1].date;
-    // While curr <= prev, bump
-    let guard = 0;
-    while (curr <= prev && guard < 10) {
-      const [y, m, d] = curr.split("-").map(Number);
-      const bumped = `${y + 1}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      // validate bumped date
-      const pd = new Date(`${bumped}T00:00:00Z`);
-      if (Number.isNaN(pd.getTime()) || pd.toISOString().slice(0, 10) !== bumped) break;
-      curr = bumped;
-      items[i].date = curr;
-      guard += 1;
-      // need to update seen map? not needed
-      // If after bump it becomes duplicate with another, detect again
-      if (curr === prev) break;
-    }
-  }
-
-  // Re-check duplicates after bumping (should not create new duplicates ideally)
   // Validate limits
   if (items.length === 0) {
-    // No valid items
-    // Check if there were errors due to missing amount etc - already in errors
-    // If no errors but no items, treat as not schedule
     return { ok: false, schedule: null, errors: errors.length ? errors : ["Jadval topilmadi"], confidence: 0, rawInput };
   }
-  if (items.length > 24) {
-    errors.push(` Juda ko'p to'lov (${items.length} ta). Maksimal 24 ta.`);
+  if (items.length > MAX_SCHEDULE_ITEMS) {
+    errors.push(MAX_SCHEDULE_ERROR);
   }
-  if (items.length < 2) {
+  if (items.length < MIN_SCHEDULE_ITEMS) {
     // Low confidence single installment
-    // We return ok false to trigger clarification
     return {
       ok: false,
       schedule: {
@@ -652,13 +601,8 @@ export function parsePaymentSchedule(
     }
   }
 
-  // Check amount missing items already in errors via earlier push
-
   const total = items.reduce((s, it) => s + it.amount, 0);
-  const confidence = errors.length ? 0.4 : items.length >= 2 ? 0.95 : 0.3;
-
-  // Sort items by date? Spec shows they keep input order which is already chronological after year adjustment.
-  // But for display, chronological order makes sense. Keep as is (appearance order which after year bump is chronological)
+  const confidence = errors.length ? 0.4 : items.length >= MIN_SCHEDULE_ITEMS ? 0.95 : 0.3;
 
   const schedule: PaymentSchedule = {
     type: "payment-schedule",
@@ -669,8 +613,8 @@ export function parsePaymentSchedule(
   };
 
   return {
-    ok: errors.length === 0 && items.length >= 2 && items.length <= 24,
-    schedule: errors.length === 0 ? schedule : schedule,
+    ok: errors.length === 0 && items.length >= MIN_SCHEDULE_ITEMS && items.length <= MAX_SCHEDULE_ITEMS,
+    schedule,
     errors,
     confidence,
     rawInput,
