@@ -52,7 +52,7 @@ export function BalanceDistributionBar({
       type="button"
       onClick={onOpen}
       aria-label="Balans taqsimotini ochish"
-      className="dashboard-hero-distribution group mt-3.5 block w-full select-none rounded-xl p-1.5 text-left transition-all duration-200 hover:bg-surface-2/80 active:bg-surface-3 active:scale-[0.99] touch-manipulation"
+      className="group mt-3.5 block w-full select-none rounded-xl p-1.5 text-left transition-all duration-200 hover:bg-surface-2/80 active:bg-surface-3 active:scale-[0.99] touch-manipulation"
     >
       {hasBar ? (
         <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface-3 p-[1px]" role="presentation">
