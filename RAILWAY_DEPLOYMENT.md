@@ -156,6 +156,14 @@ Production behaviour:
 
 ## 6. Health and operational checks
 
+Two endpoints with two different jobs:
+
+- `GET /api/health/live` — **liveness probe** (Railway healthcheck + Docker
+  `HEALTHCHECK`). Process + database only, no outbound Telegram calls, answers
+  in milliseconds. Restart decisions are made from this endpoint only.
+- `GET /api/health` — **deep diagnostics** for humans/dashboards. Includes
+  Redis, env warnings and the Telegram Bot API/webhook state (cached ~60 s).
+
 ```bash
 curl -fsS https://YOUR-SERVICE.up.railway.app/api/health
 ```
@@ -172,6 +180,24 @@ Expected production response:
 - no warnings
 
 If status is `warning`, do not open beta access until warnings are resolved.
+
+### Keeping the service awake (Telegram bots must not sleep)
+
+A Telegram webhook bot receives inbound HTTPS calls at unpredictable times; if
+the service is asleep, Telegram's delivery hits a cold container and the user
+sees a dead bot. Three settings keep it always-on:
+
+1. `railway.json` ships `"sleepApplication": false` — do not override it.
+2. In the Railway service **Settings → App Sleeping**, verify sleeping is
+   **disabled** (UI settings win over stale deployments if they diverge).
+3. Keep the service on a plan that allows always-on workloads (the Free/Trial
+   tier stops services when credits run out — that also looks like
+   "the app fell asleep").
+
+If the bot still appears frozen, check `Deployments → Logs` for restart loops
+first: a failing healthcheck restarts the container repeatedly, which from
+Telegram's side is indistinguishable from sleeping. The liveness probe
+(`/api/health/live`) is intentionally minimal for exactly this reason.
 
 Configure a Railway Cron service (for example every hour) to invoke the same
 web service's dispatcher. It sends payment, income, budget and risk alerts with
