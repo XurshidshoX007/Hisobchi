@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { Button, Card, Skeleton, TextInput } from "@/components/ui";
 import { ERRORS } from "@/lib/copy";
+import { BUTTON, startNew } from "@/lib/bot-copy";
 import { formatAmount } from "@/lib/money";
 
 type Msg = { id: number; role: "user" | "bot"; text: string };
@@ -42,7 +43,8 @@ export default function BotPage() {
     {
       id: 1,
       role: "bot",
-      text: "Salom 👋\n\nOperatsiyani tabiiy tilda yozing:\n\n„150 ming ovqatga ketdi“\n„1,5 mln maosh keldi“",
+      // The console must open with the SAME first message Telegram sends.
+      text: startNew(null),
     },
   ]);
   const [input, setInput] = useState("");
@@ -75,8 +77,9 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
           )}
         </Card>
         <Card>
-          <p className="mb-2 text-[15px] font-semibold">Mavjud buyruqlar</p>
-          <p className="text-[13px] leading-7 text-muted">/start · /report · /forecast · /help · Daromad · Xarajat · Transfer</p>
+          <p className="mb-2 text-[15px] font-semibold">Botda nima bor</p>
+          <p className="text-[13px] leading-7 text-muted">{BUTTON.income} · {BUTTON.expense} · {BUTTON.transfer}</p>
+          <p className="text-[13px] leading-7 text-muted">/start · /report · /forecast · /help</p>
         </Card>
       </div>
     );
@@ -196,14 +199,12 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
       </Card>
 
       <Card>
-        <p className="mb-2 text-[15px] font-semibold">Bot imkoniyatlari</p>
+        <p className="mb-2 text-[15px] font-semibold">Botda nima bor</p>
         <div className="grid grid-cols-1 gap-2 text-[12.5px] leading-snug text-muted sm:grid-cols-2">
-          <p>➕ Daromad · ➖ Xarajat · ↔️ Transfer</p>
-          <p>📊 Hisobot: bugun va oy</p>
-          <p>📅 Reja: sarflash mumkin, xavf</p>
-          <p>🔔 Eslatmalar: to‘lov, budjet, xavf</p>
-          <p>🧠 Tabiiy tilda summa va kategoriya</p>
-          <p>📱 Mini App bilan bir xil baza</p>
+          <p>{BUTTON.income} · {BUTTON.expense} · {BUTTON.transfer}</p>
+          <p>✍️ Operatsiyani o‘z so‘zingiz bilan yozish</p>
+          <p>📊 /report — bugun va bu oy</p>
+          <p>📅 /forecast — kelayotgan to‘lovlar</p>
         </div>
       </Card>
     </div>

@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { categories as categoriesTable, idempotencyKeys, pendingDrafts, telegramUpdates } from "@/db/schema";
 import { respondToBotMessage, MAIN_MENU } from "@/lib/bot";
+import { ACK, batchSummary, BUTTON, draftSummary, MINI_APP_INTRO, SCHEDULE } from "@/lib/bot-copy";
 import { createCreditTermPlan } from "@/lib/mutations";
 import {
   isStartCommand,
@@ -24,7 +25,7 @@ import { appUrl, demoModeEnabled, isProduction, telegramWebhookSecret } from "@/
 import { writeAudit, writeSecurityEvent } from "@/lib/audit";
 import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from "@/lib/security";
 import { createHash } from "node:crypto";
-import { formatAmount, humanDate, parseISO, shortDate, UZ_MONTHS } from "@/lib/money";
+import { shortDate } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
       const data = cq.data ?? "";
       if (data.length > 64) {
         void writeSecurityEvent({ userId: user.id, event: "invalid_callback_length", requestId: sec.requestId, ipHash: sec.ipKey });
-        await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: "Noto'g'ri so'rov" });
+        await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: ACK.invalidRequest });
         return NextResponse.json({ ok: true });
       }
 
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
           .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.chatId, chatId)))
           .limit(1);
 
-        let ack = "So'rov topilmadi";
+        let ack: string = ACK.notFound;
         const draft = draftRow[0];
         if (!draft) {
           void writeSecurityEvent({
@@ -144,13 +145,13 @@ export async function POST(request: Request) {
             metadata: { draftId },
           });
         } else if (draft.status !== "pending") {
-          ack = "Bu so'rov avval yakunlangan";
+          ack = ACK.alreadyDone;
         } else if (draft.expiresAt && draft.expiresAt.getTime() < Date.now()) {
           await db
             .update(pendingDrafts)
             .set({ status: "expired", resolvedAt: new Date() })
             .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id)));
-          ack = "Tasdiqlash muddati tugagan";
+          ack = ACK.expired;
         } else if (action === "confirm") {
           // Atomic claim prevents two concurrent callback updates from both
           // creating a financial transaction for the same draft.
@@ -160,11 +161,11 @@ export async function POST(request: Request) {
             .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
             .returning({ id: pendingDrafts.id });
           if (!claimedDraft[0]) {
-            ack = "Bu so'rov avval qayta ishlangan";
+            ack = ACK.alreadySaved;
           } else {
             const payload = draft.payload as Record<string, unknown>;
             const result = await applyDraft(user, payload);
-            ack = result.ok ? `✅ ${result.message}` : `⛔ ${result.message}`;
+            ack = result.ok ? ACK.saved(result.message) : ACK.failed(result.message);
             await db
               .update(pendingDrafts)
               .set({ status: result.ok ? "confirmed" : "pending", resolvedAt: result.ok ? new Date() : null })
@@ -187,7 +188,7 @@ export async function POST(request: Request) {
             .set({ status: "cancelled", resolvedAt: new Date() })
             .where(and(eq(pendingDrafts.id, draftId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
             .returning({ id: pendingDrafts.id });
-          ack = cancelled[0] ? "Bekor qilindi" : "Bu so'rov avval yakunlangan";
+          ack = cancelled[0] ? ACK.cancelled : ACK.alreadyDone;
           await writeAudit({
             userId: user.id,
             actorRole: user.role,
@@ -226,8 +227,8 @@ export async function POST(request: Request) {
               for (let i = 0; i < itemButtons.length; i += 5) itemRows.push(itemButtons.slice(i, i + 5));
               inlineKeyboard = [
                 [
-                  { text: "✅ Hammasini tasdiqlash", callback_data: `batch:${draft.batchId}:confirm` },
-                  { text: "❌ Bekor qilish", callback_data: `batch:${draft.batchId}:cancel` },
+                  { text: BUTTON.confirmAll, callback_data: `batch:${draft.batchId}:confirm` },
+                  { text: BUTTON.cancel, callback_data: `batch:${draft.batchId}:cancel` },
                 ],
                 ...itemRows,
               ];
@@ -256,7 +257,7 @@ export async function POST(request: Request) {
           .where(and(eq(pendingDrafts.batchId, batchId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.chatId, chatId)))
           .orderBy(asc(pendingDrafts.id));
 
-        let ack = "So'rov topilmadi";
+        let ack: string = ACK.notFound;
         if (!batchRows.length) {
           void writeSecurityEvent({
             userId: user.id,
@@ -272,7 +273,7 @@ export async function POST(request: Request) {
             .set({ status: "cancelled", resolvedAt: new Date() })
             .where(and(eq(pendingDrafts.batchId, batchId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
             .returning({ id: pendingDrafts.id });
-          ack = cancelled.length ? `❌ ${cancelled.length} ta operatsiya bekor qilindi` : "Bu so'rov avval yakunlangan";
+          ack = cancelled.length ? ACK.cancelledCount(cancelled.length) : ACK.alreadyDone;
           await writeAudit({
             userId: user.id,
             actorRole: user.role,
@@ -322,10 +323,10 @@ export async function POST(request: Request) {
               .set({ status: result.ok ? "confirmed" : "pending", resolvedAt: result.ok ? new Date() : null })
               .where(and(eq(pendingDrafts.id, draft.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
           }
-          if (okCount && !failCount) ack = `✅ ${okCount} ta operatsiya qayd etildi`;
-          else if (okCount) ack = `✅ ${okCount} ta qayd etildi, ❓ ${failCount} ta aniqlashtirish kutmoqda`;
-          else if (alreadyDone && !failCount) ack = "Bu so'rov avval qayta ishlangan";
-          else ack = "⛔ Operatsiyalarni saqlab bo'lmadi";
+          if (okCount && !failCount) ack = ACK.savedCount(okCount);
+          else if (okCount) ack = ACK.savedPartly(okCount, failCount);
+          else if (alreadyDone && !failCount) ack = ACK.alreadySaved;
+          else ack = ACK.saveFailed;
           await writeAudit({
             userId: user.id,
             actorRole: user.role,
@@ -366,7 +367,7 @@ export async function POST(request: Request) {
           .where(and(eq(pendingDrafts.batchId, batchId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.chatId, chatId)))
           .orderBy(asc(pendingDrafts.id));
 
-        let ack = "So'rov topilmadi";
+        let ack: string = ACK.notFound;
         if (!rows.length) {
           void writeSecurityEvent({
             userId: user.id,
@@ -381,20 +382,20 @@ export async function POST(request: Request) {
           // Schedule stored as single row per batch
           const scheduleRow = rows.find((r) => r.kind === "payment_schedule") ?? draft;
           if (scheduleRow.status !== "pending") {
-            ack = "Bu so'rov avval yakunlangan";
+            ack = ACK.alreadyDone;
           } else if (scheduleRow.expiresAt && scheduleRow.expiresAt.getTime() < Date.now()) {
             await db
               .update(pendingDrafts)
               .set({ status: "expired", resolvedAt: new Date() })
               .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id)));
-            ack = "Tasdiqlash muddati tugagan";
+            ack = ACK.expired;
           } else if (action === "cancel") {
             const cancelled = await db
               .update(pendingDrafts)
               .set({ status: "cancelled", resolvedAt: new Date() })
               .where(and(eq(pendingDrafts.batchId, batchId), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
               .returning({ id: pendingDrafts.id });
-            ack = cancelled.length ? "Bekor qilindi" : "Bu so'rov avval yakunlangan";
+            ack = cancelled.length ? ACK.cancelled : ACK.alreadyDone;
             await writeAudit({
               userId: user.id,
               actorRole: user.role,
@@ -413,7 +414,7 @@ export async function POST(request: Request) {
               .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "pending")))
               .returning({ id: pendingDrafts.id });
             if (!claimed[0]) {
-              ack = "Bu so'rov avval qayta ishlangan";
+              ack = ACK.alreadySaved;
             } else {
               const payload = scheduleRow.payload as unknown as { name: string; items: Array<{ date: string; amount: number }>; totalAmount: number };
               // Idempotency fingerprint
@@ -441,7 +442,7 @@ export async function POST(request: Request) {
                   .update(pendingDrafts)
                   .set({ status: "confirmed", resolvedAt: new Date() })
                   .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
-                ack = "✅ Kredit jadvali avval qo‘shilgan";
+                ack = SCHEDULE.duplicateSaved;
               } else {
                 // §8/§9/§10: the whole schedule is saved by ONE atomic business
                 // operation in the shared mutation layer — one `term` plan plus
@@ -455,7 +456,7 @@ export async function POST(request: Request) {
                     isMandatory: true,
                   });
                 } catch {
-                  created = { ok: false, message: "Saqlashda xatolik. Qayta urinib ko‘ring." };
+                  created = { ok: false, message: "Saqlanmadi. Qayta urinib ko‘ring." };
                 }
                 if (!created.ok) {
                   await db
@@ -463,7 +464,7 @@ export async function POST(request: Request) {
                     .set({ status: "pending", resolvedAt: null })
                     .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
                   await db.delete(idempotencyKeys).where(and(eq(idempotencyKeys.userId, user.id), eq(idempotencyKeys.key, idemKey), eq(idempotencyKeys.scope, scope))).catch(() => undefined);
-                  ack = `⛔ ${created.message}`;
+                  ack = ACK.failed(created.message);
                 } else {
                   await db
                     .update(idempotencyKeys)
@@ -475,7 +476,7 @@ export async function POST(request: Request) {
                     .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
                   const total = payload.totalAmount ?? payload.items.reduce((s, i) => s + i.amount, 0);
                   const nearest = [...payload.items].sort((a, b) => a.date.localeCompare(b.date))[0];
-                  ack = `✅ Kredit jadvali qo‘shildi`;
+                  ack = SCHEDULE.savedShort;
                   // Send success details as follow-up message (ack is callback answer, details via sendMessage later)
                   // Store details for later send
                   (scheduleRow as unknown as Record<string, unknown>).__successDetails = JSON.stringify({ name: payload.name, count: payload.items.length, total, nearest });
@@ -510,7 +511,7 @@ export async function POST(request: Request) {
               const payload = rowsNow[0].payload as unknown as { name: string; items: Array<{ date: string; amount: number }>; totalAmount: number };
               const total = payload.totalAmount ?? payload.items.reduce((s, i) => s + i.amount, 0);
               const nearest = [...payload.items].sort((a, b) => a.date.localeCompare(b.date))[0];
-              followText = `✅ Kredit jadvali qo‘shildi\n\n${payload.name}\n${payload.items.length} ta to‘lov · jami ${formatAmount(total)} so‘m\n\nEng yaqin:\n${shortDate(nearest.date)} · ${formatAmount(nearest.amount)} so‘m`;
+              followText = SCHEDULE.saved(payload.name, payload.items.length, total, shortDate(nearest.date), nearest.amount);
             } catch {}
           }
           await callTelegram("sendMessage", {
@@ -542,7 +543,7 @@ export async function POST(request: Request) {
             ipHash: sec.ipKey,
             metadata: { draftId },
           });
-          await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: "So'rov topilmadi" });
+          await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: ACK.notFound });
           return NextResponse.json({ ok: true });
         }
         const payload = draft.payload as unknown as ImageDraft;
@@ -633,7 +634,7 @@ export async function POST(request: Request) {
         await callTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: edit.ack.slice(0, 190) });
         await callTelegram("sendMessage", {
           chat_id: chatId,
-          text: `✏️ ${edit.ack}\n\n${updatedMenu.text}`,
+          text: `${ACK.edited(edit.ack)}\n\n${updatedMenu.text}`,
           reply_markup: { inline_keyboard: updatedMenu.keyboard },
         });
         return NextResponse.json({ ok: true });
@@ -718,7 +719,7 @@ export async function POST(request: Request) {
 
       await callTelegram("sendMessage", {
         chat_id: chatId,
-        text: `✅ ${outcome.count} ta yozuv topildi.`,
+        text: `✅ ${outcome.count} ta operatsiya topildi.`,
       });
       await callTelegram("sendMessage", {
         chat_id: chatId,
@@ -752,8 +753,8 @@ export async function POST(request: Request) {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: "✅ Hammasini qo‘shish", callback_data: `schedule:${batchId}:confirm` },
-              { text: "❌ Bekor qilish", callback_data: `schedule:${batchId}:cancel` },
+              { text: BUTTON.confirmAll, callback_data: `schedule:${batchId}:confirm` },
+              { text: BUTTON.cancel, callback_data: `schedule:${batchId}:cancel` },
             ],
           ],
         },
@@ -774,26 +775,16 @@ export async function POST(request: Request) {
           expiresAt: new Date(Date.now() + 15 * 60 * 1000),
         })
         .returning();
-      const summary = [
-        "Quyidagi operatsiyani topdim:",
-        "",
-        draft.type === "income" ? "➕ Daromad" : draft.type === "transfer" ? "↔️ Transfer" : "➖ Xarajat",
-        `Summa: ${formatAmount(draft.amount ?? 0)}${
-          draft.estimated && draft.minAmount && draft.maxAmount
-            ? ` (${formatAmount(draft.minAmount)}–${formatAmount(draft.maxAmount)})`
-            : ""
-        }`,
-        `Kategoriya: ${draft.categoryName ?? "aniqlanmadi"}`,
-        `Sana: ${humanDate(draft.date)}`,
-      ].join("\n");
+      // One wording for a draft, shared with the Mini App bot console.
+      const summary = draftSummary(draft);
       await callTelegram("sendMessage", {
         chat_id: chatId,
         text: summary,
         reply_markup: {
           inline_keyboard: [
             [
-              { text: "✅ Tasdiqlash", callback_data: `draft:${saved.id}:confirm` },
-              { text: "❌ Bekor qilish", callback_data: `draft:${saved.id}:cancel` },
+              { text: BUTTON.confirm, callback_data: `draft:${saved.id}:confirm` },
+              { text: BUTTON.cancel, callback_data: `draft:${saved.id}:cancel` },
             ],
           ],
         },
@@ -819,17 +810,7 @@ export async function POST(request: Request) {
           })),
         )
         .returning();
-      const summary = [
-        `${drafts.length} ta operatsiya topildi:`,
-        "",
-        ...drafts.map(
-          (d, i) =>
-            `${i + 1}. ${d.type === "income" ? "➕" : d.type === "transfer" ? "↔️" : "➖"} ${formatAmount(d.amount ?? 0)} — ${
-              d.categoryName ?? (d.type === "income" ? "Daromad" : d.type === "transfer" ? "Transfer" : "Xarajat")
-            } · ${humanDate(d.date)}`,
-        ),
-        ...(reply.failedSegments?.length ? ["", `⚠️ Tushunilmadi: ${reply.failedSegments.slice(0, 3).join("; ")}`] : []),
-      ].join("\n");
+      const summary = batchSummary(drafts, reply.failedSegments ?? []);
       const itemButtons = saved.map((row, i) => ({
         text: `✅ ${i + 1}`,
         callback_data: `draft:${row.id}:confirm`,
@@ -842,8 +823,8 @@ export async function POST(request: Request) {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: "✅ Hammasini tasdiqlash", callback_data: `batch:${batchId}:confirm` },
-              { text: "❌ Bekor qilish", callback_data: `batch:${batchId}:cancel` },
+              { text: BUTTON.confirmAll, callback_data: `batch:${batchId}:confirm` },
+              { text: BUTTON.cancel, callback_data: `batch:${batchId}:cancel` },
             ],
             ...itemRows,
           ],
@@ -865,8 +846,8 @@ export async function POST(request: Request) {
       if (url) {
         await callTelegram("sendMessage", {
           chat_id: chatId,
-          text: "Mini Appda to'liq boshqaruv, reja va prognoz mavjud.",
-          reply_markup: { inline_keyboard: [[{ text: "📱 Mini Appni ochish", web_app: { url } }]] },
+          text: MINI_APP_INTRO,
+          reply_markup: { inline_keyboard: [[{ text: BUTTON.miniApp, web_app: { url } }]] },
         });
       }
     }

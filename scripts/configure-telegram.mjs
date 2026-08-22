@@ -56,15 +56,17 @@ try {
 
   const me = await api("getMe", {});
   await api("setMyCommands", {
+    // Command descriptions are UI copy: they appear in Telegram's command
+    // menu, so each one says what the user GETS, not what the bot does.
     commands: [
-      { command: "start", description: "Botni boshlash" },
-      { command: "report", description: "Tezkor hisobot" },
-      { command: "forecast", description: "Reja va prognoz" },
-      { command: "help", description: "Yordam" },
+      { command: "start", description: "Boshlash" },
+      { command: "report", description: "Bugun va bu oy" },
+      { command: "forecast", description: "Kelayotgan to‘lovlar va prognoz" },
+      { command: "help", description: "Qanday ishlaydi" },
     ],
   });
   await api("setChatMenuButton", {
-    menu_button: { type: "web_app", text: "Moliyam", web_app: { url: appBaseUrl } },
+    menu_button: { type: "web_app", text: "Mini App", web_app: { url: appBaseUrl } },
   });
   console.log(`Telegram configured: @${me.result?.username ?? "unknown"}`);
   console.log(`Actual webhook: ${actualWebhook || "(empty)"}`);

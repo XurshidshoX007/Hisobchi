@@ -1,5 +1,11 @@
 # HISOBCHI — UI COPY & TERMINOLOGY AUDIT
 
+> **Follow-up:** the Telegram bot onboarding (`/start`, the three core actions,
+> the Mini App entry point and the confirmation/error/help messages) was
+> rewritten afterwards and is documented in **[`docs/BOT-COPY.md`](./BOT-COPY.md)**.
+> All bot strings now live in `src/lib/bot-copy.ts`; `src/lib/copy.ts` remains
+> the shared terminology dictionary.
+
 Presentation/copy layer only. **No finance logic, formula, schema or mutation
 behaviour was changed.**
 

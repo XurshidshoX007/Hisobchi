@@ -49,7 +49,7 @@ export async function applyDraft(
   if (blockers.length) return { ok: false, message: blockerMessage(blockers) };
 
   const route = MUTATION_ROUTE[payload.kind];
-  if (!route) return { ok: false, message: "Noma'lum yozuv turi" };
+  if (!route) return { ok: false, message: "Bu operatsiyani saqlab bo‘lmadi" };
   const data = { ...(payload.data as Record<string, unknown>) };
   if (payload.kind === "transaction") data.source = "bot";
   return runMutation(user, { entity: route.entity, action: route.action, data });

@@ -115,7 +115,7 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
     assert.equal(outcome.ok, true);
     if (!outcome.ok) return;
     assert.equal(outcome.count, 4);
-    assert.match(outcome.text, /Rasm tahlil qilindi/);
+    assert.match(outcome.text, /Rasm o‘qildi/);
     assert.match(outcome.text, /Jami xarajat: 180 000/);
     assert.equal(outcome.keyboard[0][0].callback_data, `batch:${outcome.batchId}:confirm`);
 
