@@ -545,6 +545,344 @@ body[data-sheet-open] .global-fab {
   animation: fade-up 0.36s cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
 }
 
+/* ============================================================================
+   DASHBOARD VISUAL SYSTEM
+   The home screen gets its own visual layer without changing the financial
+   contract: all values still come from DashboardFacts. The dark hero creates
+   a clear focal point, while category lists stay quiet and scannable.
+   ========================================================================== */
+
+.dashboard-page {
+  position: relative;
+  isolation: isolate;
+}
+
+.dashboard-page::before {
+  position: absolute;
+  z-index: -1;
+  top: -1.5rem;
+  right: 0;
+  width: min(18rem, 56vw);
+  height: 18rem;
+  content: "";
+  pointer-events: none;
+  background: radial-gradient(circle at 70% 20%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 68%);
+  opacity: 0.8;
+}
+
+.dashboard-hero-card {
+  --dashboard-hero-start: #111b3a;
+  --dashboard-hero-end: #1b2d60;
+  --dashboard-hero-fg: #f8faff;
+  --dashboard-hero-muted: #b8c5e5;
+  --dashboard-hero-line: rgb(255 255 255 / 13%);
+  --dashboard-hero-panel: rgb(5 10 30 / 22%);
+  --dashboard-hero-positive: #69e6ad;
+  --dashboard-hero-negative: #ff9b9b;
+  border-color: rgb(135 162 255 / 28%);
+  background: linear-gradient(132deg, var(--dashboard-hero-start) 0%, #16234a 48%, var(--dashboard-hero-end) 100%);
+  color: var(--dashboard-hero-fg);
+}
+
+.dark .dashboard-hero-card {
+  --dashboard-hero-start: #101936;
+  --dashboard-hero-end: #1a2b5c;
+  border-color: rgb(139 168 255 / 32%);
+}
+
+.dashboard-hero-pattern {
+  opacity: 0.24;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px);
+  background-position: center;
+  background-size: 2rem 2rem;
+  mask-image: linear-gradient(135deg, black, transparent 72%);
+  -webkit-mask-image: linear-gradient(135deg, black, transparent 72%);
+}
+
+.dashboard-hero-orb {
+  pointer-events: none;
+  filter: blur(2px);
+  opacity: 0.48;
+}
+
+.dashboard-hero-orb-primary {
+  background: radial-gradient(circle, rgb(107 140 255 / 37%) 0%, rgb(107 140 255 / 11%) 38%, transparent 70%);
+  animation: dashboard-orb-drift 9s ease-in-out infinite;
+}
+
+.dashboard-hero-orb-secondary {
+  background: radial-gradient(circle, rgb(67 225 163 / 20%) 0%, transparent 70%);
+  animation: dashboard-orb-drift-reverse 11s ease-in-out infinite;
+}
+
+.dashboard-hero-main {
+  min-height: 12.5rem;
+}
+
+.dashboard-hero-kicker {
+  min-height: 1.25rem;
+}
+
+.dashboard-hero-label {
+  color: var(--dashboard-hero-muted);
+}
+
+.dashboard-live-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: none;
+  border-radius: 999px;
+  background: var(--dashboard-hero-positive);
+  box-shadow: 0 0 0 0.25rem rgb(105 230 173 / 12%);
+  animation: dashboard-live-pulse 2.8s ease-in-out infinite;
+}
+
+.dashboard-hero-card .hero-balance-value .text-fg,
+.dashboard-hero-card .hero-balance-value .text-negative-text {
+  color: var(--dashboard-hero-fg);
+}
+
+.dashboard-hero-card .hero-balance-value .text-negative-text {
+  color: var(--dashboard-hero-negative);
+}
+
+.dashboard-hero-card .hero-balance-value .text-muted {
+  color: var(--dashboard-hero-muted);
+}
+
+.dashboard-wallet-mark {
+  color: #f8faff;
+  background: linear-gradient(145deg, rgb(123 154 255 / 42%), rgb(83 108 214 / 28%));
+  border: 1px solid rgb(203 216 255 / 25%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%), 0 12px 24px -14px rgb(0 0 0 / 70%);
+}
+
+.dashboard-wallet-mark::after {
+  position: absolute;
+  inset: 0.25rem;
+  content: "";
+  pointer-events: none;
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 0.95rem;
+}
+
+.dashboard-flow-grid {
+  border-top: 1px solid var(--dashboard-hero-line);
+  background: var(--dashboard-hero-panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.dashboard-flow-item {
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.dashboard-flow-item:hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+.dashboard-flow-item:active {
+  transform: scale(0.99);
+}
+
+.dashboard-flow-icon {
+  color: var(--dashboard-hero-positive);
+  background: rgb(105 230 173 / 13%);
+  border: 1px solid rgb(105 230 173 / 14%);
+}
+
+.dashboard-flow-icon-expense {
+  color: var(--dashboard-hero-negative);
+  background: rgb(255 155 155 / 12%);
+  border-color: rgb(255 155 155 / 14%);
+}
+
+.dashboard-flow-label {
+  color: var(--dashboard-hero-muted);
+}
+
+.dashboard-hero-card .dashboard-flow-item .text-positive-text {
+  color: var(--dashboard-hero-positive);
+}
+
+.dashboard-hero-card .dashboard-flow-item .text-negative-text {
+  color: var(--dashboard-hero-negative);
+}
+
+.dashboard-hero-card .dashboard-flow-item .text-muted {
+  color: var(--dashboard-hero-muted);
+}
+
+.dashboard-hero-distribution {
+  background: rgb(5 10 30 / 15%);
+  border: 1px solid rgb(255 255 255 / 8%);
+}
+
+.dashboard-hero-distribution:hover {
+  background: rgb(255 255 255 / 7%);
+}
+
+.dashboard-hero-distribution .bg-surface-3 {
+  background: rgb(255 255 255 / 12%);
+}
+
+.dashboard-hero-distribution .text-fg-soft,
+.dashboard-hero-distribution .text-muted {
+  color: var(--dashboard-hero-muted);
+}
+
+.dashboard-hero-distribution .bg-primary {
+  background: #afc0ff;
+}
+
+.dashboard-category-section {
+  --dashboard-category-color: var(--accent);
+  --dashboard-category-soft: var(--accent-soft);
+  --dashboard-category-text: var(--accent-text);
+}
+
+.dashboard-category-section--income {
+  --dashboard-category-color: var(--positive);
+  --dashboard-category-soft: var(--positive-soft);
+  --dashboard-category-text: var(--positive-text);
+}
+
+.dashboard-category-section--expense {
+  --dashboard-category-color: var(--negative);
+  --dashboard-category-soft: var(--negative-soft);
+  --dashboard-category-text: var(--negative-text);
+}
+
+.dashboard-category-section > div:first-child {
+  min-height: 2.25rem;
+  align-items: center;
+}
+
+.dashboard-category-section > div:first-child > div:first-child {
+  position: relative;
+  padding-left: 0.8rem;
+}
+
+.dashboard-category-section > div:first-child > div:first-child::before {
+  position: absolute;
+  top: 0.17rem;
+  bottom: 0.17rem;
+  left: 0;
+  width: 0.22rem;
+  content: "";
+  border-radius: 999px;
+  background: var(--dashboard-category-color);
+  box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--dashboard-category-color) 13%, transparent);
+}
+
+.dashboard-category-section h2 {
+  letter-spacing: -0.025em;
+}
+
+.dashboard-category-more {
+  background: color-mix(in srgb, var(--dashboard-category-soft) 58%, transparent);
+}
+
+.dashboard-category-more:hover {
+  background: var(--dashboard-category-soft);
+}
+
+.dashboard-category-list {
+  border-radius: 1.35rem;
+  box-shadow: 0 1px 2px rgb(12 18 34 / 3%), 0 10px 24px -20px rgb(12 18 34 / 30%);
+}
+
+.dark .dashboard-category-list {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 28%), 0 12px 28px -22px rgb(0 0 0 / 75%);
+}
+
+.dashboard-category-row {
+  position: relative;
+  isolation: isolate;
+  animation: dashboard-category-row-in 460ms cubic-bezier(0.16, 1, 0.3, 1) var(--dashboard-row-delay, 0ms) both;
+  transition: background-color 180ms ease, padding 180ms ease;
+}
+
+.dashboard-category-row + .dashboard-category-row {
+  border-top: 1px solid var(--border);
+}
+
+.dashboard-category-row:hover {
+  background: color-mix(in srgb, var(--dashboard-category-soft) 26%, var(--surface));
+}
+
+.dashboard-category-icon {
+  color: var(--dashboard-category-text);
+  background: var(--dashboard-category-soft);
+  border: 1px solid color-mix(in srgb, var(--dashboard-category-color) 10%, transparent);
+}
+
+.dashboard-category-row .text-fg {
+  transition: color 180ms ease;
+}
+
+.dashboard-category-progress {
+  background: color-mix(in srgb, var(--dashboard-category-soft) 58%, var(--surface-3));
+}
+
+.dashboard-category-progress-fill {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, var(--dashboard-category-color), color-mix(in srgb, var(--dashboard-category-color) 68%, white));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--dashboard-category-color) 32%, transparent);
+  transform-origin: left center;
+  animation: dashboard-progress-in 780ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--dashboard-row-delay, 0ms) + 100ms) both;
+}
+
+.dashboard-category-progress-fill::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 30%), transparent);
+  transform: translateX(-100%);
+  animation: dashboard-progress-shine 2.4s ease-out calc(var(--dashboard-row-delay, 0ms) + 650ms) both;
+}
+
+.dashboard-empty-state {
+  min-height: 8.5rem;
+}
+
+.dashboard-empty-icon {
+  color: var(--dashboard-category-text);
+  background: var(--dashboard-category-soft);
+}
+
+@keyframes dashboard-orb-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-12px, 10px, 0) scale(1.06); }
+}
+
+@keyframes dashboard-orb-drift-reverse {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(10px, -8px, 0) scale(1.05); }
+}
+
+@keyframes dashboard-live-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0.25rem rgb(105 230 173 / 12%); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 0.42rem rgb(105 230 173 / 4%); }
+}
+
+@keyframes dashboard-category-row-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dashboard-progress-in {
+  from { transform: scaleX(0); opacity: 0.2; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes dashboard-progress-shine {
+  to { transform: translateX(100%); }
+}
+
 /*
  * Bottom navigation motion (§6–§14, §24).
  *
@@ -586,7 +924,13 @@ body[data-sheet-open] .global-fab {
   .animate-aurora,
   .animate-pulse-subtle,
   .animate-hero-in,
-  .animate-category-in {
+  .animate-category-in,
+  .dashboard-hero-orb-primary,
+  .dashboard-hero-orb-secondary,
+  .dashboard-live-dot,
+  .dashboard-category-row,
+  .dashboard-category-progress-fill,
+  .dashboard-category-progress-fill::after {
     animation: none !important;
   }
 

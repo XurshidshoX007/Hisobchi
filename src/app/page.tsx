@@ -44,7 +44,7 @@ export default function DashboardPage() {
   if (!state || !facts) return null;
 
   return (
-    <div className="animate-fade-up min-w-0 space-y-4 sm:space-y-5">
+    <div className="dashboard-page animate-fade-up min-w-0 space-y-6 sm:space-y-7">
       <div className="animate-hero-in">
         <DashboardHero
           facts={facts}
