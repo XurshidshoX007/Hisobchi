@@ -458,7 +458,7 @@ body[data-sheet-open] .global-fab {
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -477,35 +477,72 @@ body[data-sheet-open] .global-fab {
 }
 @keyframes dashboard-value-in {
   from {
-    opacity: 0.72;
-    transform: translateY(3px);
+    opacity: 0.6;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
+@keyframes aurora-pulse {
+  0%, 100% {
+    opacity: 0.06;
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  50% {
+    opacity: 0.12;
+    transform: scale(1.08) translate3d(-4px, 4px, 0);
+  }
+}
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.92);
+  }
+}
+@keyframes progress-fill {
+  from {
+    width: 0%;
+  }
+}
 @keyframes shimmer {
   0%,
   100% {
-    opacity: 0.5;
+    opacity: 0.45;
   }
   50% {
-    opacity: 0.9;
+    opacity: 0.85;
   }
 }
 
 .animate-fade-up {
-  animation: fade-up 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fade-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .animate-pop {
-  animation: pop-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: pop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .dashboard-value-transition {
-  animation: dashboard-value-in 0.24s var(--motion-ease-standard) both;
+  animation: dashboard-value-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .animate-shimmer {
   animation: shimmer 1.6s ease-in-out infinite;
+}
+.animate-aurora {
+  animation: aurora-pulse 6s ease-in-out infinite;
+}
+.animate-pulse-subtle {
+  animation: pulse-subtle 2.5s ease-in-out infinite;
+}
+.animate-hero-in {
+  animation: fade-up 0.32s cubic-bezier(0.16, 1, 0.3, 1) 0ms both;
+}
+.animate-category-in {
+  animation: fade-up 0.36s cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
 }
 
 /*
@@ -545,7 +582,11 @@ body[data-sheet-open] .global-fab {
   .animate-pop,
   .dashboard-value-transition,
   .animate-shimmer,
-  .animate-badge-pop {
+  .animate-badge-pop,
+  .animate-aurora,
+  .animate-pulse-subtle,
+  .animate-hero-in,
+  .animate-category-in {
     animation: none !important;
   }
 
