@@ -69,7 +69,7 @@ export function editDraftPayload(
   context: { today?: string; categoryName?: string | null } = {},
 ): { ok: boolean; payload: StoredDraftPayload; ack: string } {
   const today = context.today ?? todayISO();
-  if (!isImageDraft(payload)) return { ok: false, payload, ack: "Bu yozuvni tahrirlab bo'lmaydi" };
+  if (!isImageDraft(payload)) return { ok: false, payload, ack: "Bu operatsiyani tahrirlab bo‘lmaydi" };
   const next: ImageDraft = {
     kind: payload.kind,
     data: { ...(payload.data as Record<string, unknown>) },
@@ -79,7 +79,7 @@ export function editDraftPayload(
   switch (action) {
     case "type": {
       if (next.kind !== "transaction" || (value !== "income" && value !== "expense")) {
-        return { ok: false, payload, ack: "Bu yozuv turini o'zgartirib bo'lmaydi" };
+        return { ok: false, payload, ack: "Bu operatsiya turini o‘zgartirib bo‘lmaydi" };
       }
       next.data.type = value;
       // A type flip invalidates the category mapping (income ≠ expense tree).
@@ -89,7 +89,7 @@ export function editDraftPayload(
     }
     case "date": {
       const date = value === "yesterday" ? addDays(today, -1) : value === "today" ? today : /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-      if (!date) return { ok: false, payload, ack: "Sana noto'g'ri" };
+      if (!date) return { ok: false, payload, ack: "Sana noto‘g‘ri" };
       if (next.kind === "transaction") next.data.date = date;
       else if (next.kind === "expected_income") next.data.expectedDate = date;
       else if (next.kind === "payment_plan") {
@@ -102,7 +102,7 @@ export function editDraftPayload(
     }
     case "dir": {
       if (next.kind !== "debt" || (value !== "i_owe" && value !== "owed_to_me")) {
-        return { ok: false, payload, ack: "Yo'nalishni o'zgartirib bo'lmaydi" };
+        return { ok: false, payload, ack: "Yo‘nalishni o‘zgartirib bo‘lmaydi" };
       }
       next.data.direction = value;
       next.meta.issues = next.meta.issues.filter((i) => i !== "debt_direction_unknown");
@@ -114,7 +114,7 @@ export function editDraftPayload(
     }
     case "cat": {
       const categoryId = Number(value);
-      if (!Number.isSafeInteger(categoryId) || categoryId <= 0) return { ok: false, payload, ack: "Kategoriya noto'g'ri" };
+      if (!Number.isSafeInteger(categoryId) || categoryId <= 0) return { ok: false, payload, ack: "Kategoriya noto‘g‘ri" };
       next.data.categoryId = categoryId;
       next.meta.issues = next.meta.issues.filter((i) => i !== "category_unknown");
       next.meta.suggestedCategory = null;
@@ -124,9 +124,9 @@ export function editDraftPayload(
       return { ok: true, payload: next as unknown as StoredDraftPayload, ack: `Kategoriya: ${context.categoryName ?? "yangilandi"}` };
     }
     case "drop":
-      return { ok: true, payload: next as unknown as StoredDraftPayload, ack: "Yozuv ro'yxatdan olib tashlandi" };
+      return { ok: true, payload: next as unknown as StoredDraftPayload, ack: "Ro‘yxatdan olib tashlandi" };
     default:
-      return { ok: false, payload, ack: "Noma'lum amal" };
+      return { ok: false, payload, ack: "Bu amalni bajarib bo‘lmadi" };
   }
 }
 

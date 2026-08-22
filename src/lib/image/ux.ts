@@ -14,27 +14,27 @@ import type { AnalysisFailureReason } from "../imageIntelligence";
 export type InlineButton = { text: string; callback_data: string };
 export type InlineKeyboard = InlineButton[][];
 
-export const IMAGE_RECEIVED_TEXT = "📷 Rasm qabul qilindi…\n🔍 Tahlil qilinmoqda…";
+export const IMAGE_RECEIVED_TEXT = "📷 Rasm keldi. O‘qiyapman…";
 
 export const IMAGE_FAILURE_TEXT = [
-  "❌ Rasmni to'liq o'qib bo'lmadi.",
+  "❌ Rasmni to‘liq o‘qib bo‘lmadi.",
   "",
-  "Rasmni aniqroq (yorug', to'g'ri burchakdan) yuboring yoki asosiy summalarni yozib yuboring.",
-  "Masalan: „Non 30 ming, Go'sht 120 ming“.",
+  "Yorug‘roq rasm yuboring yoki summalarni yozib yuboring.",
+  "Masalan: „Non 30 ming, go‘sht 120 ming“.",
 ].join("\n");
 
 export const IMAGE_DISABLED_TEXT =
-  "🖼 Rasm tahlili hozircha yoqilmagan. Operatsiyani matn ko'rinishida yozib yuboring — masalan: „150 ming ovqatga ketdi“.";
+  "🖼 Rasmdan o‘qish hozircha ishlamaydi. Operatsiyani yozib yuboring — masalan: „150 ming ovqatga ketdi“.";
 
 export const IMAGE_UNSUPPORTED_TEXT =
-  "📎 Bu fayl turi qo'llab-quvvatlanmaydi. JPEG, PNG yoki WEBP rasm yuboring (PDF keyingi bosqichda).";
+  "📎 Bu fayl turi mos emas. JPEG, PNG yoki WEBP rasm yuboring.";
 
-export const IMAGE_TOO_LARGE_TEXT = "📦 Rasm hajmi juda katta. 5 MB gacha bo'lgan rasm yuboring.";
+export const IMAGE_TOO_LARGE_TEXT = "📦 Rasm juda katta. 5 MB gacha rasm yuboring.";
 
 export const IMAGE_DUPLICATE_TEXT =
-  "♻️ Bu rasm avval qayta ishlangan — takroriy yozuvlar yaratilmadi. Yangi ma'lumot bo'lsa, boshqa rasm yuboring.";
+  "♻️ Bu rasm avval o‘qilgan — takroriy operatsiya yaratilmadi.";
 
-export const IMAGE_RATE_LIMITED_TEXT = "⏳ Juda ko'p rasm yuborildi. Bir daqiqadan so'ng qayta urinib ko'ring.";
+export const IMAGE_RATE_LIMITED_TEXT = "⏳ Juda ko‘p rasm yuborildi. Bir daqiqadan keyin urinib ko‘ring.";
 
 /**
  * Provider/analysis failure → user message (§12, §14, §25).
@@ -44,8 +44,8 @@ export const IMAGE_RATE_LIMITED_TEXT = "⏳ Juda ko'p rasm yuborildi. Bir daqiqa
  *   • a raw provider error (status, body, model name, key) is NEVER shown
  */
 export const IMAGE_SERVICE_UNAVAILABLE_TEXT = [
-  "🛠 Rasm tahlil xizmati vaqtincha mavjud emas.",
-  "Keyinroq qayta urinib ko'ring yoki summani matn ko'rinishida yozing.",
+  "🛠 Rasm o‘qish xizmati vaqtincha ishlamayapti.",
+  "Keyinroq urinib ko‘ring yoki summani yozib yuboring.",
 ].join("\n");
 
 /**
@@ -53,44 +53,44 @@ export const IMAGE_SERVICE_UNAVAILABLE_TEXT = [
  * Distinct from "feature disabled" and from temporary overload.
  */
 export const IMAGE_AUTH_ERROR_TEXT = [
-  "🔐 Rasm tahlil xizmati sozlanmagan yoki API kalit noto'g'ri.",
-  "Operator sozlamalarini tekshirib, keyinroq qayta urinib ko'ring yoki summani matn bilan yozing.",
+  "🔐 Rasm o‘qish xizmati sozlanmagan.",
+  "Keyinroq urinib ko‘ring yoki summani yozib yuboring.",
 ].join("\n");
 
 /** Temporary 429 / upstream throttle — NOT quota, NOT app rate-limit. */
 export const IMAGE_PROVIDER_BUSY_TEXT = [
-  "⏳ Rasm tahliliga vaqtincha yuklama yuqori.",
-  "Bir necha daqiqadan so'ng qayta urinib ko'ring yoki summani matn bilan yozing.",
+  "⏳ Rasm o‘qish xizmatida yuklama yuqori.",
+  "Bir necha daqiqadan keyin urinib ko‘ring yoki summani yozib yuboring.",
 ].join("\n");
 
 /** Billing / project quota exhausted (also often returned as HTTP 429). */
 export const IMAGE_QUOTA_EXHAUSTED_TEXT = [
-  "📉 Rasm tahlil limiti tugagan yoki vaqtincha mavjud emas.",
-  "Keyinroq qayta urinib ko'ring yoki operatsiyani matn ko'rinishida yozing.",
+  "📉 Rasm o‘qish limiti tugadi.",
+  "Keyinroq urinib ko‘ring yoki operatsiyani yozib yuboring.",
 ].join("\n");
 
 /** Model missing / not vision-capable / not available on this account. */
 export const IMAGE_MODEL_ERROR_TEXT = [
-  "🛠 Rasm tahlil modeli mavjud emas yoki noto'g'ri sozlangan.",
-  "Operator sozlamalarini tekshirib, keyinroq qayta urinib ko'ring yoki summani matn bilan yozing.",
+  "🛠 Rasm o‘qish xizmati noto‘g‘ri sozlangan.",
+  "Keyinroq urinib ko‘ring yoki summani yozib yuboring.",
 ].join("\n");
 
 export const IMAGE_TIMEOUT_TEXT = [
-  "⌛️ Rasm tahlili vaqt oldi.",
-  "Aniqroq rasm yuboring yoki keyinroq qayta urinib ko'ring.",
+  "⌛️ Rasm o‘qish cho‘zilib ketdi.",
+  "Aniqroq rasm yuboring yoki keyinroq urinib ko‘ring.",
 ].join("\n");
 
 export const IMAGE_UNREADABLE_TEXT = [
-  "🔍 Rasm sifati past yoki matnni o'qib bo'lmadi.",
+  "🔍 Rasmdagi matnni o‘qib bo‘lmadi.",
   "",
-  "Yorug'roq va to'g'ri burchakdan olingan rasm yuboring yoki asosiy summalarni yozib yuboring.",
-  "Masalan: „Non 30 ming, Go'sht 120 ming“.",
+  "Yorug‘roq va to‘g‘ri burchakdan olingan rasm yuboring yoki summalarni yozib yuboring.",
+  "Masalan: „Non 30 ming, go‘sht 120 ming“.",
 ].join("\n");
 
 export const IMAGE_NO_FINANCE_TEXT = [
-  "🤔 Rasmda moliyaviy ma'lumot topilmadi.",
+  "🤔 Rasmda summa topilmadi.",
   "",
-  "Summalar ko'rinib turgan rasm yuboring yoki operatsiyani matn bilan yozing.",
+  "Summalar ko‘rinib turgan rasm yuboring yoki operatsiyani yozib yuboring.",
 ].join("\n");
 
 const FAILURE_TEXTS: Record<AnalysisFailureReason, string> = {
@@ -133,14 +133,14 @@ export function failureEventFor(reason: AnalysisFailureReason): string {
 const KIND_TITLES: Record<string, { icon: string; singular: string }> = {
   expense: { icon: "💸", singular: "xarajat" },
   income: { icon: "💰", singular: "daromad" },
-  payment_plan: { icon: "📌", singular: "to'lov rejasi" },
+  payment_plan: { icon: "📌", singular: "to‘lov rejasi" },
   expected_income: { icon: "💵", singular: "kutilayotgan daromad" },
   debt: { icon: "💳", singular: "qarzdorlik" },
 };
 
 const ISSUE_LABELS: Record<string, string> = {
   category_unknown: "kategoriya",
-  debt_direction_unknown: "qarz yo'nalishi",
+  debt_direction_unknown: "qarz yo‘nalishi",
   amount_unclear: "summa",
   date_unclear: "sana",
   type_unclear: "turi",
@@ -154,7 +154,7 @@ export function summarizeCounts(drafts: ImageDraft[]): string[] {
   const counts = new Map<string, number>();
   for (const draft of drafts) counts.set(draft.meta.entityKind, (counts.get(draft.meta.entityKind) ?? 0) + 1);
   return [...counts.entries()].map(([kind, count]) => {
-    const title = KIND_TITLES[kind] ?? { icon: "•", singular: "yozuv" };
+    const title = KIND_TITLES[kind] ?? { icon: "•", singular: "operatsiya" };
     return `${title.icon} ${count} ta ${title.singular}`;
   });
 }
@@ -171,7 +171,7 @@ export function buildBatchMessage(
   options: { batchId: string; unparsedRows?: string[]; truncatedRows?: number } ,
 ): { text: string; keyboard: InlineKeyboard } {
   const drafts = items.map((item) => item.payload);
-  const lines = ["📷 Rasm tahlil qilindi.", "", "Topildi:", ...summarizeCounts(drafts), ""];
+  const lines = ["📷 Rasm o‘qildi.", "", "Topildi:", ...summarizeCounts(drafts), ""];
 
   items.forEach((item, index) => {
     const issues = item.payload.meta.issues ?? [];
@@ -194,7 +194,7 @@ export function buildBatchMessage(
     }
   }
   if (options.unparsedRows?.length) {
-    lines.push("", `⚠️ O'qilmagan qatorlar: ${options.unparsedRows.slice(0, 3).join(" · ").slice(0, 180)}`);
+    lines.push("", `⚠️ O‘qilmagan qatorlar: ${options.unparsedRows.slice(0, 3).join(" · ").slice(0, 180)}`);
   }
   if (options.truncatedRows) {
     lines.push("", `ℹ️ Rasmda yana ${options.truncatedRows} ta qator bor. Ularni alohida rasm bilan yuboring.`);
@@ -249,16 +249,16 @@ export function buildItemMenu(draftId: number, payload: ImageDraft): { text: str
   }
   rows.push([
     { text: "✅ Tasdiqlash", callback_data: `draft:${draftId}:confirm` },
-    { text: "🗑 O'chirish", callback_data: `ed:${draftId}:drop` },
+    { text: "🗑 O‘chirish", callback_data: `ed:${draftId}:drop` },
   ]);
 
   const issues = payload.meta.issues ?? [];
   const text = [
-    `✏️ Tahrirlash — ${KIND_TITLES[kind]?.singular ?? "yozuv"}`,
+    `✏️ Tahrirlash — ${KIND_TITLES[kind]?.singular ?? "operatsiya"}`,
     "",
     payload.meta.label,
     issues.length ? `\n❓ Aniqlashtirish: ${issues.map((i) => ISSUE_LABELS[i] ?? i).join(", ")}` : "",
-    payload.meta.suggestedCategory ? `\n💡 Taklif: ${payload.meta.suggestedCategory} (mavjud kategoriyalaringizda topilmadi)` : "",
+    payload.meta.suggestedCategory ? `\n💡 Taklif: ${payload.meta.suggestedCategory} — bunday kategoriyangiz yo‘q` : "",
   ]
     .filter(Boolean)
     .join("\n");

@@ -220,7 +220,7 @@ test("flag ON without a provider is a SERVICE error, never 'feature disabled'", 
   assert.equal(decision.text, IMAGE_SERVICE_UNAVAILABLE_TEXT);
   assert.equal(decision.event, "image_provider_unconfigured");
   assert.notEqual(decision.text, IMAGE_DISABLED_TEXT, "misleading message regression");
-  assert.match(decision.text, /vaqtincha mavjud emas/);
+  assert.match(decision.text, /vaqtincha ishlamayapti/);
 });
 
 test("flag ON with a provider lets the photo through", () => {
@@ -416,7 +416,10 @@ test("every failure reason has a friendly Uzbek message and a monitoring event",
 test("an auth failure is never reported to the user as a disabled feature", () => {
   assert.notEqual(failureTextFor("auth_error"), IMAGE_DISABLED_TEXT);
   assert.notEqual(failureTextFor("unconfigured"), IMAGE_DISABLED_TEXT);
-  assert.match(failureTextFor("auth_error"), /API kalit/i);
+  // The user never sees provider jargon (key, status, model). The message must
+  // still be distinguishable from "feature disabled" and from a busy provider.
+  assert.match(failureTextFor("auth_error"), /sozlanmagan/i);
+  assert.notEqual(failureTextFor("auth_error"), failureTextFor("rate_limited"));
 });
 
 /* ================= ANALYSIS WITH DETERMINISTIC PROVIDERS (§30) ================= */

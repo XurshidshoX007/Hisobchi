@@ -403,7 +403,7 @@ test("the batch message lists every row, its totals and its open questions", () 
   const items = drafts.map((payload, index) => ({ id: index + 1, payload }));
   const message = buildBatchMessage(items, { batchId: "abcd1234" });
 
-  assert.match(message.text, /Rasm tahlil qilindi/);
+  assert.match(message.text, /Rasm o‘qildi/);
   for (let i = 1; i <= items.length; i += 1) assert.ok(message.text.includes(`${i}. `), `row ${i} missing`);
   assert.match(message.text, /Aniqlashtirish kerak/); // "Dori" has no user category
   assert.equal(message.keyboard[0][0].callback_data, "batch:abcd1234:confirm");

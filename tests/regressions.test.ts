@@ -3,6 +3,15 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { botIntent, isStartCommand, parseBatchCallback, parseDraftCallback } from "../src/lib/bot-routing";
+import {
+  BUTTON,
+  draftSummary,
+  HELP,
+  MINI_APP_INTRO,
+  PROMPT,
+  startNew,
+  startReturning,
+} from "../src/lib/bot-copy";
 import { buildAnalytics, buildForecast, buildPlanned, remainingOccurrences } from "../src/lib/finance";
 import { extractDate, parseDraft, parseDrafts, splitOperations } from "../src/lib/nlp";
 import { addDays, addMonths, dayDiff, monthEnd, monthKey, monthStart } from "../src/lib/money";
@@ -99,6 +108,7 @@ test("Mini App and bot never mix synonyms for one concept", () => {
     "app/plans/page.tsx",
     "app/settings/page.tsx",
     "app/bot/page.tsx",
+    "lib/bot-copy.ts",
     "components/dashboard.tsx",
     "components/quick-add.tsx",
     "components/transaction-filter.tsx",
@@ -121,6 +131,97 @@ test("Mini App and bot never mix synonyms for one concept", () => {
   assert.match(bot, /TERMS\.safeToSpend/);
   const copy = readFileSync(new URL("../src/lib/copy.ts", import.meta.url), "utf8");
   assert.match(copy, /safeToSpend: "Sarflash mumkin"/);
+});
+
+/* ============================ BOT ONBOARDING COPY ============================ */
+
+test("/start for a new account onboards without a wall of zeroes", () => {
+  const text = startNew("Xurshid");
+  assert.match(text, /^Assalomu alaykum, Xurshid/, "the first line greets the person");
+  assert.ok(text.includes("Hisobchi"), "the second line says what the product is");
+  for (const label of [BUTTON.income, BUTTON.expense, BUTTON.transfer]) {
+    assert.ok(text.includes(label), `the three core actions are named: ${label}`);
+  }
+  // A brand-new account has only zeroes; a welcome message must not report them.
+  assert.doesNotMatch(text, /\d{1,3}(\s\d{3})+|so‘m/, "no account figures in the welcome message");
+  assert.doesNotMatch(text, /Balans|Prognoz|Sarflash mumkin|Hisobot/i, "no dashboard vocabulary at first contact");
+  // Scannability: the whole message stays inside one Telegram screen.
+  assert.ok(text.split("\n").filter(Boolean).length <= 9, "at most 9 non-empty lines");
+  assert.ok(text.trimEnd().endsWith("👇"), "the message ends by pointing at the keyboard");
+});
+
+test("/start for a returning user states two facts and one action", () => {
+  const text = startReturning({
+    firstName: "Xurshid",
+    balance: 12_480_000,
+    monthIncome: 4_200_000,
+    monthExpense: 1_950_000,
+    monthLabel: "Avgust",
+  });
+  assert.ok(text.includes("Balans"), "the balance is the one number that matters after login");
+  assert.ok(text.includes("Avgust"), "the month is stated once");
+  assert.ok(text.split("\n").filter(Boolean).length <= 5, "a launchpad, not a report");
+  assert.doesNotMatch(text, /Sarflash mumkin|Majburiy|Prognoz/, "forecast vocabulary belongs to /forecast");
+});
+
+test("the bot never advertises a Mini App feature as its own", () => {
+  const botCopy = readFileSync(new URL("../src/lib/bot-copy.ts", import.meta.url), "utf8");
+  const miniAppFeatures = /budjet|qarzdorlik|maqsad|tahlil/i;
+  // Those words may appear ONLY in a sentence that names the Mini App.
+  for (const literal of botCopy.match(/"[^"\n]*"/g) ?? []) {
+    if (!miniAppFeatures.test(literal)) continue;
+    assert.match(literal, /Mini App/, `Mini App feature promised without naming the Mini App: ${literal}`);
+  }
+  assert.match(MINI_APP_INTRO, /Mini App/);
+  assert.ok(!startNew("A").includes("Mini App"), "the first message keeps ONE call to action");
+});
+
+test("an action prompt never repeats the button the user just pressed", () => {
+  const pairs: Array<[string, string]> = [
+    [BUTTON.income, PROMPT.income],
+    [BUTTON.expense, PROMPT.expense],
+    [BUTTON.transfer, PROMPT.transfer],
+  ];
+  for (const [label, prompt] of pairs) {
+    const word = label.replace(/[^\p{L}]/gu, "");
+    assert.doesNotMatch(prompt, new RegExp(word, "i"), `${word} is already on the button`);
+    assert.ok(prompt.includes("Masalan:"), "every prompt shows exactly one example");
+    assert.ok(prompt.split("\n").filter(Boolean).length === 2, "one question + one example");
+  }
+});
+
+test("bot copy speaks one vocabulary and one apostrophe", () => {
+  const sources = ["lib/bot-copy.ts", "lib/bot.ts"].map((path) =>
+    readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8"),
+  );
+  for (const source of sources) {
+    for (const literal of source.match(/"[^"\n]*"/g) ?? []) {
+      if (literal.startsWith('"@/') || literal.startsWith('"./')) continue;
+      // §18: one spelling of o‘/g‘ across the product.
+      assert.doesNotMatch(literal, /[a-z]'[a-z]/, `straight apostrophe in bot copy: ${literal}`);
+      // A record is an "operatsiya" everywhere — never a second synonym.
+      assert.doesNotMatch(literal, /\byozuv/i, `use "operatsiya": ${literal}`);
+    }
+  }
+  // The draft confirmation exists once and is shared by both bot surfaces.
+  const webhook = readFileSync(new URL("../src/app/api/telegram/webhook/route.ts", import.meta.url), "utf8");
+  assert.match(webhook, /draftSummary\(/);
+  assert.match(webhook, /batchSummary\(/);
+  assert.doesNotMatch(webhook, /Quyidagi operatsiyani topdim/);
+});
+
+test("a draft confirmation shows the three facts a user verifies", () => {
+  const text = draftSummary({ type: "expense", amount: 150_000, categoryName: "Ovqat", date: "2026-08-22" });
+  assert.ok(text.includes("Xarajat"));
+  assert.ok(text.includes("150 000"));
+  assert.ok(text.includes("Ovqat"));
+  assert.ok(text.split("\n").filter(Boolean).length <= 4, "confirmation stays scannable");
+});
+
+test("/help explains the bot without promising deeper sections", () => {
+  assert.ok(HELP.includes("/report") && HELP.includes("/forecast"));
+  assert.ok(HELP.includes(MINI_APP_INTRO), "the deeper sections are attributed to the Mini App");
+  assert.doesNotMatch(HELP, /Valyuta|Minimal zaxira/, "settings are not help");
 });
 
 test("the dashboard hero states only balance and current-month real movement (§3/§7/§15)", () => {
