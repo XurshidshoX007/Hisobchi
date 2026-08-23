@@ -17,8 +17,11 @@ export async function bootstrapNewUser(userId: number): Promise<void> {
   await db.transaction(async (tx) => {
     // Lock the stable parent row; unlike an advisory lock this is released
     // automatically at transaction end and also proves the user still exists.
-    const locked = await tx.execute(sql`select id from users where id = ${userId} for update`);
+    const locked = await tx.execute(
+      sql`select id, currency from users where id = ${userId} for update`,
+    );
     if (locked.rowCount !== 1) throw new Error("bootstrap_user_missing");
+    const currency = String((locked.rows[0] as { currency?: unknown }).currency ?? "UZS");
 
     const existingAccount = await tx
       .select({ id: accounts.id })
@@ -30,7 +33,7 @@ export async function bootstrapNewUser(userId: number): Promise<void> {
         userId,
         name: "Naqd pul",
         type: "cash",
-        currency: "UZS",
+        currency,
         initialBalance: 0,
         sortOrder: 1,
       });

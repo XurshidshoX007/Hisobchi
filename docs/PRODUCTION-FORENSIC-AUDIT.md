@@ -21,7 +21,7 @@
 2. **CONFIRMED (deployed baseline code):** DB update-id claimidan oldin xato bersa, Telegram webhook `200` qaytarib update’ni yo‘qotishi mumkin edi (`C-001`).
 3. **CONFIRMED (deployed baseline code):** ambiguous response’dan keyin idempotency claim o‘chirilib, klient yangi key yaratgani sabab moliyaviy mutation ikki marta bajarilishi mumkin edi (`C-002`).
 4. **CONFIRMED (deployed baseline code):** payment-schedule idempotency INSERT xatosi “duplicate” deb talqin qilinib, yaratilmagan reja “saqlandi” deb yopilishi mumkin edi (`C-004`).
-5. **CONFIRMED (ochiq):** valyuta almashtirish va turli valyutadagi hisoblar FX/conversion’siz bitta son sifatida qo‘shiladi; report noto‘g‘ri bo‘ladi (`C-003`).
+5. **CONFIRMED (branch’da contained, production pending):** deployed code valyuta almashtirish va turli valyutadagi hisoblarni FX’siz qo‘shishi mumkin; branch buni bloklaydi va totalsni currency bo‘yicha ajratadi (`C-003`).
 6. **CONFIRMED (runtime log fragmenti):** Postgres kamida bir marta clean shutdown qilinmagan va WAL recovery bajargan. Takrorlangan bo‘lsa DB availability xavf ostida (`H-014`).
 
 ### Eng ehtimoliy root-cause chain
@@ -48,9 +48,9 @@ generic loglar sabab asl DB code/phase ko‘rinmaydi
 
 ### Eng xavfli ochiq muammo
 
-`C-003`: accounting engine valyutani dimension sifatida hisoblamaydi. Bundan
-tashqari `H-001`, `H-002`, `H-005`, `H-007` va `H-014` production safety uchun
-P0/P1 hisoblanadi.
+`C-003`: accounting engine’da to‘liq FX model yo‘q; branch immediate containment
+qiladi, lekin legacy data verification zarur. Bundan tashqari `H-001`, `H-002`,
+`H-005` va `H-014` production safety uchun P0/P1 hisoblanadi.
 
 ---
 
@@ -60,10 +60,10 @@ Tekshirildi:
 
 - `src/app`, API route’lar, frontend, bot, webhook, image pipeline;
 - `src/lib`, finance/mutation/reconciliation/security/auth/audit/Redis;
-- `src/db/schema.ts`, 9 SQL migration va migration journal/snapshot;
+- `src/db/schema.ts`, 10 SQL migration va migration journal/snapshot;
 - Dockerfile, Railway config, startup/migration/configure scripts;
 - `package.json`, lockfile, production/dev dependency tree;
-- 400 test, jumladan 2 ta DB integration suite;
+- 407 test, jumladan 2 ta DB integration suite;
 - Git tarixi bo‘yicha secret-pattern scan;
 - GitHub deployment metadata va Actions mavjudligi;
 - lint, typecheck, build, unit tests, circular dependency va duplication scan.
@@ -74,7 +74,7 @@ Bajarilgan tekshiruv natijalari:
 |---|---|
 | `npm run lint` | PASS |
 | `npm run typecheck` | PASS |
-| `npm test` | 400 total; 398 PASS; 2 DB suite SKIPPED |
+| `npm test` | 407 total; 405 PASS; 2 DB suite SKIPPED |
 | production-like `next build` | PASS (`DATABASE_URL` sintaktik build URL bilan) |
 | `npm audit --omit=dev` | 0 vulnerability |
 | to‘liq `npm audit` | 4 moderate, faqat dev-tool chain |
@@ -237,7 +237,7 @@ mutation_error
 | Commit acknowledgement lost | idempotency claim o‘chishi mumkin edi | **PARTIAL FIX:** claim saqlanadi; processing reconciliation kerak |
 | Duplicate webhook | PK conflict → 200 idempotent | Successful path safe; stale processing recovery yo‘q |
 | Malformed JSON | 200 poison acknowledgement | Saqlandi |
-| Invalid `update_id` | 400 | Telegram-origin uchun amalda valid; poison retry semantics inconsistent |
+| Invalid `update_id` | 2xx poison acknowledgement | Branch Telegram’ning retryni cheksiz takrorlashini to‘xtatadi |
 | Telegram API timeout | `{ok:false}` qaytadi, route ko‘pincha e’tiborsiz qoldiradi va 200 beradi | OPEN: outbox/worker kerak |
 | Vision timeout | 3 attempt × 45s gacha + backoff | OPEN: webhook’dan queue’ga ajratish kerak |
 | Redis unavailable | request path reconnect va memory fallback | **PARTIAL FIX:** short retry/circuit breaker/bounded map |
@@ -289,7 +289,7 @@ Root Cause: Idempotency transaction boundary business commit bilan bir emas; cli
 Impact: Duplicate income/expense/debt/payment/goal contribution va accounting corruption.  
 Reproduction: Transaction INSERT commit bo‘lgach `buildAppState`ni throw qildiring; baseline 500; bir xil formni qayta submit qiling — yangi key va ikkinchi row.  
 Recommended Fix: Idempotency keyni stable saqlash; ambiguous failure’da claimni o‘chirmaslik; completed retry’ga original success qaytarish; uzoq muddatda mutation+idempotency recordni bir DB transaction/outbox contractiga kiritish va request hash saqlash.  
-Code Change: Branch claimni catch’da saqlaydi, completed retry’ni 200 qiladi, processing uchun 409/Retry-After beradi, client ambiguous response’da keyni reuse qiladi va account/category/budgetni ham qamrab oladi.  
+Code Change: Branch claimni catch’da saqlaydi, completed retry’ni 200 qiladi, processing uchun 409/Retry-After beradi; client ambiguous response’da keyni reuse qiladi va WebView reload uchun sessionStorage’da faqat SHA-256 body signature + random keyni saqlaydi (financial body saqlanmaydi). Server `request_hash` bilan keyni exact payloadga bind qiladi va boshqa body reuse’ni 422 rad etadi. Account/category/budget ham qamrab olindi.
 Test Required: Commit-then-response-loss, same-key replay, changed-payload same-key, concurrent same-key, stale processing reconciliation.  
 Regression Risk: Ambiguous `processing` request 24 soat bloklanishi mumkin; availability accounting safety foydasiga tanlangan.  
 Deployment Risk: MEDIUM; rolloutdan oldin idempotency table holatini tekshirish.  
@@ -299,7 +299,7 @@ Priority: P0.
 
 ID: C-003  
 Severity: CRITICAL  
-Status: OPEN  
+Status: PARTIALLY CONTAINED IN BRANCH; LEGACY DATA NEEDS VERIFICATION
 Component: Currency/accounting model  
 File: `src/db/schema.ts`, `src/lib/user.ts`, `src/lib/mutations.ts`, `src/lib/state.ts`  
 Line: schema 24–25, 35, 138, 356–357; user 147–149; mutations transaction/account branches; state 123–139  
@@ -308,9 +308,9 @@ Evidence: `currentBalance = reduce(sum currentBalance)` currency bo‘yicha grou
 Root Cause: Currency display preference va ledger unit bitta field sifatida aralashtirilgan.  
 Impact: Noto‘g‘ri balans, report, forecast, budget va debt totals — accounting integrity buziladi.  
 Reproduction: 1,000,000 UZS transaction yarating; Settings’da USD tanlang; qiymat 1,000,000 bo‘lib qolib USD sifatida ko‘rinadi. Yoki 100 USD + 100 UZS account = 200 “user currency”.  
-Recommended Fix: P0’da currency change’ni existing ledger bo‘lsa bloklash va account currency=user currency enforce qilish; keyin base currency, original amount/currency, immutable FX rate va per-currency reports dizayni.  
-Code Change: Bu branch’da avtomatik data conversion qilinmadi — production data verification va reviewed migration talab etiladi.  
-Test Required: Currency-change guard; mixed-currency account; transfer FX; historical rate; report/budget isolation.  
+Recommended Fix: Branch’dagi immediate containmentni deploy qilish; keyin production inventory asosida base currency, original amount/currency, immutable FX rate va per-currency reports dizayni.
+Code Change: Branch currency change va yangi mixed-currency account/postingni bloklaydi; headline/forecast/report faqat user currency’ni hisoblaydi, foreign accounts alohida qoladi va legacy mismatch critical alert beradi. Avtomatik data conversion qilinmadi — production inventory va reviewed FX migration hali talab etiladi.
+Test Required: Currency-change guard; mixed-currency legacy account; transfer FX; historical rate; report/budget isolation.
 Regression Risk: Existing mixed-currency rows bor bo‘lsa yangi constraint migration fail qiladi.  
 Deployment Risk: HIGH; avval read-only inventory.  
 Priority: P0.
@@ -461,7 +461,7 @@ Priority: P0/P1.
 
 ID: H-007  
 Severity: HIGH  
-Status: OPEN  
+Status: FIXED IN BRANCH; PRODUCTION DEPLOY REQUIRED
 Component: Generic transaction → plan reconciliation  
 File: `src/lib/mutations.ts` 148–213  
 Line: `transaction.create` recurringId/expectedIncomeId path  
@@ -471,8 +471,8 @@ Root Cause: Bir business action uchun ikki write API.
 Impact: Duplicate plan payment/income, wrong installment cursor/counter.  
 Reproduction: Ayni recurringId bilan ikki concurrent transaction.create yuboring.  
 Recommended Fix: Generic create’dan plan IDsni rad etish; faqat dedicated `pay/receive`; DB partial unique `(plan, planned_date) where !deleted`.  
-Code Change: Hali qilinmadi.  
-Test Required: Concurrent generic link, cancelled/completed plan, irregular credit.  
+Code Change: Branch generic `transaction.create`da `recurringId`/`expectedIncomeId`ni rad etadi; plan fulfilment faqat CAS-protected `recurring.pay` va `expectedIncome.receive` orqali o‘tadi.
+Test Required: Concurrent generic link rejection, cancelled/completed plan, irregular credit dedicated path.
 Regression Risk: Undocumented external client bo‘lsa compatibility break.  
 Deployment Risk: MEDIUM; usage log bilan tekshirish.  
 Priority: P0/P1.
@@ -643,7 +643,7 @@ Priority: P1.
 
 ID: M-002  
 Severity: MEDIUM  
-Status: OPEN  
+Status: PARTIALLY FIXED IN BRANCH; RETENTION REMAINS OPEN
 Component: `security_events` / abuse logging  
 File: `src/lib/audit.ts`, `src/db/schema.ts` 517–531, webhook secret reject  
 Line: `writeSecurityEvent`, schema index  
@@ -653,8 +653,8 @@ Root Cause: Security telemetry ayni primary DB va per-event persistence’ga bog
 Impact: Attack DB write amplification/disk growth; DB outage’da event yo‘q.  
 Reproduction: Invalid secret bilan yuqori rate; row/disk growthni o‘lchang.  
 Recommended Fix: Pre-auth limiter, sampling/aggregation, retention partition/job, independent log sink; severity CHECK.  
-Code Change: Branch fallback raw errorni sanitizatsiya qildi, retention qolgan.  
-Test Required: Flood/load va retention query EXPLAIN.  
+Code Change: Branch fallback raw errorni sanitizatsiya qildi, webhook/mutation pre-auth limiterini persistence’dan oldinga oldi va har event uchun globally bounded DB sample qo‘shdi; retention/partition qolgan.
+Test Required: Flood/load, spoofed identity, sample cap va retention query EXPLAIN.
 Regression Risk: Sampling forensic detailni kamaytiradi.  
 Deployment Risk: MEDIUM migration/job.  
 Priority: P1.
@@ -663,18 +663,18 @@ Priority: P1.
 
 ID: M-003  
 Severity: MEDIUM  
-Status: OPEN  
-Component: CI / test enforcement  
+Status: CI TEMPLATE PREPARED; ACTIVATION BLOCKED BY GITHUB WORKFLOW PERMISSION
+Component: CI / test enforcement
 File: `.github/` absent; `package.json`; DB tests  
 Line: N/A  
-Problem: GitHub Actions workflow/run yo‘q; 2 DB integration suite env bo‘lmasa green suite ichida SKIP bo‘ladi. Route-level auth/webhook/failure/concurrency E2E yo‘q.  
-Evidence: GitHub Actions list bo‘sh; final test 398 pass + 2 skipped.  
+Problem: Baseline’da GitHub Actions workflow/run yo‘q edi; 2 DB integration suite env bo‘lmasa green suite ichida SKIP bo‘ladi. Route-level auth/webhook/failure/concurrency E2E yo‘q.
+Evidence: Audit boshida GitHub Actions list bo‘sh edi. Workflow-path push GitHub tomonidan permission sabab rad etildi; template docs ichida saqlandi. Lokal final test 405 pass + 2 skipped.
 Root Cause: Tests local-only, Postgres service CI’da yo‘q.  
 Impact: Migration, auth, idempotency va concurrency regressions merge bo‘lishi mumkin.  
 Reproduction: `npm test` DBsiz exit 0.  
 Recommended Fix: CI Postgres/Redis service; migrations; DB suites skip bo‘lsa fail; lint/typecheck/test/build/audit.  
-Code Change: Reliability regression tests qo‘shildi; CI hali yo‘q.  
-Test Required: CI workflowning o‘zi required check bo‘lsin.  
+Code Change: Reliability regression tests va disposable PostgreSQL/Redis bilan lint, typecheck, full tests, build hamda production audit bajaradigan `docs/ci-production-safety.yml` template tayyorlandi. GitHub App’da `workflows` permission yo‘qligi sabab `.github/workflows/`ga push server tomonidan rad etildi; maintainer template’ni o‘sha joyga ko‘chirishi kerak.
+Test Required: Workflow aktivlashtirilib birinchi CI run green bo‘lsin; keyin branch protection’da required check qilinsin.
 Regression Risk: Flaky network/provider testlarni mocklash.  
 Deployment Risk: NONE.  
 Priority: P1.
@@ -683,7 +683,7 @@ Priority: P1.
 
 ID: M-004  
 Severity: MEDIUM  
-Status: OPEN / NEEDS VERIFICATION  
+Status: PARTIALLY FIXED IN BRANCH / NEXT SHUTDOWN NEEDS VERIFICATION
 Component: Startup/shutdown/deployment resilience  
 File: `railway.json`, `scripts/start-production.sh`, `src/db/index.ts`, `src/lib/redis.ts`  
 Line: railway 17–27  
@@ -693,9 +693,9 @@ Root Cause: Graceful lifecycle app darajasida loyihalanmagan.
 Impact: Deploy/restart paytida long webhook kesiladi va ambiguous processing qoladi.  
 Reproduction: Staging image request o‘rtasida SIGTERM; DB rows va Telegram retryni tekshiring.  
 Recommended Fix: Railway drain window, queue worker, Next shutdown behaviourni verify, readinessni 503 qilish, pool/Redis close hooks.  
-Code Change: Hali qilinmadi.  
+Code Change: Branch Railway’da 20s old/new overlap va 30s SIGTERM→SIGKILL drain window qo‘shdi; explicit pool/Redis close va in-flight worker recovery hali qolgan.
 Test Required: SIGTERM 30s, SIGKILL, rolling deploy.  
-Regression Risk: Shutdown hook noto‘g‘ri bo‘lsa deploy osilib qoladi.  
+Regression Risk: Overlap qisqa vaqt ikki app replica ishlatadi; idempotency/cron singleton semanticsini tekshirish kerak.
 Deployment Risk: MEDIUM.  
 Priority: P1/P2.
 
@@ -723,7 +723,7 @@ Priority: P1.
 
 ID: M-006  
 Severity: MEDIUM  
-Status: OPEN  
+Status: FIXED IN BRANCH
 Component: Request size / input validation  
 File: mutate route 38–57; webhook route content-length check  
 Line: route body parsing  
@@ -733,8 +733,8 @@ Root Cause: Streaming byte limiter yoki edge/server cap yo‘q.
 Impact: Memory/CPU DoS; OOM.  
 Reproduction: Header’siz katta chunked JSON yuboring.  
 Recommended Fix: Reverse-proxy max body + streaming reader byte cap + content-type check.  
-Code Change: Hali qilinmadi.  
-Test Required: Missing/fake length, gzip/chunked, malformed oversized.  
+Code Change: Branch actual stream bytesni 64 KiB/128 KiB limitgacha o‘qiydigan `readJsonBody` boundary qo‘shdi; missing/forged Content-Length limitni chetlab o‘tolmaydi, malformed JSON 400 va oversized Telegram poison update 2xx bilan consume qilinadi.
+Test Required: Missing/fake length, chunked, malformed oversized va Telegram legitimate max payload.
 Regression Risk: Telegram legitimate payload limit bilan moslashtirish.  
 Deployment Risk: LOW.  
 Priority: P1.
@@ -743,18 +743,18 @@ Priority: P1.
 
 ID: M-007  
 Severity: MEDIUM  
-Status: OPEN  
+Status: PARTIALLY FIXED IN APPLICATION; DB CONSTRAINTS REMAIN OPEN
 Component: Relational/data integrity constraints  
 File: `src/db/schema.ts`, `src/lib/mutations.ts`  
 Line: categories 151–170; transactions 347–388; plans/debts/goals FKs  
-Problem: Parent category FK yo‘q; category type transaction type bilan DB/app’da to‘liq tekshirilmaydi; FKs referenced rowning ayni userga tegishli ekanini DB’da enforce qilmaydi; transfer shape va plan-link invariants CHECK yo‘q.  
-Evidence: FKlar faqat target id; app ownership checks ko‘p, lekin category create parent type/depth va transaction category type bo‘shliqlari bor.  
-Root Cause: Tenant integrity application-only.  
+Problem: Parent category FK yo‘q; FKs referenced rowning ayni userga tegishli ekanini DB’da enforce qilmaydi; transfer shape va tenant invariants CHECK yo‘q. Baseline’da category direction/depth validation ham to‘liq emas edi.
+Evidence: FKlar faqat target id; branch service layer’da category owner+active+income/expense type va root-parent depthni tekshiradi, lekin DB direct write hali buni chetlab o‘tishi mumkin.
+Root Cause: Tenant integrity asosan application-only.
 Impact: Bug/ad-hoc SQL cross-user link yoki noto‘g‘ri report classification.  
-Reproduction: Income transactionga own expense category ID yuboring; qabul qilinadi.  
-Recommended Fix: Composite unique/FK `(id,user_id)`, parent FK, category type checks, service validator.  
-Code Change: Hali qilinmadi.  
-Test Required: IDOR/BOLA va cross-type negative tests.  
+Reproduction: Baseline’da income transactionga own expense category ID yuborish qabul qilinardi; branch rad etadi. Direct SQL esa DB constraint yo‘qligi sabab hali mumkin.
+Recommended Fix: Branch validatorlarini deploy qilish; keyin composite unique/FK `(id,user_id)`, parent FK va DB invariantlar.
+Code Change: Transaction, recurring expense, expected income, budget, credit va category parent pathlari owner+active+direction/depth bo‘yicha fail-closed qilindi.
+Test Required: IDOR/BOLA, cross-type negative tests va direct-DB constraint tests.
 Regression Risk: Existing bad rows migrationni bloklashi mumkin.  
 Deployment Risk: HIGH until preflight cleanup.  
 Priority: P1/P2.
@@ -763,7 +763,7 @@ Priority: P1/P2.
 
 ID: M-008  
 Severity: MEDIUM  
-Status: OPEN  
+Status: PARTIALLY FIXED IN APPLICATION; DB CONSTRAINT/RETENTION OPEN
 Component: Unique keys / retention  
 File: schema budgets 391–408, credit installments 246–266, idempotency/telegram tables  
 Line: relevant indexes  
@@ -773,8 +773,8 @@ Root Cause: NULL semantics va lifecycle omitted.
 Impact: Duplicate total budget, duplicate schedule rows, unbounded disk/index growth.  
 Reproduction: Ikki concurrent NULL-category budget upsert; ikkala INSERT o‘tishi mumkin.  
 Recommended Fix: `NULLS NOT DISTINCT`/expression unique; unique plan occurrence/date; safe retention jobs.  
-Code Change: Exact-key expired idempotency reclaim qo‘shildi, global cleanup qolgan.  
-Test Required: Concurrent upsert, duplicate migration preflight, retention batch.  
+Code Change: Exact-key expired idempotency reclaim qo‘shildi; budget logical key (shu jumladan NULL/all) advisory transaction lock bilan serial qilinadi va pre-existing duplicate fail-closed aniqlanadi. DB unique constraints va global cleanup qolgan.
+Test Required: Real DB concurrent upsert, duplicate migration preflight, retention batch.
 Regression Risk: Existing duplicates.  
 Deployment Risk: MEDIUM/HIGH.  
 Priority: P1.
@@ -823,7 +823,7 @@ Priority: P1 before global enable.
 
 ID: M-011  
 Severity: MEDIUM  
-Status: OPEN  
+Status: PARTIALLY FIXED IN BRANCH
 Component: Custom migration runner  
 File: `scripts/migrate.mjs` 29–109; `drizzle/0008_debt_transaction_links.sql`  
 Line: hash-only applied detection  
@@ -833,7 +833,7 @@ Root Cause: Drizzle migrator protocolning qisman custom implementatsiyasi.
 Impact: Deployment failure yoki qayta DDL; large production migration timeout.  
 Reproduction: Applied migrationga comment qo‘shib predeployni stagingda ishga tushiring — hash yangi.  
 Recommended Fix: Immutable migration policy + tag/hash unique journal; drift bo‘lsa fail, qayta apply emas; staging EXPLAIN/timing.  
-Code Change: Snapshot drift fixed, runner qolgan.  
+Code Change: Snapshot drift fixed; runner journal tag/timestamp validityni tekshiradi va same-timestamp hash drift yoki historical ordering gap bo‘lsa SQLni qayta qo‘llash o‘rniga fail-closed qiladi. Large-data migration timing va journal protocol modernizatsiyasi qolgan.
 Test Required: Modified applied migration, concurrent deploy, lock timeout, large data.  
 Regression Risk: Existing journal bilan compatibility.  
 Deployment Risk: MEDIUM.  
@@ -1071,7 +1071,7 @@ operationni yiqitmasligi shart — hozir catch orqali bu talab bajariladi.
 
 | Operation | Atomic | Transactional | Idempotent | Concurrent-safe | Audit |
 |---|---:|---:|---:|---:|---:|
-| transaction create | row + plan update bir tx | yes | branch partial | plain create only key-level | outside tx |
+| transaction create | ledger row tx; plan IDs rejected | yes | branch key-level | plan fulfilment dedicated CAS pathda | outside tx |
 | transaction update | single statement | yes | set operation | last-write-wins | outside tx |
 | transaction delete + plan revert | one tx | yes | soft-delete predicate | different concurrent reverts need DB test | outside tx |
 | recurring pay | parent CAS + ledger tx | yes | CAS + API key | generally yes | outside tx |
@@ -1258,6 +1258,15 @@ Production DB’ga `DROP/TRUNCATE/reset` ishlatilmasin.
 14. Drizzle latest snapshot restored; migration drift regression added.
 15. Incorrect healthcheck restart RCA documentation corrected.
 16. Reliability regression tests added.
+17. Ledger currency is now immutable; new mixed-currency posting is blocked and totals are currency-scoped with legacy mismatch alerts.
+18. Generic transaction creation can no longer bypass CAS-protected plan pay/receive actions.
+19. A production-safety GitHub Actions template is prepared for migrations, real PostgreSQL integration suites, Redis, lint, typecheck, build, and production audit; activation requires maintainer workflow permission.
+20. Mutation/webhook JSON bodies now use a streaming byte limit, so missing or forged Content-Length cannot bypass payload caps.
+21. Unauthenticated rejection floods are rate-limited before persistence and security-event DB writes are globally sampled.
+22. Migration runner now fails closed on edited applied SQL hashes and historical ordering gaps.
+23. Idempotency keys are bound to a SHA-256 request hash through a safe additive migration; payload-mismatched key reuse is rejected.
+24. Financial category references now enforce owner, active state, income/expense direction, and valid root-parent depth in the service layer.
+25. Nullable all-category budget upserts are serialized with a transaction advisory lock and existing duplicates fail closed.
 
 **Muhim:** branch `origin/main` bilan merge qilingan; uni eski `06bfd` SHA sifatida
 bevosita deploy qilib keyingi UI/credit fixlarni rollback qilish xavfi yo‘q.
@@ -1270,8 +1279,8 @@ Baribir production faqat reviewed PR merge orqali deploy qilinsin.
 ```text
 lint:                     PASS
 typecheck:                PASS
-unit/regression tests:    PASS 398 / 400
-DB integration tests:     SKIPPED 2 / 400 (no TEST_DATABASE_URL)
+unit/regression tests:    PASS 405 / 407
+DB integration tests:     SKIPPED 2 / 407 locally (CI template activation pending)
 security/reliability:      PASS (pure/static); live route test pending
 build:                    PASS with syntactic build DATABASE_URL
 migration metadata drift: PASS (“No schema changes”)
@@ -1310,7 +1319,7 @@ hali deploy qilinmagan holatlarni ham o‘z ichiga oladi.
 6. `H-001` — webhook durable inbox/status/lease yo‘q.
 7. `H-002` — synchronous webhook va Telegram outbox yo‘q.
 8. `H-005` — JS number monetary aggregation.
-9. `H-007` — generic transaction plan-link concurrency race.
+9. `H-009` — unbounded state build va DB pool saturation.
 10. `H-012` — backup restore proofi yo‘q.
 
 ## ROOT CAUSE MAP
@@ -1325,7 +1334,7 @@ Missing durable inbox/outbox
 Accounting model gaps
  ├─ currency is label, not dimension
  ├─ JS number aggregation
- ├─ generic and dedicated plan write paths
+ ├─ deployed baseline’da generic va dedicated plan write paths (branch’da contained)
  └─ DB constraints do not encode all tenant/business invariants
 
 Operational maturity gaps
@@ -1357,8 +1366,8 @@ Postgres abrupt restart
 ### PHASE 1 — CRITICAL (1–2 days)
 
 1. C-001/C-002/C-004/H-003/H-004/H-006 fixlarini deploy qilish.
-2. Currency change’ni ledger mavjud bo‘lsa bloklash; mixed currency yaratishni vaqtincha taqiqlash.
-3. Generic transaction.create plan IDsni rad etish yoki dedicated CASga yo‘naltirish.
+2. Branch’dagi currency containmentni deploy qilish va legacy mixed-currency inventoryni tekshirish.
+3. Generic transaction plan-ID rejectionni deploy qilib, dedicated CAS pathlarni production smoke-test qilish.
 4. Alertlar: DB unavailable, webhook 5xx, claim release failed, security event fallback.
 
 ### PHASE 2 — HIGH (1 week)
@@ -1409,7 +1418,7 @@ Postgres abrupt restart
 1. Railway preDeploy migration logini kuzating.
 2. New app deployment readiness 200 bo‘lsin.
 3. Old deploymentni rollback uchun saqlang.
-4. DB migration yo‘q (snapshot metadata-only), shuning uchun app rollback xavfi past.
+4. Faqat backward-compatible nullable `idempotency_keys.request_hash` column migrationi bor; staging backup/testdan keyin apply qiling. Old app columnni e’tiborsiz qoldirgani uchun app rollback riski past.
 
 ### Post-deploy
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { and, eq, lte } from "drizzle-orm";
 import { db } from "@/db";
@@ -7,6 +8,7 @@ import { buildAppState } from "@/lib/state";
 import { resolveUser, updateUserSettings, verifyInitData } from "@/lib/user";
 import { requireVerifiedIdentity } from "@/lib/env";
 import { safeAuditMetadata, writeAudit, writeSecurityEvent } from "@/lib/audit";
+import { PayloadTooLargeError, readJsonBody } from "@/lib/request-body";
 import {
   checkRateLimit,
   isAllowedMutationOrigin,
@@ -35,26 +37,51 @@ export async function POST(request: Request) {
   const sec = securityContext(request);
   let claimedIdempotency: { userId: number; key: string; scope: string } | null = null;
   try {
-    const contentLength = Number(request.headers.get("content-length") ?? 0);
-    if (contentLength > 64 * 1024) {
-      return withSecurityHeaders(
-        NextResponse.json({ ok: false, message: "Request juda katta", code: "payload_too_large" }, { status: 413 }),
-        sec.requestId,
-      );
-    }
-
-    if (!isAllowedMutationOrigin(request)) {
-      void writeSecurityEvent({ event: "origin_rejected", requestId: sec.requestId, ipHash: sec.ipKey, severity: "warning" });
-      return originRejected(sec.requestId);
-    }
-
     const ipLimit = await checkRateLimit({ scope: "mutation-ip", identity: sec.ipKey, limit: 60, windowMs: 60_000 });
     if (!ipLimit.allowed) {
-      void writeSecurityEvent({ event: "rate_limit_mutation", requestId: sec.requestId, ipHash: sec.ipKey });
+      const sample = await checkRateLimit({
+        scope: "preauth-security-event-sample",
+        identity: "rate_limit_mutation",
+        limit: 30,
+        windowMs: 60_000,
+      });
+      if (sample.allowed) {
+        void writeSecurityEvent({ event: "rate_limit_mutation", requestId: sec.requestId, ipHash: sec.ipKey });
+      }
       return rateLimitResponse(ipLimit.retryAfter, sec.requestId);
     }
 
-    const body = (await request.json()) as Body;
+    if (!isAllowedMutationOrigin(request)) {
+      const sample = await checkRateLimit({
+        scope: "preauth-security-event-sample",
+        identity: "origin_rejected",
+        limit: 30,
+        windowMs: 60_000,
+      });
+      if (sample.allowed) {
+        void writeSecurityEvent({ event: "origin_rejected", requestId: sec.requestId, ipHash: sec.ipKey, severity: "warning" });
+      }
+      return originRejected(sec.requestId);
+    }
+
+    let body: Body;
+    try {
+      body = await readJsonBody<Body>(request, 64 * 1024);
+    } catch (error) {
+      if (error instanceof PayloadTooLargeError) {
+        return withSecurityHeaders(
+          NextResponse.json({ ok: false, message: "Request juda katta", code: "payload_too_large" }, { status: 413 }),
+          sec.requestId,
+        );
+      }
+      if (error instanceof SyntaxError || error instanceof TypeError) {
+        return withSecurityHeaders(
+          NextResponse.json({ ok: false, message: "Request formati noto'g'ri", code: "invalid_json" }, { status: 400 }),
+          sec.requestId,
+        );
+      }
+      throw error;
+    }
     if (!body || typeof body.entity !== "string" || typeof body.action !== "string") {
       return withSecurityHeaders(
         NextResponse.json({ ok: false, message: "Request formati noto'g'ri", code: "invalid_input" }, { status: 400 }),
@@ -82,7 +109,10 @@ export async function POST(request: Request) {
     }
 
     // Financial mutation idempotency. The client generates one key per user
-    // action and reuses it on a network retry.
+    // action and reuses it on a network retry. Bind that key to the exact body
+    // so a buggy/malicious client cannot reuse a completed key for another
+    // amount/resource and receive a false success response.
+    const requestHash = createHash("sha256").update(JSON.stringify(body)).digest("hex");
     if (IDEMPOTENT_ENTITIES.has(body.entity)) {
       const key = request.headers.get("idempotency-key");
       if (!key || !/^[a-zA-Z0-9_.:-]{8,128}$/.test(key)) {
@@ -110,12 +140,22 @@ export async function POST(request: Request) {
           );
         const claimed = await db
           .insert(idempotencyKeys)
-          .values({ userId: user.id, key, scope, expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000) })
+          .values({
+            userId: user.id,
+            key,
+            scope,
+            requestHash,
+            expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+          })
           .onConflictDoNothing()
           .returning({ id: idempotencyKeys.id });
         if (!claimed[0]) {
           const existing = await db
-            .select({ status: idempotencyKeys.status, resultId: idempotencyKeys.resultId })
+            .select({
+              status: idempotencyKeys.status,
+              resultId: idempotencyKeys.resultId,
+              requestHash: idempotencyKeys.requestHash,
+            })
             .from(idempotencyKeys)
             .where(
               and(
@@ -125,6 +165,27 @@ export async function POST(request: Request) {
               ),
             )
             .limit(1);
+          if (existing[0]?.requestHash && existing[0].requestHash !== requestHash) {
+            void writeSecurityEvent({
+              userId: user.id,
+              event: "idempotency_key_payload_mismatch",
+              severity: "warning",
+              requestId: sec.requestId,
+              ipHash: sec.ipKey,
+              metadata: { scope },
+            });
+            return withSecurityHeaders(
+              NextResponse.json(
+                {
+                  ok: false,
+                  message: "Idempotency-Key boshqa so'rov uchun ishlatilgan",
+                  code: "idempotency_key_reused",
+                },
+                { status: 422 },
+              ),
+              sec.requestId,
+            );
+          }
           void writeSecurityEvent({
             userId: user.id,
             event: "duplicate_mutation_blocked",
@@ -161,19 +222,28 @@ export async function POST(request: Request) {
     }
 
     if (body.entity === "settings") {
-      await updateUserSettings(user.id, body.settings ?? {});
-      const refreshed = (await resolveUser(identity ?? undefined)) ?? user;
+      const settingsResult = await updateUserSettings(user, body.settings ?? {});
       await writeAudit({
         userId: user.id,
         actorRole: user.role,
         action: "update",
         entity: "settings",
-        outcome: "success",
+        outcome: settingsResult.ok ? "success" : "denied",
         requestId: sec.requestId,
         ipHash: sec.ipKey,
       });
+      if (!settingsResult.ok) {
+        return withSecurityHeaders(
+          NextResponse.json(
+            { ok: false, message: settingsResult.message, code: "currency_change_requires_conversion" },
+            { status: 409 },
+          ),
+          sec.requestId,
+        );
+      }
+      const refreshed = (await resolveUser(identity ?? undefined)) ?? user;
       return withSecurityHeaders(
-        NextResponse.json({ ok: true, message: "Sozlamalar saqlandi", state: await buildAppState(refreshed) }),
+        NextResponse.json({ ok: true, message: settingsResult.message, state: await buildAppState(refreshed) }),
         sec.requestId,
       );
     }

@@ -27,6 +27,7 @@ import {
   ledgerBalanceCheck,
   rangeValue,
   resolvePlanLifecycle,
+  totalBalanceInCurrency,
   type AccountView,
   type BudgetView,
   type CategoryView,
@@ -99,6 +100,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   }
 
   const accountNames = new Map(accountRows.map((a) => [a.id, a.name]));
+  const accountCurrencies = new Map(accountRows.map((a) => [a.id, a.currency]));
   const catById = new Map(categoryRows.map((c) => [c.id, c]));
 
   /* ---- balances ----
@@ -110,14 +112,24 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
    * Date semantics: the balance reflects financial events up to and including
    * *today* (transaction.date); a future-dated transaction belongs to the
    * forecast, not to today's balance. */
-  const ledgerRows = txRows.map((t) => ({
-    accountId: t.accountId,
-    toAccountId: t.toAccountId,
-    type: t.type,
-    amount: t.amount,
-    date: t.date,
-    isDeleted: t.isDeleted,
-  }));
+  // Never apply a transaction to an account denominated in another currency.
+  // Such rows can exist only from legacy data created before the posting guard;
+  // silently adding them would make the per-account balance dimensionally
+  // invalid. They remain visible in History for operator/user reconciliation.
+  const ledgerRows = txRows
+    .filter((t) => {
+      if (accountCurrencies.get(t.accountId) !== t.currency) return false;
+      if (t.type === "transfer" && t.toAccountId && accountCurrencies.get(t.toAccountId) !== t.currency) return false;
+      return true;
+    })
+    .map((t) => ({
+      accountId: t.accountId,
+      toAccountId: t.toAccountId,
+      type: t.type,
+      amount: t.amount,
+      date: t.date,
+      isDeleted: t.isDeleted,
+    }));
   const ledger = computeLedgerBalances(accountRows, ledgerRows, today);
 
   const accountViews: AccountView[] = accountRows.map((a) => {
@@ -136,7 +148,10 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     };
   });
 
-  const currentBalance = accountViews.filter((a) => a.isActive).reduce((s, a) => s + a.currentBalance, 0);
+  // Headline/forecast totals are single-currency. Foreign-denominated legacy
+  // accounts stay visible individually but are never arithmetically added
+  // without an explicit FX rate.
+  const currentBalance = totalBalanceInCurrency(accountViews, user.currency);
 
   /* ---- categories tree ---- */
   const catViews: CategoryView[] = categoryRows.map((c) => ({
@@ -171,6 +186,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       categoryIcon: t.categoryId ? catById.get(t.categoryId)?.icon ?? "•" : "↔",
       type: (t.type as TxView["type"]) ?? "expense",
       amount: t.amount,
+      currency: t.currency,
       date: t.date,
       note: t.note,
       source: t.source,
@@ -182,6 +198,8 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       occurrenceNumber: t.occurrenceNumber,
       isDeleted: false,
     }));
+  const reportingTxViews = txViews.filter((t) => t.currency === user.currency);
+  const reportingTxRows = txRows.filter((t) => t.currency === user.currency);
 
   /* ---- recurring / payment plans ---- */
   const recurringViews: RecurringView[] = recurringRows.map((r) => {
@@ -200,7 +218,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     // occurrence (plannedDate) of THIS plan inside the current month — so
     // deleting that transaction makes the tick disappear, and an income or a
     // foreign transaction can never produce one.
-    const planPayments = txViews.filter((t) => t.type === "expense" && t.recurringId === r.id);
+    const planPayments = reportingTxViews.filter((t) => t.type === "expense" && t.recurringId === r.id);
     const paidDates = new Set(planPayments.map((t) => t.plannedDate ?? t.date));
 
     // Credit schedule: a term plan whose installments are stored explicitly
@@ -320,7 +338,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
           : null;
     // Same reconciliation rule as payments (§18/§30): a receipt tick requires
     // a real income transaction fulfilling an occurrence of this plan.
-    const planReceipts = txViews.filter((t) => t.type === "income" && t.expectedIncomeId === i.id);
+    const planReceipts = reportingTxViews.filter((t) => t.type === "income" && t.expectedIncomeId === i.id);
     const linkedTransaction = planReceipts.find(
       (t) => planType === "one_time" || (t.plannedDate ?? t.date).startsWith(thisMonth),
     );
@@ -368,7 +386,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   /* ---- budgets ---- */
   const monthSpendByCat = new Map<number, number>();
   let monthExpenseTotal = 0;
-  for (const t of txViews) {
+  for (const t of reportingTxViews) {
     if (t.type !== "expense" || !t.date.startsWith(thisMonth)) continue;
     monthExpenseTotal += t.amount;
     if (t.categoryId) monthSpendByCat.set(t.categoryId, (monthSpendByCat.get(t.categoryId) ?? 0) + t.amount);
@@ -456,7 +474,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const recurringBase = recurringViews.filter((r) => r.isActive).reduce((s, r) => s + r.baseAmount, 0);
   const forecast = buildForecast({
     currentBalance,
-    transactions: txRows.map((t) => ({ id: t.id, date: t.date, type: t.type, amount: t.amount, note: t.note, recurringId: t.recurringId, expectedIncomeId: t.expectedIncomeId, plannedDate: t.plannedDate, occurrenceNumber: t.occurrenceNumber, isDeleted: t.isDeleted })),
+    transactions: reportingTxRows.map((t) => ({ id: t.id, date: t.date, type: t.type, amount: t.amount, note: t.note, recurringId: t.recurringId, expectedIncomeId: t.expectedIncomeId, plannedDate: t.plannedDate, occurrenceNumber: t.occurrenceNumber, isDeleted: t.isDeleted })),
     recurring: recurringRows.map((r) => ({
       ...r,
       installments:
@@ -477,7 +495,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   });
 
   const analytics = buildAnalytics({
-    transactions: txRows.map((t) => ({
+    transactions: reportingTxRows.map((t) => ({
       id: t.id,
       type: t.type,
       amount: t.amount,
@@ -495,7 +513,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   /* ---- monthly finance series (6 months: prev + current + next 4) ---- */
   let monthly: MonthlyView[] = [];
   try {
-    const realTxForMonthly = txRows
+    const realTxForMonthly = reportingTxRows
       .filter((t) => !t.isDeleted)
       .map((t) => ({ date: t.date, type: t.type, amount: t.amount }));
     monthly = buildMonthlySeries({
@@ -685,7 +703,9 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
    * to be silent — a transaction appeared in History while the balance never
    * moved. It is now surfaced instead of hidden. */
   const ledgerCheck = ledgerBalanceCheck(
-    accountRows.map((a) => ({ id: a.id, name: a.name, initialBalance: a.initialBalance, isActive: a.isActive })),
+    accountRows
+      .filter((a) => a.currency === user.currency)
+      .map((a) => ({ id: a.id, name: a.name, initialBalance: a.initialBalance, isActive: a.isActive })),
     ledgerRows,
     today,
   );
@@ -702,6 +722,35 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     });
   }
 
+  const foreignAccounts = accountViews.filter((a) => a.currency !== user.currency);
+  if (foreignAccounts.length) {
+    alerts.push({
+      id: "ledger-foreign-currency",
+      type: "insight",
+      severity: "warning",
+      title: "Boshqa valyutadagi hisoblar alohida ko'rsatiladi",
+      body: `${foreignAccounts.map((a) => `${a.name} (${a.currency})`).join(", ")} umumiy ${user.currency} balansiga FX kursisiz qo'shilmadi.`,
+      refDate: null,
+      amount: null,
+    });
+  }
+
+  const mismatchedTransactions = txRows.filter((t) => {
+    if (accountCurrencies.get(t.accountId) !== t.currency) return true;
+    return Boolean(t.type === "transfer" && t.toAccountId && accountCurrencies.get(t.toAccountId) !== t.currency);
+  });
+  if (mismatchedTransactions.length) {
+    alerts.push({
+      id: "ledger-currency-mismatch",
+      type: "insight",
+      severity: "critical",
+      title: "Valyuta mos kelmaydigan tarixiy yozuvlar bor",
+      body: `${mismatchedTransactions.length} ta operatsiya balansdan ajratildi. Ma'lumotlarni o'zboshimchalik bilan konvertatsiya qilmang; operator tekshiruvi kerak.`,
+      refDate: null,
+      amount: null,
+    });
+  }
+
   const severityOrder = { critical: 0, warning: 1, info: 2, success: 3 } as const;
   alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
@@ -709,7 +758,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const currentMonthIncome = buildCurrentMonthIncome(forecast.planned, today);
   const currentMonthPlan: MonthPlanSummary = buildCurrentMonthPlan(
     forecast.planned,
-    txRows.map((t) => ({
+    reportingTxRows.map((t) => ({
       type: t.type,
       amount: t.amount,
       date: t.date,

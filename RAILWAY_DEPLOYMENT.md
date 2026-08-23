@@ -104,7 +104,8 @@ Railway uses the Dockerfile. Deployment/startup order is:
 1. Railway runs `node scripts/migrate.mjs` once as the `preDeployCommand`, using `DATABASE_URL`.
 2. The migration runner serializes overlapping deploys with a PostgreSQL advisory lock, applies only versioned migrations from `drizzle/`, and records them in its migration journal.
 3. The container validates required production env and starts Next.js on Railway's `$PORT` (it intentionally does **not** run DDL a second time).
-4. Railway checks `GET /api/health`.
+4. Railway checks `GET /api/health/live` before activating the new deployment.
+5. The old and new deployments overlap for 20 seconds; the old deployment gets a 30-second SIGTERM→SIGKILL drain window (`railway.json`). This reduces cut-over loss, but long webhook work must still move to a durable queue.
 
 If a migration fails, open the **pre-deploy logs**: the runner prints the PostgreSQL error code and message. Confirm `DATABASE_URL` is exactly `${{Postgres.DATABASE_URL}}` and that the Postgres service is in the same Railway project/environment before retrying.
 

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { safeErrorDiagnostic } from "../src/lib/error-diagnostics";
 import { classifyWebhookFailure } from "../src/lib/webhook-failure";
+import { totalBalanceInCurrency } from "../src/lib/finance";
+import { PayloadTooLargeError, readJsonBody } from "../src/lib/request-body";
 
 test("a pre-claim database failure remains retriable while malformed JSON is poison", () => {
   assert.deepEqual(classifyWebhookFailure(new SyntaxError("bad json")), {
@@ -32,12 +34,17 @@ test("an ambiguous mutation exception keeps its idempotency claim", () => {
   assert.doesNotMatch(catchBlock, /\.delete\(idempotencyKeys\)/);
   assert.match(route, /status === "completed"/);
   assert.match(route, /request_in_progress/);
+  assert.match(route, /idempotency_key_payload_mismatch/);
+  assert.match(route, /existing\[0\]\.requestHash !== requestHash/);
 });
 
 test("the Mini App reuses an idempotency key after an ambiguous response", () => {
   const provider = readFileSync(new URL("../src/components/providers.tsx", import.meta.url), "utf8");
   assert.match(provider, /pendingMutationRef/);
-  assert.match(provider, /previous\.signature === signature/);
+  assert.match(provider, /memoryPending\.signature === signature/);
+  assert.match(provider, /sessionStorage\.setItem/);
+  assert.match(provider, /mutationSignature\(body\)/);
+  assert.doesNotMatch(provider, /sessionStorage\.setItem\([^\n]*body/);
   assert.match(provider, /res\.status < 500/);
   assert.match(provider, /Keep pendingMutationRef/);
 });
@@ -55,4 +62,87 @@ test("the PostgreSQL pool handles idle-client error events without logging raw m
   assert.match(source, /pool\.on\("error"/);
   assert.match(source, /safeErrorDiagnostic\(error\)/);
   assert.doesNotMatch(source, /error\.message/);
+});
+
+test("ledger currency cannot be relabelled or mixed without an FX model", () => {
+  const user = readFileSync(new URL("../src/lib/user.ts", import.meta.url), "utf8");
+  const state = readFileSync(new URL("../src/lib/state.ts", import.meta.url), "utf8");
+  const settings = readFileSync(new URL("../src/app/settings/page.tsx", import.meta.url), "utf8");
+
+  assert.match(user, /patch\.currency !== user\.currency/);
+  assert.match(user, /avtomatik almashtirib bo'lmaydi/);
+  assert.equal(
+    totalBalanceInCurrency(
+      [
+        { currency: "UZS", currentBalance: 1_000_000, isActive: true },
+        { currency: "USD", currentBalance: 100, isActive: true },
+        { currency: "UZS", currentBalance: 50_000, isActive: false },
+      ],
+      "UZS",
+    ),
+    1_000_000,
+    "USD and archived UZS accounts are never dimensionlessly added",
+  );
+  assert.match(state, /totalBalanceInCurrency\(accountViews, user\.currency\)/);
+  assert.match(state, /const reportingTxRows = txRows\.filter\(\(t\) => t\.currency === user\.currency\)/);
+  assert.match(state, /ledger-currency-mismatch/);
+  assert.match(settings, /setCurrency\(e\.target\.value\)\} disabled>/);
+});
+
+test("generic transaction creation cannot bypass plan occurrence CAS", () => {
+  const mutations = readFileSync(new URL("../src/lib/mutations.ts", import.meta.url), "utf8");
+  const transactionCreate = mutations.split('case "transaction"')[1]?.split('if (input.action === "update")')[0] ?? "";
+
+  assert.match(transactionCreate, /d\.recurringId !== undefined/);
+  assert.match(transactionCreate, /d\.expectedIncomeId !== undefined/);
+  assert.match(transactionCreate, /Reja operatsiyasini To'lovlar bo'limidan/);
+  assert.doesNotMatch(transactionCreate, /recurringId,/);
+  assert.doesNotMatch(transactionCreate, /expectedIncomeId,/);
+});
+
+test("every new posting account must match the user's immutable ledger currency", () => {
+  const mutations = readFileSync(new URL("../src/lib/mutations.ts", import.meta.url), "utf8");
+  assert.match(mutations, /requestedCurrency !== user\.currency/);
+  assert.match(mutations, /eq\(accounts\.currency, currency\)/);
+  assert.match(mutations, /rows\[0\]\.currency !== currency/);
+});
+
+test("nullable all-category budget upserts are serialized by logical key", () => {
+  const mutations = readFileSync(new URL("../src/lib/mutations.ts", import.meta.url), "utf8");
+  assert.match(mutations, /pg_advisory_xact_lock/);
+  assert.match(mutations, /budget:\$\{month\}:\$\{categoryId \?\? "all"\}/);
+  assert.match(mutations, /existing\.length > 1/);
+});
+
+test("financial categories are owner-, active-, and direction-scoped", () => {
+  const mutations = readFileSync(new URL("../src/lib/mutations.ts", import.meta.url), "utf8");
+  assert.match(mutations, /ownsCategory\(userId, categoryId, type\)/);
+  assert.match(mutations, /ownsCategory\(userId, categoryId, "expense"\)/);
+  assert.match(mutations, /ownsCategory\(userId, categoryId, "income"\)/);
+  assert.match(mutations, /eq\(categories\.type, categoryType\)/);
+  assert.match(mutations, /parent\.type !== type \|\| parent\.parentId/);
+});
+
+test("migration runner fails closed on edited or out-of-order applied migrations", () => {
+  const runner = readFileSync(new URL("../scripts/migrate.mjs", import.meta.url), "utf8");
+  assert.match(runner, /Migration drift detected/);
+  assert.match(runner, /Migration ordering gap detected/);
+  assert.match(runner, /appliedByTimestamp/);
+});
+
+test("JSON payload limits are enforced on bytes read, not only Content-Length", async () => {
+  const parsed = await readJsonBody<{ ok: boolean }>(
+    new Request("https://example.test", { method: "POST", body: JSON.stringify({ ok: true }) }),
+    64,
+  );
+  assert.deepEqual(parsed, { ok: true });
+
+  await assert.rejects(
+    readJsonBody(new Request("https://example.test", { method: "POST", body: JSON.stringify({ value: "x".repeat(100) }) }), 32),
+    PayloadTooLargeError,
+  );
+  await assert.rejects(
+    readJsonBody(new Request("https://example.test", { method: "POST", body: "{" }), 32),
+    SyntaxError,
+  );
 });

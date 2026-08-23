@@ -64,11 +64,14 @@ export default function SettingsPage() {
             <TextInput value={firstName} onChange={(e) => setFirstName(e.target.value)} />
           </Field>
           <Field label="Valyuta">
-            <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            <Select value={currency} onChange={(e) => setCurrency(e.target.value)} disabled>
               <option value="UZS">UZS — so‘m</option>
               <option value="USD">USD — dollar</option>
               <option value="EUR">EUR — yevro</option>
             </Select>
+            <p className="mt-1.5 text-[11px] leading-snug text-muted">
+              Mavjud hisob-kitob valyutasi FX konversiyasiz almashtirilmaydi.
+            </p>
           </Field>
         </div>
         <p className="mt-3 text-[11.5px] leading-snug text-muted">

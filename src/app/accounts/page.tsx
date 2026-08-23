@@ -108,7 +108,7 @@ export default function AccountsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14.5px] font-medium">{a.name}</p>
                     <p className="truncate text-[11.5px] text-muted">
-                      {TYPES.find((t) => t.value === a.type)?.label ?? a.type} · {a.txCount} ta operatsiya
+                      {TYPES.find((t) => t.value === a.type)?.label ?? a.type} · {a.currency} · {a.txCount} ta operatsiya
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -251,7 +251,7 @@ function AccountSheet({
   onClose: () => void;
   editing: AccountView | null;
 }) {
-  const { mutate, toast } = useFinance();
+  const { state, mutate, toast } = useFinance();
   const [name, setName] = useState("");
   const [type, setType] = useState("cash");
   const [initialBalance, setInitialBalance] = useState("");
@@ -325,7 +325,7 @@ function AccountSheet({
         value={initialBalance}
         onChange={setInitialBalance}
         label="Boshlang‘ich balans"
-        currency="UZS"
+        currency={state?.user.currency ?? "UZS"}
         quick={false}
       />
     </FormSheet>

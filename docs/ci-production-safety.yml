@@ -1,0 +1,82 @@
+name: Production safety
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-safety-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: hisobchi
+          POSTGRES_PASSWORD: hisobchi_test
+          POSTGRES_DB: hisobchi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hisobchi -d hisobchi_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7.4-bookworm
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      DATABASE_URL: postgresql://hisobchi:hisobchi_test@127.0.0.1:5432/hisobchi_test
+      TEST_DATABASE_URL: postgresql://hisobchi:hisobchi_test@127.0.0.1:5432/hisobchi_test
+      REDIS_URL: redis://127.0.0.1:6379
+      NODE_ENV: test
+      DISABLE_DEMO: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply migrations to disposable PostgreSQL
+        run: node scripts/migrate.mjs
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit, regression, and database integration tests
+        run: npm test
+
+      - name: Production build
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev

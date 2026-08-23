@@ -26,6 +26,7 @@ import { writeAudit, writeSecurityEvent } from "@/lib/audit";
 import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from "@/lib/security";
 import { shortDate } from "@/lib/money";
 import { classifyWebhookFailure } from "@/lib/webhook-failure";
+import { PayloadTooLargeError, readJsonBody } from "@/lib/request-body";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,31 @@ function secretMatches(supplied: string | null, expected: string): boolean {
   const left = Buffer.from(supplied);
   const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);
+}
+
+async function writeSampledPreAuthEvent(params: {
+  event: string;
+  severity: "warning" | "critical";
+  requestId: string;
+  ipHash: string;
+}) {
+  // An unauthenticated flood must not turn into one PostgreSQL INSERT per
+  // packet. Keep a globally bounded forensic sample per event; process/edge
+  // rate-limit metrics carry the aggregate volume.
+  const sample = await checkRateLimit({
+    scope: "preauth-security-event-sample",
+    identity: params.event,
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (sample.allowed) {
+    void writeSecurityEvent({
+      event: params.event,
+      severity: params.severity,
+      requestId: params.requestId,
+      ipHash: params.ipHash,
+    });
+  }
 }
 
 type TelegramUpdate = {
@@ -68,23 +94,42 @@ export async function POST(request: Request) {
       securityLog("error", "webhook_secret_missing", { requestId: sec.requestId, ipKey: sec.ipKey });
       return NextResponse.json({ ok: false }, { status: 503 });
     }
-    if (secret && !secretMatches(request.headers.get("x-telegram-bot-api-secret-token"), secret)) {
-      void writeSecurityEvent({ event: "webhook_secret_rejected", severity: "critical", requestId: sec.requestId, ipHash: sec.ipKey });
-      return NextResponse.json({ ok: false }, { status: 401 });
-    }
-
     const globalLimit = await checkRateLimit({ scope: "telegram-webhook", identity: sec.ipKey, limit: 600, windowMs: 60_000 });
     if (!globalLimit.allowed) {
-      void writeSecurityEvent({ event: "rate_limit_webhook", severity: "critical", requestId: sec.requestId, ipHash: sec.ipKey });
+      await writeSampledPreAuthEvent({
+        event: "rate_limit_webhook",
+        severity: "critical",
+        requestId: sec.requestId,
+        ipHash: sec.ipKey,
+      });
       return rateLimitResponse(globalLimit.retryAfter, sec.requestId);
     }
 
-    const contentLength = Number(request.headers.get("content-length") ?? 0);
-    if (contentLength > 128 * 1024) return NextResponse.json({ ok: false }, { status: 413 });
-    const update = (await request.json()) as TelegramUpdate;
+    if (secret && !secretMatches(request.headers.get("x-telegram-bot-api-secret-token"), secret)) {
+      await writeSampledPreAuthEvent({
+        event: "webhook_secret_rejected",
+        severity: "critical",
+        requestId: sec.requestId,
+        ipHash: sec.ipKey,
+      });
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+
+    let update: TelegramUpdate;
+    try {
+      update = await readJsonBody<TelegramUpdate>(request, 128 * 1024);
+    } catch (error) {
+      if (error instanceof PayloadTooLargeError) {
+        void writeSecurityEvent({ event: "oversized_telegram_update", requestId: sec.requestId, ipHash: sec.ipKey });
+        // Oversized input is poison, not a transient dependency failure. A 2xx
+        // prevents Telegram from retrying it forever.
+        return NextResponse.json({ ok: false, code: "payload_too_large" });
+      }
+      throw error;
+    }
     if (!Number.isSafeInteger(update.update_id) || update.update_id < 0) {
       void writeSecurityEvent({ event: "invalid_telegram_update", requestId: sec.requestId, ipHash: sec.ipKey });
-      return NextResponse.json({ ok: false }, { status: 400 });
+      return NextResponse.json({ ok: false, code: "invalid_update" });
     }
 
     // Atomic idempotency claim: only the first insert receives a row back.
@@ -437,7 +482,13 @@ export async function POST(request: Request) {
               try {
                 claimedIdem = await db
                   .insert(idempotencyKeys)
-                  .values({ userId: user.id, key: idemKey, scope, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) })
+                  .values({
+                    userId: user.id,
+                    key: idemKey,
+                    scope,
+                    requestHash: fingerprint,
+                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  })
                   .onConflictDoNothing()
                   .returning({ id: idempotencyKeys.id });
               } catch {

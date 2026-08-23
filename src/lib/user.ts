@@ -136,7 +136,26 @@ export async function verifyInitData(initData: string | null): Promise<{
   return identity;
 }
 
-export async function updateUserSettings(userId: number, patch: Partial<SessionUser>) {
+export async function updateUserSettings(
+  user: SessionUser,
+  patch: Partial<SessionUser>,
+): Promise<{ ok: boolean; message: string }> {
+  // Currency is a ledger dimension, not a display preference. Relabelling an
+  // existing UZS ledger as USD/EUR without an immutable FX conversion corrupts
+  // every balance and report. Until a real multi-currency model exists, keep a
+  // user's established ledger currency immutable.
+  if (patch.currency !== undefined) {
+    if (typeof patch.currency !== "string" || !["UZS", "USD", "EUR"].includes(patch.currency)) {
+      return { ok: false, message: "Valyuta noto'g'ri" };
+    }
+    if (patch.currency !== user.currency) {
+      return {
+        ok: false,
+        message: "Mavjud moliyaviy ma'lumotlar valyutasini avtomatik almashtirib bo'lmaydi",
+      };
+    }
+  }
+
   // Explicit property authorization: role/isAdmin/isBlocked/telegramId are
   // intentionally absent and can never be changed by a user payload.
   const allowed: Partial<SessionUser> = {};
@@ -144,9 +163,7 @@ export async function updateUserSettings(userId: number, patch: Partial<SessionU
     const value = patch.firstName.trim();
     if (value && value.length <= 128) allowed.firstName = value;
   }
-  if (typeof patch.currency === "string" && ["UZS", "USD", "EUR"].includes(patch.currency)) {
-    allowed.currency = patch.currency;
-  }
+  if (typeof patch.currency === "string") allowed.currency = patch.currency;
   if (typeof patch.theme === "string" && ["light", "dark", "system"].includes(patch.theme)) {
     allowed.theme = patch.theme;
   }
@@ -164,8 +181,9 @@ export async function updateUserSettings(userId: number, patch: Partial<SessionU
   for (const key of ["notifyPayments", "notifyIncome", "notifyBudget", "notifyRisk"] as const) {
     if (typeof patch[key] === "boolean") allowed[key] = patch[key];
   }
-  if (Object.keys(allowed).length === 0) return;
-  await db.update(users).set(allowed).where(eq(users.id, userId));
+  if (Object.keys(allowed).length === 0) return { ok: true, message: "O'zgarish yo'q" };
+  await db.update(users).set(allowed).where(eq(users.id, user.id));
+  return { ok: true, message: "Sozlamalar saqlandi" };
 }
 
 export async function findUserById(id: number) {

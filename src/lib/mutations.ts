@@ -113,7 +113,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           | "transfer";
         const amount = num(d.amount);
         if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
-        const accountId = int(d.accountId) ?? (await defaultAccount(userId));
+        const accountId = int(d.accountId) ?? (await defaultAccount(userId, user.currency));
         if (!accountId) {
           return { ok: false, message: "Faol hisob yo'q. Hisoblar bo'limida bitta hisobni faollashtiring." };
         }
@@ -121,14 +121,14 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         // Ownership + archived guard: the source account must belong to the
         // current user AND be active, otherwise the money would land outside
         // the balance the dashboard shows.
-        const sourceAccount = await accountForPosting(userId, accountId, "source");
+        const sourceAccount = await accountForPosting(userId, accountId, user.currency, "source");
         if (!sourceAccount.ok) return { ok: false, message: sourceAccount.message };
 
         if (type === "transfer") {
           const toId = int(d.toAccountId);
           if (!toId) return { ok: false, message: "Qaysi hisobga o'tkazish kerakligini tanlang" };
           if (toId === accountId) return { ok: false, message: "Bir xil hisobga transfer qilib bo'lmaydi" };
-          const targetAccount = await accountForPosting(userId, toId, "target");
+          const targetAccount = await accountForPosting(userId, toId, user.currency, "target");
           if (!targetAccount.ok) return { ok: false, message: targetAccount.message };
         }
 
@@ -139,44 +139,24 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             : int(d.categoryId) ?? (str(d.categoryName) ? await resolveCategoryId(userId, str(d.categoryName), type) : null);
         if (catId) {
           const ownsCat = await db
-            .select({ id: categories.id })
+            .select({ id: categories.id, type: categories.type, isActive: categories.isActive })
             .from(categories)
             .where(and(eq(categories.id, catId), eq(categories.userId, userId)))
             .limit(1);
-          if (!ownsCat[0]) return { ok: false, message: "Kategoriya topilmadi" };
+          if (!ownsCat[0] || !ownsCat[0].isActive || ownsCat[0].type !== type) {
+            return { ok: false, message: "Kategoriya topilmadi yoki operatsiya turiga mos emas" };
+          }
         }
-        const recurringId = int(d.recurringId);
-        const expectedIncomeId = int(d.expectedIncomeId);
-        let recRow: typeof recurringExpenses.$inferSelect | null = null;
-        let incRow: typeof expectedIncomes.$inferSelect | null = null;
-        if (recurringId) {
-          const ownedRecurring = await db
-            .select()
-            .from(recurringExpenses)
-            .where(and(eq(recurringExpenses.id, recurringId), eq(recurringExpenses.userId, userId)))
-            .limit(1);
-          if (!ownedRecurring[0] || type !== "expense") return { ok: false, message: "Doimiy to'lov topilmadi" };
-          recRow = ownedRecurring[0];
+        // Plan fulfilment has dedicated CAS-protected actions (`recurring.pay`
+        // and `expectedIncome.receive`). Accepting caller-controlled plan ids in
+        // generic transaction.create created a second, non-CAS write path where
+        // two requests could book the same occurrence twice.
+        if (d.recurringId !== undefined || d.expectedIncomeId !== undefined) {
+          return {
+            ok: false,
+            message: "Reja operatsiyasini To'lovlar bo'limidan qayd eting",
+          };
         }
-        if (expectedIncomeId) {
-          const ownedIncome = await db
-            .select()
-            .from(expectedIncomes)
-            .where(and(eq(expectedIncomes.id, expectedIncomeId), eq(expectedIncomes.userId, userId)))
-            .limit(1);
-          if (!ownedIncome[0] || type !== "income") return { ok: false, message: "Kutilayotgan daromad topilmadi" };
-          incRow = ownedIncome[0];
-        }
-
-        // Occurrence identity: the *scheduled* date being fulfilled (not the
-        // actual transaction date, which may be an early payment).
-        const plannedDate = recRow ? recRow.nextDueDate : incRow ? incRow.expectedDate : null;
-        const identity = plannedDate
-          ? occurrenceIdentity(
-              { startDate: recRow?.startDate ?? incRow?.startDate, nextDueDate: recRow ? recRow.nextDueDate : incRow!.expectedDate, frequency: recRow ? recRow.frequency : incRow!.frequency },
-              plannedDate,
-            )
-          : null;
 
         const row = await db.transaction(async (tx) => {
           const [created] = await tx
@@ -192,26 +172,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               note: str(d.note),
               source: allowed(str(d.source, "miniapp"), ["bot", "miniapp", "api", "auto"], "miniapp"),
               currency: user.currency,
-              recurringId,
-              expectedIncomeId,
-              plannedDate: identity?.plannedDate ?? null,
-              occurrenceNumber: identity?.occurrenceNumber ?? null,
             })
             .returning();
-          // Symmetric advance of the parent plan, in the same transaction as
-          // the money movement so a failure cannot leave a half-advanced plan.
-          if (recRow && plannedDate) {
-            await tx
-              .update(recurringExpenses)
-              .set(advanceRecurringState(recRow, plannedDate))
-              .where(and(eq(recurringExpenses.id, recurringId!), eq(recurringExpenses.userId, userId)));
-          }
-          if (incRow && plannedDate) {
-            await tx
-              .update(expectedIncomes)
-              .set(advanceIncomeState(incRow, plannedDate))
-              .where(and(eq(expectedIncomes.id, expectedIncomeId!), eq(expectedIncomes.userId, userId)));
-          }
           return created;
         });
         return {
@@ -247,7 +209,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const accountId = d.accountId !== undefined ? int(d.accountId) : existing[0].accountId;
         if (!accountId) return { ok: false, message: "Hisob topilmadi" };
         if (accountId !== existing[0].accountId) {
-          const nextAccount = await accountForPosting(userId, accountId, "source");
+          const nextAccount = await accountForPosting(userId, accountId, user.currency, "source");
           if (!nextAccount.ok) return { ok: false, message: nextAccount.message };
         } else if (!(await ownsAnyAccount(userId, accountId))) {
           return { ok: false, message: "Hisob topilmadi" };
@@ -257,7 +219,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (type === "transfer") {
           if (!toAccountId) return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
           if (toAccountId !== existing[0].toAccountId) {
-            const nextTarget = await accountForPosting(userId, toAccountId, "target");
+            const nextTarget = await accountForPosting(userId, toAccountId, user.currency, "target");
             if (!nextTarget.ok) return { ok: false, message: nextTarget.message };
           } else if (!(await ownsAnyAccount(userId, toAccountId))) {
             return { ok: false, message: "Qabul qiluvchi hisob topilmadi" };
@@ -266,7 +228,9 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         }
 
         const categoryId = type === "transfer" ? null : d.categoryId !== undefined ? int(d.categoryId) : existing[0].categoryId;
-        if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
+        if (categoryId && !(await ownsCategory(userId, categoryId, type))) {
+          return { ok: false, message: "Kategoriya topilmadi yoki operatsiya turiga mos emas" };
+        }
         const date = d.date !== undefined ? isoDate(d.date) : existing[0].date;
         if (!date) return { ok: false, message: "Sana noto'g'ri" };
 
@@ -418,13 +382,20 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "create") {
         const name = str(d.name);
         if (!name) return { ok: false, message: "Hisob nomi kerak" };
+        const requestedCurrency = allowed(str(d.currency, user.currency), ["UZS", "USD", "EUR"], user.currency);
+        if (requestedCurrency !== user.currency) {
+          return {
+            ok: false,
+            message: "Hozircha barcha hisoblar profil valyutasida bo'lishi kerak",
+          };
+        }
         const [row] = await db
           .insert(accounts)
           .values({
             userId,
             name,
             type: allowed(str(d.type, "cash"), ["cash", "uzcard", "humo", "bank", "ewallet", "other"], "cash"),
-            currency: allowed(str(d.currency, user.currency), ["UZS", "USD", "EUR"], user.currency),
+            currency: user.currency,
             initialBalance: num(d.initialBalance, 0) ?? 0,
             sortOrder: int(d.sortOrder, 99) ?? 99,
           })
@@ -461,9 +432,22 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
       if (input.action === "create") {
         const name = str(d.name);
         if (!name) return { ok: false, message: "Kategoriya nomi kerak" };
+        const type = allowed(str(d.type, "expense"), ["income", "expense"], "expense");
         const parentId = int(d.parentId);
-        if (parentId && !(await ownsCategory(userId, parentId))) {
-          return { ok: false, message: "Ota kategoriya topilmadi" };
+        if (parentId) {
+          const [parent] = await db
+            .select({
+              id: categories.id,
+              type: categories.type,
+              parentId: categories.parentId,
+              isActive: categories.isActive,
+            })
+            .from(categories)
+            .where(and(eq(categories.id, parentId), eq(categories.userId, userId)))
+            .limit(1);
+          if (!parent || !parent.isActive || parent.type !== type || parent.parentId) {
+            return { ok: false, message: "Ota kategoriya topilmadi yoki turi mos emas" };
+          }
         }
         const [row] = await db
           .insert(categories)
@@ -471,7 +455,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             userId,
             parentId,
             name,
-            type: allowed(str(d.type, "expense"), ["income", "expense"], "expense"),
+            type,
             icon: str(d.icon, "•") ?? "•",
             isEssential: bool(d.isEssential, false),
             sortOrder: int(d.sortOrder, 50) ?? 50,
@@ -523,8 +507,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const certainty = allowed(str(d.certainty, "exact"), ["exact", "estimated"], "exact");
         const categoryId = int(d.categoryId);
         const accountId = int(d.accountId);
-        if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
-        if (accountId && !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (categoryId && !(await ownsCategory(userId, categoryId, "expense"))) return { ok: false, message: "Kategoriya topilmadi yoki turi mos emas" };
+        if (accountId && !(await ownsAccount(userId, accountId, user.currency))) return { ok: false, message: "Hisob topilmadi" };
         const exactAmount = num(d.amount);
         const minAmount = num(d.minAmount);
         const maxAmount = num(d.maxAmount);
@@ -659,12 +643,12 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         }
         const amount = num(d.amount) ?? rec[0].amount ?? rec[0].maxAmount ?? 0;
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
-        const paymentAccountId = int(d.accountId) ?? rec[0].accountId ?? (await defaultAccount(userId));
+        const paymentAccountId = int(d.accountId) ?? rec[0].accountId ?? (await defaultAccount(userId, user.currency));
         if (!paymentAccountId) {
           return { ok: false, message: "Faol hisob yo'q. Hisoblar bo'limida bitta hisobni faollashtiring." };
         }
         {
-          const guard = await accountForPosting(userId, paymentAccountId, "source");
+          const guard = await accountForPosting(userId, paymentAccountId, user.currency, "source");
           if (!guard.ok) return { ok: false, message: guard.message };
         }
         // Credit schedule: pay the NEXT UNPAID installment (its own date and
@@ -904,8 +888,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const certainty = allowed(str(d.certainty, "exact"), ["exact", "estimated"], "exact");
         const accountId = int(d.accountId);
         const categoryId = int(d.categoryId);
-        if (accountId && !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
-        if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
+        if (accountId && !(await ownsAccount(userId, accountId, user.currency))) return { ok: false, message: "Hisob topilmadi" };
+        if (categoryId && !(await ownsCategory(userId, categoryId, "income"))) return { ok: false, message: "Kategoriya topilmadi yoki turi mos emas" };
         const exactAmount = num(d.amount);
         const minAmount = num(d.minAmount);
         const maxAmount = num(d.maxAmount);
@@ -1001,12 +985,12 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!row[0]) return { ok: false, message: "Daromad topilmadi" };
         const amount = num(d.amount) ?? row[0].amount ?? row[0].maxAmount ?? 0;
         if (!amount || amount <= 0) return { ok: false, message: "Summa noto'g'ri" };
-        const incomeAccountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId));
+        const incomeAccountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId, user.currency));
         if (!incomeAccountId) {
           return { ok: false, message: "Faol hisob yo'q. Hisoblar bo'limida bitta hisobni faollashtiring." };
         }
         {
-          const guard = await accountForPosting(userId, incomeAccountId, "source");
+          const guard = await accountForPosting(userId, incomeAccountId, user.currency, "source");
           if (!guard.ok) return { ok: false, message: guard.message };
         }
         // Receive is only valid for an ACTIVE income plan (§12): paused /
@@ -1139,26 +1123,43 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const month = str(d.month, monthKey(today)) ?? monthKey(today);
         if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return { ok: false, message: "Oy formati noto'g'ri" };
         const categoryId = int(d.categoryId);
-        if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
+        if (categoryId && !(await ownsCategory(userId, categoryId, "expense"))) return { ok: false, message: "Kategoriya topilmadi yoki turi mos emas" };
         const amount = num(d.amount);
         if (amount === null || amount <= 0) return { ok: false, message: "Limit noto'g'ri" };
-        const existing = await db
-          .select()
-          .from(budgets)
-          .where(
-            and(
-              eq(budgets.userId, userId),
-              eq(budgets.month, month),
-              categoryId === null ? sql`${budgets.categoryId} is null` : eq(budgets.categoryId, categoryId),
-            ),
-          )
-          .limit(1);
-        if (existing[0]) {
-          await db.update(budgets).set({ amount, isDeleted: false }).where(and(eq(budgets.id, existing[0].id), eq(budgets.userId, userId)));
-          return { ok: true, message: "Budjet yangilandi" };
+        const outcome = await db.transaction(async (tx) => {
+          // PostgreSQL UNIQUE treats NULL category ids as distinct. Serialize
+          // this logical key (including the all-categories NULL case) so two
+          // concurrent upserts cannot both pass SELECT then INSERT.
+          const lockIdentity = `budget:${month}:${categoryId ?? "all"}`;
+          await tx.execute(
+            sql`select pg_advisory_xact_lock(${userId}, hashtext(${lockIdentity}))`,
+          );
+          const existing = await tx
+            .select({ id: budgets.id })
+            .from(budgets)
+            .where(
+              and(
+                eq(budgets.userId, userId),
+                eq(budgets.month, month),
+                categoryId === null ? sql`${budgets.categoryId} is null` : eq(budgets.categoryId, categoryId),
+              ),
+            )
+            .limit(2);
+          if (existing.length > 1) return "duplicate" as const;
+          if (existing[0]) {
+            await tx
+              .update(budgets)
+              .set({ amount, isDeleted: false })
+              .where(and(eq(budgets.id, existing[0].id), eq(budgets.userId, userId)));
+            return "updated" as const;
+          }
+          await tx.insert(budgets).values({ userId, categoryId, month, amount });
+          return "created" as const;
+        });
+        if (outcome === "duplicate") {
+          return { ok: false, message: "Bu oy uchun takroriy budjetlar topildi — operator tekshiruvi kerak" };
         }
-        await db.insert(budgets).values({ userId, categoryId, month, amount });
-        return { ok: true, message: "Budjet belgilandi" };
+        return { ok: true, message: outcome === "updated" ? "Budjet yangilandi" : "Budjet belgilandi" };
       }
       if (input.action === "delete") {
         const id = int(d.id);
@@ -1183,8 +1184,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const remainingAmount = num(d.remainingAmount, amount) ?? amount;
         if (remainingAmount < 0 || remainingAmount > amount) return { ok: false, message: "Qolgan qarz summasi noto'g'ri" };
         const direction = allowed(str(d.direction, "i_owe"), ["i_owe", "owed_to_me"], "i_owe");
-        const accountId = int(d.accountId) ?? (await defaultAccount(userId));
-        if (!accountId || !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+        const accountId = int(d.accountId) ?? (await defaultAccount(userId, user.currency));
+        if (!accountId || !(await ownsAccount(userId, accountId, user.currency))) return { ok: false, message: "Hisob topilmadi" };
         const [row] = await db.transaction(async (tx) => {
           const [created] = await tx.insert(debts).values({
             userId, direction, personName, amount, remainingAmount,
@@ -1309,12 +1310,12 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .limit(1);
         if (!row[0]) return { ok: false, message: "Qarz topilmadi" };
         if (amount > row[0].remainingAmount) return { ok: false, message: "To'lov qolgan qarzdan katta bo'lmasligi kerak" };
-        const paymentAccountId = int(d.accountId) ?? (await defaultAccount(userId));
+        const paymentAccountId = int(d.accountId) ?? (await defaultAccount(userId, user.currency));
         if (!paymentAccountId) {
           return { ok: false, message: "Faol hisob yo'q. Hisoblar bo'limida bitta hisobni faollashtiring." };
         }
         {
-          const guard = await accountForPosting(userId, paymentAccountId, "source");
+          const guard = await accountForPosting(userId, paymentAccountId, user.currency, "source");
           if (!guard.ok) return { ok: false, message: guard.message };
         }
         const remaining = Math.max(0, row[0].remainingAmount - amount);
@@ -1445,7 +1446,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         const targetAmount = num(d.targetAmount);
         if (!name || !targetAmount || targetAmount <= 0) return { ok: false, message: "Ma'lumot to'liq emas. Barcha maydonlarni to'ldiring." };
         const accountId = int(d.accountId);
-        if (accountId && !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+        if (accountId && !(await ownsAccount(userId, accountId, user.currency))) return { ok: false, message: "Hisob topilmadi" };
         const savedAmount = num(d.savedAmount, 0) ?? 0;
         const monthlyContribution = num(d.monthlyContribution, 0) ?? 0;
         if (savedAmount < 0 || savedAmount > targetAmount || monthlyContribution < 0) {
@@ -1475,8 +1476,8 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (amount > row[0].targetAmount - row[0].savedAmount) {
           return { ok: false, message: "Jamg'arma qolgan maqsad summasidan katta bo'lmasligi kerak" };
         }
-        const accountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId));
-        if (!accountId || !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+        const accountId = int(d.accountId) ?? row[0].accountId ?? (await defaultAccount(userId, user.currency));
+        if (!accountId || !(await ownsAccount(userId, accountId, user.currency))) return { ok: false, message: "Hisob topilmadi" };
         const contributed = await db.transaction(async (tx) => {
           // Both the cap and increment are evaluated by the database, so two
           // concurrent clicks cannot push a goal beyond its target.
@@ -1566,11 +1567,17 @@ function thisMonthDate(day: number): string {
  * History list while the balance never moved. Ordering is fully deterministic
  * (sortOrder, then id) so the same user always gets the same default.
  */
-async function defaultAccount(userId: number): Promise<number | null> {
+async function defaultAccount(userId: number, currency: string): Promise<number | null> {
   const rows = await db
     .select({ id: accounts.id })
     .from(accounts)
-    .where(and(eq(accounts.userId, userId), eq(accounts.isActive, true)))
+    .where(
+      and(
+        eq(accounts.userId, userId),
+        eq(accounts.isActive, true),
+        eq(accounts.currency, currency),
+      ),
+    )
     .orderBy(accounts.sortOrder, accounts.id)
     .limit(1);
   return rows[0]?.id ?? null;
@@ -1580,10 +1587,16 @@ async function defaultAccount(userId: number): Promise<number | null> {
 async function accountForPosting(
   userId: number,
   accountId: number,
+  currency: string,
   label: "source" | "target",
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const rows = await db
-    .select({ id: accounts.id, name: accounts.name, isActive: accounts.isActive })
+    .select({
+      id: accounts.id,
+      name: accounts.name,
+      currency: accounts.currency,
+      isActive: accounts.isActive,
+    })
     .from(accounts)
     .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
     .limit(1);
@@ -1596,6 +1609,12 @@ async function accountForPosting(
     return {
       ok: false,
       message: `«${rows[0].name}» hisobi arxivlangan — uni Hisoblar bo'limida faollashtiring yoki boshqa hisobni tanlang`,
+    };
+  }
+  if (rows[0].currency !== currency) {
+    return {
+      ok: false,
+      message: `«${rows[0].name}» valyutasi profil valyutasiga mos emas`,
     };
   }
   return { ok: true };
@@ -1611,22 +1630,33 @@ async function ownsAnyAccount(userId: number, accountId: number): Promise<boolea
   return Boolean(rows[0]);
 }
 
-async function ownsAccount(userId: number, accountId: number): Promise<boolean> {
+async function ownsAccount(userId: number, accountId: number, currency: string): Promise<boolean> {
   const rows = await db
     .select({ id: accounts.id })
     .from(accounts)
-    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId), eq(accounts.isActive, true)))
+    .where(
+      and(
+        eq(accounts.id, accountId),
+        eq(accounts.userId, userId),
+        eq(accounts.isActive, true),
+        eq(accounts.currency, currency),
+      ),
+    )
     .limit(1);
   return Boolean(rows[0]);
 }
 
-async function ownsCategory(userId: number, categoryId: number): Promise<boolean> {
+async function ownsCategory(
+  userId: number,
+  categoryId: number,
+  expectedType?: "income" | "expense" | string,
+): Promise<boolean> {
   const rows = await db
-    .select({ id: categories.id })
+    .select({ id: categories.id, type: categories.type })
     .from(categories)
     .where(and(eq(categories.id, categoryId), eq(categories.userId, userId), eq(categories.isActive, true)))
     .limit(1);
-  return Boolean(rows[0]);
+  return Boolean(rows[0] && (!expectedType || rows[0].type === expectedType));
 }
 
 /**
@@ -1661,8 +1691,8 @@ export async function createCreditTermPlan(
 
   const categoryId = int(input.categoryId);
   const accountId = int(input.accountId);
-  if (categoryId && !(await ownsCategory(userId, categoryId))) return { ok: false, message: "Kategoriya topilmadi" };
-  if (accountId && !(await ownsAccount(userId, accountId))) return { ok: false, message: "Hisob topilmadi" };
+  if (categoryId && !(await ownsCategory(userId, categoryId, "expense"))) return { ok: false, message: "Kategoriya topilmadi yoki turi mos emas" };
+  if (accountId && !(await ownsAccount(userId, accountId, user.currency))) return { ok: false, message: "Hisob topilmadi" };
 
   // Validate and normalize every installment: valid ISO date, positive amount.
   const items: Array<{ date: string; amount: number }> = [];
@@ -1757,11 +1787,23 @@ export async function quickAdd(
 
 async function resolveCategoryId(userId: number, name: string | null, type: string): Promise<number | null> {
   if (!name) return null;
-  const rows = await db.select().from(categories).where(and(eq(categories.userId, userId), eq(categories.name, name))).limit(1);
+  const categoryType = type === "income" ? "income" : "expense";
+  const rows = await db
+    .select()
+    .from(categories)
+    .where(
+      and(
+        eq(categories.userId, userId),
+        eq(categories.name, name),
+        eq(categories.type, categoryType),
+        eq(categories.isActive, true),
+      ),
+    )
+    .limit(1);
   if (rows[0]) return rows[0].id;
   const created = await db
     .insert(categories)
-    .values({ userId, name, type: type === "income" ? "income" : "expense", icon: "•" })
+    .values({ userId, name, type: categoryType, icon: "•" })
     .returning();
   return created[0].id;
 }

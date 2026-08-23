@@ -199,8 +199,11 @@ function TransactionsView() {
       ) : (
         <div className="space-y-4 sm:space-y-5">
           {grouped.map(([date, items]) => {
-            const dayIn = items.filter((transaction) => transaction.type === "income").reduce((sum, transaction) => sum + transaction.amount, 0);
-            const dayOut = items.filter((transaction) => transaction.type === "expense").reduce((sum, transaction) => sum + transaction.amount, 0);
+            const reportingItems = items.filter(
+              (transaction) => (transaction.currency ?? state.user.currency) === state.user.currency,
+            );
+            const dayIn = reportingItems.filter((transaction) => transaction.type === "income").reduce((sum, transaction) => sum + transaction.amount, 0);
+            const dayOut = reportingItems.filter((transaction) => transaction.type === "expense").reduce((sum, transaction) => sum + transaction.amount, 0);
             return (
               <section key={date}>
                 <div className="flex items-center justify-between gap-3 border-b border-line px-1 pb-2">
@@ -281,6 +284,9 @@ function TransactionsView() {
                           <p className="truncate text-[11.5px] text-muted">
                             {transaction.note ? `${transaction.note} · ` : ""}
                             {transaction.accountName}
+                            {transaction.currency && transaction.currency !== state.user.currency
+                              ? ` · ${transaction.currency}`
+                              : ""}
                           </p>
                         </div>
                         <Money

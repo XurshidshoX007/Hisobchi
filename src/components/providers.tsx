@@ -39,6 +39,44 @@ type FinanceContextValue = {
 
 const FinanceContext = createContext<FinanceContextValue | null>(null);
 
+type PendingMutation = { signature: string; key: string; createdAt: number };
+const PENDING_MUTATION_STORAGE_KEY = "hisobchi:pending-mutation:v1";
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function mutationSignature(body: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function readPendingMutation(signature: string): PendingMutation | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_MUTATION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingMutation>;
+    if (
+      parsed.signature !== signature ||
+      typeof parsed.key !== "string" ||
+      typeof parsed.createdAt !== "number" ||
+      Date.now() - parsed.createdAt >= IDEMPOTENCY_TTL_MS
+    ) {
+      sessionStorage.removeItem(PENDING_MUTATION_STORAGE_KEY);
+      return null;
+    }
+    return { signature, key: parsed.key, createdAt: parsed.createdAt };
+  } catch {
+    return null;
+  }
+}
+
+function persistPendingMutation(pending: PendingMutation | null) {
+  try {
+    if (pending) sessionStorage.setItem(PENDING_MUTATION_STORAGE_KEY, JSON.stringify(pending));
+    else sessionStorage.removeItem(PENDING_MUTATION_STORAGE_KEY);
+  } catch {
+    // Private-storage restrictions must not disable the in-memory safety guard.
+  }
+}
+
 type TelegramWebApp = {
   ready: () => void;
   expand: () => void;
@@ -164,11 +202,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const inFlightRef = useRef(false);
   // Keep the key for an ambiguous network/5xx result. If the user retries the
-  // same operation, reusing this key is what turns a lost response into a safe
-  // idempotent replay instead of a second financial write. The signature stays
-  // in memory only (never localStorage), so notes/amounts are not persisted on
-  // the device.
-  const pendingMutationRef = useRef<{ signature: string; key: string; createdAt: number } | null>(null);
+  // same operation, reusing this key turns a lost response into a safe replay.
+  // Only a SHA-256 body signature + random key enter sessionStorage (never the
+  // financial body itself), so a WebView reload preserves retry identity.
+  const pendingMutationRef = useRef<PendingMutation | null>(null);
   const mutate = useCallback<FinanceContextValue["mutate"]>(
     async (entity, action, data = {}, options = {}) => {
       if (inFlightRef.current) {
@@ -176,15 +213,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
       inFlightRef.current = true;
       setMutating(true);
-      const body = JSON.stringify({ entity, action, data, settings: options.settings });
-      const signature = body;
-      const previous = pendingMutationRef.current;
-      const canReuse = previous && previous.signature === signature && Date.now() - previous.createdAt < 24 * 60 * 60 * 1000;
-      const pending = canReuse
-        ? previous
-        : { signature, key: crypto.randomUUID(), createdAt: Date.now() };
-      pendingMutationRef.current = pending;
       try {
+        const body = JSON.stringify({ entity, action, data, settings: options.settings });
+        const signature = await mutationSignature(body);
+        const memoryPending = pendingMutationRef.current;
+        const previous =
+          memoryPending &&
+          memoryPending.signature === signature &&
+          Date.now() - memoryPending.createdAt < IDEMPOTENCY_TTL_MS
+            ? memoryPending
+            : readPendingMutation(signature);
+        const pending = previous ?? {
+          signature,
+          key: crypto.randomUUID(),
+          createdAt: Date.now(),
+        };
+        pendingMutationRef.current = pending;
+        persistPendingMutation(pending);
+
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
           "Idempotency-Key": pending.key,
@@ -207,6 +253,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // operation and the next deliberate action receives a fresh key.
         if (res.status < 500 && json.code !== "request_in_progress") {
           pendingMutationRef.current = null;
+          persistPendingMutation(null);
         }
         if (!options.silent) toast(json.message ?? (json.ok ? "Saqlandi" : ERRORS.save), json.ok ? "success" : "error");
         return { ok: json.ok, message: json.message ?? "" };
