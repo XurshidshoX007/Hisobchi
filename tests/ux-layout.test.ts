@@ -103,6 +103,35 @@ test("History controls expose labelled search, floating dialog and active indica
   assert.match(transactionFilter, /overflow-y-auto overflow-x-hidden/);
 });
 
+test("History edit action renders a standard-oriented SVG pencil, not a text glyph", () => {
+  // U+270E (“lower right pencil”) points to the lower RIGHT and reads mirrored;
+  // its rendering is also font-dependent, so it must not come back as UI text.
+  assert.doesNotMatch(history, />\s*✎\s*</);
+  assert.doesNotMatch(history, /✏️?/);
+  // The inline SVG pins the standard orientation: tip at the lower LEFT
+  // (2,22), body rising to the upper right (17,3 → 21,7) — ╱, never ╲.
+  assert.match(
+    history,
+    /<svg[^>]*viewBox="0 0 24 24"[^>]*stroke="currentColor"[^>]*>[\s\S]*<path d="M17 3a2\.828 2\.828 0 1 1 4 4L7\.5 20\.5 2 22l1\.5-5\.5L17 3z" \/>/,
+  );
+  assert.match(history, /strokeLinecap="round"/);
+  assert.match(history, /strokeLinejoin="round"/);
+  // Keep the icon optical and decorative: 18px, centred, hidden from AT while
+  // the button keeps the semantics.
+  assert.match(history, /<svg[^>]*width="18"[^>]*height="18"[^>]*aria-hidden="true"/);
+  assert.match(history, /aria-label=\{transaction\.debtId \? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : "Tahrirlash"\}/);
+  // No mirroring tricks anywhere around it — orientation is drawn, not flipped.
+  assert.doesNotMatch(history, /scaleX\(|-scale-x-|rotate-180|direction:\s*rtl/);
+});
+
+test("History edit and cancel icons share one button geometry", () => {
+  // Exactly the two row actions (edit + cancel) — same 36px grid-centred box,
+  // so the 18px pencil and the ✕ sit optically level with equal hit areas.
+  const boxes =
+    history.match(/grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3/g) ?? [];
+  assert.equal(boxes.length, 2);
+});
+
 /* ============ Plans → To‘lovlar / Daromad: no summary cards above the lists ============ */
 
 const ui = readFileSync(new URL("../src/components/ui.tsx", import.meta.url), "utf8");

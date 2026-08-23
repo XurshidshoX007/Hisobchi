@@ -1657,7 +1657,7 @@ export async function createCreditTermPlan(
 
   const rawItems = Array.isArray(input.installments) ? input.installments : [];
   if (!rawItems.length) return { ok: false, message: "To'lovlar topilmadi" };
-  if (rawItems.length > 24) return { ok: false, message: "Jadval juda uzun (maksimal 24 ta to'lov)" };
+  if (rawItems.length > 60) return { ok: false, message: "Kredit jadvali ko‘pi bilan 60 ta to‘lovdan iborat bo‘lishi mumkin." };
 
   const categoryId = int(input.categoryId);
   const accountId = int(input.accountId);

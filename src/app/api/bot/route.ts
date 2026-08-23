@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       confirm?: Record<string, unknown> | null;
       init_data?: string | null;
     };
-    if (typeof body.message === "string" && body.message.length > 2_000) {
+    if (typeof body.message === "string" && body.message.length > 4_096) {
       return withSecurityHeaders(
         NextResponse.json({ text: "Xabar juda uzun.", keyboard: [], code: "invalid_input" }, { status: 400 }),
         sec.requestId,
