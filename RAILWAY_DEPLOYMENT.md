@@ -104,7 +104,8 @@ Railway uses the Dockerfile. Deployment/startup order is:
 1. Railway runs `node scripts/migrate.mjs` once as the `preDeployCommand`, using `DATABASE_URL`.
 2. The migration runner serializes overlapping deploys with a PostgreSQL advisory lock, applies only versioned migrations from `drizzle/`, and records them in its migration journal.
 3. The container validates required production env and starts Next.js on Railway's `$PORT` (it intentionally does **not** run DDL a second time).
-4. Railway checks `GET /api/health`.
+4. Railway checks `GET /api/health/live` before activating the new deployment.
+5. The old and new deployments overlap for 20 seconds; the old deployment gets a 30-second SIGTERM→SIGKILL drain window (`railway.json`). This reduces cut-over loss, but long webhook work must still move to a durable queue.
 
 If a migration fails, open the **pre-deploy logs**: the runner prints the PostgreSQL error code and message. Confirm `DATABASE_URL` is exactly `${{Postgres.DATABASE_URL}}` and that the Postgres service is in the same Railway project/environment before retrying.
 
@@ -158,11 +159,16 @@ Production behaviour:
 
 Two endpoints with two different jobs:
 
-- `GET /api/health/live` — **liveness probe** (Railway healthcheck + Docker
-  `HEALTHCHECK`). Process + database only, no outbound Telegram calls, answers
-  in milliseconds. Restart decisions are made from this endpoint only.
+- `GET /api/health/live` — lightweight **deployment readiness** endpoint kept
+  at the historical path. Process + database only, no outbound Telegram calls.
+  Railway uses its configured HTTP healthcheck while activating a deployment;
+  the Docker image also declares this URL as its health signal.
 - `GET /api/health` — **deep diagnostics** for humans/dashboards. Includes
   Redis, env warnings and the Telegram Bot API/webhook state (cached ~60 s).
+
+Neither endpoint is a substitute for continuous external monitoring. A failed
+Railway deployment healthcheck marks that deployment failed; it is not evidence
+that this endpoint continuously restarted an already-running service.
 
 ```bash
 curl -fsS https://YOUR-SERVICE.up.railway.app/api/health
@@ -181,6 +187,18 @@ Expected production response:
 
 If status is `warning`, do not open beta access until warnings are resolved.
 
+Before and after a financial-integrity deployment, run the read-only preflight
+from a trusted Railway shell/one-off job:
+
+```bash
+npm run audit:db
+```
+
+It starts a `READ ONLY` transaction and prints aggregate counts only (never
+names, Telegram IDs, notes, row values, or credentials). Exit `0` means all
+checks are zero; exit `2` means anomalies need operator review. It never repairs
+or deletes production data automatically.
+
 ### Keeping the service awake (Telegram bots must not sleep)
 
 A Telegram webhook bot receives inbound HTTPS calls at unpredictable times; if
@@ -194,10 +212,12 @@ sees a dead bot. Three settings keep it always-on:
    tier stops services when credits run out — that also looks like
    "the app fell asleep").
 
-If the bot still appears frozen, check `Deployments → Logs` for restart loops
-first: a failing healthcheck restarts the container repeatedly, which from
-Telegram's side is indistinguishable from sleeping. The liveness probe
-(`/api/health/live`) is intentionally minimal for exactly this reason.
+If the bot still appears frozen, correlate `Deployments → Logs`, runtime exit
+codes, memory/CPU graphs, Telegram `last_error_date`, and Postgres timestamps.
+Do not infer a restart loop from the HTTP deployment healthcheck alone: Railway
+uses that check to activate a new deployment, not as continuous uptime
+monitoring. `/api/health/live` stays minimal so deploy readiness is independent
+of Telegram/Redis latency.
 
 Configure a Railway Cron service (for example every hour) to invoke the same
 web service's dispatcher. It sends payment, income, budget and risk alerts with

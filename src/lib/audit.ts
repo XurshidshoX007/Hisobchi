@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { auditLogs, securityEvents } from "@/db/schema";
+import { safeErrorDiagnostic } from "./error-diagnostics";
 
 const SAFE_FIELDS = new Set([
   "type",
@@ -53,8 +54,17 @@ export async function writeAudit(params: {
       metadata: params.metadata ?? null,
     });
   } catch (error) {
-    // Audit failure should surface loudly but must not leak payloads.
-    console.error(JSON.stringify({ event: "audit_write_failed", requestId: params.requestId, error: String(error) }));
+    // Audit failure must be visible but must never serialize a database error
+    // message: Drizzle/pg messages may include SQL, parameters or a connection
+    // URL. Railway's process log is the independent fallback when Postgres is
+    // the dependency that failed.
+    console.error(
+      JSON.stringify({
+        event: "audit_write_failed",
+        requestId: params.requestId,
+        ...safeErrorDiagnostic(error),
+      }),
+    );
   }
 }
 
@@ -76,6 +86,14 @@ export async function writeSecurityEvent(params: {
       metadata: params.metadata ?? null,
     });
   } catch (error) {
-    console.error(JSON.stringify({ event: "security_event_write_failed", requestId: params.requestId, error: String(error) }));
+    // Security logging is fail-open for the business operation and falls back
+    // to the process log. Emit classification only, never the raw DB message.
+    console.error(
+      JSON.stringify({
+        event: "security_event_write_failed",
+        requestId: params.requestId,
+        ...safeErrorDiagnostic(error),
+      }),
+    );
   }
 }

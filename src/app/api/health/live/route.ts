@@ -5,18 +5,18 @@ import { db } from "@/db";
 export const dynamic = "force-dynamic";
 
 /**
- * Liveness probe — intentionally MINIMAL.
+ * Lightweight startup/readiness probe (kept at /health/live for compatibility).
  *
- * Railway's healthcheck and the Docker HEALTHCHECK poll this path every ~30s.
- * The deep diagnostic endpoint (/api/health) calls the Telegram Bot API twice
- * (getMe + getWebhookInfo) on every request; under a 5s probe timeout a slow
- * Telegram response would mark a perfectly healthy container as failing and
- * trigger restarts — which looks exactly like "the app keeps going to sleep".
+ * Railway calls the configured HTTP healthcheck while activating a new
+ * deployment; the Docker image also declares this endpoint as its health
+ * signal. It performs no outbound Telegram/Redis work, but it intentionally
+ * checks PostgreSQL so a new release is not routed traffic before its source of
+ * truth is reachable.
  *
- * Liveness therefore answers one question only: can this process serve
- * requests and reach its database? Everything else (Redis, Telegram webhook
- * state, env warnings) belongs to /api/health, which is for humans and
- * dashboards, not for restart decisions.
+ * This is not proof of continuous production health. Railway's HTTP deployment
+ * healthcheck is not a continuous monitor, and a Docker HEALTHCHECK by itself
+ * does not establish why a process restarted. Use external uptime/metrics and
+ * deployment/runtime events for incident correlation.
  */
 export async function GET() {
   try {

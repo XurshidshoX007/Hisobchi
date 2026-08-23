@@ -14,6 +14,8 @@ export type TxView = {
   categoryIcon: string;
   type: "income" | "expense" | "transfer";
   amount: number;
+  /** Ledger denomination. Optional only for legacy/pure-test fixtures. */
+  currency?: string;
   date: string;
   note: string | null;
   source: string;
@@ -39,6 +41,22 @@ export type AccountView = {
   outflow: number;
   txCount: number;
 };
+
+/**
+ * A total is meaningful only inside one denomination. Accounts in another
+ * currency remain visible as separate ledgers until an explicit immutable FX
+ * rate exists; they must never be added as if 1 USD = 1 UZS.
+ */
+export function totalBalanceInCurrency(
+  accounts: Array<Pick<AccountView, "currency" | "currentBalance" | "isActive">>,
+  currency: string,
+): number {
+  return round2(
+    accounts
+      .filter((account) => account.isActive && account.currency === currency)
+      .reduce((sum, account) => sum + account.currentBalance, 0),
+  );
+}
 
 /* ============================ Authoritative ledger balance ============================ */
 

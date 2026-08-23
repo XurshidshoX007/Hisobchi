@@ -538,6 +538,8 @@ export const idempotencyKeys = pgTable(
     userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
     scope: text("scope").notNull(),
+    /** SHA-256 of the exact mutation body; detects accidental key reuse. */
+    requestHash: text("request_hash"),
     status: text("status").notNull().default("processing"),
     resultId: integer("result_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

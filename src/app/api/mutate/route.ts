@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { idempotencyKeys } from "@/db/schema";
 import { runMutation, type MutateInput } from "@/lib/mutations";
@@ -7,6 +8,7 @@ import { buildAppState } from "@/lib/state";
 import { resolveUser, updateUserSettings, verifyInitData } from "@/lib/user";
 import { requireVerifiedIdentity } from "@/lib/env";
 import { safeAuditMetadata, writeAudit, writeSecurityEvent } from "@/lib/audit";
+import { PayloadTooLargeError, readJsonBody } from "@/lib/request-body";
 import {
   checkRateLimit,
   isAllowedMutationOrigin,
@@ -20,32 +22,66 @@ import {
 export const dynamic = "force-dynamic";
 
 type Body = MutateInput & { settings?: Record<string, unknown> };
-const IDEMPOTENT_ENTITIES = new Set(["transaction", "debt", "goal", "recurring", "expectedIncome"]);
+const IDEMPOTENT_ENTITIES = new Set([
+  "transaction",
+  "account",
+  "category",
+  "budget",
+  "debt",
+  "goal",
+  "recurring",
+  "expectedIncome",
+]);
 
 export async function POST(request: Request) {
   const sec = securityContext(request);
   let claimedIdempotency: { userId: number; key: string; scope: string } | null = null;
   try {
-    const contentLength = Number(request.headers.get("content-length") ?? 0);
-    if (contentLength > 64 * 1024) {
-      return withSecurityHeaders(
-        NextResponse.json({ ok: false, message: "Request juda katta", code: "payload_too_large" }, { status: 413 }),
-        sec.requestId,
-      );
-    }
-
-    if (!isAllowedMutationOrigin(request)) {
-      void writeSecurityEvent({ event: "origin_rejected", requestId: sec.requestId, ipHash: sec.ipKey, severity: "warning" });
-      return originRejected(sec.requestId);
-    }
-
     const ipLimit = await checkRateLimit({ scope: "mutation-ip", identity: sec.ipKey, limit: 60, windowMs: 60_000 });
     if (!ipLimit.allowed) {
-      void writeSecurityEvent({ event: "rate_limit_mutation", requestId: sec.requestId, ipHash: sec.ipKey });
+      const sample = await checkRateLimit({
+        scope: "preauth-security-event-sample",
+        identity: "rate_limit_mutation",
+        limit: 30,
+        windowMs: 60_000,
+      });
+      if (sample.allowed) {
+        void writeSecurityEvent({ event: "rate_limit_mutation", requestId: sec.requestId, ipHash: sec.ipKey });
+      }
       return rateLimitResponse(ipLimit.retryAfter, sec.requestId);
     }
 
-    const body = (await request.json()) as Body;
+    if (!isAllowedMutationOrigin(request)) {
+      const sample = await checkRateLimit({
+        scope: "preauth-security-event-sample",
+        identity: "origin_rejected",
+        limit: 30,
+        windowMs: 60_000,
+      });
+      if (sample.allowed) {
+        void writeSecurityEvent({ event: "origin_rejected", requestId: sec.requestId, ipHash: sec.ipKey, severity: "warning" });
+      }
+      return originRejected(sec.requestId);
+    }
+
+    let body: Body;
+    try {
+      body = await readJsonBody<Body>(request, 64 * 1024);
+    } catch (error) {
+      if (error instanceof PayloadTooLargeError) {
+        return withSecurityHeaders(
+          NextResponse.json({ ok: false, message: "Request juda katta", code: "payload_too_large" }, { status: 413 }),
+          sec.requestId,
+        );
+      }
+      if (error instanceof SyntaxError || error instanceof TypeError) {
+        return withSecurityHeaders(
+          NextResponse.json({ ok: false, message: "Request formati noto'g'ri", code: "invalid_json" }, { status: 400 }),
+          sec.requestId,
+        );
+      }
+      throw error;
+    }
     if (!body || typeof body.entity !== "string" || typeof body.action !== "string") {
       return withSecurityHeaders(
         NextResponse.json({ ok: false, message: "Request formati noto'g'ri", code: "invalid_input" }, { status: 400 }),
@@ -53,8 +89,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const url = new URL(request.url);
-    const initData = request.headers.get("x-telegram-init-data") ?? url.searchParams.get("init_data") ?? null;
+    // Never accept Telegram initData in the URL: reverse proxies and browser
+    // history can retain query strings containing this bearer credential.
+    const initData = request.headers.get("x-telegram-init-data");
     const identity = await verifyInitData(initData);
     const user = await resolveUser(identity ?? undefined);
     if (!user) {
@@ -72,7 +109,10 @@ export async function POST(request: Request) {
     }
 
     // Financial mutation idempotency. The client generates one key per user
-    // action and reuses it on a network retry.
+    // action and reuses it on a network retry. Bind that key to the exact body
+    // so a buggy/malicious client cannot reuse a completed key for another
+    // amount/resource and receive a false success response.
+    const requestHash = createHash("sha256").update(JSON.stringify(body)).digest("hex");
     if (IDEMPOTENT_ENTITIES.has(body.entity)) {
       const key = request.headers.get("idempotency-key");
       if (!key || !/^[a-zA-Z0-9_.:-]{8,128}$/.test(key)) {
@@ -84,24 +124,95 @@ export async function POST(request: Request) {
         }
       } else {
         const scope = `${body.entity}:${body.action}`;
+        const now = new Date();
+        // The unique index otherwise makes `expiresAt` cosmetic: an expired row
+        // would continue rejecting the key forever. Reclaim only this exact
+        // user's expired key before attempting the atomic insert.
+        await db
+          .delete(idempotencyKeys)
+          .where(
+            and(
+              eq(idempotencyKeys.userId, user.id),
+              eq(idempotencyKeys.key, key),
+              eq(idempotencyKeys.scope, scope),
+              lte(idempotencyKeys.expiresAt, now),
+            ),
+          );
         const claimed = await db
           .insert(idempotencyKeys)
-          .values({ userId: user.id, key, scope, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) })
+          .values({
+            userId: user.id,
+            key,
+            scope,
+            requestHash,
+            expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+          })
           .onConflictDoNothing()
           .returning({ id: idempotencyKeys.id });
         if (!claimed[0]) {
+          const existing = await db
+            .select({
+              status: idempotencyKeys.status,
+              resultId: idempotencyKeys.resultId,
+              requestHash: idempotencyKeys.requestHash,
+            })
+            .from(idempotencyKeys)
+            .where(
+              and(
+                eq(idempotencyKeys.userId, user.id),
+                eq(idempotencyKeys.key, key),
+                eq(idempotencyKeys.scope, scope),
+              ),
+            )
+            .limit(1);
+          if (existing[0]?.requestHash && existing[0].requestHash !== requestHash) {
+            void writeSecurityEvent({
+              userId: user.id,
+              event: "idempotency_key_payload_mismatch",
+              severity: "warning",
+              requestId: sec.requestId,
+              ipHash: sec.ipKey,
+              metadata: { scope },
+            });
+            return withSecurityHeaders(
+              NextResponse.json(
+                {
+                  ok: false,
+                  message: "Idempotency-Key boshqa so'rov uchun ishlatilgan",
+                  code: "idempotency_key_reused",
+                },
+                { status: 422 },
+              ),
+              sec.requestId,
+            );
+          }
           void writeSecurityEvent({
             userId: user.id,
             event: "duplicate_mutation_blocked",
             severity: "info",
             requestId: sec.requestId,
             ipHash: sec.ipKey,
-            metadata: { scope },
+            metadata: { scope, status: existing[0]?.status ?? "unknown" },
           });
+          if (existing[0]?.status === "completed") {
+            // A retry after the original response was lost must learn that the
+            // operation succeeded; returning 409 causes users to press again
+            // with a fresh key and duplicate a financial write.
+            return withSecurityHeaders(
+              NextResponse.json({
+                ok: true,
+                id: existing[0].resultId ?? undefined,
+                idempotent: true,
+                message: "So'rov avval muvaffaqiyatli bajarilgan",
+                requestId: sec.requestId,
+              }),
+              sec.requestId,
+            );
+          }
           return withSecurityHeaders(
             NextResponse.json(
-              { ok: false, message: "Bu so'rov avval qabul qilingan", code: "duplicate_request" },
-              { status: 409 },
+              { ok: false, message: "So'rov hali qayta ishlanmoqda", code: "request_in_progress" },
+              { status: 409, headers: { "Retry-After": "2" } },
             ),
             sec.requestId,
           );
@@ -111,19 +222,28 @@ export async function POST(request: Request) {
     }
 
     if (body.entity === "settings") {
-      await updateUserSettings(user.id, body.settings ?? {});
-      const refreshed = (await resolveUser(identity ?? undefined)) ?? user;
+      const settingsResult = await updateUserSettings(user, body.settings ?? {});
       await writeAudit({
         userId: user.id,
         actorRole: user.role,
         action: "update",
         entity: "settings",
-        outcome: "success",
+        outcome: settingsResult.ok ? "success" : "denied",
         requestId: sec.requestId,
         ipHash: sec.ipKey,
       });
+      if (!settingsResult.ok) {
+        return withSecurityHeaders(
+          NextResponse.json(
+            { ok: false, message: settingsResult.message, code: "currency_change_requires_conversion" },
+            { status: 409 },
+          ),
+          sec.requestId,
+        );
+      }
+      const refreshed = (await resolveUser(identity ?? undefined)) ?? user;
       return withSecurityHeaders(
-        NextResponse.json({ ok: true, message: "Sozlamalar saqlandi", state: await buildAppState(refreshed) }),
+        NextResponse.json({ ok: true, message: settingsResult.message, state: await buildAppState(refreshed) }),
         sec.requestId,
       );
     }
@@ -173,20 +293,17 @@ export async function POST(request: Request) {
       NextResponse.json({ ...result, state, requestId: sec.requestId }, { status: result.ok ? 200 : 400 }),
       sec.requestId,
     );
-  } catch (error) {
-    if (claimedIdempotency) {
-      await db
-        .delete(idempotencyKeys)
-        .where(
-          and(
-            eq(idempotencyKeys.userId, claimedIdempotency.userId),
-            eq(idempotencyKeys.key, claimedIdempotency.key),
-            eq(idempotencyKeys.scope, claimedIdempotency.scope),
-          ),
-        )
-        .catch(() => undefined);
-    }
-    securityLog("error", "mutation_error", { requestId: sec.requestId, ipKey: sec.ipKey, code: "internal" });
+  } catch {
+    // Never delete an idempotency claim after an exception. The business
+    // transaction may have COMMITted while its acknowledgement (or the later
+    // state rebuild) failed. Releasing the key in that ambiguous window lets a
+    // retry execute the same financial operation twice. A processing claim is
+    // intentionally fail-safe and expires after the documented 24-hour window.
+    securityLog("error", "mutation_error", {
+      requestId: sec.requestId,
+      ipKey: sec.ipKey,
+      code: claimedIdempotency ? "internal_after_claim" : "internal",
+    });
     return withSecurityHeaders(
       NextResponse.json({ ok: false, message: "Server xatosi", code: "internal", requestId: sec.requestId }, { status: 500 }),
       sec.requestId,

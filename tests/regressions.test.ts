@@ -731,6 +731,19 @@ test("every SQL migration file is registered in the drizzle journal", () => {
   for (const tag of journalTags) {
     assert.ok(sqlFiles.includes(tag), `journal entry "${tag}" has no matching .sql file`);
   }
+
+  // drizzle-kit generates from the latest snapshot, not by replaying the SQL
+  // journal. Missing snapshots for manual migrations make the next generated
+  // migration recreate existing tables/columns and fail in production.
+  const latest = journal.entries[journal.entries.length - 1]?.tag;
+  assert.ok(latest, "journal has no latest migration");
+  const prefix = latest.slice(0, 4);
+  const snapshot = JSON.parse(
+    readFileSync(new URL(`../drizzle/meta/${prefix}_snapshot.json`, import.meta.url), "utf8"),
+  ) as { tables?: Record<string, unknown> };
+  assert.ok(snapshot.tables?.["public.credit_installments"], "latest snapshot misses credit_installments");
+  assert.ok(snapshot.tables?.["public.image_intakes"], "latest snapshot misses image_intakes");
+  assert.ok(snapshot.tables?.["public.transactions"], "latest snapshot misses transactions");
 });
 
 test("conservative forecast includes estimated minimum income", () => {

@@ -11,6 +11,10 @@ if (process.env.WEBHOOK_SECRET && legacySecret && process.env.WEBHOOK_SECRET !==
   console.error("WEBHOOK_SECRET and TELEGRAM_WEBHOOK_SECRET must be identical");
   process.exit(1);
 }
+if (secret.length < 32 || secret.length > 256 || !/^[A-Za-z0-9_-]+$/.test(secret)) {
+  console.error("WEBHOOK_SECRET must be 32-256 characters using only A-Z, a-z, 0-9, _ and -");
+  process.exit(1);
+}
 let appUrl;
 try {
   appUrl = new URL(configuredAppUrl);

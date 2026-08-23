@@ -1,12 +1,21 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { accounts, categories, users } from "@/db/schema";
 import { ensureSeed } from "./seed";
 import { INIT_DATA_MAX_AGE_SECONDS, demoModeEnabled, requireVerifiedIdentity, telegramBotToken } from "./env";
 import { MAX_MONEY } from "./money";
 import { bootstrapNewUser } from "./bootstrap-user";
 
 export type SessionUser = typeof users.$inferSelect;
+
+const globalUserBootstrap = globalThis as typeof globalThis & {
+  __hisobchiVerifiedBootstrapUsers?: Set<number>;
+};
+const verifiedBootstrapUsers =
+  globalUserBootstrap.__hisobchiVerifiedBootstrapUsers ?? new Set<number>();
+if (process.env.NODE_ENV !== "production") {
+  globalUserBootstrap.__hisobchiVerifiedBootstrapUsers = verifiedBootstrapUsers;
+}
 
 /**
  * Single source of truth for identity. A Telegram Mini App sends verified
@@ -22,9 +31,10 @@ export async function resolveUser(input?: {
   if (demoModeEnabled()) await ensureSeed();
 
   if (input?.telegramId) {
-    const existing = await db.select().from(users).where(eq(users.telegramId, input.telegramId)).limit(1);
-    if (existing[0]) return existing[0].isBlocked ? null : existing[0];
-    const created = await db
+    // Concurrent first updates can arrive on several Telegram webhook
+    // connections. The unique telegram_id index chooses one creator; losers
+    // read that same row instead of surfacing a unique-constraint 500.
+    const inserted = await db
       .insert(users)
       .values({
         telegramId: input.telegramId,
@@ -32,11 +42,27 @@ export async function resolveUser(input?: {
         lastName: input.lastName ?? null,
         username: input.username ?? null,
       })
+      .onConflictDoNothing({ target: users.telegramId })
       .returning();
-    // Seed the minimal financial world (cash account + categories) so the
-    // very first bot save works without additional setup.
-    await bootstrapNewUser(created[0].id);
-    return created[0];
+    const user =
+      inserted[0] ??
+      (await db.select().from(users).where(eq(users.telegramId, input.telegramId)).limit(1))[0];
+    if (!user || user.isBlocked) return null;
+
+    // A previous process/DB interruption may have committed the identity before
+    // older non-transactional bootstrap writes completed. Heal that state on
+    // the next request. Check once per user/process; the bootstrap itself locks
+    // the user and remains safe across replicas.
+    if (!verifiedBootstrapUsers.has(user.id)) {
+      const [account, category] = await Promise.all([
+        db.select({ id: accounts.id }).from(accounts).where(eq(accounts.userId, user.id)).limit(1),
+        db.select({ id: categories.id }).from(categories).where(eq(categories.userId, user.id)).limit(1),
+      ]);
+      if (!account[0] || !category[0]) await bootstrapNewUser(user.id);
+      if (verifiedBootstrapUsers.size >= 10_000) verifiedBootstrapUsers.clear();
+      verifiedBootstrapUsers.add(user.id);
+    }
+    return user;
   }
 
   // No verified identity — only allow demo user when demo mode is enabled.
@@ -110,7 +136,26 @@ export async function verifyInitData(initData: string | null): Promise<{
   return identity;
 }
 
-export async function updateUserSettings(userId: number, patch: Partial<SessionUser>) {
+export async function updateUserSettings(
+  user: SessionUser,
+  patch: Partial<SessionUser>,
+): Promise<{ ok: boolean; message: string }> {
+  // Currency is a ledger dimension, not a display preference. Relabelling an
+  // existing UZS ledger as USD/EUR without an immutable FX conversion corrupts
+  // every balance and report. Until a real multi-currency model exists, keep a
+  // user's established ledger currency immutable.
+  if (patch.currency !== undefined) {
+    if (typeof patch.currency !== "string" || !["UZS", "USD", "EUR"].includes(patch.currency)) {
+      return { ok: false, message: "Valyuta noto'g'ri" };
+    }
+    if (patch.currency !== user.currency) {
+      return {
+        ok: false,
+        message: "Mavjud moliyaviy ma'lumotlar valyutasini avtomatik almashtirib bo'lmaydi",
+      };
+    }
+  }
+
   // Explicit property authorization: role/isAdmin/isBlocked/telegramId are
   // intentionally absent and can never be changed by a user payload.
   const allowed: Partial<SessionUser> = {};
@@ -118,9 +163,7 @@ export async function updateUserSettings(userId: number, patch: Partial<SessionU
     const value = patch.firstName.trim();
     if (value && value.length <= 128) allowed.firstName = value;
   }
-  if (typeof patch.currency === "string" && ["UZS", "USD", "EUR"].includes(patch.currency)) {
-    allowed.currency = patch.currency;
-  }
+  if (typeof patch.currency === "string") allowed.currency = patch.currency;
   if (typeof patch.theme === "string" && ["light", "dark", "system"].includes(patch.theme)) {
     allowed.theme = patch.theme;
   }
@@ -138,8 +181,9 @@ export async function updateUserSettings(userId: number, patch: Partial<SessionU
   for (const key of ["notifyPayments", "notifyIncome", "notifyBudget", "notifyRisk"] as const) {
     if (typeof patch[key] === "boolean") allowed[key] = patch[key];
   }
-  if (Object.keys(allowed).length === 0) return;
-  await db.update(users).set(allowed).where(eq(users.id, userId));
+  if (Object.keys(allowed).length === 0) return { ok: true, message: "O'zgarish yo'q" };
+  await db.update(users).set(allowed).where(eq(users.id, user.id));
+  return { ok: true, message: "Sozlamalar saqlandi" };
 }
 
 export async function findUserById(id: number) {

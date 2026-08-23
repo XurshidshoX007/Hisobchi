@@ -150,8 +150,16 @@ export async function processImageMessage(input: ImageIntakeInput): Promise<Imag
   const intakeId = claimed[0].id;
 
   const today = todayISO();
-  const categories = await userCategories(user.id);
-  const analysis = await analyzeFinancialImage(downloaded.image, { today, categories, provider: input.provider });
+  let analysis: Awaited<ReturnType<typeof analyzeFinancialImage>>;
+  try {
+    const categories = await userCategories(user.id);
+    analysis = await analyzeFinancialImage(downloaded.image, { today, categories, provider: input.provider });
+  } catch (error) {
+    // The intake claim must not permanently blacklist the image when an
+    // unexpected dependency failure occurs before extraction completes.
+    await db.delete(imageIntakes).where(eq(imageIntakes.id, intakeId)).catch(() => undefined);
+    throw error;
+  }
 
   if (!analysis.ok) {
     // A failed intake is released so a clearer re-send of the same picture is
@@ -197,30 +205,36 @@ export async function processImageMessage(input: ImageIntakeInput): Promise<Imag
 
   const batchId = randomBytes(8).toString("hex");
   const expiresAt = new Date(Date.now() + DRAFT_TTL_MS);
-  const saved = await db
-    .insert(pendingDrafts)
-    .values(
-      analysis.drafts.map((draft) => ({
-        userId: user.id,
-        chatId,
-        messageId,
-        kind: draft.kind,
-        batchId,
-        payload: draft as unknown as Record<string, unknown>,
-        expiresAt,
-      })),
-    )
-    .returning({ id: pendingDrafts.id });
+  // Draft rows and the intake lifecycle transition are one atomic unit. A DB
+  // restart can no longer leave invisible drafts behind an intake that still
+  // says `processing` (or mark an intake extracted with no drafts).
+  const saved = await db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(pendingDrafts)
+      .values(
+        analysis.drafts.map((draft) => ({
+          userId: user.id,
+          chatId,
+          messageId,
+          kind: draft.kind,
+          batchId,
+          payload: draft as unknown as Record<string, unknown>,
+          expiresAt,
+        })),
+      )
+      .returning({ id: pendingDrafts.id });
 
-  await db
-    .update(imageIntakes)
-    .set({
-      status: "extracted",
-      batchId,
-      documentClass: analysis.documentClass,
-      entityCount: analysis.drafts.length,
-    })
-    .where(eq(imageIntakes.id, intakeId));
+    await tx
+      .update(imageIntakes)
+      .set({
+        status: "extracted",
+        batchId,
+        documentClass: analysis.documentClass,
+        entityCount: analysis.drafts.length,
+      })
+      .where(eq(imageIntakes.id, intakeId));
+    return rows;
+  });
 
   const items = saved.map((row, index) => ({ id: row.id, payload: analysis.drafts[index] }));
   const message = buildBatchMessage(items, {
