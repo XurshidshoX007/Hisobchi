@@ -16,15 +16,37 @@ require_env NEXT_PUBLIC_APP_URL
 require_env LOG_HASH_SECRET
 require_env NOTIFICATION_CRON_SECRET
 
+if [ "${#LOG_HASH_SECRET}" -lt 32 ]; then
+  echo "LOG_HASH_SECRET must be at least 32 characters" >&2
+  exit 1
+fi
+if [ "${#NOTIFICATION_CRON_SECRET}" -lt 32 ]; then
+  echo "NOTIFICATION_CRON_SECRET must be at least 32 characters" >&2
+  exit 1
+fi
+
 # Support canonical Railway names, while keeping TELEGRAM_* aliases compatible.
-if [ -z "${BOT_TOKEN:-${TELEGRAM_BOT_TOKEN:-}}" ]; then
+bot_token="${BOT_TOKEN:-${TELEGRAM_BOT_TOKEN:-}}"
+webhook_secret="${WEBHOOK_SECRET:-${TELEGRAM_WEBHOOK_SECRET:-}}"
+if [ -z "$bot_token" ]; then
   echo "Missing required environment variable: BOT_TOKEN" >&2
   exit 1
 fi
-if [ -z "${WEBHOOK_SECRET:-${TELEGRAM_WEBHOOK_SECRET:-}}" ]; then
+if [ -z "$webhook_secret" ]; then
   echo "Missing required environment variable: WEBHOOK_SECRET" >&2
   exit 1
 fi
+if [ -n "${WEBHOOK_SECRET:-}" ] && [ -n "${TELEGRAM_WEBHOOK_SECRET:-}" ] && [ "$WEBHOOK_SECRET" != "$TELEGRAM_WEBHOOK_SECRET" ]; then
+  echo "WEBHOOK_SECRET and TELEGRAM_WEBHOOK_SECRET must be identical" >&2
+  exit 1
+fi
+if [ "${#webhook_secret}" -lt 32 ] || [ "${#webhook_secret}" -gt 256 ]; then
+  echo "WEBHOOK_SECRET must be 32-256 characters" >&2
+  exit 1
+fi
+case "$webhook_secret" in
+  *[!A-Za-z0-9_-]*) echo "WEBHOOK_SECRET contains characters Telegram does not allow" >&2; exit 1 ;;
+esac
 
 if [ "${ALLOW_DEMO_IN_PRODUCTION:-false}" = "true" ]; then
   echo "ALLOW_DEMO_IN_PRODUCTION must not be enabled in production" >&2

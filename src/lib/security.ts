@@ -4,6 +4,8 @@ import { demoModeEnabled } from "./env";
 import { getRedis } from "./redis";
 
 type RateBucket = { count: number; resetAt: number };
+const MAX_MEMORY_RATE_BUCKETS = 10_000;
+let lastBucketSweep = 0;
 
 const globalSecurity = globalThis as typeof globalThis & {
   __pfosRateBuckets?: Map<string, RateBucket>;
@@ -96,8 +98,24 @@ export async function checkRateLimit(params: {
     warnMemoryFallback(params.scope, "unset");
   }
 
-  const key = `${params.scope}:${params.identity}`;
+  let key = `${params.scope}:${params.identity}`;
   let bucket = buckets.get(key);
+  if (!bucket && buckets.size >= MAX_MEMORY_RATE_BUCKETS) {
+    // During a Redis outage an attacker can spoof many identities. The old
+    // implementation scanned the entire map on every new key yet retained all
+    // active entries, producing O(n²) CPU and unbounded memory. Sweep at most
+    // once per second; if still full, fail closed through one overflow bucket.
+    if (now - lastBucketSweep >= 1_000) {
+      lastBucketSweep = now;
+      for (const [entryKey, entry] of buckets) {
+        if (entry.resetAt <= now) buckets.delete(entryKey);
+      }
+    }
+    if (buckets.size >= MAX_MEMORY_RATE_BUCKETS) {
+      key = `${params.scope}:__overflow__`;
+      bucket = buckets.get(key);
+    }
+  }
   if (!bucket || bucket.resetAt <= now) {
     bucket = { count: 0, resetAt: now + params.windowMs };
     buckets.set(key, bucket);
@@ -106,12 +124,6 @@ export async function checkRateLimit(params: {
   const remaining = Math.max(0, params.limit - bucket.count);
   const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
 
-  if (buckets.size > 10_000) {
-    for (const [entryKey, entry] of buckets) {
-      if (entry.resetAt <= now) buckets.delete(entryKey);
-      if (buckets.size <= 8_000) break;
-    }
-  }
   return { allowed: bucket.count <= params.limit, remaining, resetAt: bucket.resetAt, retryAfter };
 }
 

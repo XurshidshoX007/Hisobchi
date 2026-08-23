@@ -21,8 +21,10 @@ export async function GET(request: Request) {
       return rateLimitResponse(ipLimit.retryAfter, sec.requestId);
     }
 
-    const url = new URL(request.url);
-    const initData = request.headers.get("x-telegram-init-data") ?? url.searchParams.get("init_data") ?? null;
+    // initData is a short-lived bearer credential. Accept it only in a header;
+    // query strings are commonly retained in proxy access logs and browser
+    // history, which would turn a diagnostic URL into an authentication leak.
+    const initData = request.headers.get("x-telegram-init-data");
     const identity = await verifyInitData(initData);
     const user = await resolveUser(identity ?? undefined);
     if (!user) {

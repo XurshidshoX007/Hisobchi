@@ -1,12 +1,21 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { accounts, categories, users } from "@/db/schema";
 import { ensureSeed } from "./seed";
 import { INIT_DATA_MAX_AGE_SECONDS, demoModeEnabled, requireVerifiedIdentity, telegramBotToken } from "./env";
 import { MAX_MONEY } from "./money";
 import { bootstrapNewUser } from "./bootstrap-user";
 
 export type SessionUser = typeof users.$inferSelect;
+
+const globalUserBootstrap = globalThis as typeof globalThis & {
+  __hisobchiVerifiedBootstrapUsers?: Set<number>;
+};
+const verifiedBootstrapUsers =
+  globalUserBootstrap.__hisobchiVerifiedBootstrapUsers ?? new Set<number>();
+if (process.env.NODE_ENV !== "production") {
+  globalUserBootstrap.__hisobchiVerifiedBootstrapUsers = verifiedBootstrapUsers;
+}
 
 /**
  * Single source of truth for identity. A Telegram Mini App sends verified
@@ -22,9 +31,10 @@ export async function resolveUser(input?: {
   if (demoModeEnabled()) await ensureSeed();
 
   if (input?.telegramId) {
-    const existing = await db.select().from(users).where(eq(users.telegramId, input.telegramId)).limit(1);
-    if (existing[0]) return existing[0].isBlocked ? null : existing[0];
-    const created = await db
+    // Concurrent first updates can arrive on several Telegram webhook
+    // connections. The unique telegram_id index chooses one creator; losers
+    // read that same row instead of surfacing a unique-constraint 500.
+    const inserted = await db
       .insert(users)
       .values({
         telegramId: input.telegramId,
@@ -32,11 +42,27 @@ export async function resolveUser(input?: {
         lastName: input.lastName ?? null,
         username: input.username ?? null,
       })
+      .onConflictDoNothing({ target: users.telegramId })
       .returning();
-    // Seed the minimal financial world (cash account + categories) so the
-    // very first bot save works without additional setup.
-    await bootstrapNewUser(created[0].id);
-    return created[0];
+    const user =
+      inserted[0] ??
+      (await db.select().from(users).where(eq(users.telegramId, input.telegramId)).limit(1))[0];
+    if (!user || user.isBlocked) return null;
+
+    // A previous process/DB interruption may have committed the identity before
+    // older non-transactional bootstrap writes completed. Heal that state on
+    // the next request. Check once per user/process; the bootstrap itself locks
+    // the user and remains safe across replicas.
+    if (!verifiedBootstrapUsers.has(user.id)) {
+      const [account, category] = await Promise.all([
+        db.select({ id: accounts.id }).from(accounts).where(eq(accounts.userId, user.id)).limit(1),
+        db.select({ id: categories.id }).from(categories).where(eq(categories.userId, user.id)).limit(1),
+      ]);
+      if (!account[0] || !category[0]) await bootstrapNewUser(user.id);
+      if (verifiedBootstrapUsers.size >= 10_000) verifiedBootstrapUsers.clear();
+      verifiedBootstrapUsers.add(user.id);
+    }
+    return user;
   }
 
   // No verified identity — only allow demo user when demo mode is enabled.

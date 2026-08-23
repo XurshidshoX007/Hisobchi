@@ -163,39 +163,56 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const inFlightRef = useRef(false);
+  // Keep the key for an ambiguous network/5xx result. If the user retries the
+  // same operation, reusing this key is what turns a lost response into a safe
+  // idempotent replay instead of a second financial write. The signature stays
+  // in memory only (never localStorage), so notes/amounts are not persisted on
+  // the device.
+  const pendingMutationRef = useRef<{ signature: string; key: string; createdAt: number } | null>(null);
   const mutate = useCallback<FinanceContextValue["mutate"]>(
     async (entity, action, data = {}, options = {}) => {
-      // A double-click fires two parallel requests with two distinct
-      // idempotency keys — the server cannot see them as duplicates, so the
-      // client serializes: while one financial mutation is in flight the
-      // second click is ignored.
       if (inFlightRef.current) {
         return { ok: false, message: ERRORS.busy };
       }
       inFlightRef.current = true;
       setMutating(true);
+      const body = JSON.stringify({ entity, action, data, settings: options.settings });
+      const signature = body;
+      const previous = pendingMutationRef.current;
+      const canReuse = previous && previous.signature === signature && Date.now() - previous.createdAt < 24 * 60 * 60 * 1000;
+      const pending = canReuse
+        ? previous
+        : { signature, key: crypto.randomUUID(), createdAt: Date.now() };
+      pendingMutationRef.current = pending;
       try {
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
-          // One key per deliberate user action. If the browser/network retries
-          // this same HTTP request, the server rejects a duplicate mutation.
-          "Idempotency-Key": crypto.randomUUID(),
+          "Idempotency-Key": pending.key,
         };
         if (initDataRef.current) headers["x-telegram-init-data"] = initDataRef.current;
         const res = await fetch("/api/mutate", {
           method: "POST",
           headers,
-          body: JSON.stringify({ entity, action, data, settings: options.settings }),
+          body,
         });
         const json = (await res.json()) as {
           ok: boolean;
           message?: string;
           state?: AppState;
+          code?: string;
         };
         if (json.state) setState(json.state);
+        // 5xx and request_in_progress are ambiguous/retriable, so preserve the
+        // key. Every definitive success or client/business rejection closes the
+        // operation and the next deliberate action receives a fresh key.
+        if (res.status < 500 && json.code !== "request_in_progress") {
+          pendingMutationRef.current = null;
+        }
         if (!options.silent) toast(json.message ?? (json.ok ? "Saqlandi" : ERRORS.save), json.ok ? "success" : "error");
         return { ok: json.ok, message: json.message ?? "" };
       } catch {
+        // Keep pendingMutationRef: the server may have committed before the
+        // response was lost. A repeat submit must use the same key.
         toast(ERRORS.connection, "error");
         return { ok: false, message: ERRORS.connection };
       } finally {

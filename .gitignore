@@ -2,5 +2,17 @@ node_modules/
 .next/
 *.tsbuildinfo
 next-env.d.ts
-.env
-.env.local
+
+# Never allow Next.js/Railway environment variants into source control.
+.env*
+!.env.example
+
+# Common credential material.
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+.npmrc
+
+coverage/

@@ -1239,7 +1239,17 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               note: str(d.note),
               status: remainingAmount === 0 ? "settled" : "active",
             })
-            .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false)))
+            .where(
+              and(
+                eq(debts.id, id),
+                eq(debts.userId, userId),
+                eq(debts.isDeleted, false),
+                // Optimistic financial-state guard: a concurrent repayment must
+                // win rather than being overwritten by this stale edit.
+                eq(debts.amount, existing[0].amount),
+                eq(debts.remainingAmount, existing[0].remainingAmount),
+              ),
+            )
             .returning({ id: debts.id });
           if (!debtRow) return null;
 
@@ -1382,7 +1392,16 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           const [debtRow] = await tx
             .update(debts)
             .set({ isDeleted: true, status: "settled" })
-            .where(and(eq(debts.id, id), eq(debts.userId, userId), eq(debts.isDeleted, false), eq(debts.amount, existing[0].remainingAmount)))
+            .where(
+              and(
+                eq(debts.id, id),
+                eq(debts.userId, userId),
+                eq(debts.isDeleted, false),
+                // Evaluate the no-payment invariant on the current locked row,
+                // not by comparing amount with a stale preflight value.
+                sql`${debts.amount} = ${debts.remainingAmount}`,
+              ),
+            )
             .returning({ id: debts.id });
           if (!debtRow) return null;
           const [linkedOpening] = await tx

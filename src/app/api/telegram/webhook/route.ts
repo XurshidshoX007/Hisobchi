@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -24,10 +24,17 @@ import type { ImageDraft } from "@/lib/image/types";
 import { appUrl, demoModeEnabled, isProduction, telegramWebhookSecret } from "@/lib/env";
 import { writeAudit, writeSecurityEvent } from "@/lib/audit";
 import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from "@/lib/security";
-import { createHash } from "node:crypto";
 import { shortDate } from "@/lib/money";
+import { classifyWebhookFailure } from "@/lib/webhook-failure";
 
 export const dynamic = "force-dynamic";
+
+function secretMatches(supplied: string | null, expected: string): boolean {
+  if (!supplied) return false;
+  const left = Buffer.from(supplied);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
 type TelegramUpdate = {
   update_id: number;
@@ -61,7 +68,7 @@ export async function POST(request: Request) {
       securityLog("error", "webhook_secret_missing", { requestId: sec.requestId, ipKey: sec.ipKey });
       return NextResponse.json({ ok: false }, { status: 503 });
     }
-    if (secret && request.headers.get("x-telegram-bot-api-secret-token") !== secret) {
+    if (secret && !secretMatches(request.headers.get("x-telegram-bot-api-secret-token"), secret)) {
       void writeSecurityEvent({ event: "webhook_secret_rejected", severity: "critical", requestId: sec.requestId, ipHash: sec.ipKey });
       return NextResponse.json({ ok: false }, { status: 401 });
     }
@@ -423,31 +430,55 @@ export async function POST(request: Request) {
                 .digest("hex");
               const idemKey = `schedule:${fingerprint.slice(0, 32)}`;
               const scope = "payment_schedule";
-              // Try to claim idempotency
-              let isDuplicate = false;
+              // Claim idempotency. A database error is NOT evidence of a
+              // duplicate: treating a timeout as "already saved" can confirm a
+              // draft whose credit plan was never created.
+              let claimedIdem: Array<{ id: number }>;
               try {
-                const claimedIdem = await db
+                claimedIdem = await db
                   .insert(idempotencyKeys)
                   .values({ userId: user.id, key: idemKey, scope, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) })
                   .onConflictDoNothing()
                   .returning({ id: idempotencyKeys.id });
-                if (!claimedIdem[0]) {
-                  isDuplicate = true;
-                }
               } catch {
-                isDuplicate = true;
-              }
-              if (isDuplicate) {
                 await db
                   .update(pendingDrafts)
-                  .set({ status: "confirmed", resolvedAt: new Date() })
-                  .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
-                ack = SCHEDULE.duplicateSaved;
+                  .set({ status: "pending", resolvedAt: null })
+                  .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")))
+                  .catch(() => undefined);
+                throw new Error("schedule_idempotency_claim_failed");
+              }
+              if (!claimedIdem[0]) {
+                const existingClaim = await db
+                  .select({ status: idempotencyKeys.status })
+                  .from(idempotencyKeys)
+                  .where(and(eq(idempotencyKeys.userId, user.id), eq(idempotencyKeys.key, idemKey), eq(idempotencyKeys.scope, scope)))
+                  .limit(1);
+                if (existingClaim[0]?.status === "completed") {
+                  await db
+                    .update(pendingDrafts)
+                    .set({ status: "confirmed", resolvedAt: new Date() })
+                    .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
+                  ack = SCHEDULE.duplicateSaved;
+                } else {
+                  // An old `processing` claim is ambiguous: it may represent a
+                  // transaction whose COMMIT acknowledgement was lost. Keep the
+                  // draft retryable and never assert that money was saved.
+                  await db
+                    .update(pendingDrafts)
+                    .set({ status: "pending", resolvedAt: null })
+                    .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
+                  ack = ACK.failed("Oldingi saqlash holati tekshirilmoqda. Keyinroq qayta urinib ko‘ring.");
+                }
               } else {
                 // §8/§9/§10: the whole schedule is saved by ONE atomic business
                 // operation in the shared mutation layer — one `term` plan plus
                 // every installment, all-or-nothing. No per-installment
                 // one_time plans are created here anymore.
+                // Validation failures return {ok:false}; dependency/COMMIT
+                // ambiguity must throw and KEEP the processing idempotency row.
+                // Converting every exception to a normal rejection would delete
+                // the claim and permit a duplicate credit plan on retry.
                 let created: { ok: boolean; message: string; id?: number };
                 try {
                   created = await createCreditTermPlan(user, {
@@ -455,8 +486,13 @@ export async function POST(request: Request) {
                     installments: payload.items,
                     isMandatory: true,
                   });
-                } catch {
-                  created = { ok: false, message: "Saqlanmadi. Qayta urinib ko‘ring." };
+                } catch (error) {
+                  await db
+                    .update(pendingDrafts)
+                    .set({ status: "pending", resolvedAt: null })
+                    .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")))
+                    .catch(() => undefined);
+                  throw error;
                 }
                 if (!created.ok) {
                   await db
@@ -468,7 +504,7 @@ export async function POST(request: Request) {
                 } else {
                   await db
                     .update(idempotencyKeys)
-                    .set({ status: "completed" })
+                    .set({ status: "completed", resultId: created.id ?? null })
                     .where(and(eq(idempotencyKeys.userId, user.id), eq(idempotencyKeys.key, idemKey), eq(idempotencyKeys.scope, scope)));
                   await db
                     .update(pendingDrafts)
@@ -854,25 +890,41 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const code = error instanceof SyntaxError ? "invalid_json" : "internal";
+    const failure = classifyWebhookFailure(error);
     // Release the update claim after an internal/database failure so Telegram
     // can retry it. Draft status transitions remain atomic and prevent a retry
-    // from creating a second transaction.
-    if (claimedUpdateId !== null) {
-      await db.delete(telegramUpdates).where(eq(telegramUpdates.updateId, claimedUpdateId)).catch(() => undefined);
+    // from creating a second transaction. If Postgres is still unavailable,
+    // emit an explicit secondary-failure signal instead of silently swallowing
+    // the stuck claim.
+    if (claimedUpdateId !== null && failure.code !== "invalid_json") {
+      try {
+        await db.delete(telegramUpdates).where(eq(telegramUpdates.updateId, claimedUpdateId));
+      } catch {
+        securityLog("error", "webhook_claim_release_failed", {
+          requestId: sec.requestId,
+          userId: resolvedUserId,
+          ipKey: sec.ipKey,
+          code: "database",
+        });
+      }
     }
-    securityLog("error", "webhook_error", { requestId: sec.requestId, userId: resolvedUserId, ipKey: sec.ipKey, code });
+    securityLog("error", "webhook_error", {
+      requestId: sec.requestId,
+      userId: resolvedUserId,
+      ipKey: sec.ipKey,
+      code: failure.code,
+    });
     void writeSecurityEvent({
       userId: resolvedUserId,
       event: "telegram_webhook_error",
       severity: "warning",
       requestId: sec.requestId,
       ipHash: sec.ipKey,
-      metadata: { code },
+      metadata: { code: failure.code },
     });
-    // A malformed update is poison and must not be retried forever. A claimed
-    // update that hit a database/internal error is retriable and returns 500.
-    // Telegram API delivery failures are logged by telegramApi.
-    return NextResponse.json({ ok: claimedUpdateId === null }, { status: claimedUpdateId === null ? 200 : 500 });
+    // A malformed body is poison and must not be retried forever. Crucially,
+    // claim absence does NOT imply malformed input: Postgres can fail before
+    // the INSERT returns. Every non-syntax failure therefore returns 500.
+    return NextResponse.json({ ok: failure.code === "invalid_json" }, { status: failure.status });
   }
 }

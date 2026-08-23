@@ -1,5 +1,13 @@
 # Hisobchi — Senior Audit va Optimallashtirish Rejasi
 
+> **2026-08-23 forensic correction:** bu hujjatdagi “healthcheck restart-loop
+> aniqlandi” xulosasi runtime loglari bilan tasdiqlanmagan. Railway HTTP
+> healthcheck'i deploy vaqtida ishlaydi; u continuous monitor emas. Docker
+> `HEALTHCHECK` esa o'zi restart siyosati emas. Endpointni yengillashtirish foydali
+> hardening bo'lsa-da, uni production restartlarining tasdiqlangan root cause'i
+> deb bo'lmaydi. To'liq evidence/severity tahlili:
+> [`PRODUCTION-FORENSIC-AUDIT.md`](./PRODUCTION-FORENSIC-AUDIT.md).
+
 Sana: 2026-08-22. Muammo: **"loyiha uxlab qolyapti"** — bot/Mini App birinchi
 murojaatda javob bermaydi yoki juda sekin uyg'onadi.
 
@@ -10,20 +18,18 @@ murojaatda javob bermaydi yoki juda sekin uyg'onadi.
 Kodni to'liq o'rganib chiqib, uch mustaqil sabab aniqlandi. Uchchalasi ham
 tashqaridan bir xil ko'rinadi ("bot o'lik"), lekin davosi har xil:
 
-### 1.1. Healthcheck restart-loop (eng xavflisi — kodda edi, TUZATILDI)
+### 1.1. Og'ir health endpoint (kodda edi, yengillashtirildi; restart RCA EMAS)
 
-`railway.json` va `Dockerfile` HEALTHCHECK ikkalasi ham `/api/health` ni
-so'rar edi. Bu endpoint har chaqiruvda **Telegram Bot API'ga ikkita tashqi
-so'rov** yuboradi (`getMe` + `getWebhookInfo`, har biri 2.5 s timeout) hamda
-Redis ping qiladi. Docker HEALTHCHECK timeout'i esa 5 sekund:
+`railway.json` va Docker `HEALTHCHECK` ikkalasi ham `/api/health` ni so'rar
+edi. Bu endpoint Telegram Bot API'ga ikkita tashqi so'rov yuboradi va Redis'ni
+tekshiradi; uni yengillashtirish deploy readiness va health signalini tashqi
+servis latency'sidan ajratdi.
 
-- Telegram API sekinlashsa yoki tarmoq titrasa → probe 5 s ichida ulgurmaydi;
-- 3 marta ketma-ket fail → konteyner **restart** bo'ladi;
-- restart paytida kelgan webhook update'lar yo'qoladi/kechikadi;
-- foydalanuvchi uchun bu xuddi "uxlab qolgan" bot.
-
-Sog'lom konteynerning taqdiri tashqi servisning (api.telegram.org) kayfiyatiga
-bog'lab qo'yilgan edi — bu liveness-probe antipatterni.
+Lekin oldingi “3 fail → Railway production konteyneri restart bo'ladi” zanjiri
+repository yoki runtime log bilan isbotlanmagan. Railway HTTP healthcheck'i yangi
+deploymentni faollashtirish vaqtida ishlaydi, continuous monitor emas; Docker
+`HEALTHCHECK` ham yolg'iz o'zi restart policy emas. Shuning uchun bu change
+**hardening**, production restartining tasdiqlangan root cause'i emas.
 
 ### 1.2. Railway App Sleeping / tarif (infra — Railway panelda tekshiriladi)
 
@@ -47,8 +53,8 @@ hisoblaydi. Ma'lumot ko'paygan sari bu chiziqli sekinlashadi; Mini App ochilishi
 
 | # | O'zgarish | Fayl |
 |---|---|---|
-| 1 | Yangi **minimal liveness endpoint** `/api/health/live` — faqat process + `SELECT 1` (DB). Telegram/Redis'ga chiqmaydi, millisekundlarda javob beradi | `src/app/api/health/live/route.ts` (yangi) |
-| 2 | Railway healthcheck va Docker HEALTHCHECK endi `/api/health/live` ni so'raydi — restart qarori faqat shu yengil probe asosida | `railway.json`, `Dockerfile` |
+| 1 | Yangi yengil **deployment readiness** endpoint `/api/health/live` — process + `SELECT 1` (DB), Telegram/Redis'ga chiqmaydi | `src/app/api/health/live/route.ts` (yangi) |
+| 2 | Railway healthcheck va Docker HEALTHCHECK endi `/api/health/live` ni so'raydi; bu tashqi dependency latency'sini health signalidan ajratadi | `railway.json`, `Dockerfile` |
 | 3 | `"sleepApplication": false` — Railway config-as-code darajasida uxlash taqiqlandi | `railway.json` |
 | 4 | `telegramHealth()` natijasi **60 s kesh**lanadi (in-flight dedup bilan) — `/api/health` ni dashboard poll qilsa ham Bot API'ga so'rovlar to'planmaydi. Xato natija keshlanmaydi | `src/lib/telegram.ts` |
 | 5 | Hujjat: liveness vs deep-diagnostics farqi, App Sleeping tekshiruv checklisti | `RAILWAY_DEPLOYMENT.md` |
@@ -62,9 +68,9 @@ Tekshirildi: `tsc --noEmit` ✅, `eslint` ✅, `npm test` (360/360) ✅,
    tasdiqlash.
 2. Servis **always-on ruxsat beradigan tarifda** ekanini tekshirish (Trial
    kredit tugagan bo'lsa — bu asosiy sabab bo'lishi mumkin).
-3. `Deployments → Logs`da restart-loop bor-yo'qligini ko'rish — eski
-   deploy'larda healthcheck-fail restartlari ko'ringan bo'lishi kerak; yangi
-   deploy'dan keyin yo'qolishi lozim.
+3. `Deployments → Logs`, runtime exit code va resource graphlarini bir xil UTC
+   timestamp bo'yicha tekshirish. Healthcheck failure'ni restart sababi deb
+   faqat platform event/log buni ko'rsatsa belgilash.
 
 ---
 
@@ -138,8 +144,9 @@ kuzatish). "Sekin" degan shikoyat kelganda taxmin emas, o'lchov bo'ladi.
 
 ## 4. Xulosa
 
-"Uxlab qolish"ning kod ichidagi ildizi — og'ir `/api/health`ga bog'langan
-restart-loop — **shu branch'da tuzatildi**. Infra tomondan App Sleeping va
-tarif holatini Railway panelda bir marta tekshirish shart (2-bo'lim, 3 qadam).
-Keyingi bosqichda P0 bandlari (state payload, cleanup, dispatcher) tizimni
-foydalanuvchi soni o'sganda ham barqaror ushlab turadi.
+Og'ir `/api/health` dependency'si yengillashtirildi, lekin “uxlab qolish”ning
+production root cause'i runtime exit/resource/deployment loglarisiz
+**UNKNOWN / NEEDS VERIFICATION**. App Sleeping, tarif, process exit va Postgres
+restart vaqtlarini bir timeline'da tekshirish shart. Keyingi P0 bandlari (state
+payload, cleanup, dispatcher) tizimni foydalanuvchi soni o'sganda barqaror
+ushlab turadi.
