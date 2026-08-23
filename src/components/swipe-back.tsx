@@ -9,7 +9,8 @@
  * page springs back to its original position.
  *
  * Only fires on touch devices within the safe left-edge zone (first 24 px)
- * so it never competes with horizontal scroll or swipeable controls.
+ * so it never competes with horizontal scroll or swipeable controls (such as
+ * History row swipe-actions or the /plans TabSwipe gesture).
  */
 
 import { useRouter } from "next/navigation";

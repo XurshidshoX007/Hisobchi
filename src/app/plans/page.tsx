@@ -8,6 +8,7 @@ import { CashFlowStrip, ForecastArea } from "@/components/charts";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { PlanStatusFilter } from "@/components/plan-status-filter";
+import { TabSwipe } from "@/components/tab-swipe";
 import {
   AdvancedSection,
   AmountField,
@@ -50,6 +51,8 @@ import { filterPlansByTab, monthCashflow, monthPlanned, nextCreditInstallment } 
 import type { ExpectedIncomeView, Forecast, PlanLifecycle, PlanListTab, RecurringView } from "@/lib/finance";
 
 type Tab = "payments" | "income" | "cashflow";
+
+export const TAB_ORDER: readonly Tab[] = ["payments", "income", "cashflow"] as const;
 
 /** Actions a payment-plan row can emit, keyed by lifecycle status. */
 type PlanRowAction = "pay" | "toggle" | "restore" | "edit" | "cancel" | "history";
@@ -265,162 +268,171 @@ export default function PlansPage() {
         />
       </div>
 
-      {tab === "payments" ? (
-        <div className="space-y-3 sm:space-y-3.5">
-          {/*
-           * §4: no monthly load / nearest-payment summary card here. Every number
-           * it displayed still lives in `state.currentMonthPlan` and the finance
-           * layer (used by the Dashboard and Pul oqimi) — only the UI is removed,
-           * so the payment list starts right under the tabs.
-           */}
-          <div className="flex min-h-11 items-center justify-between gap-3">
-            <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">To‘lovlar</h2>
-            <PlanStatusFilter value={planTab} onChange={setPlanTab} kind="payments" />
-          </div>
+      <TabSwipe
+        value={tab}
+        order={TAB_ORDER}
+        onChange={setTab}
+        render={(tab) => (
+          <>
+            {tab === "payments" ? (
+              <div className="space-y-3 sm:space-y-3.5">
+                {/*
+                 * §4: no monthly load / nearest-payment summary card here. Every number
+                 * it displayed still lives in `state.currentMonthPlan` and the finance
+                 * layer (used by the Dashboard and Pul oqimi) — only the UI is removed,
+                 * so the payment list starts right under the tabs.
+                 */}
+                <div className="flex min-h-11 items-center justify-between gap-3">
+                  <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">To‘lovlar</h2>
+                  <PlanStatusFilter value={planTab} onChange={setPlanTab} kind="payments" />
+                </div>
 
-          {planTab === "open" ? (
-            activePlans.length || pausedPlans.length ? (
-              <div className="space-y-3">
-                {activePlans.length ? (
+                {planTab === "open" ? (
+                  activePlans.length || pausedPlans.length ? (
+                    <div className="space-y-3">
+                      {activePlans.length ? (
+                        <PlanRowList>
+                          {activePlans.map((r) => (
+                            <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
+                          ))}
+                        </PlanRowList>
+                      ) : null}
+                      {pausedPlans.length ? (
+                        <>
+                          <SectionLabel>Pauzadagi rejalar · {pausedPlans.length} ta</SectionLabel>
+                          <PlanRowList>
+                            {pausedPlans.map((r) => (
+                              <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
+                            ))}
+                          </PlanRowList>
+                        </>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <EmptyState
+                      icon="📌"
+                      title="Rejalashtirilgan to‘lovlar yo‘q."
+                      description="Pastdagi + tugmasi orqali to‘lov rejasini qo‘shing."
+                    />
+                  )
+                ) : tabbedPlans && tabbedPlans.length ? (
                   <PlanRowList>
-                    {activePlans.map((r) => (
+                    {tabbedPlans.map((r) => (
                       <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
                     ))}
                   </PlanRowList>
-                ) : null}
-                {pausedPlans.length ? (
-                  <>
-                    <SectionLabel>Pauzadagi rejalar · {pausedPlans.length} ta</SectionLabel>
-                    <PlanRowList>
-                      {pausedPlans.map((r) => (
-                        <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
-                      ))}
-                    </PlanRowList>
-                  </>
-                ) : null}
+                ) : (
+                  <EmptyState
+                    icon={planTab === "cancelled" ? "🚫" : planTab === "completed" ? "🏁" : "❚❚"}
+                    title={
+                      planTab === "paused"
+                        ? "Pauzadagi reja yo‘q"
+                        : planTab === "completed"
+                          ? "Yakunlangan reja yo‘q"
+                          : "Bekor qilingan reja yo‘q"
+                    }
+                    description={
+                      planTab === "paused"
+                        ? "Pauzadagi reja prognozga qo‘shilmaydi."
+                        : planTab === "completed"
+                          ? "Muddatli reja tugagach shu yerga tushadi."
+                          : "Bekor qilingan reja tarixda saqlanadi."
+                    }
+                    action={
+                      <Button type="button" variant="secondary" onClick={() => setPlanTab("open")}>
+                        Faol rejalar
+                      </Button>
+                    }
+                  />
+                )}
               </div>
-            ) : (
-              <EmptyState
-                icon="📌"
-                title="Rejalashtirilgan to‘lovlar yo‘q."
-                description="Pastdagi + tugmasi orqali to‘lov rejasini qo‘shing."
-              />
-            )
-          ) : tabbedPlans && tabbedPlans.length ? (
-            <PlanRowList>
-              {tabbedPlans.map((r) => (
-                <PaymentPlanRow key={r.id} plan={r} onAction={handlePlanAction} onMenu={setMenuPlan} />
-              ))}
-            </PlanRowList>
-          ) : (
-            <EmptyState
-              icon={planTab === "cancelled" ? "🚫" : planTab === "completed" ? "🏁" : "❚❚"}
-              title={
-                planTab === "paused"
-                  ? "Pauzadagi reja yo‘q"
-                  : planTab === "completed"
-                    ? "Yakunlangan reja yo‘q"
-                    : "Bekor qilingan reja yo‘q"
-              }
-              description={
-                planTab === "paused"
-                  ? "Pauzadagi reja prognozga qo‘shilmaydi."
-                  : planTab === "completed"
-                    ? "Muddatli reja tugagach shu yerga tushadi."
-                    : "Bekor qilingan reja tarixda saqlanadi."
-              }
-              action={
-                <Button type="button" variant="secondary" onClick={() => setPlanTab("open")}>
-                  Faol rejalar
-                </Button>
-              }
-            />
-          )}
-        </div>
-      ) : null}
+            ) : null}
 
-      {tab === "income" ? (
-        <div className="space-y-3 sm:space-y-3.5">
-          {/*
-           * §3: no monthly income summary card here. The forecast/expected-income
-           * figures still exist in `state.currentMonthIncome` / `state.forecast`
-           * and are consumed by the Dashboard and Pul oqimi — only this UI block
-           * is gone, so the plan list starts right under the tabs.
-           */}
-          <div className="flex min-h-11 items-center justify-between gap-3">
-            <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">Daromad rejalari</h2>
-            <PlanStatusFilter value={incomeTab} onChange={setIncomeTab} kind="income" />
-          </div>
+            {tab === "income" ? (
+              <div className="space-y-3 sm:space-y-3.5">
+                {/*
+                 * §3: no monthly income summary card here. The forecast/expected-income
+                 * figures still exist in `state.currentMonthIncome` / `state.forecast`
+                 * and are consumed by the Dashboard and Pul oqimi — only this UI block
+                 * is gone, so the plan list starts right under the tabs.
+                 */}
+                <div className="flex min-h-11 items-center justify-between gap-3">
+                  <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">Daromad rejalari</h2>
+                  <PlanStatusFilter value={incomeTab} onChange={setIncomeTab} kind="income" />
+                </div>
 
-          {incomeTab === "open" ? (
-            activeIncomePlans.length || pausedIncomePlans.length ? (
-              <div className="space-y-3">
-                {activeIncomePlans.length ? (
+                {incomeTab === "open" ? (
+                  activeIncomePlans.length || pausedIncomePlans.length ? (
+                    <div className="space-y-3">
+                      {activeIncomePlans.length ? (
+                        <PlanRowList>
+                          {activeIncomePlans.map((i) => (
+                            <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
+                          ))}
+                        </PlanRowList>
+                      ) : null}
+                      {pausedIncomePlans.length ? (
+                        <>
+                          <SectionLabel>Pauzadagi rejalar · {pausedIncomePlans.length} ta</SectionLabel>
+                          <PlanRowList>
+                            {pausedIncomePlans.map((i) => (
+                              <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
+                            ))}
+                          </PlanRowList>
+                        </>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <EmptyState
+                      icon="💰"
+                      title="Daromadlar hali kiritilmagan."
+                      description="Pastdagi + tugmasi orqali kutilayotgan daromadni qo‘shing."
+                    />
+                  )
+                ) : tabbedIncomePlans && tabbedIncomePlans.length ? (
                   <PlanRowList>
-                    {activeIncomePlans.map((i) => (
+                    {tabbedIncomePlans.map((i) => (
                       <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
                     ))}
                   </PlanRowList>
-                ) : null}
-                {pausedIncomePlans.length ? (
-                  <>
-                    <SectionLabel>Pauzadagi rejalar · {pausedIncomePlans.length} ta</SectionLabel>
-                    <PlanRowList>
-                      {pausedIncomePlans.map((i) => (
-                        <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
-                      ))}
-                    </PlanRowList>
-                  </>
-                ) : null}
+                ) : (
+                  <EmptyState
+                    icon={incomeTab === "cancelled" ? "🚫" : incomeTab === "completed" ? "🏁" : "❚❚"}
+                    title={
+                      incomeTab === "paused"
+                        ? "Pauzadagi daromad rejasi yo‘q"
+                        : incomeTab === "completed"
+                          ? "Yakunlangan daromad rejasi yo‘q"
+                          : "Bekor qilingan daromad rejasi yo‘q"
+                    }
+                    description={
+                      incomeTab === "paused"
+                        ? "Pauzadagi daromad prognozga qo‘shilmaydi."
+                        : incomeTab === "completed"
+                          ? "Muddatli daromad tugagach shu yerga tushadi."
+                          : "Bekor qilingan reja tarixda saqlanadi."
+                    }
+                    action={
+                      <Button type="button" variant="secondary" onClick={() => setIncomeTab("open")}>
+                        Faol rejalar
+                      </Button>
+                    }
+                  />
+                )}
               </div>
-            ) : (
-              <EmptyState
-                icon="💰"
-                title="Daromadlar hali kiritilmagan."
-                description="Pastdagi + tugmasi orqali kutilayotgan daromadni qo‘shing."
-              />
-            )
-          ) : tabbedIncomePlans && tabbedIncomePlans.length ? (
-            <PlanRowList>
-              {tabbedIncomePlans.map((i) => (
-                <IncomePlanRow key={i.id} plan={i} onAction={handleIncomeAction} onMenu={setMenuIncome} />
-              ))}
-            </PlanRowList>
-          ) : (
-            <EmptyState
-              icon={incomeTab === "cancelled" ? "🚫" : incomeTab === "completed" ? "🏁" : "❚❚"}
-              title={
-                incomeTab === "paused"
-                  ? "Pauzadagi daromad rejasi yo‘q"
-                  : incomeTab === "completed"
-                    ? "Yakunlangan daromad rejasi yo‘q"
-                    : "Bekor qilingan daromad rejasi yo‘q"
-              }
-              description={
-                incomeTab === "paused"
-                  ? "Pauzadagi daromad prognozga qo‘shilmaydi."
-                  : incomeTab === "completed"
-                    ? "Muddatli daromad tugagach shu yerga tushadi."
-                    : "Bekor qilingan reja tarixda saqlanadi."
-              }
-              action={
-                <Button type="button" variant="secondary" onClick={() => setIncomeTab("open")}>
-                  Faol rejalar
-                </Button>
-              }
-            />
-          )}
-        </div>
-      ) : null}
+            ) : null}
 
-      {tab === "cashflow" ? (
-        <CashflowTab
-          forecast={f}
-          monthLabel={state.monthly?.find((m) => m.monthKey === cashMonth)?.label ?? cashMonth}
-          cashMonth={cashMonth}
-          setCashMonth={setCashMonth}
-        />
-      ) : null}
+            {tab === "cashflow" ? (
+              <CashflowTab
+                forecast={f}
+                monthLabel={state.monthly?.find((m) => m.monthKey === cashMonth)?.label ?? cashMonth}
+                cashMonth={cashMonth}
+                setCashMonth={setCashMonth}
+              />
+            ) : null}
+          </>
+        )}
+      />
 
       <RecurringSheet open={sheet === "recurring"} onClose={closeSheet} editing={editing} />
       <IncomeSheet open={sheet === "income"} onClose={closeSheet} editing={editingIncome} />
@@ -1053,7 +1065,7 @@ function CashflowTab({
               </div>
             </div>
 
-            <div className="overflow-x-auto border-t border-line pt-3">
+            <div data-tab-swipe-ignore className="overflow-x-auto border-t border-line pt-3">
               <CashFlowStrip data={days} />
             </div>
           </>

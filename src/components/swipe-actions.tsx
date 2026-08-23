@@ -23,8 +23,9 @@
  * committed `open` boolean changes. `touch-action: pan-y` keeps vertical
  * scrolling native; once a drag locks horizontal, move events are
  * preventDefaulted so the page cannot scroll mid-swipe. No coordination with
- * <SwipeBack> is needed: that gesture is edge-gated and stays disabled on
- * the /transactions tab (see lib/navigation.ts).
+ * <SwipeBack> or <TabSwipe> is needed: that gesture is edge-gated and stays
+ * disabled on the /transactions tab, while tab swipe is scoped to /plans
+ * (see lib/navigation.ts and docs/PLANS-TAB-SWIPE.md).
  */
 
 import { type ReactNode, useEffect, useRef } from "react";
@@ -52,7 +53,7 @@ const SNAP_RATIO = 0.45;
  */
 const ACTIVATE_EVENT = "hisobchi:swipe-row-activate";
 
-function lightImpact() {
+export function lightImpact() {
   // Telegram WebView only: a soft mechanical tick when a row snaps open.
   // Optional everywhere and never fatal outside Telegram.
   try {
