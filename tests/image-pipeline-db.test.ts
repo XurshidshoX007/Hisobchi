@@ -46,6 +46,8 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
   const { processImageMessage } = await import("../src/lib/image/pipeline");
   const { applyDraft } = await import("../src/lib/drafts");
   const { StaticVisionProvider, FailingVisionProvider } = await import("../src/lib/image/provider");
+  const { IMAGE_DUPLICATE_TEXT, IMAGE_RATE_LIMITED_TEXT, failureTextFor } = await import("../src/lib/image/ux");
+  const { addDays, todayISO } = await import("../src/lib/money");
   const { buildAppState } = await import("../src/lib/state");
 
   /* --- Telegram download is injected: no bot token, no network, no bytes. --- */
@@ -170,7 +172,7 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
     assert.equal(outcome.ok, false);
     if (outcome.ok) return;
     assert.equal(outcome.event, "image_duplicate");
-    assert.match(outcome.text, /avval qayta ishlangan/);
+    assert.equal(outcome.text, IMAGE_DUPLICATE_TEXT);
 
     assert.equal(await txCount(), 4, "no duplicate transactions");
     const pending = await db
@@ -223,10 +225,14 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
   await t.test("an expected advance becomes expectedIncome, not real income", async () => {
     nextContentHash = "hash-income";
     const before = await balance();
+    // Keep this acceptance test future-dated on every calendar day. A fixed
+    // "20 avgust" became historical after the original authoring date and
+    // correctly changed semantics from expected income to a real transaction.
+    const expectedDate = addDays(todayISO(), 2);
     const outcome = await processImageMessage({
       ...baseInput,
       messageId: 4,
-      provider: new StaticVisionProvider(["20 avgust", "Avans", "3 000 000"]),
+      provider: new StaticVisionProvider([expectedDate, "Kutilayotgan avans", "3 000 000"]),
     });
     assert.equal(outcome.ok, true);
     if (!outcome.ok) return;
@@ -310,7 +316,7 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
     assert.equal(failed.ok, false);
     if (failed.ok) return;
     assert.equal(failed.event, "image_processing_timeout");
-    assert.match(failed.text, /vaqt oldi|uzoq davom etdi/);
+    assert.equal(failed.text, failureTextFor("timeout"));
 
     const intakesAfter = await db.select().from(imageIntakes).where(eq(imageIntakes.userId, user.id));
     assert.equal(intakesAfter.length, intakesBefore[0].count, "the failed intake row is released");
@@ -353,7 +359,7 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
     assert.equal(outcome.ok, false);
     if (outcome.ok) return;
     assert.equal(outcome.event, "vision_quota_exhausted");
-    assert.match(outcome.text, /limiti tugagan/);
+    assert.equal(outcome.text, failureTextFor("quota_exhausted"));
     assert.doesNotMatch(outcome.text, /navbat|yuklama yuqori|429/i);
   });
 
@@ -367,7 +373,7 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
     assert.equal(outcome.ok, false);
     if (outcome.ok) return;
     assert.equal(outcome.event, "image_provider_auth_error");
-    assert.match(outcome.text, /API kalit/i);
+    assert.equal(outcome.text, failureTextFor("auth_error"));
     assert.doesNotMatch(outcome.text, /hozircha yoqilmagan/i);
   });
 
@@ -398,7 +404,7 @@ test("image pipeline database lifecycle", { skip }, async (t) => {
       }
     }
     assert.ok(limited, "the per-user image rate limit engages");
-    assert.match(limited!, /Juda ko'p rasm/);
+    assert.equal(limited, IMAGE_RATE_LIMITED_TEXT);
   });
 
   /* ================= 8. MINI APP SEES EVERYTHING (§27) ================= */

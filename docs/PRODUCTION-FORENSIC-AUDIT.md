@@ -82,7 +82,7 @@ Bajarilgan tekshiruv natijalari:
 | duplication (`jscpd`) | 18 clone, 0.96% duplicated lines |
 | Git tarixi secret scan | real credential pattern topilmadi; faqat dev/build dummy DB URL |
 | Drizzle next-generation test | baseline’da duplicate DDL yaratdi; snapshot fixidan keyin “No schema changes” |
-| Production DB integration | SKIPPED — DB credential berilmagan |
+| Disposable PostgreSQL integration | PASS — migrations + 18/18 DB tests |
 | Live Railway health/log/metrics | UNKNOWN — Railway session ulanmagan |
 
 ---
@@ -668,7 +668,7 @@ Component: CI / test enforcement
 File: `.github/` absent; `package.json`; DB tests  
 Line: N/A  
 Problem: Baseline’da GitHub Actions workflow/run yo‘q edi; 2 DB integration suite env bo‘lmasa green suite ichida SKIP bo‘ladi. Route-level auth/webhook/failure/concurrency E2E yo‘q.
-Evidence: Audit boshida GitHub Actions list bo‘sh edi. Workflow-path push GitHub tomonidan permission sabab rad etildi; template docs ichida saqlandi. Lokal final test 405 pass + 2 skipped.
+Evidence: Audit boshida GitHub Actions list bo‘sh edi. Workflow-path push GitHub tomonidan permission sabab rad etildi; template docs ichida saqlandi. Lokal full suite 405 pass + 2 conditional skip; suite’lar alohida disposable PostgreSQL 18’da 18/18 pass qildi.
 Root Cause: Tests local-only, Postgres service CI’da yo‘q.  
 Impact: Migration, auth, idempotency va concurrency regressions merge bo‘lishi mumkin.  
 Reproduction: `npm test` DBsiz exit 0.  
@@ -1169,7 +1169,7 @@ Production variable strength/value va Railway visibility: `UNKNOWN`.
 | Unit/pure finance | Strong |
 | Reconciliation/business regression | Strong |
 | UI source-contract tests | Ko‘p, lekin runtime browser E2E o‘rnini bosmaydi |
-| Database integration | 2 suite bor, audit muhitida SKIPPED |
+| Database integration | PASS: migrations + 2 suite, 18/18 test disposable PostgreSQL 18’da |
 | Webhook route integration | Missing |
 | Auth/security route integration | Missing; faqat smoke script/static assertions |
 | Concurrent DB tests | Missing |
@@ -1267,6 +1267,7 @@ Production DB’ga `DROP/TRUNCATE/reset` ishlatilmasin.
 23. Idempotency keys are bound to a SHA-256 request hash through a safe additive migration; payload-mismatched key reuse is rejected.
 24. Financial category references now enforce owner, active state, income/expense direction, and valid root-parent depth in the service layer.
 25. Nullable all-category budget upserts are serialized with a transaction advisory lock and existing duplicates fail closed.
+26. Both database suites were executed on disposable PostgreSQL 18; stale copy assertions and a fixed-date expected-income test were corrected, yielding 18/18 pass.
 
 **Muhim:** branch `origin/main` bilan merge qilingan; uni eski `06bfd` SHA sifatida
 bevosita deploy qilib keyingi UI/credit fixlarni rollback qilish xavfi yo‘q.
@@ -1280,7 +1281,7 @@ Baribir production faqat reviewed PR merge orqali deploy qilinsin.
 lint:                     PASS
 typecheck:                PASS
 unit/regression tests:    PASS 405 / 407
-DB integration tests:     SKIPPED 2 / 407 locally (CI template activation pending)
+DB integration tests:     PASS 18 / 18 on disposable PostgreSQL 18
 security/reliability:      PASS (pure/static); live route test pending
 build:                    PASS with syntactic build DATABASE_URL
 migration metadata drift: PASS (“No schema changes”)
