@@ -73,6 +73,9 @@ jobs:
       - name: Unit, regression, and database integration tests
         run: npm test
 
+      - name: Read-only database integrity preflight
+        run: npm run audit:db
+
       - name: Production build
         env:
           NODE_ENV: production

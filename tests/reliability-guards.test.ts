@@ -123,6 +123,14 @@ test("financial categories are owner-, active-, and direction-scoped", () => {
   assert.match(mutations, /parent\.type !== type \|\| parent\.parentId/);
 });
 
+test("database preflight is read-only and emits aggregate counts only", () => {
+  const preflight = readFileSync(new URL("../scripts/db-preflight.mjs", import.meta.url), "utf8");
+  assert.match(preflight, /BEGIN READ ONLY/);
+  assert.match(preflight, /count\(\*\)::int/);
+  assert.doesNotMatch(preflight, /delete from|update\s+[a-z_]+\s+set|truncate|drop table/i);
+  assert.match(preflight, /never row values, names, Telegram ids, notes or secrets/i);
+});
+
 test("migration runner fails closed on edited or out-of-order applied migrations", () => {
   const runner = readFileSync(new URL("../scripts/migrate.mjs", import.meta.url), "utf8");
   assert.match(runner, /Migration drift detected/);

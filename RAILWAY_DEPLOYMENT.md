@@ -187,6 +187,18 @@ Expected production response:
 
 If status is `warning`, do not open beta access until warnings are resolved.
 
+Before and after a financial-integrity deployment, run the read-only preflight
+from a trusted Railway shell/one-off job:
+
+```bash
+npm run audit:db
+```
+
+It starts a `READ ONLY` transaction and prints aggregate counts only (never
+names, Telegram IDs, notes, row values, or credentials). Exit `0` means all
+checks are zero; exit `2` means anomalies need operator review. It never repairs
+or deletes production data automatically.
+
 ### Keeping the service awake (Telegram bots must not sleep)
 
 A Telegram webhook bot receives inbound HTTPS calls at unpredictable times; if

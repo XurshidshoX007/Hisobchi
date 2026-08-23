@@ -63,7 +63,7 @@ Tekshirildi:
 - `src/db/schema.ts`, 10 SQL migration va migration journal/snapshot;
 - Dockerfile, Railway config, startup/migration/configure scripts;
 - `package.json`, lockfile, production/dev dependency tree;
-- 408 test, jumladan 3 ta DB integration suite;
+- 409 test, jumladan 3 ta DB integration suite;
 - Git tarixi bo‘yicha secret-pattern scan;
 - GitHub deployment metadata va Actions mavjudligi;
 - lint, typecheck, build, unit tests, circular dependency va duplication scan.
@@ -74,7 +74,7 @@ Bajarilgan tekshiruv natijalari:
 |---|---|
 | `npm run lint` | PASS |
 | `npm run typecheck` | PASS |
-| `npm test` | 408 total; 405 PASS; 3 conditional DB suite SKIPPED |
+| `npm test` | 409 total; 406 PASS; 3 conditional DB suite SKIPPED |
 | production-like `next build` | PASS (`DATABASE_URL` sintaktik build URL bilan) |
 | `npm audit --omit=dev` | 0 vulnerability |
 | to‘liq `npm audit` | 4 moderate, faqat dev-tool chain |
@@ -668,7 +668,7 @@ Component: CI / test enforcement
 File: `.github/` absent; `package.json`; DB tests  
 Line: N/A  
 Problem: Baseline’da GitHub Actions workflow/run yo‘q edi; DB integration suite’lar env bo‘lmasa green suite ichida SKIP bo‘ladi. Route-level auth/webhook/failure/concurrency E2E yo‘q.
-Evidence: Audit boshida GitHub Actions list bo‘sh edi. Workflow-path push GitHub tomonidan permission sabab rad etildi; template docs ichida saqlandi. Lokal full suite 405 pass + 3 conditional skip; suite’lar alohida disposable PostgreSQL 18’da 22/22 pass qildi.
+Evidence: Audit boshida GitHub Actions list bo‘sh edi. Workflow-path push GitHub tomonidan permission sabab rad etildi; template docs ichida saqlandi. Lokal full suite 406 pass + 3 conditional skip; suite’lar alohida disposable PostgreSQL 18’da 22/22 pass qildi.
 Root Cause: Tests local-only, Postgres service CI’da yo‘q.  
 Impact: Migration, auth, idempotency va concurrency regressions merge bo‘lishi mumkin.  
 Reproduction: `npm test` DBsiz exit 0.  
@@ -1269,6 +1269,7 @@ Production DB’ga `DROP/TRUNCATE/reset` ishlatilmasin.
 25. Nullable all-category budget upserts are serialized with a transaction advisory lock and existing duplicates fail closed.
 26. Three database suites were executed on disposable PostgreSQL 18; stale copy assertions and a fixed-date expected-income test were corrected, yielding 22/22 pass.
 27. New route/database integration coverage proves exact-once same-key replay, payload-mismatch rejection, currency/category/plan fail-closed guards, and concurrent NULL-budget uniqueness.
+28. `npm run audit:db` provides a strictly read-only, count-only production preflight for mixed currency, duplicates, stale claims, partial bootstrap, and category mismatches.
 
 **Muhim:** branch `origin/main` bilan merge qilingan; uni eski `06bfd` SHA sifatida
 bevosita deploy qilib keyingi UI/credit fixlarni rollback qilish xavfi yo‘q.
@@ -1281,9 +1282,10 @@ Baribir production faqat reviewed PR merge orqali deploy qilinsin.
 ```text
 lint:                     PASS
 typecheck:                PASS
-unit/regression tests:    PASS 405 / 408 (3 conditional skips in no-DB run)
+unit/regression tests:    PASS 406 / 409 (3 conditional skips in no-DB run)
 DB integration tests:     PASS 22 / 22 on disposable PostgreSQL 18
-security/reliability:      PASS (pure/static); live route test pending
+read-only DB preflight:    PASS (10 checks, zero anomalies on disposable DB)
+security/reliability:      PASS (pure/static + mutate route DB integration)
 build:                    PASS with syntactic build DATABASE_URL
 migration metadata drift: PASS (“No schema changes”)
 script syntax:            PASS
@@ -1411,8 +1413,8 @@ Postgres abrupt restart
 
 1. PR’ni current `main`ga merge qiling; eski SHA’ni bevosita deploy qilmang.
 2. Staging’da migrations + 3 DB suite + reliability tests.
-3. Read-only data checks: duplicate occurrences, NULL budgets, mixed currency,
-   partial users, stuck processing claims.
+3. `npm run audit:db` read-only preflight: duplicate occurrences, NULL budgets,
+   mixed currency, partial users, stuck processing claims.
 4. Backup timestamp/PITR archiver statusni yozib oling.
 
 ### Deploy
