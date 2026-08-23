@@ -63,7 +63,7 @@ Tekshirildi:
 - `src/db/schema.ts`, 10 SQL migration va migration journal/snapshot;
 - Dockerfile, Railway config, startup/migration/configure scripts;
 - `package.json`, lockfile, production/dev dependency tree;
-- 407 test, jumladan 2 ta DB integration suite;
+- 408 test, jumladan 3 ta DB integration suite;
 - Git tarixi bo‘yicha secret-pattern scan;
 - GitHub deployment metadata va Actions mavjudligi;
 - lint, typecheck, build, unit tests, circular dependency va duplication scan.
@@ -74,7 +74,7 @@ Bajarilgan tekshiruv natijalari:
 |---|---|
 | `npm run lint` | PASS |
 | `npm run typecheck` | PASS |
-| `npm test` | 407 total; 405 PASS; 2 DB suite SKIPPED |
+| `npm test` | 408 total; 405 PASS; 3 conditional DB suite SKIPPED |
 | production-like `next build` | PASS (`DATABASE_URL` sintaktik build URL bilan) |
 | `npm audit --omit=dev` | 0 vulnerability |
 | to‘liq `npm audit` | 4 moderate, faqat dev-tool chain |
@@ -82,7 +82,7 @@ Bajarilgan tekshiruv natijalari:
 | duplication (`jscpd`) | 18 clone, 0.96% duplicated lines |
 | Git tarixi secret scan | real credential pattern topilmadi; faqat dev/build dummy DB URL |
 | Drizzle next-generation test | baseline’da duplicate DDL yaratdi; snapshot fixidan keyin “No schema changes” |
-| Disposable PostgreSQL integration | PASS — migrations + 18/18 DB tests |
+| Disposable PostgreSQL integration | PASS — migrations + 22/22 DB tests |
 | Live Railway health/log/metrics | UNKNOWN — Railway session ulanmagan |
 
 ---
@@ -667,8 +667,8 @@ Status: CI TEMPLATE PREPARED; ACTIVATION BLOCKED BY GITHUB WORKFLOW PERMISSION
 Component: CI / test enforcement
 File: `.github/` absent; `package.json`; DB tests  
 Line: N/A  
-Problem: Baseline’da GitHub Actions workflow/run yo‘q edi; 2 DB integration suite env bo‘lmasa green suite ichida SKIP bo‘ladi. Route-level auth/webhook/failure/concurrency E2E yo‘q.
-Evidence: Audit boshida GitHub Actions list bo‘sh edi. Workflow-path push GitHub tomonidan permission sabab rad etildi; template docs ichida saqlandi. Lokal full suite 405 pass + 2 conditional skip; suite’lar alohida disposable PostgreSQL 18’da 18/18 pass qildi.
+Problem: Baseline’da GitHub Actions workflow/run yo‘q edi; DB integration suite’lar env bo‘lmasa green suite ichida SKIP bo‘ladi. Route-level auth/webhook/failure/concurrency E2E yo‘q.
+Evidence: Audit boshida GitHub Actions list bo‘sh edi. Workflow-path push GitHub tomonidan permission sabab rad etildi; template docs ichida saqlandi. Lokal full suite 405 pass + 3 conditional skip; suite’lar alohida disposable PostgreSQL 18’da 22/22 pass qildi.
 Root Cause: Tests local-only, Postgres service CI’da yo‘q.  
 Impact: Migration, auth, idempotency va concurrency regressions merge bo‘lishi mumkin.  
 Reproduction: `npm test` DBsiz exit 0.  
@@ -1169,7 +1169,7 @@ Production variable strength/value va Railway visibility: `UNKNOWN`.
 | Unit/pure finance | Strong |
 | Reconciliation/business regression | Strong |
 | UI source-contract tests | Ko‘p, lekin runtime browser E2E o‘rnini bosmaydi |
-| Database integration | PASS: migrations + 2 suite, 18/18 test disposable PostgreSQL 18’da |
+| Database integration | PASS: migrations + 3 suite, 22/22 test disposable PostgreSQL 18’da |
 | Webhook route integration | Missing |
 | Auth/security route integration | Missing; faqat smoke script/static assertions |
 | Concurrent DB tests | Missing |
@@ -1267,7 +1267,8 @@ Production DB’ga `DROP/TRUNCATE/reset` ishlatilmasin.
 23. Idempotency keys are bound to a SHA-256 request hash through a safe additive migration; payload-mismatched key reuse is rejected.
 24. Financial category references now enforce owner, active state, income/expense direction, and valid root-parent depth in the service layer.
 25. Nullable all-category budget upserts are serialized with a transaction advisory lock and existing duplicates fail closed.
-26. Both database suites were executed on disposable PostgreSQL 18; stale copy assertions and a fixed-date expected-income test were corrected, yielding 18/18 pass.
+26. Three database suites were executed on disposable PostgreSQL 18; stale copy assertions and a fixed-date expected-income test were corrected, yielding 22/22 pass.
+27. New route/database integration coverage proves exact-once same-key replay, payload-mismatch rejection, currency/category/plan fail-closed guards, and concurrent NULL-budget uniqueness.
 
 **Muhim:** branch `origin/main` bilan merge qilingan; uni eski `06bfd` SHA sifatida
 bevosita deploy qilib keyingi UI/credit fixlarni rollback qilish xavfi yo‘q.
@@ -1280,8 +1281,8 @@ Baribir production faqat reviewed PR merge orqali deploy qilinsin.
 ```text
 lint:                     PASS
 typecheck:                PASS
-unit/regression tests:    PASS 405 / 407
-DB integration tests:     PASS 18 / 18 on disposable PostgreSQL 18
+unit/regression tests:    PASS 405 / 408 (3 conditional skips in no-DB run)
+DB integration tests:     PASS 22 / 22 on disposable PostgreSQL 18
 security/reliability:      PASS (pure/static); live route test pending
 build:                    PASS with syntactic build DATABASE_URL
 migration metadata drift: PASS (“No schema changes”)
@@ -1409,7 +1410,7 @@ Postgres abrupt restart
 ### Pre-deploy
 
 1. PR’ni current `main`ga merge qiling; eski SHA’ni bevosita deploy qilmang.
-2. Staging’da migrations + 2 DB suite + reliability tests.
+2. Staging’da migrations + 3 DB suite + reliability tests.
 3. Read-only data checks: duplicate occurrences, NULL budgets, mixed currency,
    partial users, stuck processing claims.
 4. Backup timestamp/PITR archiver statusni yozib oling.
