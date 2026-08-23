@@ -188,14 +188,16 @@ body {
 }
 
 /*
- * Swipe-back temporarily translates the active page. ONLY while that gesture
- * (or its exit animation) is running, keep the transform from widening the
- * document and shifting the Menu horizontally. The attribute is set/removed
- * by <SwipeBack>; outside the gesture the body never clips the x-axis, so a
+ * Swipe-back and plans TabSwipe temporarily translate the active page or
+ * adjacent ghost panes. ONLY while that gesture (or its exit animation) is
+ * running, keep the transform from widening the document and shifting the
+ * layout horizontally. The attributes are set/removed by <SwipeBack> and
+ * <TabSwipe>; outside the gesture the body never clips the x-axis, so a
  * page-width bug still surfaces as a visible horizontal scrollbar in dev
  * (see tests/add-flow-responsive.test.ts).
  */
-body[data-swipe-back] {
+body[data-swipe-back],
+body[data-tab-swipe] {
   overflow-x: clip;
 }
 
