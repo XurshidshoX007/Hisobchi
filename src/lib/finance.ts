@@ -747,6 +747,26 @@ export function remainingOccurrences(plan: {
   return null;
 }
 
+/**
+ * THE credit-schedule headline rule (§23).
+ *
+ * A bot-parsed credit is stored as ONE `term` plan whose parent row keeps only
+ * a nominal AVERAGE amount (`jami / soni`) — the real money lives on the
+ * installment rows, each with its OWN date AND amount. Every surface that must
+ * say "qancha to'layman" therefore shows the NEXT UNPAID installment from this
+ * helper, never the parent average (which matches no actual payment date).
+ * When the schedule is fully paid, the last installment is returned (the
+ * schedule's finale); regular plans without a schedule yield null.
+ */
+export function nextCreditInstallment(plan: {
+  installments: Array<{ date: string; amount: number; paid: boolean }> | null;
+}): { date: string; amount: number } | null {
+  const schedule = plan.installments;
+  if (!schedule || !schedule.length) return null;
+  const next = schedule.find((i) => !i.paid) ?? schedule[schedule.length - 1];
+  return { date: next.date, amount: next.amount };
+}
+
 export function buildPlanned(
   recurring: RecurringLike[],
   incomes: ExpectedLike[],

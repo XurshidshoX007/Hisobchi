@@ -46,7 +46,7 @@ import {
   todayISO,
 } from "@/lib/money";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
-import { filterPlansByTab, monthCashflow, monthPlanned } from "@/lib/finance";
+import { filterPlansByTab, monthCashflow, monthPlanned, nextCreditInstallment } from "@/lib/finance";
 import type { ExpectedIncomeView, Forecast, PlanLifecycle, PlanListTab, RecurringView } from "@/lib/finance";
 
 type Tab = "payments" | "income" | "cashflow";
@@ -477,7 +477,9 @@ export default function PlansPage() {
                 id: restoringPlan.id,
                 name: restoringPlan.name,
                 nextDate: restoringPlan.nextOccurrenceDate,
-                amount: restoringPlan.baseAmount,
+                // Credit schedule: preview the installment that will actually
+                // resume, not the parent plan's nominal average.
+                amount: nextCreditInstallment(restoringPlan)?.amount ?? restoringPlan.baseAmount,
                 frequency: restoringPlan.frequency,
                 planType: restoringPlan.planType,
                 remaining: restoringPlan.remainingInstallments,
@@ -538,6 +540,10 @@ function PaymentPlanRow({
   const meta = STATUS_META[status];
   const due = dueMeta({ ...r, lastEventDate: r.lastPaymentDate }, r.nextDueDate);
   const isTerm = r.planType === "term";
+  // Credit schedule: the headline is the NEXT installment's real amount, never
+  // the parent plan's nominal average (jami / soni) — see nextCreditInstallment.
+  const nextInstallment = nextCreditInstallment(r);
+  const headlineAmount = nextInstallment ? nextInstallment.amount : r.baseAmount;
   const total = r.installmentCount ?? 0;
   const progress = isTerm && total > 0 ? r.installmentsPaid / total : 0;
 
@@ -567,7 +573,12 @@ function PaymentPlanRow({
           {r.certainty === "estimated" && r.minAmount && r.maxAmount ? (
             <p className="num text-[14px] font-semibold">{compact(r.minAmount)}–{compact(r.maxAmount)}</p>
           ) : (
-            <Money value={r.baseAmount} size="md" tone={due.overdue ? "negative" : "default"} />
+            <div>
+              <Money value={headlineAmount} size="md" tone={due.overdue ? "negative" : "default"} />
+              {nextInstallment ? (
+                <p className="mt-0.5 text-[9.5px] font-semibold uppercase tracking-[0.06em] text-muted">keyingi to‘lov</p>
+              ) : null}
+            </div>
           )}
         </div>
       </div>
@@ -584,27 +595,6 @@ function PaymentPlanRow({
                 : `Qolgan: ${formatAmount(r.remainingTotal ?? 0)} so‘m · ${r.remainingInstallments ?? 0} ta`
             }
           />
-        </div>
-      ) : null}
-
-      {/* Credit schedule: the installments live INSIDE the one card (§12) —
-          each with its own date and amount. Paid ones are struck through. */}
-      {isTerm && r.installments && r.installments.length ? (
-        <div className="mt-2 space-y-1 rounded-xl bg-surface-2 px-3 py-2">
-          {r.installments.map((inst) => (
-            <div key={inst.occurrenceNumber} className="flex items-center gap-2 text-[11.5px] leading-snug">
-              <span className={`num w-14 shrink-0 ${inst.paid ? "text-muted line-through" : "text-fg-soft"}`}>
-                {dayMonth(inst.date)}
-              </span>
-              <span className={`num shrink-0 ${inst.paid ? "text-muted line-through" : "text-fg"}`}>
-                {formatAmount(inst.amount)}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-muted">
-                {inst.paid ? "to‘langan" : ""}
-              </span>
-              {inst.paid ? <span className="shrink-0 text-[11px] text-positive-text">✓</span> : null}
-            </div>
-          ))}
         </div>
       ) : null}
 
@@ -1203,20 +1193,27 @@ function RecurringSheet({
 
   const categories = (state?.flatCategories ?? []).filter((c) => c.type === "expense" && c.isActive);
   const paidCount = editing?.installmentsPaid ?? 0;
+  // Credit schedule (bot-parsed): the per-installment dates and amounts are
+  // the source of truth; the parent row's `amount` is only a nominal average.
+  // The form must never present that average as an editable "sum" — editing it
+  // would change nothing the user sees — so amount/count become read-only.
+  const hasSchedule = Boolean(editing?.installments?.length);
 
   // §28: field-level validation, mirroring the server rules exactly.
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = "Reja nomini kiriting";
-    if (certainty === "exact") {
-      const message = amountError(amount);
-      if (message) e.amount = message;
-    } else {
-      const lo = parseAmountInput(min);
-      const hi = parseAmountInput(max);
-      if (lo === null || lo <= 0) e.min = "Minimal summani kiriting";
-      if (hi === null || hi <= 0) e.max = "Maksimal summani kiriting";
-      if (lo !== null && hi !== null && lo > hi) e.max = "Maksimal summa minimaldan kichik bo‘lmasligi kerak";
+    if (!hasSchedule) {
+      if (certainty === "exact") {
+        const message = amountError(amount);
+        if (message) e.amount = message;
+      } else {
+        const lo = parseAmountInput(min);
+        const hi = parseAmountInput(max);
+        if (lo === null || lo <= 0) e.min = "Minimal summani kiriting";
+        if (hi === null || hi <= 0) e.max = "Maksimal summani kiriting";
+        if (lo !== null && hi !== null && lo > hi) e.max = "Maksimal summa minimaldan kichik bo‘lmasligi kerak";
+      }
     }
     if (!nextDueDate) e.date = "Sanani tanlang";
     if (planType === "term") {
@@ -1226,7 +1223,7 @@ function RecurringSheet({
       else if (count < paidCount) e.installments = `Allaqachon ${paidCount} ta to‘langan — sonni kamaytirib bo‘lmaydi`;
     }
     return e;
-  }, [name, certainty, amount, min, max, nextDueDate, planType, installmentCount, paidCount]);
+  }, [name, certainty, amount, min, max, nextDueDate, planType, installmentCount, paidCount, hasSchedule]);
 
   const valid = Object.keys(errors).length === 0;
   const showError = (key: string) => (touched ? errors[key] ?? null : null);
@@ -1252,10 +1249,12 @@ function RecurringSheet({
       {
         id: editing?.id,
         name: name.trim(),
-        certainty,
-        amount: certainty === "exact" ? parseAmountInput(amount) : null,
-        minAmount: certainty === "estimated" ? parseAmountInput(min) : null,
-        maxAmount: certainty === "estimated" ? parseAmountInput(max) : null,
+        // Credit schedule: keep the stored nominal representation untouched —
+        // the real installments own the money and are not editable here.
+        certainty: hasSchedule ? editing?.certainty ?? "exact" : certainty,
+        amount: hasSchedule ? editing?.amount ?? null : certainty === "exact" ? parseAmountInput(amount) : null,
+        minAmount: hasSchedule ? editing?.minAmount ?? null : certainty === "estimated" ? parseAmountInput(min) : null,
+        maxAmount: hasSchedule ? editing?.maxAmount ?? null : certainty === "estimated" ? parseAmountInput(max) : null,
         dueDay: day,
         nextDueDate,
         frequency: planType === "one_time" ? "once" : frequency,
@@ -1290,85 +1289,153 @@ function RecurringSheet({
         <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Ijara / Elektr / Kredit" />
       </Field>
 
-      {/* 2 · HOW MUCH */}
-      {certainty === "exact" ? (
-        <AmountField value={amount} onChange={setAmount} currency="UZS" error={showError("amount")} autoFocus={!editing} />
+      {/* 2 · HOW MUCH — a credit schedule shows its REAL numbers read-only:
+          per-installment amounts own the money, the parent's average would be
+          a meaningless editable number (§23). */}
+      {hasSchedule ? (
+        <div className="space-y-1 rounded-xl bg-surface-2 px-3.5 py-3">
+          <p className="text-[12.5px] font-semibold leading-snug">
+            Kredit jadvali bo‘yicha · {editing?.installments?.length ?? 0} ta to‘lov
+          </p>
+          <p className="num text-[12px] text-muted">
+            Jami {formatAmount(editing?.planTotal ?? 0)} so‘m · qolgan {formatAmount(editing?.remainingTotal ?? 0)} so‘m
+          </p>
+          <p className="text-[11.5px] leading-relaxed text-muted">
+            Har bir to‘lov o‘z sanasi va summasi bilan saqlangan — summani bu yerda o‘zgartirib bo‘lmaydi.
+          </p>
+        </div>
+      ) : (
+        <>
+          {certainty === "exact" ? (
+            <AmountField value={amount} onChange={setAmount} currency="UZS" error={showError("amount")} autoFocus={!editing} />
+          ) : (
+            <FormRow>
+              <AmountField value={min} onChange={setMin} label="Minimal" quick={false} error={showError("min")} />
+              <AmountField value={max} onChange={setMax} label="Maksimal" quick={false} error={showError("max")} />
+            </FormRow>
+          )}
+          {/* §7/§11: two equal, separated choice cells — no scrolling pill row. */}
+          <ChoiceGrid
+            value={certainty}
+            ariaLabel="Summa aniqligi"
+            onChange={(value) => {
+              setCertainty(value);
+              if (value === "exact") {
+                setMin("");
+                setMax("");
+              } else {
+                setAmount("");
+              }
+            }}
+            options={[
+              { value: "exact", label: "Aniq summa" },
+              { value: "estimated", label: "Taxminiy diapazon" },
+            ]}
+          />
+        </>
+      )}
+
+      {/* 3 · WHAT KIND OF COMMITMENT — a stored credit schedule only makes
+          sense as a term plan: switching the type would orphan the installment
+          rows, so the choice is fixed and stated. */}
+      {hasSchedule ? (
+        <Field label="To‘lov turi">
+          <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12.5px] font-medium leading-relaxed">
+            Muddatli — kredit jadvali
+            <span className="mt-0.5 block text-[11.5px] font-normal text-muted">
+              Jadval bilan birga saqlanadi, turini o‘zgartirib bo‘lmaydi.
+            </span>
+          </p>
+        </Field>
+      ) : (
+        <CompactSegmented
+          label="To‘lov turi"
+          value={planType}
+          ariaLabel="To‘lov turi"
+          onChange={setPlanType}
+          options={[
+            { value: "one_time", label: "Bir martalik" },
+            { value: "recurring", label: "Doimiy" },
+            { value: "term", label: "Muddatli" },
+          ]}
+        />
+      )}
+
+      {/* 4 · TYPE-SPECIFIC FIELDS ONLY (§14) — for a credit schedule the
+          schedule owns the dates (irregular by design), so the next UNPAID
+          installment is shown read-only instead of an editable cursor that the
+          money model would silently ignore. */}
+      {hasSchedule && editing ? (
+        <FormRow>
+          <Field label="Keyingi to‘lov sanasi">
+            <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] font-medium">
+              {humanDate(nextCreditInstallment(editing)?.date ?? nextDueDate)}
+              <span className="mt-0.5 block text-[11.5px] font-normal text-muted">Jadvaldan — o‘zgartirib bo‘lmaydi.</span>
+            </p>
+          </Field>
+          <Field label="Takrorlanish">
+            <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] font-medium">Jadval bo‘yicha</p>
+          </Field>
+        </FormRow>
       ) : (
         <FormRow>
-          <AmountField value={min} onChange={setMin} label="Minimal" quick={false} error={showError("min")} />
-          <AmountField value={max} onChange={setMax} label="Maksimal" quick={false} error={showError("max")} />
+          <DateField
+            value={nextDueDate}
+            onChange={setNextDueDate}
+            label={planType === "one_time" ? "To‘lov sanasi" : planType === "term" ? "Boshlanish sanasi" : "Keyingi to‘lov sanasi"}
+            chips={false}
+            error={showError("date")}
+          />
+          {planType !== "one_time" ? (
+            <Field label="Takrorlanish">
+              <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+                <option value="weekly">Har hafta</option>
+                <option value="monthly">Har oy</option>
+                <option value="yearly">Har yil</option>
+              </Select>
+            </Field>
+          ) : null}
         </FormRow>
       )}
-      {/* §7/§11: two equal, separated choice cells — no scrolling pill row. */}
-      <ChoiceGrid
-        value={certainty}
-        ariaLabel="Summa aniqligi"
-        onChange={(value) => {
-          setCertainty(value);
-          if (value === "exact") {
-            setMin("");
-            setMax("");
-          } else {
-            setAmount("");
-          }
-        }}
-        options={[
-          { value: "exact", label: "Aniq summa" },
-          { value: "estimated", label: "Taxminiy diapazon" },
-        ]}
-      />
-
-      {/* 3 · WHAT KIND OF COMMITMENT */}
-      <CompactSegmented
-        label="To‘lov turi"
-        value={planType}
-        ariaLabel="To‘lov turi"
-        onChange={setPlanType}
-        options={[
-          { value: "one_time", label: "Bir martalik" },
-          { value: "recurring", label: "Doimiy" },
-          { value: "term", label: "Muddatli" },
-        ]}
-      />
-
-      {/* 4 · TYPE-SPECIFIC FIELDS ONLY (§14) */}
-      <FormRow>
-        <DateField
-          value={nextDueDate}
-          onChange={setNextDueDate}
-          label={planType === "one_time" ? "To‘lov sanasi" : planType === "term" ? "Boshlanish sanasi" : "Keyingi to‘lov sanasi"}
-          chips={false}
-          error={showError("date")}
-        />
-        {planType !== "one_time" ? (
-          <Field label="Takrorlanish">
-            <Select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
-              <option value="weekly">Har hafta</option>
-              <option value="monthly">Har oy</option>
-              <option value="yearly">Har yil</option>
-            </Select>
-          </Field>
-        ) : null}
-      </FormRow>
 
       {planType === "term" ? (
-        <Field
-          label="Bo‘lib to‘lashlar soni"
-          error={showError("installments")}
-          hint={paidCount ? `Allaqachon ${paidCount} ta to‘langan — bu sondan kam qilib bo‘lmaydi.` : "Masalan, 12 oylik kredit uchun 12"}
-        >
-          <TextInput
-            value={installmentCount}
-            onChange={(e) => setInstallmentCount(e.target.value)}
-            inputMode="numeric"
-            placeholder="12"
-          />
-        </Field>
+        hasSchedule ? (
+          <Field label="Bo‘lib to‘lashlar soni" hint="Kredit jadvalidan olingan — jadval bilan birga saqlanadi.">
+            <p className="num rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] font-medium">
+              {editing?.installments?.length ?? 0} ta
+              <span className="ml-2 font-normal text-muted">· {paidCount} ta to‘langan</span>
+            </p>
+          </Field>
+        ) : (
+          <Field
+            label="Bo‘lib to‘lashlar soni"
+            error={showError("installments")}
+            hint={paidCount ? `Allaqachon ${paidCount} ta to‘langan — bu sondan kam qilib bo‘lmaydi.` : "Masalan, 12 oylik kredit uchun 12"}
+          >
+            <TextInput
+              value={installmentCount}
+              onChange={(e) => setInstallmentCount(e.target.value)}
+              inputMode="numeric"
+              placeholder="12"
+            />
+          </Field>
+        )
       ) : null}
 
       {/* 5 · LIVE PREVIEW — what this plan actually costs (§15/§16) */}
       <PreviewCard>
-        {planType === "term" ? (
+        {planType === "term" && hasSchedule && editing ? (
+          <div className="space-y-1 text-[13px]">
+            <p className="num font-semibold">
+              Keyingi to‘lov: {dayMonth(nextCreditInstallment(editing)?.date ?? nextDueDate)} ·{" "}
+              {formatAmount(nextCreditInstallment(editing)?.amount ?? 0)} so‘m
+            </p>
+            <p className="num text-muted">
+              Jami {formatAmount(editing.planTotal ?? 0)} so‘m · qolgan {editing.remainingInstallments ?? 0} ta /{" "}
+              {formatAmount(editing.remainingTotal ?? 0)} so‘m
+            </p>
+          </div>
+        ) : planType === "term" ? (
           <div className="space-y-1 text-[13px]">
             <p className="num font-semibold">
               {formatAmount(baseAmount)} × {termCount || 0} = {formatAmount(termCount * baseAmount)} so‘m

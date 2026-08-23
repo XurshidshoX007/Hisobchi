@@ -284,3 +284,32 @@ test("ordinary transfer still parses as a batch, never a schedule", () => {
   const b = parseDrafts("Naqd puldan Humo hisobiga 200 ming o'tkazdim", "2026-08-17");
   assert.ok(b.drafts.length >= 0);
 });
+
+/* ============================ REGRESSION: HEADLINE AMOUNT (§23) ============================ */
+import { nextCreditInstallment } from "../src/lib/finance";
+
+test("regression: the headline of a credit row is the NEXT installment, never the parent average", () => {
+  // The parent plan stores jami / soni = 213 425,75 — no real payment has that
+  // amount. The row must advertise the next UNPAID installment instead.
+  const installments = [
+    { date: "2026-08-05", amount: 192772, occurrenceNumber: 1, paid: true },
+    { date: "2026-09-05", amount: 227195, occurrenceNumber: 2, paid: false },
+    { date: "2026-10-05", amount: 213426, occurrenceNumber: 3, paid: false },
+  ];
+  const next = nextCreditInstallment({ installments });
+  assert.deepEqual(next, { date: "2026-09-05", amount: 227195 });
+});
+
+test("regression: a fully paid credit falls back to its LAST installment", () => {
+  const installments = [
+    { date: "2026-08-05", amount: 192772, occurrenceNumber: 1, paid: true },
+    { date: "2026-09-05", amount: 227195, occurrenceNumber: 2, paid: true },
+  ];
+  const next = nextCreditInstallment({ installments });
+  assert.deepEqual(next, { date: "2026-09-05", amount: 227195 });
+});
+
+test("regression: plans without a stored schedule have no credit headline", () => {
+  assert.equal(nextCreditInstallment({ installments: null }), null);
+  assert.equal(nextCreditInstallment({ installments: [] }), null);
+});
