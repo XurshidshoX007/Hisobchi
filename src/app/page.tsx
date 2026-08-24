@@ -45,6 +45,7 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-fade-up min-w-0 space-y-4 sm:space-y-5">
+      <p className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{facts.monthLabel}</p>
       <div className="animate-hero-in">
         <DashboardHero
           facts={facts}

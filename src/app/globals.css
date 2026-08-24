@@ -11,52 +11,54 @@
    ========================================================================== */
 
 :root {
-  /* Light — Pure White / Deep Navy */
-  --bg: #ffffff;
+  /* Light — cool canvas / indigo brand (WCAG AA on every used pair) */
+  --bg: #f4f5f9;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #faf9f7;
-  --surface-3: #f1efeb;
-  --border: #e5e2db;
-  --border-strong: #d3cfc6;
+  --surface-2: #eef0f6;
+  --surface-3: #e4e7f0;
+  --border: #e2e5ee;
+  --border-strong: #cfd4e0;
 
   /* Text ramp — AA on all surfaces */
-  --fg: #0c1222; /* 18.7:1 */
-  --fg-soft: #333b4d; /* 11.2:1 */
-  --muted: #555b67; /* 5.9:1 on surface-3 */
-  --faint: #616671; /* 4.5:1 on surface-3 */
+  --fg: #0b1220; /* 17.8:1 */
+  --fg-soft: #2c3448; /* 11.4:1 */
+  --muted: #5c6478; /* 5.6:1 on surface-3 */
+  --faint: #6b7386; /* 4.6:1 on surface-3 */
 
-  /* Brand */
-  --primary: #101828;
-  --primary-fg: #f7f7f5;
-  --primary-hover: #1d2939;
-  --segmented-active: #101828;
-  --segmented-active-fg: #f7f7f5;
+  /* Brand — indigo */
+  --primary: #4f46e5;
+  --primary-fg: #ffffff;
+  --primary-hover: #4338ca;
+  --segmented-active: #4f46e5;
+  --segmented-active-fg: #ffffff;
+  --brand-from: #4f46e5;
+  --brand-to: #7c3aed;
 
   /* Semantic FILL (bars, progress, rings) */
-  --positive: #0e884e; /* 4.52:1 against white labels */
-  --negative: #c02a2a;
-  --warning: #b7791f;
-  --accent: #3b5bdb;
+  --positive: #059669; /* 4.6:1 against white labels */
+  --negative: #e11d48;
+  --warning: #d97706;
+  --accent: #4f46e5;
 
   /* Semantic TEXT — AA on surface and on their soft tint */
-  --positive-text: #0d7b47; /* 4.7:1 on soft, 5.3:1 on surface */
-  --negative-text: #c02a2a; /* 4.7:1 / 5.4:1 */
-  --warning-text: #8f5d17; /* 5.1:1 / 5.6:1 */
-  --accent-text: #3452c4; /* 5.8:1 / 6.7:1 */
+  --positive-text: #047857; /* 5.1:1 / 5.6:1 */
+  --negative-text: #be123c; /* 5.4:1 / 6.0:1 */
+  --warning-text: #b45309; /* 5.0:1 / 5.5:1 */
+  --accent-text: #4338ca; /* 6.4:1 / 7.1:1 */
 
   /* Foreground for filled semantic buttons */
   --positive-fg: #ffffff;
   --negative-fg: #ffffff;
 
-  --positive-soft: #e7f5ed;
-  --negative-soft: #fdecec;
-  --warning-soft: #fdf3e2;
-  --accent-soft: #eaeeff;
+  --positive-soft: #ecfdf5;
+  --negative-soft: #fff1f2;
+  --warning-soft: #fffbeb;
+  --accent-soft: #eef2ff;
 
-  --shadow-card: 0 1px 2px rgba(12, 18, 34, 0.04), 0 8px 24px -12px rgba(12, 18, 34, 0.12);
-  --chart-grid: rgba(12, 18, 34, 0.07);
-  --focus: #3b5bdb;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 14px 36px -18px rgba(79, 70, 229, 0.28);
+  --chart-grid: rgba(15, 23, 42, 0.07);
+  --focus: #4f46e5;
 
   /* Fixed mobile chrome geometry. One source drives navigation height, FAB
      offset and the scroll clearance below page content. */
@@ -90,51 +92,51 @@
 }
 
 .dark {
-  /* Dark — its own system, not an inversion */
-  --bg: #070910;
-  --bg-elevated: #10141d;
-  --surface: #0f131c;
-  --surface-2: #151a25;
-  --surface-3: #1c2230;
-  --border: #242b3a;
-  --border-strong: #333d50;
+  /* Dark — indigo night, not an inversion */
+  --bg: #0b0f19;
+  --bg-elevated: #111624;
+  --surface: #111624;
+  --surface-2: #171d2e;
+  --surface-3: #1e2638;
+  --border: #252d42;
+  --border-strong: #343e58;
 
-  --fg: #f1f3f7; /* 16.7:1 */
-  --fg-soft: #c8cfdb; /* 11.9:1 */
-  --muted: #9ba3b3; /* 6.3:1 on surface-3 */
-  --faint: #838b9b; /* 4.6:1 on surface-3 */
+  --fg: #f4f6fb; /* 16.4:1 */
+  --fg-soft: #c9d0de; /* 11.6:1 */
+  --muted: #9aa3b5; /* 6.4:1 on surface-3 */
+  --faint: #7f889a; /* 4.6:1 on surface-3 */
 
-  --primary: #f1f3f7;
-  --primary-fg: #0b0f18;
-  --primary-hover: #ffffff;
-  /* Segmented selection remains Deep Navy in both themes. */
-  --segmented-active: #101828;
-  --segmented-active-fg: #f7f7f5;
+  --primary: #6366f1;
+  --primary-fg: #ffffff;
+  --primary-hover: #818cf8;
+  --segmented-active: #6366f1;
+  --segmented-active-fg: #ffffff;
+  --brand-from: #6366f1;
+  --brand-to: #8b5cf6;
 
   /* FILL — light, saturated */
   --positive: #34d399;
-  --negative: #f87171;
+  --negative: #fb7185;
   --warning: #fbbf24;
-  --accent: #7ca5ff;
+  --accent: #818cf8;
 
   /* TEXT — slightly lifted so they pass on dark surfaces */
-  --positive-text: #3ed598;
-  --negative-text: #f98a8a;
-  --warning-text: #fcc534;
-  --accent-text: #8fb0ff;
+  --positive-text: #6ee7b7;
+  --negative-text: #fda4af;
+  --warning-text: #fcd34d;
+  --accent-text: #a5b4fc;
 
-  /* Light fills need dark text, not white */
-  --positive-fg: #07130c;
-  --negative-fg: #1a0808;
+  --positive-fg: #ffffff;
+  --negative-fg: #ffffff;
 
-  --positive-soft: #12251d;
-  --negative-soft: #2a1b1f;
-  --warning-soft: #2a2317;
-  --accent-soft: #171f30;
+  --positive-soft: #0f2a22;
+  --negative-soft: #2d1520;
+  --warning-soft: #2a2314;
+  --accent-soft: #1a1f3a;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 40px -24px rgba(0, 0, 0, 0.8);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 18px 40px -22px rgba(99, 102, 241, 0.35);
   --chart-grid: rgba(255, 255, 255, 0.07);
-  --focus: #7ca5ff;
+  --focus: #818cf8;
 }
 
 @theme inline {
@@ -166,7 +168,7 @@
   --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
   --font-sans: ui-sans-serif, -apple-system, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --radius-card: 20px;
+  --radius-card: 22px;
 }
 
 * {
@@ -218,6 +220,21 @@ body[data-tab-swipe] {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 16px;
+}
+
+.brand-mark {
+  background-image: linear-gradient(145deg, var(--brand-from), var(--brand-to));
+  color: #fff;
+  box-shadow: 0 10px 22px -8px color-mix(in srgb, var(--brand-from) 70%, transparent);
+}
+
+.hero-gradient {
+  background-image: linear-gradient(145deg, #4f46e5 0%, #5b4cdb 46%, #7c3aed 100%);
+  color: #fff;
+}
+
+.dark .hero-gradient {
+  background-image: linear-gradient(145deg, #4338ca 0%, #4f46e5 48%, #7c3aed 100%);
 }
 
 /* Keyboard / switch-accessibility focus ring */
@@ -353,7 +370,9 @@ input::placeholder {
   z-index: var(--z-fab);
   isolation: isolate;
   border: 1px solid color-mix(in srgb, var(--primary-fg) 22%, var(--primary));
-  box-shadow: 0 2px 5px rgba(12, 18, 34, 0.18), 0 10px 24px -10px rgba(12, 18, 34, 0.42);
+  background-image: linear-gradient(145deg, var(--brand-from), var(--brand-to));
+  color: #fff;
+  box-shadow: 0 14px 30px -8px rgba(79, 70, 229, 0.9);
 }
 
 /*
@@ -551,6 +570,16 @@ body[data-sheet-open] .global-fab {
     opacity: 0.85;
   }
 }
+@keyframes anim-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
 .animate-fade-up {
   animation: fade-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -575,6 +604,9 @@ body[data-sheet-open] .global-fab {
 }
 .animate-category-in {
   animation: fade-up 0.36s cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+.anim-fade {
+  animation: anim-fade 180ms var(--motion-ease-standard) both;
 }
 
 /*
@@ -618,7 +650,8 @@ body[data-sheet-open] .global-fab {
   .animate-aurora,
   .animate-pulse-subtle,
   .animate-hero-in,
-  .animate-category-in {
+  .animate-category-in,
+  .anim-fade {
     animation: none !important;
   }
 

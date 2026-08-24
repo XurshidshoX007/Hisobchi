@@ -49,7 +49,7 @@ export default function GoalsPage() {
             <Card key={g.id}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-3 text-lg">{g.icon}</div>
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-lg">{g.icon}</div>
                   <div className="min-w-0">
                     <p className="truncate text-[15px] font-medium">{g.name}</p>
                     <p className="truncate text-[11.5px] text-muted">
