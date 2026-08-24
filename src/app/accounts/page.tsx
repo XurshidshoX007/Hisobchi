@@ -102,7 +102,7 @@ export default function AccountsPage() {
             {state.accounts.map((a) => (
               <div key={a.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-base" aria-hidden="true">
                     {TYPE_ICON[a.type] ?? "•"}
                   </div>
                   <div className="min-w-0 flex-1">

@@ -263,7 +263,7 @@ function TransactionsView() {
                       }
                     >
                       <div className="flex min-w-0 items-center gap-2.5 py-3 sm:gap-3">
-                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-base">
                           {transaction.type === "transfer" ? "↔️" : transaction.categoryIcon}
                         </div>
                         <div className="min-w-0 flex-1">

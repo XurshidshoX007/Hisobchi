@@ -172,7 +172,7 @@ export function FormSheet({
           aria-busy={status === "saving"}
           // §15: a long Uzbek CTA ("Kutilayotgan daromadni saqlash") wraps
           // inside the footer instead of widening it past the viewport.
-          className="inline-flex min-h-12 w-full min-w-0 max-w-full flex-1 select-none items-center justify-center gap-2 break-words rounded-full bg-primary px-5 py-2 text-center text-[15px] font-semibold leading-tight text-primary-fg shadow-sm transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-[0.98] disabled:pointer-events-none disabled:bg-surface-3 disabled:text-muted disabled:shadow-none touch-manipulation"
+          className="inline-flex min-h-12 w-full min-w-0 max-w-full flex-1 select-none items-center justify-center gap-2 break-words rounded-full bg-primary px-5 py-2 text-center text-[15px] font-semibold leading-tight text-primary-fg shadow-sm shadow-indigo-500/30 transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-[0.98] disabled:pointer-events-none disabled:bg-surface-3 disabled:text-muted disabled:shadow-none touch-manipulation"
         >
           {status === "saved" ? <CheckMark /> : null}
           {label}
