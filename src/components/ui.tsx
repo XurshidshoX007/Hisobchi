@@ -86,7 +86,7 @@ export function FloatingActionButton({
     <button
       type="button"
       {...props}
-      className={`global-fab grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-fg transition-[background-color,opacity,transform] duration-200 hover:bg-primary-hover active:scale-90 touch-manipulation ${className}`}
+      className={`global-fab grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-fg transition-[background-color,opacity,transform] duration-200 hover:bg-primary-hover active:scale-95 touch-manipulation ${className}`}
     >
       {children}
     </button>
@@ -122,7 +122,7 @@ export function Button({
     lg: "min-h-12 px-5 text-[15px]",
   };
   const variants: Record<string, string> = {
-    primary: "bg-primary text-primary-fg hover:bg-primary-hover shadow-sm shadow-indigo-500/25",
+    primary: "bg-primary text-primary-fg hover:bg-primary-hover shadow-sm",
     secondary: "border border-line bg-surface text-fg hover:bg-surface-2 hover:border-line-strong",
     ghost: "text-fg-soft hover:bg-surface-2 hover:text-fg",
     danger: "bg-negative text-negative-fg hover:opacity-90",
@@ -179,7 +179,7 @@ export function Money({
 }: {
   value: number;
   size?: "xs" | "sm" | "md" | "lg" | "xl" | "hero";
-  tone?: "default" | "positive" | "negative" | "muted" | "inverse";
+  tone?: "default" | "positive" | "negative" | "muted";
   signed?: boolean;
   /** Display-only rounding to the nearest whole currency unit. */
   whole?: boolean;
@@ -201,7 +201,6 @@ export function Money({
     positive: "text-positive-text",
     negative: "text-negative-text",
     muted: "text-muted",
-    inverse: "text-white",
   };
   const magnitude = whole ? Math.round(Math.abs(value)) : Math.abs(value);
   const sign = signed ? (magnitude === 0 ? zeroSign ?? "" : value > 0 ? "+" : "−") : "";
@@ -654,7 +653,7 @@ export function ContextualBottomSheet({
         className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-[20px]"
       >
         <div className="shrink-0 px-5 pt-3 sm:hidden">
-          <div className="mx-auto h-1.5 w-10 rounded-full bg-indigo-200 dark:bg-indigo-500/40" />
+          <div className="mx-auto h-1.5 w-10 rounded-full bg-line-strong" />
         </div>
         <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-3">
           <div className="min-w-0 flex-1">
@@ -711,7 +710,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flat-card flex flex-col items-center gap-3 px-5 py-8 text-center sm:px-6 sm:py-10">
-      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent-soft text-xl">{icon}</div>
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-3 text-xl">{icon}</div>
       <div className="max-w-[300px]">
         <p className="text-[15px] font-semibold">{title}</p>
         <p className="mx-auto mt-1 text-[13px] leading-relaxed text-muted">{description}</p>

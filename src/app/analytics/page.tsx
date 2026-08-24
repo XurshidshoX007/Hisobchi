@@ -16,7 +16,7 @@ export default function AnalyticsPage() {
   return (
     <div className="animate-fade-up flex min-h-[62dvh] flex-col items-center justify-center px-6 py-12 text-center">
       <div
-        className="brand-mark grid h-16 w-16 place-items-center rounded-2xl text-[32px] leading-none"
+        className="grid h-16 w-16 place-items-center rounded-2xl bg-accent-soft text-[32px] leading-none"
         aria-hidden="true"
       >
         📊
@@ -30,7 +30,7 @@ export default function AnalyticsPage() {
 
       <Link
         href="/"
-        className="mt-6 inline-flex min-h-11 select-none items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-fg shadow-sm shadow-indigo-500/25 transition-colors hover:bg-primary-hover active:scale-[0.98] touch-manipulation"
+        className="mt-6 inline-flex min-h-11 select-none items-center justify-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-fg transition-colors hover:border-line-strong hover:bg-surface-2 active:scale-[0.98] touch-manipulation"
       >
         Asosiy sahifa
       </Link>

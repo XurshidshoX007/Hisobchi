@@ -59,33 +59,32 @@ export function DashboardHero({
   const valueKey = `${facts.monthLabel}-${facts.balance}-${facts.income}-${facts.expense}`;
 
   return (
-    <Card padded={false} className="relative overflow-hidden border-0 shadow-[0_18px_40px_-18px_rgba(79,70,229,0.65)] transition-all duration-300 hover:shadow-[0_22px_46px_-16px_rgba(79,70,229,0.72)]">
-      <div className="hero-gradient relative">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/20 blur-2xl animate-aurora" aria-hidden="true" />
-        <div className="pointer-events-none absolute -left-12 bottom-8 h-44 w-44 rounded-full bg-violet-300/20 blur-2xl" aria-hidden="true" />
-        <div className="pointer-events-none absolute right-8 top-8 h-24 w-24 rounded-full border border-white/15" aria-hidden="true" />
+    <Card padded={false} className="relative overflow-hidden border-line/90 shadow-[0_2px_8px_rgba(12,18,34,0.04),0_12px_28px_-12px_rgba(12,18,34,0.08)] transition-all duration-300 hover:shadow-[0_4px_16px_rgba(12,18,34,0.06),0_16px_36px_-12px_rgba(12,18,34,0.12)]">
+      {/* Ambient aurora lighting */}
+      <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent opacity-[0.08] blur-2xl animate-aurora" aria-hidden="true" />
+      <div className="pointer-events-none absolute -left-12 -bottom-16 h-44 w-44 rounded-full bg-positive opacity-[0.05] blur-2xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute right-8 top-8 h-24 w-24 rounded-full border border-accent/15 opacity-[0.08]" aria-hidden="true" />
 
-        <div key={valueKey} className="dashboard-value-transition relative min-w-0 px-5 pb-5 pt-5 sm:px-7 sm:pb-6 sm:pt-6">
-          <div className="flex min-w-0 items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <p className="text-[14px] font-semibold tracking-tight text-white/75">Balans</p>
-              <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-                <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "inverse"} />
-                <span className={`text-xs font-semibold sm:text-sm ${facts.balance < 0 ? "text-rose-100" : "text-white/70"}`}>{unit}</span>
-              </div>
+      <div key={valueKey} className="dashboard-value-transition relative min-w-0 px-5 pb-5 pt-5 sm:px-7 sm:pb-6 sm:pt-6">
+        <div className="flex min-w-0 items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-semibold tracking-tight text-fg-soft">Balans</p>
+            <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} />
+              <span className={`text-xs font-semibold sm:text-sm ${facts.balance < 0 ? "text-negative-text" : "text-muted"}`}>{unit}</span>
             </div>
-            <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[16px] border border-white/20 bg-white/15 text-white shadow-xs transition-all duration-300 hover:scale-105 hover:bg-white/20">
-              <WalletIcon />
-            </span>
           </div>
-
-          {facts.hasBalanceBreakdown && onOpenBreakdown ? (
-            <BalanceDistributionBar inverse groups={facts.balanceGroups} onOpen={onOpenBreakdown} />
-          ) : null}
+          <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[16px] bg-accent-soft text-accent-text border border-accent/15 shadow-xs transition-all duration-300 hover:scale-105 hover:shadow-sm">
+            <WalletIcon />
+          </span>
         </div>
+
+        {facts.hasBalanceBreakdown && onOpenBreakdown ? (
+          <BalanceDistributionBar groups={facts.balanceGroups} onOpen={onOpenBreakdown} />
+        ) : null}
       </div>
 
-      <div className="relative grid min-w-0 grid-cols-2 border-t border-line bg-surface">
+      <div className="relative grid min-w-0 grid-cols-2 border-t border-line bg-surface-2/60 backdrop-blur-xs">
         <div className="group min-w-0 px-4 py-4.5 sm:px-6 sm:py-5 transition-colors duration-200 hover:bg-positive-soft/25">
           <div className="flex min-w-0 items-center gap-2 text-positive-text">
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-positive-soft shadow-xs transition-transform duration-200 group-hover:scale-110"><TrendIcon direction="up" /></span>
@@ -142,7 +141,7 @@ export function DashboardCategorySection({
       }
     >
       {items.length ? (
-        <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_3px_rgba(15,23,42,0.03),0_12px_28px_-20px_rgba(79,70,229,0.28)] transition-shadow duration-200 hover:shadow-[0_8px_24px_-16px_rgba(79,70,229,0.35)]">
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_3px_rgba(12,18,34,0.03)] transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(12,18,34,0.06)]">
           {items.map((item, index) => {
             const progress = Math.min(100, (item.amount / max) * 100);
             return (
@@ -194,16 +193,16 @@ export function DashboardLoading() {
   return (
     <div className="space-y-4 sm:space-y-5" aria-label="Ma’lumotlar yuklanmoqda" aria-busy="true">
       <div className="card overflow-hidden">
-        <div className="hero-gradient p-5 sm:p-7">
+        <div className="p-5 sm:p-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <Skeleton className="h-4 w-14 bg-white/20" />
-              <Skeleton className="mt-2 h-9 w-4/5 max-w-80 bg-white/25" />
+              <Skeleton className="h-4 w-14" />
+              <Skeleton className="mt-2 h-9 w-4/5 max-w-80" />
             </div>
-            <Skeleton className="h-11 w-11 shrink-0 rounded-[14px] bg-white/20" />
+            <Skeleton className="h-11 w-11 shrink-0 rounded-[14px]" />
           </div>
         </div>
-        <div className="grid grid-cols-2 border-t border-line bg-surface">
+        <div className="grid grid-cols-2 border-t border-line bg-surface-2/60">
           <div className="p-4 sm:p-6"><Skeleton className="h-5 w-24" /><Skeleton className="mt-2 h-6 w-4/5" /></div>
           <div className="border-l border-line p-4 sm:p-6"><Skeleton className="h-5 w-24" /><Skeleton className="mt-2 h-6 w-4/5" /></div>
         </div>
