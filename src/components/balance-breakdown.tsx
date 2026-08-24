@@ -37,11 +37,9 @@ function formatPercent(share: number): string {
 export function BalanceDistributionBar({
   groups,
   onOpen,
-  inverse = false,
 }: {
   groups: BalanceGroup[];
   onOpen: () => void;
-  inverse?: boolean;
 }) {
   const positiveGroups = groups.filter((group) => group.amount > 0);
   const positiveTotal = positiveGroups.reduce((sum, group) => sum + group.amount, 0);
@@ -54,28 +52,17 @@ export function BalanceDistributionBar({
       type="button"
       onClick={onOpen}
       aria-label="Balans taqsimotini ochish"
-      className={`group mt-3.5 block w-full select-none rounded-xl p-1.5 text-left transition-all duration-200 active:scale-[0.99] touch-manipulation ${
-        inverse ? "hover:bg-white/10 active:bg-white/15" : "hover:bg-surface-2/80 active:bg-surface-3"
-      }`}
+      className="group mt-3.5 block w-full select-none rounded-xl p-1.5 text-left transition-all duration-200 hover:bg-surface-2/80 active:bg-surface-3 active:scale-[0.99] touch-manipulation"
     >
       {hasBar ? (
-        <div className={`flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full p-[1px] ${inverse ? "bg-white/20" : "bg-surface-3"}`} role="presentation">
+        <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface-3 p-[1px]" role="presentation">
           {positiveGroups.map((group) => {
             const width = Math.max(2, (group.amount / positiveTotal) * 100);
             const tone = TONE_STYLES[group.tone];
-            const bar = inverse
-              ? {
-                  positive: "bg-emerald-300",
-                  accent: "bg-white",
-                  info: "bg-sky-200",
-                  warning: "bg-amber-300",
-                  neutral: "bg-white/50",
-                }[group.tone]
-              : tone.bar;
             return (
               <span
                 key={group.key}
-                className={`${bar} h-full rounded-full transition-all duration-500 ease-out group-hover:brightness-105`}
+                className={`${tone.bar} h-full rounded-full transition-all duration-500 ease-out group-hover:brightness-105`}
                 style={{ width: `${width}%` }}
                 aria-hidden="true"
               />
@@ -91,21 +78,21 @@ export function BalanceDistributionBar({
             return (
               <li key={group.key} className="flex min-w-0 items-center gap-1.5">
                 <span className={`h-2 w-2 shrink-0 rounded-full shadow-2xs ${tone.dot}`} aria-hidden="true" />
-                <span className={`truncate text-[11.5px] font-medium ${inverse ? "text-white/85" : "text-fg-soft"}`}>{group.label}</span>
-                <span className={`text-[11.5px] font-semibold tabular-nums ${inverse ? "text-white/70" : "text-muted"}`}>
+                <span className="truncate text-[11.5px] font-medium text-fg-soft">{group.label}</span>
+                <span className="text-[11.5px] font-semibold tabular-nums text-muted">
                   {formatPercent(group.share)}
                 </span>
               </li>
             );
           })}
         </ul>
-        <ChevronDown inverse={inverse} />
+        <ChevronDown />
       </div>
     </button>
   );
 }
 
-function ChevronDown({ inverse = false }: { inverse?: boolean }) {
+function ChevronDown() {
   return (
     <svg
       width="14"
@@ -116,7 +103,7 @@ function ChevronDown({ inverse = false }: { inverse?: boolean }) {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`shrink-0 transition-transform duration-200 group-hover:translate-y-0.5 ${inverse ? "text-white/70" : "text-muted"}`}
+      className="shrink-0 text-muted transition-transform duration-200 group-hover:translate-y-0.5"
       aria-hidden="true"
     >
       <path d="M4 6l4 4 4-4" />

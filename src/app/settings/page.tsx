@@ -153,7 +153,7 @@ export default function SettingsPage() {
                 aria-checked={notif[row.key]}
                 aria-label={row.label}
                 className={`relative h-7 w-12 shrink-0 touch-manipulation rounded-full border transition-colors ${
-                  notif[row.key] ? "border-transparent bg-primary" : "border-line bg-surface-3"
+                  notif[row.key] ? "border-transparent bg-positive" : "border-line bg-surface-3"
                 }`}
               >
                 <span

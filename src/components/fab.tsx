@@ -208,9 +208,9 @@ function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke
               key={`${action.id}-${action.type ?? "default"}-${index}`}
               type="button"
               onClick={() => run(action)}
-              className="flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium transition-colors hover:border-indigo-200 hover:bg-accent-soft active:bg-accent-soft touch-manipulation"
+              className="flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium transition-colors hover:border-line-strong hover:bg-surface-3 active:bg-surface-3 touch-manipulation"
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-base" aria-hidden="true">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-3 text-base" aria-hidden="true">
                 {action.icon}
               </span>
               <span className="min-w-0 flex-1">
