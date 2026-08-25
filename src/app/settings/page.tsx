@@ -57,7 +57,7 @@ export default function SettingsPage() {
     <div className="animate-fade-up space-y-4 sm:space-y-5">
       {/* §19/§22: swipe-back replaces the old ‹ Menyu back link. */}
 
-      <Card>
+      <Card className="module-card">
         <p className="mb-4 text-[15px] font-semibold">Profil</p>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
           <Field label="Ism">
@@ -80,7 +80,7 @@ export default function SettingsPage() {
         </p>
       </Card>
 
-      <Card>
+      <Card className="module-card">
         <p className="mb-1 text-[15px] font-semibold">{TERMS.safeToSpend}</p>
         <p className="mb-4 text-[12px] leading-snug text-muted">Shu qiymatlar asosida hisoblanadi.</p>
         <Field label="Minimal zaxira">
@@ -130,7 +130,7 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <Card>
+      <Card className="module-card">
         <p className="mb-4 text-[15px] font-semibold">Eslatmalar</p>
         <div className="space-y-4">
           {(
@@ -167,15 +167,15 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <Card>
+      <Card className="module-card">
         <p className="mb-4 text-[15px] font-semibold">Ko‘rinish</p>
         <Segmented
           value={theme}
           onChange={setTheme}
           options={[
-            { value: "light", label: "☀️ Kunduzgi" },
-            { value: "dark", label: "🌙 Tungi" },
-            { value: "system", label: "🖥 Tizim" },
+            { value: "light", label: "Yorug‘" },
+            { value: "dark", label: "Tungi" },
+            { value: "system", label: "Tizim" },
           ]}
         />
 

@@ -56,7 +56,7 @@ export default function BotPage() {
     const botUrl = BOT_USERNAME ? `https://t.me/${BOT_USERNAME.replace(/^@/, "")}` : null;
     return (
       <div className="animate-fade-up space-y-4">
-        <Card>
+        <Card className="module-card">
           <p className="text-[15px] font-semibold">Bot Telegram ichida ishlaydi</p>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
 Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsiyalar Mini App bilan bir xil bazaga yoziladi.
@@ -76,7 +76,7 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
             </p>
           )}
         </Card>
-        <Card>
+        <Card className="module-card">
           <p className="mb-2 text-[15px] font-semibold">Botda nima bor</p>
           <p className="text-[13px] leading-7 text-muted">{BUTTON.income} · {BUTTON.expense} · {BUTTON.transfer}</p>
           <p className="text-[13px] leading-7 text-muted">/start · /report · /forecast · /help</p>
@@ -114,7 +114,7 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
 
   return (
     <div className="animate-fade-up space-y-4">
-      <Card padded={false} className="overflow-hidden">
+      <Card padded={false} className="module-card overflow-hidden">
         <div className="flex max-h-[56dvh] flex-col">
           <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-3.5 sm:p-4">
             {messages.map((m) => (
@@ -198,7 +198,7 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
         </div>
       </Card>
 
-      <Card>
+      <Card className="module-card">
         <p className="mb-2 text-[15px] font-semibold">Botda nima bor</p>
         <div className="grid grid-cols-1 gap-2 text-[12.5px] leading-snug text-muted sm:grid-cols-2">
           <p>{BUTTON.income} · {BUTTON.expense} · {BUTTON.transfer}</p>
