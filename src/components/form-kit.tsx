@@ -24,7 +24,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AccountTypeIcon, CalendarIcon, CheckIcon, ChevronDownIcon, CloseIcon } from "./icons";
 import { ContextualBottomSheet, TextArea, TextInput } from "./ui";
 import { useFinance } from "./providers";
 import {
@@ -230,7 +229,11 @@ export function FormSheet({
 }
 
 function CheckMark() {
-  return <CheckIcon className="h-4 w-4" />;
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
+      <path d="m5 13 4.5 4.5L19 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 /* ============================ Layout primitives ============================ */
@@ -306,7 +309,7 @@ export type ChoiceOption<T extends string> = {
   label: string;
   /** Optional second line — only for the card size, never for compact rows. */
   description?: string;
-  icon?: ReactNode;
+  icon?: string;
 };
 
 function useRovingChoice() {
@@ -468,9 +471,9 @@ export function AdvancedSection({ label = "Qo‘shimcha", children }: { label?: 
         className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-1 text-left text-[13px] font-semibold text-fg-soft transition-colors hover:text-fg touch-manipulation"
       >
         {label}
-        <ChevronDownIcon
-          className={`h-4 w-4 text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-        />
+        <span className={`text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true">
+          ⌄
+        </span>
       </button>
       {open ? (
         <div id={id} className="sheet-form mt-2 space-y-4">
@@ -649,7 +652,7 @@ export function AmountField({
               }}
               className="grid h-7 w-7 shrink-0 touch-manipulation place-items-center rounded-full bg-surface-3 text-[13px] leading-none text-muted transition-colors hover:text-fg active:scale-95"
             >
-              <CloseIcon className="h-[13px] w-[13px]" />
+              ✕
             </button>
           ) : null}
           {currency ? (
@@ -839,7 +842,7 @@ export function DateField({
               {chip.label}
             </Chip>
           ))}
-          <Chip icon={<CalendarIcon className="h-[15px] w-[15px]" />} active={showCalendar} onClick={() => setShowCalendar(true)} ariaLabel="Boshqa sanani tanlash">
+          <Chip icon="📅" active={showCalendar} onClick={() => setShowCalendar(true)} ariaLabel="Boshqa sanani tanlash">
             Boshqa
           </Chip>
         </ChipRow>
@@ -863,9 +866,14 @@ export function DateField({
 
 /* ============================ Account ============================ */
 
-export function renderAccountTypeIcon(type: string, className = "h-4 w-4"): ReactNode {
-  return <AccountTypeIcon type={type} className={className} />;
-}
+export const ACCOUNT_TYPE_ICON: Record<string, string> = {
+  cash: "💵",
+  uzcard: "💳",
+  humo: "💳",
+  bank: "🏦",
+  ewallet: "📱",
+  other: "•",
+};
 
 /**
  * §11: compact selector, never a giant section. A single account is selected
@@ -920,7 +928,7 @@ export function AccountPicker({
         <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
         <p className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-[13.5px]">
           <span className="shrink-0" aria-hidden="true">
-            {renderAccountTypeIcon(only.type)}
+            {ACCOUNT_TYPE_ICON[only.type] ?? "•"}
           </span>
           <span className="min-w-0 break-words font-medium">{only.name}</span>
         </p>
@@ -939,7 +947,7 @@ export function AccountPicker({
         {options.map((a) => (
           <Chip
             key={a.id}
-            icon={renderAccountTypeIcon(a.type)}
+            icon={ACCOUNT_TYPE_ICON[a.type] ?? "•"}
             title={a.name}
             active={String(a.id) === value}
             onClick={() => onChange(String(a.id))}
@@ -1006,7 +1014,7 @@ export function ChoiceList({
   options,
   onSelect,
 }: {
-  options: Array<{ id: string; label: string; description?: string; icon?: ReactNode }>;
+  options: Array<{ id: string; label: string; description?: string; icon?: string }>;
   onSelect: (id: string) => void;
 }) {
   return (

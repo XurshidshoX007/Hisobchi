@@ -4,19 +4,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  AccountCashIcon,
-  AlertCriticalIcon,
-  AlertWarningIcon,
-  BanIcon,
-  CheckIcon,
-  EditIcon,
-  FlagIcon,
-  MoreHorizontalIcon,
-  PauseIcon,
-  PlayIcon,
-  ReceiptIcon,
-} from "@/components/icons";
 import { CashFlowStrip, ForecastArea } from "@/components/charts";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
@@ -80,11 +67,11 @@ type Tone = "neutral" | "positive" | "negative" | "warning" | "accent" | "info";
  * are never surfaced as separate user-visible concepts — the badge below is the
  * single vocabulary the whole page (payments AND income) speaks.
  */
-const STATUS_META: Record<PlanLifecycle, { label: string; tone: Tone }> = {
-  active: { label: "Faol", tone: "accent" },
-  paused: { label: "Pauza", tone: "warning" },
-  cancelled: { label: "Bekor qilingan", tone: "negative" },
-  completed: { label: "Yakunlangan", tone: "positive" },
+const STATUS_META: Record<PlanLifecycle, { label: string; tone: Tone; icon: string }> = {
+  active: { label: "Faol", tone: "accent", icon: "●" },
+  paused: { label: "Pauza", tone: "warning", icon: "❚❚" },
+  cancelled: { label: "Bekor qilingan", tone: "negative", icon: "✕" },
+  completed: { label: "Yakunlangan", tone: "positive", icon: "✓" },
 };
 
 /** 44px round icon button — the standard secondary touch target of this page. */
@@ -323,7 +310,7 @@ export default function PlansPage() {
                     </div>
                   ) : (
                     <EmptyState
-                      icon={<ReceiptIcon className="h-6 w-6 text-fg-soft" />}
+                      icon="📌"
                       title="Rejalashtirilgan to‘lovlar yo‘q."
                       description="Pastdagi + tugmasi orqali to‘lov rejasini qo‘shing."
                     />
@@ -336,15 +323,7 @@ export default function PlansPage() {
                   </PlanRowList>
                 ) : (
                   <EmptyState
-                    icon={
-                      planTab === "cancelled" ? (
-                        <BanIcon className="h-6 w-6 text-negative-text" />
-                      ) : planTab === "completed" ? (
-                        <FlagIcon className="h-6 w-6 text-positive-text" />
-                      ) : (
-                        <PauseIcon className="h-6 w-6 text-warning-text" />
-                      )
-                    }
+                    icon={planTab === "cancelled" ? "🚫" : planTab === "completed" ? "🏁" : "❚❚"}
                     title={
                       planTab === "paused"
                         ? "Pauzadagi reja yo‘q"
@@ -405,7 +384,7 @@ export default function PlansPage() {
                     </div>
                   ) : (
                     <EmptyState
-                      icon={<AccountCashIcon className="h-6 w-6 text-fg-soft" />}
+                      icon="💰"
                       title="Daromadlar hali kiritilmagan."
                       description="Pastdagi + tugmasi orqali kutilayotgan daromadni qo‘shing."
                     />
@@ -418,15 +397,7 @@ export default function PlansPage() {
                   </PlanRowList>
                 ) : (
                   <EmptyState
-                    icon={
-                      incomeTab === "cancelled" ? (
-                        <BanIcon className="h-6 w-6 text-negative-text" />
-                      ) : incomeTab === "completed" ? (
-                        <FlagIcon className="h-6 w-6 text-positive-text" />
-                      ) : (
-                        <PauseIcon className="h-6 w-6 text-warning-text" />
-                      )
-                    }
+                    icon={incomeTab === "cancelled" ? "🚫" : incomeTab === "completed" ? "🏁" : "❚❚"}
                     title={
                       incomeTab === "paused"
                         ? "Pauzadagi daromad rejasi yo‘q"
@@ -602,17 +573,10 @@ function PaymentPlanRow({
           <div className="flex min-w-0 items-center gap-1.5">
             <p className="truncate text-[14px] font-semibold leading-tight">{r.name}</p>
             {status !== "active" ? <Badge tone={meta.tone}>{meta.label}</Badge> : null}
-            {status === "active" && r.paidThisMonth ? (
-              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-positive-text">
-                <CheckIcon className="h-3.5 w-3.5" /> bu oy
-              </span>
-            ) : null}
+            {status === "active" && r.paidThisMonth ? <span className="shrink-0 text-[11px] font-medium text-positive-text">✓ bu oy</span> : null}
           </div>
           <p className="mt-0.5 truncate text-[11.5px] text-muted">
-            <span className={`inline-flex items-center gap-1 ${TONE_TEXT[due.tone]}`}>
-              {due.overdue ? <AlertCriticalIcon className="h-3.5 w-3.5 shrink-0" /> : null}
-              {due.text}
-            </span>
+            <span className={TONE_TEXT[due.tone]}>{due.overdue ? "🔴 " : ""}{due.text}</span>
             {" · "}
             {metaBits.join(" · ")}
           </p>
@@ -664,7 +628,7 @@ function PaymentPlanRow({
         )}
         {r.paymentsCount ? (
           <button type="button" className={`${LINK_BTN} hidden sm:inline-flex`} onClick={() => onAction("history", r)}>
-            <ReceiptIcon className="h-3.5 w-3.5" /> {r.paymentsCount} ta
+            🧾 {r.paymentsCount} ta
           </button>
         ) : null}
         <button
@@ -673,7 +637,7 @@ function PaymentPlanRow({
           aria-label={`${r.name} — boshqa amallar`}
           onClick={() => onMenu(r)}
         >
-          <MoreHorizontalIcon className="h-[18px] w-[18px]" />
+          •••
         </button>
       </div>
     </div>
@@ -710,17 +674,10 @@ function IncomePlanRow({
           <div className="flex min-w-0 items-center gap-1.5">
             <p className="truncate text-[14px] font-semibold leading-tight">{i.sourceName}</p>
             {status !== "active" ? <Badge tone={meta.tone}>{meta.label}</Badge> : null}
-            {status === "active" && i.received ? (
-              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-positive-text">
-                <CheckIcon className="h-3.5 w-3.5" /> bu oy
-              </span>
-            ) : null}
+            {status === "active" && i.received ? <span className="shrink-0 text-[11px] font-medium text-positive-text">✓ bu oy</span> : null}
           </div>
           <p className="mt-0.5 truncate text-[11.5px] text-muted">
-            <span className={`inline-flex items-center gap-1 ${TONE_TEXT[due.tone]}`}>
-              {due.overdue ? <AlertWarningIcon className="h-3.5 w-3.5 shrink-0" /> : null}
-              {due.text}
-            </span>
+            <span className={TONE_TEXT[due.tone]}>{due.overdue ? "⏳ " : ""}{due.text}</span>
             {" · "}
             {metaBits.join(" · ")}
           </p>
@@ -767,7 +724,7 @@ function IncomePlanRow({
         )}
         {i.receiptsCount ? (
           <button type="button" className={`${LINK_BTN} hidden sm:inline-flex`} onClick={() => onAction("history", i)}>
-            <ReceiptIcon className="h-3.5 w-3.5" /> {i.receiptsCount} ta
+            🧾 {i.receiptsCount} ta
           </button>
         ) : null}
         <button
@@ -776,7 +733,7 @@ function IncomePlanRow({
           aria-label={`${i.sourceName} — boshqa amallar`}
           onClick={() => onMenu(i)}
         >
-          <MoreHorizontalIcon className="h-[18px] w-[18px]" />
+          •••
         </button>
       </div>
     </div>
@@ -827,23 +784,17 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
       <div className="min-w-0 space-y-2">
         {plan?.status === "active" || plan?.status === "paused" ? (
           <button type="button" className={rowClass} onClick={() => plan && run(plan.onToggle)}>
-            <span className="grid w-6 shrink-0 place-items-center" aria-hidden="true">
-              {plan.status === "active" ? <PauseIcon className="h-4 w-4" /> : <PlayIcon className="h-4 w-4" />}
-            </span>
+            <span className="w-6 shrink-0 text-center" aria-hidden="true">{plan.status === "active" ? "❚❚" : "▶"}</span>
             {plan.status === "active" ? "Pauza qilish" : "Yoqish"}
           </button>
         ) : null}
         <button type="button" className={rowClass} onClick={() => plan && run(plan.onEdit)}>
-          <span className="grid w-6 shrink-0 place-items-center" aria-hidden="true">
-            <EditIcon className="h-4 w-4" />
-          </span>
+          <span className="w-6 shrink-0 text-center" aria-hidden="true">✏️</span>
           Tahrirlash
         </button>
         {plan?.paymentsCount ? (
           <button type="button" className={rowClass} onClick={() => plan && run(plan.onHistory)}>
-            <span className="grid w-6 shrink-0 place-items-center" aria-hidden="true">
-              <ReceiptIcon className="h-4 w-4" />
-            </span>
+            <span className="w-6 shrink-0 text-center" aria-hidden="true">🧾</span>
             Tarixni ko‘rish ({plan.paymentsCount} ta)
           </button>
         ) : null}
@@ -853,9 +804,7 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
             className={`${rowClass} text-negative-text`}
             onClick={() => plan && run(plan.onCancel)}
           >
-            <span className="grid w-6 shrink-0 place-items-center" aria-hidden="true">
-              <BanIcon className="h-4 w-4" />
-            </span>
+            <span className="w-6 shrink-0 text-center" aria-hidden="true">🚫</span>
             Rejani bekor qilish
           </button>
         ) : null}
@@ -1153,9 +1102,7 @@ function CashflowTab({
       </Card>
 
       <Card>
-        <p className="mb-2 flex items-center gap-2 text-[15px] font-semibold">
-          <AlertWarningIcon className="h-4 w-4 text-warning-text" /> Xavf kunlari · {monthLabel}
-        </p>
+        <p className="mb-2 text-[15px] font-semibold">⚠️ Xavf kunlari · {monthLabel}</p>
         {risks.length ? (
           <>
             {/* Timeline context only — the full risk explanation is OWNED by

@@ -13,7 +13,6 @@ import {
 } from "react";
 import type { AppState } from "@/lib/types";
 import { ERRORS } from "@/lib/copy";
-import { AlertInfoIcon, CheckIcon, CloseIcon } from "./icons";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -294,13 +293,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             }}
           >
             <span className="flex items-center gap-2">
-              {t.tone === "success" ? (
-                <CheckIcon className="h-4 w-4 shrink-0 text-positive-text" />
-              ) : t.tone === "error" ? (
-                <CloseIcon className="h-4 w-4 shrink-0 text-negative-text" />
-              ) : (
-                <AlertInfoIcon className="h-4 w-4 shrink-0 text-muted" />
-              )}
+              {t.tone === "success" ? "✅" : t.tone === "error" ? "⛔" : "ℹ️"}
               {t.text}
             </span>
           </div>

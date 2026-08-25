@@ -2,7 +2,6 @@
 /* eslint-disable react-hooks/set-state-in-effect -- modal payment drafts synchronize to selected debt */
 
 import { useEffect, useRef, useState } from "react";
-import { DebtIcon } from "@/components/icons";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import {
@@ -199,7 +198,7 @@ export default function DebtsPage() {
           </div>
         </>
       ) : (
-        <EmptyState icon={<DebtIcon className="h-6 w-6 text-fg-soft" />} title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
+        <EmptyState icon="📋" title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
       )}
 
       <DebtSheet open={sheet} onClose={closeSheet} editing={editing} />
