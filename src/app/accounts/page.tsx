@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- modal form draft reset is synchronized to open state */
 
 import { useEffect, useRef, useState } from "react";
+import { AccountTypeIcon, CategoryIcon } from "@/components/icons";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { AdvancedSection, AmountField, ChoiceGrid, CompactSegmented, FormRow, FormSheet } from "@/components/form-kit";
@@ -27,15 +28,6 @@ const TYPES = [
   { value: "ewallet", label: "Elektron hamyon" },
   { value: "other", label: "Boshqa" },
 ];
-
-const TYPE_ICON: Record<string, string> = {
-  cash: "💵",
-  uzcard: "💳",
-  humo: "💳",
-  bank: "🏦",
-  ewallet: "📱",
-  other: "•",
-};
 
 export default function AccountsPage() {
   const { state, loading, mutate } = useFinance();
@@ -88,8 +80,22 @@ export default function AccountsPage() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: "accounts", label: "💳 Hisoblar" },
-            { value: "categories", label: "📂 Kategoriyalar" },
+            {
+              value: "accounts",
+              label: (
+                <span className="inline-flex items-center gap-1.5">
+                  <AccountTypeIcon type="uzcard" className="h-4 w-4" /> Hisoblar
+                </span>
+              ),
+            },
+            {
+              value: "categories",
+              label: (
+                <span className="inline-flex items-center gap-1.5">
+                  <CategoryIcon className="h-4 w-4" /> Kategoriyalar
+                </span>
+              ),
+            },
           ]}
         />
       </div>
@@ -103,7 +109,7 @@ export default function AccountsPage() {
               <div key={a.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
-                    {TYPE_ICON[a.type] ?? "•"}
+                    <AccountTypeIcon type={a.type} className="h-[18px] w-[18px]" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14.5px] font-medium">{a.name}</p>
@@ -145,7 +151,7 @@ export default function AccountsPage() {
             ))}
           </div>
         ) : (
-          <EmptyState icon="💳" title="Hisoblar yo‘q." description="Pastdagi + tugmasi orqali hisob qo‘shing." />
+          <EmptyState icon={<AccountTypeIcon type="uzcard" className="h-6 w-6 text-fg-soft" />} title="Hisoblar yo‘q." description="Pastdagi + tugmasi orqali hisob qo‘shing." />
         )
       ) : (
         <div className="space-y-4">
@@ -318,7 +324,7 @@ function AccountSheet({
         value={type}
         onChange={setType}
         columns={2}
-        options={TYPES.map((t) => ({ value: t.value, label: t.label, icon: TYPE_ICON[t.value] ?? "•" }))}
+        options={TYPES.map((t) => ({ value: t.value, label: t.label, icon: <AccountTypeIcon type={t.value} className="h-4 w-4" /> }))}
       />
 
       <AmountField

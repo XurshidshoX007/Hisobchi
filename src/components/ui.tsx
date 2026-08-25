@@ -13,6 +13,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { formatAmount } from "@/lib/money";
+import { CloseIcon } from "./icons";
 
 /** One body-level portal keeps every viewport layer out of transformed pages. */
 function BodyPortal({ children }: { children: ReactNode }) {
@@ -267,7 +268,7 @@ export function Segmented<T extends string>({
   value,
   onChange,
 }: {
-  options: Array<{ value: T; label: string }>;
+  options: Array<{ value: T; label: ReactNode }>;
   value: T;
   onChange: (value: T) => void;
 }) {
@@ -675,7 +676,7 @@ export function ContextualBottomSheet({
             className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-surface-3 hover:text-fg active:scale-[0.96] touch-manipulation"
             aria-label="Yopish"
           >
-            ✕
+            <CloseIcon className="h-4 w-4" />
           </button>
         </div>
         <div className="sheet-body min-h-0 flex-1 px-5 pb-4">
@@ -703,7 +704,7 @@ export function EmptyState({
   description,
   action,
 }: {
-  icon: string;
+  icon: ReactNode;
   title: string;
   description: string;
   action?: ReactNode;

@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- modal contribution drafts synchronize to selected goal */
 
 import { useEffect, useRef, useState } from "react";
+import { GoalIcon } from "@/components/icons";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { AdvancedSection, AmountField, Chip, DateField, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
@@ -106,7 +107,7 @@ export default function GoalsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon="🏆" title="Maqsadlar yo‘q." description="Pastdagi + tugmasi orqali maqsad qo‘shing." />
+        <EmptyState icon={<GoalIcon className="h-6 w-6 text-fg-soft" />} title="Maqsadlar yo‘q." description="Pastdagi + tugmasi orqali maqsad qo‘shing." />
       )}
 
       <GoalSheet open={sheet} onClose={closeSheet} editing={editing} />

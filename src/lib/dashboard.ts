@@ -32,7 +32,6 @@ export type BalanceGroupAccount = {
 export type BalanceGroup = {
   key: BalanceGroupKey;
   label: string;
-  icon: string;
   /** Design token suffix — combined at the call site with `bg-*` / `text-*`. */
   tone: "positive" | "accent" | "info" | "warning" | "neutral";
   /** Sum of `currentBalance` over accounts in this group (can be negative). */
@@ -89,12 +88,12 @@ function visibleCategories(items: DashboardCategory[]): DashboardCategory[] {
  */
 const GROUP_ORDER: BalanceGroupKey[] = ["cash", "cards", "bank", "ewallet", "other"];
 
-const GROUP_META: Record<BalanceGroupKey, { label: string; icon: string; tone: BalanceGroup["tone"] }> = {
-  cash: { label: "Naqd pul", icon: "💵", tone: "positive" },
-  cards: { label: "Kartalar", icon: "💳", tone: "accent" },
-  bank: { label: "Bank hisobi", icon: "🏦", tone: "info" },
-  ewallet: { label: "Elektron hamyon", icon: "📱", tone: "warning" },
-  other: { label: "Boshqa", icon: "•", tone: "neutral" },
+const GROUP_META: Record<BalanceGroupKey, { label: string; tone: BalanceGroup["tone"] }> = {
+  cash: { label: "Naqd pul", tone: "positive" },
+  cards: { label: "Kartalar", tone: "accent" },
+  bank: { label: "Bank hisobi", tone: "info" },
+  ewallet: { label: "Elektron hamyon", tone: "warning" },
+  other: { label: "Boshqa", tone: "neutral" },
 };
 
 function classifyAccountType(type: string): BalanceGroupKey {
@@ -129,7 +128,7 @@ function buildBalanceGroups(accounts: AccountView[] | undefined): BalanceGroup[]
     let bucket = buckets.get(key);
     if (!bucket) {
       const meta = GROUP_META[key];
-      bucket = { key, label: meta.label, icon: meta.icon, tone: meta.tone, amount: 0, share: 0, accounts: [] };
+      bucket = { key, label: meta.label, tone: meta.tone, amount: 0, share: 0, accounts: [] };
       buckets.set(key, bucket);
     }
     bucket.amount += account.currentBalance;

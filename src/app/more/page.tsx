@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { AccountTypeIcon, BotIcon, BudgetIcon, DebtIcon, GoalIcon, SettingsGearIcon } from "@/components/icons";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { Section, Skeleton } from "@/components/ui";
@@ -11,13 +13,13 @@ import { Section, Skeleton } from "@/components/ui";
  * primary home — their own pages. The Menu renders no metrics, no
  * descriptions, no mini-dashboard: just icon + title + chevron per row.
  */
-const LINKS: Array<{ href: string; icon: string; title: string }> = [
-  { href: "/accounts", icon: "💳", title: "Hisoblar" },
-  { href: "/budgets", icon: "🎯", title: "Budjetlar" },
-  { href: "/debts", icon: "📋", title: "Qarzdorlik" },
-  { href: "/goals", icon: "🏆", title: "Maqsadlar" },
-  { href: "/bot", icon: "🤖", title: "Telegram bot" },
-  { href: "/settings", icon: "⚙️", title: "Sozlamalar" },
+const LINKS: Array<{ href: string; icon: ReactNode; title: string }> = [
+  { href: "/accounts", icon: <AccountTypeIcon type="uzcard" className="h-[18px] w-[18px]" />, title: "Hisoblar" },
+  { href: "/budgets", icon: <BudgetIcon className="h-[18px] w-[18px]" />, title: "Budjetlar" },
+  { href: "/debts", icon: <DebtIcon className="h-[18px] w-[18px]" />, title: "Qarzdorlik" },
+  { href: "/goals", icon: <GoalIcon className="h-[18px] w-[18px]" />, title: "Maqsadlar" },
+  { href: "/bot", icon: <BotIcon className="h-[18px] w-[18px]" />, title: "Telegram bot" },
+  { href: "/settings", icon: <SettingsGearIcon className="h-[18px] w-[18px]" />, title: "Sozlamalar" },
 ];
 
 export default function MorePage() {
