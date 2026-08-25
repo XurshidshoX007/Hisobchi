@@ -9,6 +9,7 @@ import {
   transactionCategoryOptions,
   type TransactionFilterState,
 } from "@/lib/transaction-filters";
+import { ChevronDownIcon, ChevronRightIcon } from "./icons";
 import { FilterButton, FilterRadioGroup, FilterSection } from "./filter-controls";
 import { ContextualBottomSheet, TextInput } from "./ui";
 
@@ -124,7 +125,7 @@ export function TransactionFilter({
               </span>
               {filters.type !== "transfer" ? (
                 <span className="shrink-0 text-muted" aria-hidden="true">
-                  {categoryOpen ? "⌃" : "›"}
+                  {categoryOpen ? <ChevronDownIcon size={15} /> : <ChevronRightIcon size={15} />}
                 </span>
               ) : null}
             </button>

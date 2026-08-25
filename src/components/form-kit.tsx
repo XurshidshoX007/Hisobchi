@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import { ContextualBottomSheet, TextArea, TextInput } from "./ui";
+import { AccountTypeIcon, CalendarIcon } from "./icons";
 import { useFinance } from "./providers";
 import {
   QUICK_AMOUNTS,
@@ -309,7 +310,8 @@ export type ChoiceOption<T extends string> = {
   label: string;
   /** Optional second line — only for the card size, never for compact rows. */
   description?: string;
-  icon?: string;
+  /** Leading artwork: a glyph string (categories) or a shared icon element. */
+  icon?: ReactNode;
 };
 
 function useRovingChoice() {
@@ -842,7 +844,16 @@ export function DateField({
               {chip.label}
             </Chip>
           ))}
-          <Chip icon="📅" active={showCalendar} onClick={() => setShowCalendar(true)} ariaLabel="Boshqa sanani tanlash">
+          <Chip
+            icon={
+              <span className="shrink-0" aria-hidden="true">
+                <CalendarIcon size={15} />
+              </span>
+            }
+            active={showCalendar}
+            onClick={() => setShowCalendar(true)}
+            ariaLabel="Boshqa sanani tanlash"
+          >
             Boshqa
           </Chip>
         </ChipRow>
@@ -866,14 +877,17 @@ export function DateField({
 
 /* ============================ Account ============================ */
 
-export const ACCOUNT_TYPE_ICON: Record<string, string> = {
-  cash: "💵",
-  uzcard: "💳",
-  humo: "💳",
-  bank: "🏦",
-  ewallet: "📱",
-  other: "•",
-};
+/**
+ * Fixed account-type artwork lives in the shared stroke set (icons.tsx).
+ * The glyph is 18px so it sits optically level with a 13px label in a chip.
+ */
+export function AccountTypeGlyph({ type }: { type: string }) {
+  return (
+    <span className="shrink-0" aria-hidden="true">
+      <AccountTypeIcon type={type} size={17} />
+    </span>
+  );
+}
 
 /**
  * §11: compact selector, never a giant section. A single account is selected
@@ -927,9 +941,7 @@ export function AccountPicker({
       <div className="min-w-0">
         <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
         <p className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-[13.5px]">
-          <span className="shrink-0" aria-hidden="true">
-            {ACCOUNT_TYPE_ICON[only.type] ?? "•"}
-          </span>
+          <AccountTypeGlyph type={only.type} />
           <span className="min-w-0 break-words font-medium">{only.name}</span>
         </p>
         <FieldError>{error}</FieldError>
@@ -947,7 +959,7 @@ export function AccountPicker({
         {options.map((a) => (
           <Chip
             key={a.id}
-            icon={ACCOUNT_TYPE_ICON[a.type] ?? "•"}
+            icon={<AccountTypeGlyph type={a.type} />}
             title={a.name}
             active={String(a.id) === value}
             onClick={() => onChange(String(a.id))}

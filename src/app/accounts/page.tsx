@@ -17,6 +17,7 @@ import {
   TextInput,
 } from "@/components/ui";
 import { formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
+import { AccountTypeIcon, CardIcon, FolderIcon } from "@/components/icons";
 import type { AccountView, CategoryView } from "@/lib/finance";
 
 const TYPES = [
@@ -28,14 +29,18 @@ const TYPES = [
   { value: "other", label: "Boshqa" },
 ];
 
-const TYPE_ICON: Record<string, string> = {
-  cash: "💵",
-  uzcard: "💳",
-  humo: "💳",
-  bank: "🏦",
-  ewallet: "📱",
-  other: "•",
-};
+/**
+ * Account-type icons come from the shared stroke set (icons.tsx): the same
+ * weight and colour system as the rest of the chrome. Categories keep their
+ * user-supplied emoji artwork.
+ */
+function TypeGlyph({ type }: { type: string }) {
+  return (
+    <span className="pointer-events-none flex flex-col items-center gap-1" aria-hidden="true">
+      <AccountTypeIcon type={type} size={18} />
+    </span>
+  );
+}
 
 export default function AccountsPage() {
   const { state, loading, mutate } = useFinance();
@@ -88,8 +93,22 @@ export default function AccountsPage() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: "accounts", label: "💳 Hisoblar" },
-            { value: "categories", label: "📂 Kategoriyalar" },
+            {
+              value: "accounts",
+              label: (
+                <span className="flex items-center justify-center gap-1.5">
+                  <CardIcon size={15} /> Hisoblar
+                </span>
+              ),
+            },
+            {
+              value: "categories",
+              label: (
+                <span className="flex items-center justify-center gap-1.5">
+                  <FolderIcon size={15} /> Kategoriyalar
+                </span>
+              ),
+            },
           ]}
         />
       </div>
@@ -102,8 +121,8 @@ export default function AccountsPage() {
             {state.accounts.map((a) => (
               <div key={a.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
-                    {TYPE_ICON[a.type] ?? "•"}
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-fg-soft" aria-hidden="true">
+                    <AccountTypeIcon type={a.type} size={19} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14.5px] font-medium">{a.name}</p>
@@ -145,7 +164,7 @@ export default function AccountsPage() {
             ))}
           </div>
         ) : (
-          <EmptyState icon="💳" title="Hisoblar yo‘q." description="Pastdagi + tugmasi orqali hisob qo‘shing." />
+          <EmptyState icon={<CardIcon size={22} />} title="Hisoblar yo‘q." description="Pastdagi + tugmasi orqali hisob qo‘shing." />
         )
       ) : (
         <div className="space-y-4">
@@ -318,7 +337,7 @@ function AccountSheet({
         value={type}
         onChange={setType}
         columns={2}
-        options={TYPES.map((t) => ({ value: t.value, label: t.label, icon: TYPE_ICON[t.value] ?? "•" }))}
+        options={TYPES.map((t) => ({ value: t.value, label: t.label, icon: <TypeGlyph type={t.value} /> }))}
       />
 
       <AmountField

@@ -267,7 +267,8 @@ export function Segmented<T extends string>({
   value,
   onChange,
 }: {
-  options: Array<{ value: T; label: string }>;
+  /** `ReactNode` so tab options may carry an inline icon; plain strings keep working. */
+  options: Array<{ value: T; label: ReactNode }>;
   value: T;
   onChange: (value: T) => void;
 }) {
@@ -703,14 +704,15 @@ export function EmptyState({
   description,
   action,
 }: {
-  icon: string;
+  /** Artwork: an emoji glyph (user data) or a shared icon element (chrome). */
+  icon: ReactNode;
   title: string;
   description: string;
   action?: ReactNode;
 }) {
   return (
     <div className="flat-card flex flex-col items-center gap-3 px-5 py-8 text-center sm:px-6 sm:py-10">
-      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-3 text-xl">{icon}</div>
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-3 text-xl text-fg-soft">{icon}</div>
       <div className="max-w-[300px]">
         <p className="text-[15px] font-semibold">{title}</p>
         <p className="mx-auto mt-1 text-[13px] leading-relaxed text-muted">{description}</p>
