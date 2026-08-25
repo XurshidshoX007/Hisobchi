@@ -2,17 +2,45 @@ import Link from "next/link";
 import type { DashboardCategory, DashboardFacts } from "@/lib/dashboard";
 import { currencyLabel } from "@/lib/money";
 import { BalanceDistributionBar } from "./balance-breakdown";
-import { TrendDownIcon, TrendUpIcon, WalletIcon } from "./icons";
 import { Card, Money, Section, Skeleton } from "./ui";
+
+function WalletIcon() {
+  return (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4.5 7.5V6.2A2.2 2.2 0 0 1 6.7 4h10.8a2 2 0 0 1 2 2v1.5" />
+      <path d="M4.5 7.5h14.2a1.8 1.8 0 0 1 1.8 1.8v8.2a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 17.5V9.1a1.6 1.6 0 0 1 1.6-1.6" />
+      <path d="M16.4 11.2h4.1v4.6h-4.1a2.3 2.3 0 1 1 0-4.6Z" />
+      <path d="M16.5 13.5h.01" />
+    </svg>
+  );
+}
 
 function TrendIcon({ direction }: { direction: "up" | "down" }) {
   return (
-    <span
-      className={`inline-block transition-transform duration-200 ${direction === "up" ? "group-hover:-translate-y-0.5" : "group-hover:translate-y-0.5"}`}
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
+      className={`transition-transform duration-200 ${direction === "up" ? "group-hover:-translate-y-0.5" : "group-hover:translate-y-0.5"}`}
     >
-      {direction === "up" ? <TrendUpIcon size={13} /> : <TrendDownIcon size={13} />}
-    </span>
+      {direction === "up" ? <path d="M8 13V3m0 0L4.5 6.5M8 3l3.5 3.5" /> : <path d="M8 3v10m0 0 3.5-3.5M8 13 4.5 9.5" />}
+    </svg>
   );
 }
 
@@ -31,7 +59,7 @@ export function DashboardHero({
   const valueKey = `${facts.monthLabel}-${facts.balance}-${facts.income}-${facts.expense}`;
 
   return (
-    <Card padded={false} className="relative overflow-hidden border-line/90 shadow-soft transition-all duration-300 hover:shadow-raised">
+    <Card padded={false} className="relative overflow-hidden border-line/90 shadow-[0_2px_8px_rgba(12,18,34,0.04),0_12px_28px_-12px_rgba(12,18,34,0.08)] transition-all duration-300 hover:shadow-[0_4px_16px_rgba(12,18,34,0.06),0_16px_36px_-12px_rgba(12,18,34,0.12)]">
       {/* Ambient aurora lighting */}
       <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent opacity-[0.08] blur-2xl animate-aurora" aria-hidden="true" />
       <div className="pointer-events-none absolute -left-12 -bottom-16 h-44 w-44 rounded-full bg-positive opacity-[0.05] blur-2xl" aria-hidden="true" />
@@ -47,7 +75,7 @@ export function DashboardHero({
             </div>
           </div>
           <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[16px] bg-accent-soft text-accent-text border border-accent/15 shadow-xs transition-all duration-300 hover:scale-105 hover:shadow-sm">
-            <WalletIcon size={30} strokeWidth={2.2} />
+            <WalletIcon />
           </span>
         </div>
 
@@ -113,7 +141,7 @@ export function DashboardCategorySection({
       }
     >
       {items.length ? (
-        <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft transition-shadow duration-200 hover:shadow-raised">
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_3px_rgba(12,18,34,0.03)] transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(12,18,34,0.06)]">
           {items.map((item, index) => {
             const progress = Math.min(100, (item.amount / max) * 100);
             return (
@@ -153,7 +181,7 @@ export function DashboardCategorySection({
           })}
         </div>
       ) : (
-        <div className="rounded-2xl border border-line bg-surface px-5 py-6 text-center">
+        <div className="rounded-2xl border border-line bg-surface px-5 py-6 text-center shadow-[0_1px_2px_rgba(12,18,34,0.02)]">
           <p className="text-[13px] text-muted">{emptyText}</p>
         </div>
       )}

@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { BalanceBreakdownSheet } from "@/components/balance-breakdown";
 import { DashboardCategorySection, DashboardHero, DashboardLoading } from "@/components/dashboard";
 import { useFabPage } from "@/components/fab";
-import { WarningIcon } from "@/components/icons";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
 import { Button, EmptyState } from "@/components/ui";
@@ -34,7 +33,7 @@ export default function DashboardPage() {
   if (error && !state) {
     return (
       <EmptyState
-        icon={<WarningIcon size={22} />}
+        icon="⚠️"
         title="Ma’lumotni yuklashda xatolik yuz berdi."
         description="Internet aloqasini tekshirib, qayta urinib ko‘ring."
         action={<Button onClick={() => void refresh()}>Qayta urinish</Button>}

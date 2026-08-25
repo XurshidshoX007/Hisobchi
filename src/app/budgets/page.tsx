@@ -3,7 +3,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { TargetIcon } from "@/components/icons";
 import { useFab, useFabPage } from "@/components/fab";
 import { AmountField, Chip, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
 import { Badge, Card, EmptyState, Field, Money, Progress, Select, Skeleton } from "@/components/ui";
@@ -130,7 +129,7 @@ export default function BudgetsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon={<TargetIcon size={22} />} title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
+        <EmptyState icon="🎯" title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
       )}
 
       <BudgetSheet open={sheet} onClose={closeSheet} editing={editing} />

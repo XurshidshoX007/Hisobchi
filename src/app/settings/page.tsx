@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { MonitorIcon, MoonIcon, SunIcon } from "@/components/icons";
 import { Button, Card, Divider, Field, Segmented, Select, Skeleton, TextInput } from "@/components/ui";
 import { formatAmount } from "@/lib/money";
 import { TERMS } from "@/lib/copy";
@@ -174,30 +173,9 @@ export default function SettingsPage() {
           value={theme}
           onChange={setTheme}
           options={[
-            {
-              value: "light",
-              label: (
-                <span className="flex items-center justify-center gap-1.5">
-                  <SunIcon size={15} /> Kunduzgi
-                </span>
-              ),
-            },
-            {
-              value: "dark",
-              label: (
-                <span className="flex items-center justify-center gap-1.5">
-                  <MoonIcon size={15} /> Tungi
-                </span>
-              ),
-            },
-            {
-              value: "system",
-              label: (
-                <span className="flex items-center justify-center gap-1.5">
-                  <MonitorIcon size={15} /> Tizim
-                </span>
-              ),
-            },
+            { value: "light", label: "☀️ Kunduzgi" },
+            { value: "dark", label: "🌙 Tungi" },
+            { value: "system", label: "🖥 Tizim" },
           ]}
         />
 

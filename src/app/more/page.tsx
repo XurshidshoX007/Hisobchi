@@ -4,24 +4,20 @@ import Link from "next/link";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { Section, Skeleton } from "@/components/ui";
-import { BotIcon, CardIcon, ChevronRightIcon, ClipboardIcon, SettingsIcon, TargetIcon, TrophyIcon } from "@/components/icons";
 
 /**
  * MENU = NAVIGATION HUB (§37). It routes to secondary tools and nothing more.
  * Balances, budget usage, debt totals and goal progress each have exactly ONE
  * primary home — their own pages. The Menu renders no metrics, no
  * descriptions, no mini-dashboard: just icon + title + chevron per row.
- *
- * Icons are the shared stroke set (icons.tsx) — the same weight, cap and
- * colour system as bottom navigation, never platform-dependent emoji.
  */
-const LINKS: Array<{ href: string; icon: (p: { size?: number }) => React.ReactElement; title: string }> = [
-  { href: "/accounts", icon: CardIcon, title: "Hisoblar" },
-  { href: "/budgets", icon: TargetIcon, title: "Budjetlar" },
-  { href: "/debts", icon: ClipboardIcon, title: "Qarzdorlik" },
-  { href: "/goals", icon: TrophyIcon, title: "Maqsadlar" },
-  { href: "/bot", icon: BotIcon, title: "Telegram bot" },
-  { href: "/settings", icon: SettingsIcon, title: "Sozlamalar" },
+const LINKS: Array<{ href: string; icon: string; title: string }> = [
+  { href: "/accounts", icon: "💳", title: "Hisoblar" },
+  { href: "/budgets", icon: "🎯", title: "Budjetlar" },
+  { href: "/debts", icon: "📋", title: "Qarzdorlik" },
+  { href: "/goals", icon: "🏆", title: "Maqsadlar" },
+  { href: "/bot", icon: "🤖", title: "Telegram bot" },
+  { href: "/settings", icon: "⚙️", title: "Sozlamalar" },
 ];
 
 export default function MorePage() {
@@ -52,13 +48,13 @@ export default function MorePage() {
             <Link
               key={l.href}
               href={l.href}
-              className="group flex min-h-12 items-center gap-3 px-4 py-2 transition-colors hover:bg-surface-2 active:bg-surface-2 touch-manipulation"
+              className="flex min-h-12 items-center gap-3 px-4 py-2 transition-colors hover:bg-surface-2 active:bg-surface-2 touch-manipulation"
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-fg-soft transition-colors group-hover:bg-surface-3 group-hover:text-fg" aria-hidden="true">
-                <l.icon size={19} />
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
+                {l.icon}
               </span>
               <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium">{l.title}</span>
-              <ChevronRightIcon size={16} className="shrink-0 text-faint transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-muted" aria-hidden="true" />
+              <span className="shrink-0 text-muted" aria-hidden="true">›</span>
             </Link>
           ))}
         </nav>
