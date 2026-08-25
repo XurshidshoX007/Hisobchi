@@ -13,6 +13,7 @@ import {
 } from "react";
 import type { AppState } from "@/lib/types";
 import { ERRORS } from "@/lib/copy";
+import { Icon } from "./ui";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -282,7 +283,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="animate-pop w-full max-w-sm rounded-2xl border border-line bg-surface px-4 py-2.5 text-[13px] shadow-xl shadow-black/10 sm:text-sm"
+            className="animate-pop w-full max-w-sm rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] shadow-sm sm:text-sm"
             style={{
               borderColor:
                 t.tone === "success"
@@ -293,7 +294,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             }}
           >
             <span className="flex items-center gap-2">
-              {t.tone === "success" ? "✅" : t.tone === "error" ? "⛔" : "ℹ️"}
+              <Icon name={t.tone === "success" ? "check" : t.tone === "error" ? "warning" : "plans"} size={16} />
               {t.text}
             </span>
           </div>
