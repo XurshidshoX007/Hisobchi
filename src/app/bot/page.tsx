@@ -120,7 +120,7 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`animate-pop max-w-[88%] whitespace-pre-wrap rounded-lg px-3.5 py-2.5 text-[13px] leading-relaxed sm:max-w-[80%] sm:px-4 sm:text-[13.5px] ${
+                  className={`animate-pop max-w-[88%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed sm:max-w-[80%] sm:px-4 sm:text-[13.5px] ${
                     m.role === "user" ? "bg-primary text-primary-fg" : "border border-line bg-surface-2 text-fg"
                   }`}
                 >
@@ -130,7 +130,7 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
             ))}
             {busy ? (
               <div className="flex justify-start">
-                <div className="animate-shimmer rounded-lg border border-line bg-surface-2 px-4 py-2.5 text-[13px] text-muted">Yuklanmoqda…</div>
+                <div className="animate-shimmer rounded-2xl border border-line bg-surface-2 px-4 py-2.5 text-[13px] text-muted">Yuklanmoqda…</div>
               </div>
             ) : null}
           </div>

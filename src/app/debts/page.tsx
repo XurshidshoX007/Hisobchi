@@ -107,7 +107,7 @@ export default function DebtsPage() {
             />
           </div>
 
-          <div className="divide-y divide-line rounded-lg border border-line bg-surface">
+          <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
             {state.debts
               .filter((d) => filter === "all" || d.direction === filter)
               .map((d) => (

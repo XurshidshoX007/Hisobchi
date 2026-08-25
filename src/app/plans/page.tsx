@@ -530,7 +530,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 /** ONE bordered container per list — rows inside carry no frame of their own (§17/§24). */
 function PlanRowList({ children }: { children: React.ReactNode }) {
-  return <div className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface">{children}</div>;
+  return <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">{children}</div>;
 }
 
 /**

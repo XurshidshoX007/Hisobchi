@@ -51,7 +51,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-bg px-6">
         <div className="card w-full max-w-sm p-6 text-center">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-primary text-lg font-bold text-primary-fg">
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary text-lg font-bold text-primary-fg">
             ₮
           </div>
           <h1 className="mt-4 text-lg font-semibold tracking-tight">Hisobchi</h1>
@@ -65,11 +65,11 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
   return (
     <>
-    <div className={`app-shell-layout mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 lg:pt-6 ${hasFloatingAction ? "has-global-fab" : ""}`}>
+    <div className={`app-shell-layout mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 ${hasFloatingAction ? "has-global-fab" : ""}`}>
       {/* Sidebar — desktop */}
-      <aside className="sticky top-6 hidden h-fit w-60 shrink-0 flex-col gap-1 rounded-lg border border-line bg-surface p-2 shadow-card lg:flex">
+      <aside className="sticky top-6 hidden h-fit w-60 shrink-0 flex-col gap-1 lg:flex">
         <div className="mb-5 flex items-center gap-2.5 px-2">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-[15px] font-bold text-primary-fg">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-[15px] font-bold text-primary-fg">
             <span>₮</span>
           </div>
           <div>
@@ -83,11 +83,10 @@ function AppShellContent({ children }: { children: ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`relative flex min-h-11 items-center gap-3 rounded-md px-3 text-[14px] transition-colors ${
-                active ? "bg-surface-2 font-semibold text-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] transition-colors ${
+                active ? "bg-primary font-semibold text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
               }`}
             >
-              {active ? <span className="absolute left-0 top-2 h-7 w-1 rounded-r-full bg-primary" aria-hidden="true" /> : null}
               <item.icon active={active} />
               {item.label}
             </Link>
@@ -96,17 +95,16 @@ function AppShellContent({ children }: { children: ReactNode }) {
         <Divider />
         <Link
           href="/bot"
-          className={`relative flex min-h-11 items-center gap-3 rounded-md px-3 text-[14px] transition-colors ${
-            pathname === "/bot" ? "bg-surface-2 font-semibold text-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
+          className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] transition-colors ${
+            pathname === "/bot" ? "bg-primary text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
           }`}
         >
-          {pathname === "/bot" ? <span className="absolute left-0 top-2 h-7 w-1 rounded-r-full bg-primary" aria-hidden="true" /> : null}
           <span className="text-base">🤖</span> Telegram bot
         </Link>
 
         {/* Balance is OWNED by the Dashboard hero — the sidebar carries only a
             one-line reference to it (§4), never a second hero. */}
-        <Link href="/" className="mt-5 block rounded-md border border-line bg-surface-2 px-3 py-2 transition-colors hover:border-line-strong">
+        <Link href="/" className="mt-6 block rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2">
           <p className="text-[11.5px] text-muted">
             Balans: <span className="num font-semibold text-fg">{formatAmount(state?.currentBalance ?? 0)}</span>
           </p>
@@ -115,7 +113,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
         <button
           onClick={() => setAlertsOpen(true)}
-          className="mt-3 flex min-h-11 items-center gap-3 rounded-md px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
+          className="mt-4 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
           <span className="text-base">🔔</span>
           Eslatmalar
@@ -128,7 +126,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
         <button
           onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
-          className="mt-1 flex min-h-11 items-center gap-3 rounded-md px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
+          className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
           <span className="text-base">{theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}</span>
           {theme === "dark" ? "Tungi" : theme === "light" ? "Kunduzgi" : "Tizim"}
@@ -146,7 +144,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
         {profileHeader ? (
           <header className="glass-bar sticky top-0 z-30 -mx-3.5 mb-3 flex items-center justify-between gap-2 border-b border-line px-3.5 py-2.5 sm:-mx-6 sm:mb-4 sm:px-6 lg:hidden">
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-[15px] font-bold text-primary-fg">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-[15px] font-bold text-primary-fg">
                 ₮
               </div>
               <div className="min-w-0">
@@ -160,14 +158,14 @@ function AppShellContent({ children }: { children: ReactNode }) {
             <div className="flex shrink-0 items-center gap-1.5">
               <button
                 onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
-                className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
+                className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
                 aria-label="Mavzuni almashtirish"
               >
                 {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}
               </button>
               <button
                 onClick={() => setAlertsOpen(true)}
-                className="relative grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
+                className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
                 aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
               >
                 🔔
@@ -312,10 +310,10 @@ function NavItem({
       href={href}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} o‘qilmagan eslatma` : undefined}
-      className="nav-item flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-0.5 pb-1 pt-1.5 touch-manipulation"
+      className="nav-item flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1.5 touch-manipulation"
     >
       <span
-        className={`relative grid h-7 w-full place-items-center rounded-md transition-[background-color] duration-200 ease-out ${
+        className={`relative grid h-7 w-full place-items-center rounded-lg transition-[background-color] duration-200 ease-out ${
           active ? "bg-accent-soft" : "bg-transparent"
         }`}
       >

@@ -115,7 +115,7 @@ export function Button({
   type?: "button" | "submit";
 }) {
   const base =
-    "inline-flex select-none items-center justify-center gap-2 rounded-lg font-semibold transition-all active:scale-[0.98] touch-manipulation";
+    "inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-all active:scale-[0.97] touch-manipulation";
   const sizes: Record<string, string> = {
     sm: "min-h-9 px-3.5 text-[12.5px] sm:min-h-9 sm:text-xs",
     md: "min-h-11 px-4 text-sm",
@@ -160,7 +160,7 @@ export function Badge({
   };
   return (
     <span
-      className={`inline-flex max-w-full items-center gap-1 truncate rounded-md px-2 py-1 text-[11px] font-semibold ${tones[tone]}`}
+      className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold ${tones[tone]}`}
     >
       {children}
     </span>
@@ -248,7 +248,7 @@ export function Field({
  * zooming the page — and a zoom is a horizontal viewport shift (§21).
  */
 const inputClass =
-  "w-full min-w-0 max-w-full rounded-lg border border-line bg-surface-2 px-3.5 py-3 text-base leading-tight outline-none transition-colors placeholder:text-muted focus:border-accent focus:bg-surface sm:py-2.5 sm:text-[15px]";
+  "w-full min-w-0 max-w-full rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-base leading-tight outline-none transition-colors placeholder:text-muted focus:border-accent focus:bg-surface sm:py-2.5 sm:text-[15px]";
 
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputClass} ${props.className ?? ""}`} />;
@@ -272,14 +272,14 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="no-scrollbar w-full max-w-full overflow-x-auto overscroll-x-contain rounded-lg" data-segmented-scroll>
+    <div className="no-scrollbar w-full max-w-full overflow-x-auto overscroll-x-contain rounded-full" data-segmented-scroll>
       {/*
        * The inner row grows equally while labels fit, then becomes horizontally
        * scrollable when their intrinsic widths no longer fit. Labels are never
        * ellipsized: “Hammasi” must remain fully readable at 320px and every
        * longer segmented control keeps the same behaviour globally.
        */}
-      <div role="tablist" className="flex w-max min-w-full gap-1 rounded-lg border border-line bg-surface-2 p-1">
+      <div role="tablist" className="flex w-max min-w-full gap-1 rounded-full border border-line bg-surface-2 p-1">
         {options.map((o) => {
           const active = value === o.value;
           return (
@@ -304,7 +304,7 @@ export function Segmented<T extends string>({
                 tabs[next]?.focus();
                 tabs[next]?.click();
               }}
-              className={`flex min-h-11 flex-1 shrink-0 touch-manipulation select-none items-center justify-center whitespace-nowrap rounded-md px-3 text-xs font-semibold transition-all sm:min-h-10 ${
+              className={`flex min-h-11 flex-1 shrink-0 touch-manipulation select-none items-center justify-center whitespace-nowrap rounded-full px-3 text-xs font-semibold transition-all sm:min-h-10 ${
                 active ? "shadow-sm" : "text-fg-soft hover:bg-surface-3 hover:text-fg active:bg-surface-3"
               }`}
               style={active ? { background: "var(--segmented-active)", color: "var(--segmented-active-fg)" } : undefined}
@@ -650,7 +650,7 @@ export function ContextualBottomSheet({
             completeExit();
           }
         }}
-        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-2xl border border-line bg-surface shadow-2xl outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-xl"
+        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-[20px]"
       >
         <div className="shrink-0 px-5 pt-3 sm:hidden">
           <div className="mx-auto h-1.5 w-10 rounded-full bg-line-strong" />
@@ -672,7 +672,7 @@ export function ContextualBottomSheet({
               if (open) onCloseRef.current();
             }}
             data-hit="expanded"
-            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-surface-3 hover:text-fg active:scale-[0.96] touch-manipulation"
+            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-surface-3 hover:text-fg active:scale-[0.96] touch-manipulation"
             aria-label="Yopish"
           >
             ✕
@@ -710,7 +710,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flat-card flex flex-col items-center gap-3 px-5 py-8 text-center sm:px-6 sm:py-10">
-      <div className="grid h-12 w-12 place-items-center rounded-lg bg-surface-3 text-xl">{icon}</div>
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-3 text-xl">{icon}</div>
       <div className="max-w-[300px]">
         <p className="text-[15px] font-semibold">{title}</p>
         <p className="mx-auto mt-1 text-[13px] leading-relaxed text-muted">{description}</p>
@@ -785,7 +785,7 @@ export function PageHeader({
         <Link
           href={back.href}
           aria-label={`Orqaga: ${back.label}`}
-          className="-ml-1.5 mb-0.5 inline-flex min-h-11 items-center gap-0.5 rounded-lg px-1.5 text-[12.5px] font-medium text-muted transition-colors hover:text-fg active:text-fg touch-manipulation"
+          className="-ml-1.5 mb-0.5 inline-flex min-h-11 items-center gap-0.5 rounded-full px-1.5 text-[12.5px] font-medium text-muted transition-colors hover:text-fg active:text-fg touch-manipulation"
         >
           <span aria-hidden="true" className="text-[15px] leading-none">‹</span>
           {back.label}
