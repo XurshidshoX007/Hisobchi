@@ -129,7 +129,7 @@ function TransactionsView() {
             type="button"
             onClick={() => setSearchQuery("")}
             aria-label="Qidiruvni tozalash"
-            className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 touch-manipulation"
+            className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 touch-manipulation"
           >
             ✕
           </button>
@@ -148,14 +148,14 @@ function TransactionsView() {
           {contexts.map((context) => (
             <div
               key={context.key}
-              className="inline-flex min-h-8 max-w-full min-w-0 items-center gap-1.5 rounded-full bg-accent-soft py-1 pl-3 pr-1 text-[12px] text-accent-text"
+              className="inline-flex min-h-8 max-w-full min-w-0 items-center gap-1.5 rounded-md bg-accent-soft py-1 pl-3 pr-1 text-[12px] text-accent-text"
             >
               <span className="shrink-0 text-muted">{context.label}:</span>
               <span className="min-w-0 truncate font-semibold">{context.name}</span>
               <Link
                 href={context.clearHref}
                 aria-label={`${context.label} kontekstini olib tashlash`}
-                className="grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors hover:bg-surface/70 touch-manipulation"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-md transition-colors hover:bg-surface/70 touch-manipulation"
               >
                 ✕
               </Link>
@@ -228,7 +228,7 @@ function TransactionsView() {
                             onClick={() => (transaction.debtId ? null : setEditing(transaction))}
                             disabled={Boolean(transaction.debtId)}
                             title={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : undefined}
-                            className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
+                            className="grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
                             aria-label={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : "Tahrirlash"}
                           >
                             {/* Inline SVG, not a text glyph: the Unicode pencil (✎ U+270E
@@ -254,7 +254,7 @@ function TransactionsView() {
                             onClick={() => (transaction.debtId && !transaction.debtPaymentId ? null : setDeleting(transaction))}
                             disabled={Boolean(transaction.debtId && !transaction.debtPaymentId)}
                             title={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : undefined}
-                            className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
+                            className="grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
                             aria-label={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : "Bekor qilish"}
                           >
                             ✕
@@ -263,7 +263,7 @@ function TransactionsView() {
                       }
                     >
                       <div className="flex min-w-0 items-center gap-2.5 py-3 sm:gap-3">
-                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-surface-3 text-base">
                           {transaction.type === "transfer" ? "↔️" : transaction.categoryIcon}
                         </div>
                         <div className="min-w-0 flex-1">

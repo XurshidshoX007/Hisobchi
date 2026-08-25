@@ -172,7 +172,7 @@ export function FormSheet({
           aria-busy={status === "saving"}
           // §15: a long Uzbek CTA ("Kutilayotgan daromadni saqlash") wraps
           // inside the footer instead of widening it past the viewport.
-          className="inline-flex min-h-12 w-full min-w-0 max-w-full flex-1 select-none items-center justify-center gap-2 break-words rounded-full bg-primary px-5 py-2 text-center text-[15px] font-semibold leading-tight text-primary-fg shadow-sm transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-[0.98] disabled:pointer-events-none disabled:bg-surface-3 disabled:text-muted disabled:shadow-none touch-manipulation"
+          className="inline-flex min-h-12 w-full min-w-0 max-w-full flex-1 select-none items-center justify-center gap-2 break-words rounded-lg bg-primary px-5 py-2 text-center text-[15px] font-semibold leading-tight text-primary-fg shadow-sm transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-[0.98] disabled:pointer-events-none disabled:bg-surface-3 disabled:text-muted disabled:shadow-none touch-manipulation"
         >
           {status === "saved" ? <CheckMark /> : null}
           {label}
@@ -182,13 +182,13 @@ export function FormSheet({
       {error ? (
         <div
           role="alert"
-          className="flex min-w-0 items-start justify-between gap-3 rounded-xl border border-negative bg-negative-soft px-3.5 py-2.5"
+          className="flex min-w-0 items-start justify-between gap-3 rounded-lg border border-negative bg-negative-soft px-3.5 py-2.5"
         >
           <p className="min-w-0 break-words text-[12.5px] leading-snug text-negative-text">{error}</p>
           <button
             type="button"
             onClick={submit}
-            className="shrink-0 rounded-full px-2 py-1 text-[12px] font-semibold text-negative-text underline-offset-2 hover:underline touch-manipulation"
+            className="shrink-0 rounded-md px-2 py-1 text-[12px] font-semibold text-negative-text underline-offset-2 hover:underline touch-manipulation"
           >
             Qayta
           </button>
@@ -206,7 +206,7 @@ export function FormSheet({
               <button
                 type="button"
                 onClick={() => setConfirmClose(false)}
-                className="min-h-11 flex-1 rounded-full border border-line bg-surface text-[13px] font-semibold text-fg transition-colors hover:bg-surface-2 touch-manipulation"
+                className="min-h-11 flex-1 rounded-lg border border-line bg-surface text-[13px] font-semibold text-fg transition-colors hover:bg-surface-2 touch-manipulation"
               >
                 Qolish
               </button>
@@ -216,7 +216,7 @@ export function FormSheet({
                   setConfirmClose(false);
                   onClose();
                 }}
-                className="min-h-11 flex-1 rounded-full bg-negative text-[13px] font-semibold text-negative-fg transition-opacity hover:opacity-90 touch-manipulation"
+                className="min-h-11 flex-1 rounded-lg bg-negative text-[13px] font-semibold text-negative-fg transition-opacity hover:opacity-90 touch-manipulation"
               >
                 Chiqish
               </button>
@@ -388,7 +388,7 @@ export function ChoiceGrid<T extends string>({
             tabIndex={index === focusIndex ? 0 : -1}
             onKeyDown={onKeyDown}
             onClick={() => onChange(option.value)}
-            className={`flex w-full min-w-0 max-w-full touch-manipulation select-none flex-col items-center justify-center gap-0.5 rounded-xl border px-2 text-center transition-colors ${
+            className={`flex w-full min-w-0 max-w-full touch-manipulation select-none flex-col items-center justify-center gap-0.5 rounded-lg border px-2 text-center transition-colors ${
               size === "sm" ? "min-h-11 py-1.5 text-[12.5px]" : "min-h-12 py-2 text-[13px]"
             } ${
               active
@@ -468,7 +468,7 @@ export function AdvancedSection({ label = "Qo‘shimcha", children }: { label?: 
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={id}
-        className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-1 text-left text-[13px] font-semibold text-fg-soft transition-colors hover:text-fg touch-manipulation"
+        className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-1 text-left text-[13px] font-semibold text-fg-soft transition-colors hover:text-fg touch-manipulation"
       >
         {label}
         <span className={`text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true">
@@ -487,7 +487,7 @@ export function AdvancedSection({ label = "Qo‘shimcha", children }: { label?: 
 /** Compact “this is what you are about to save” block (§15/§16/§48). */
 export function PreviewCard({ label = "Ko‘rinishi", children }: { label?: string; children: ReactNode }) {
   return (
-    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl bg-surface-2 px-3.5 py-3 [overflow-wrap:anywhere]">
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg bg-surface-2 px-3.5 py-3 [overflow-wrap:anywhere]">
       <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
       {children}
     </div>
@@ -531,7 +531,7 @@ export function Chip({
       aria-pressed={active}
       aria-label={ariaLabel}
       title={title}
-      className={`inline-flex min-h-11 min-w-0 max-w-full touch-manipulation items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition-colors ${
+      className={`inline-flex min-h-11 min-w-0 max-w-full touch-manipulation items-center gap-1.5 rounded-md border px-3.5 text-[13px] font-medium transition-colors ${
         active
           ? "border-transparent bg-accent-soft font-semibold text-accent-text ring-2 ring-inset ring-accent"
           : "border-line bg-surface text-fg-soft hover:border-line-strong hover:text-fg active:bg-surface-3"
@@ -650,7 +650,7 @@ export function AmountField({
                 onChange("");
                 inputRef.current?.focus();
               }}
-              className="grid h-7 w-7 shrink-0 touch-manipulation place-items-center rounded-full bg-surface-3 text-[13px] leading-none text-muted transition-colors hover:text-fg active:scale-95"
+              className="grid h-7 w-7 shrink-0 touch-manipulation place-items-center rounded-md bg-surface-3 text-[13px] leading-none text-muted transition-colors hover:text-fg active:scale-95"
             >
               ✕
             </button>
@@ -671,7 +671,7 @@ export function AmountField({
               key={amount}
               type="button"
               onClick={() => onChange(addQuickAmount(value, amount))}
-              className="num min-h-9 min-w-0 max-w-full touch-manipulation rounded-full border border-line bg-surface-2 px-3.5 text-[12px] font-semibold text-fg-soft transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-text active:scale-95"
+              className="num min-h-9 min-w-0 max-w-full touch-manipulation rounded-lg border border-line bg-surface-2 px-3.5 text-[12px] font-semibold text-fg-soft transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-text active:scale-95"
             >
               {quickAmountLabel(amount)}
             </button>
@@ -774,7 +774,7 @@ export function CategoryPicker({
             placeholder="Qidirish"
             aria-label="Kategoriya qidirish"
           />
-          <div className="max-h-52 min-w-0 space-y-1 overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl border border-line bg-surface-2 p-1.5">
+          <div className="max-h-52 min-w-0 space-y-1 overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-line bg-surface-2 p-1.5">
             {filtered.map((c) => (
               <button
                 key={c.id}
@@ -913,7 +913,7 @@ export function AccountPicker({
     return (
       <div className="min-w-0">
         <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
-        <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[12.5px] leading-snug text-muted">
+        <p className="rounded-lg bg-surface-2 px-3.5 py-2.5 text-[12.5px] leading-snug text-muted">
           Boshqa faol hisob yo‘q — Hisoblar bo‘limida yangi hisob qo‘shing.
         </p>
         <FieldError>{error}</FieldError>
@@ -926,7 +926,7 @@ export function AccountPicker({
     return (
       <div className="min-w-0">
         <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
-        <p className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-[13.5px]">
+        <p className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3.5 py-2 text-[13.5px]">
           <span className="shrink-0" aria-hidden="true">
             {ACCOUNT_TYPE_ICON[only.type] ?? "•"}
           </span>
@@ -984,7 +984,7 @@ export function NoteField({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-1 text-[13px] font-semibold text-accent-text transition-colors touch-manipulation"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-1 text-[13px] font-semibold text-accent-text transition-colors touch-manipulation"
       >
         + {label}
       </button>
@@ -1024,10 +1024,10 @@ export function ChoiceList({
           key={option.id}
           type="button"
           onClick={() => onSelect(option.id)}
-          className="flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium transition-colors hover:border-line-strong hover:bg-surface-3 active:bg-surface-3 touch-manipulation"
+          className="flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-lg border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium transition-colors hover:border-line-strong hover:bg-surface-3 active:bg-surface-3 touch-manipulation"
         >
           {option.icon ? (
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-3 text-base" aria-hidden="true">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-surface-3 text-base" aria-hidden="true">
               {option.icon}
             </span>
           ) : null}
