@@ -4,7 +4,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { ClipboardIcon } from "@/components/icons";
 import {
   AccountPicker,
   AmountField,
@@ -199,7 +198,7 @@ export default function DebtsPage() {
           </div>
         </>
       ) : (
-        <EmptyState icon={<ClipboardIcon size={22} />} title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
+        <EmptyState icon="📋" title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
       )}
 
       <DebtSheet open={sheet} onClose={closeSheet} editing={editing} />

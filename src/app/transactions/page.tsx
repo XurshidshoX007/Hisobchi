@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { SearchIcon } from "@/components/icons";
 import { QuickAddSheet } from "@/components/quick-add";
 import { SwipeActions } from "@/components/swipe-actions";
 import { TransactionFilter, type TransactionFilterContext } from "@/components/transaction-filter";
@@ -110,8 +109,11 @@ function TransactionsView() {
         <label htmlFor="history-search" className="sr-only">
           Tarixdan qidirish
         </label>
-        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">
-          <SearchIcon size={18} />
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m16.5 16.5 4 4" strokeLinecap="round" />
+          </svg>
         </span>
         <TextInput
           id="history-search"
@@ -176,7 +178,7 @@ function TransactionsView() {
 
       {grouped.length === 0 ? (
         <EmptyState
-          icon={<SearchIcon size={22} />}
+          icon="🔍"
           title={
             state.transactions.length === 0
               ? "Tarix hozircha bo‘sh."
