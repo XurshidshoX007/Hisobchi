@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AnalyticsIcon } from "@/components/icons";
 
 /**
  * ANALYTICS — "Tez kunda" (coming soon).
@@ -16,10 +17,10 @@ export default function AnalyticsPage() {
   return (
     <div className="animate-fade-up flex min-h-[62dvh] flex-col items-center justify-center px-6 py-12 text-center">
       <div
-        className="grid h-16 w-16 place-items-center rounded-2xl bg-accent-soft text-[32px] leading-none"
+        className="grid h-16 w-16 place-items-center rounded-2xl bg-accent-soft text-accent-text"
         aria-hidden="true"
       >
-        📊
+        <AnalyticsIcon className="h-8 w-8" />
       </div>
 
       <h1 className="mt-5 text-xl font-bold tracking-tight sm:text-[22px]">Tez kunda</h1>

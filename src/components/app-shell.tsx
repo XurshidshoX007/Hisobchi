@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { formatAmount, humanDate } from "@/lib/money";
 import { getFabActions, supportsFab } from "@/lib/fab";
 import { MENU_ROUTE, isMenuSubroute, showsProfileHeader } from "@/lib/navigation";
+import { BellIcon, BotIcon, ChartIcon, GridIcon, HomeIcon, ListIcon, ThemeMoonIcon, ThemeSunIcon, ThemeSystemIcon, CalendarIcon, AlertCriticalIcon, AlertInfoIcon, AlertWarningIcon } from "./icons";
 import { useFinance } from "./providers";
 import { FabProvider, GlobalAddFab, useFab } from "./fab";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
@@ -99,7 +100,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
             pathname === "/bot" ? "bg-primary text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
           }`}
         >
-          <span className="text-base">🤖</span> Telegram bot
+          <BotIcon className="h-[18px] w-[18px]" /> Telegram bot
         </Link>
 
         {/* Balance is OWNED by the Dashboard hero — the sidebar carries only a
@@ -115,7 +116,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           onClick={() => setAlertsOpen(true)}
           className="mt-4 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
-          <span className="text-base">🔔</span>
+          <BellIcon className="h-[18px] w-[18px]" />
           Eslatmalar
           {unread > 0 ? (
             <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-negative px-1.5 text-[10px] font-bold text-negative-fg">
@@ -128,7 +129,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
           className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
-          <span className="text-base">{theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}</span>
+          {theme === "dark" ? <ThemeMoonIcon className="h-[18px] w-[18px]" /> : theme === "light" ? <ThemeSunIcon className="h-[18px] w-[18px]" /> : <ThemeSystemIcon className="h-[18px] w-[18px]" />}
           {theme === "dark" ? "Tungi" : theme === "light" ? "Kunduzgi" : "Tizim"}
         </button>
       </aside>
@@ -161,14 +162,14 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
                 aria-label="Mavzuni almashtirish"
               >
-                {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}
+                {theme === "dark" ? <ThemeMoonIcon className="h-[18px] w-[18px]" /> : theme === "light" ? <ThemeSunIcon className="h-[18px] w-[18px]" /> : <ThemeSystemIcon className="h-[18px] w-[18px]" />}
               </button>
               <button
                 onClick={() => setAlertsOpen(true)}
                 className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
                 aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
               >
-                🔔
+                <BellIcon className="h-[18px] w-[18px]" />
                 {unread > 0 ? (
                   <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[9px] font-bold text-negative-fg">
                     {unread > 9 ? "9+" : unread}
@@ -233,8 +234,15 @@ function AppShellContent({ children }: { children: ReactNode }) {
             }}
           >
             <div className="flex items-start justify-between gap-3">
-              <p className="text-[14px] font-semibold">
-                {a.severity === "critical" ? "🚨" : a.severity === "warning" ? "⚠️" : "🔔"} {a.title}
+              <p className="flex items-center gap-2 text-[14px] font-semibold">
+                {a.severity === "critical" ? (
+                  <AlertCriticalIcon className="h-4 w-4 shrink-0 text-negative-text" />
+                ) : a.severity === "warning" ? (
+                  <AlertWarningIcon className="h-4 w-4 shrink-0 text-warning-text" />
+                ) : (
+                  <AlertInfoIcon className="h-4 w-4 shrink-0 text-muted" />
+                )}
+                <span>{a.title}</span>
               </p>
               {a.amount ? <Money value={a.amount} size="sm" tone={a.severity === "critical" ? "negative" : "default"} /> : null}
             </div>
@@ -318,7 +326,7 @@ function NavItem({
         }`}
       >
         <span
-          className="transition-transform duration-200 ease-out"
+          className={`transition-transform duration-200 ease-out ${active ? "text-fg" : "text-muted"}`}
           style={{ transform: active ? "scale(1.06)" : "scale(1)" }}
         >
           <Icon active={active} />
@@ -348,48 +356,5 @@ function NavItem({
         }}
       />
     </Link>
-  );
-}
-
-type IconProps = { active?: boolean };
-
-function HomeIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function ListIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <path d="M4 7h16M4 12h16M4 17h10" strokeLinecap="round" />
-    </svg>
-  );
-}
-function CalendarIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <rect x="3.5" y="5" width="17" height="15" rx="3" />
-      <path d="M8 3.5v3M16 3.5v3M3.5 10h17" strokeLinecap="round" />
-    </svg>
-  );
-}
-function ChartIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <path d="M4 19V5M4 19h16" strokeLinecap="round" />
-      <path d="M8 16v-4M12.5 16V8M17 16v-6" strokeLinecap="round" />
-    </svg>
-  );
-}
-function GridIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
-      <rect x="13.5" y="4" width="6.5" height="6.5" rx="2" />
-      <rect x="4" y="13.5" width="6.5" height="6.5" rx="2" />
-      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2" />
-    </svg>
   );
 }

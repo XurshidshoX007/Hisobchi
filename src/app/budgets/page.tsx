@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- modal form draft reset is synchronized to open state */
 
 import { useEffect, useRef, useState } from "react";
+import { BudgetIcon } from "@/components/icons";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { AmountField, Chip, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
@@ -129,7 +130,7 @@ export default function BudgetsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon="🎯" title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
+        <EmptyState icon={<BudgetIcon className="h-6 w-6 text-fg-soft" />} title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
       )}
 
       <BudgetSheet open={sheet} onClose={closeSheet} editing={editing} />

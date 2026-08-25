@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { PlusIcon } from "./icons";
 import { ContextualBottomSheet, FloatingActionButton } from "./ui";
 import { getFabActions, normalizePath, supportsFab, type FabAction, type FabActionDef, type FabContext } from "@/lib/fab";
 
@@ -179,19 +180,7 @@ function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke
         aria-haspopup="dialog"
         aria-controls={open ? controlsId : undefined}
       >
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          aria-hidden="true"
-          className={`transition-transform duration-200 ${open ? "rotate-45" : ""}`}
-        >
-          <path d="M12 5v14M5 12h14" />
-        </svg>
+        <PlusIcon className={`h-6 w-6 transition-transform duration-200 ${open ? "rotate-45" : ""}`} />
       </FloatingActionButton>
 
       <ContextualBottomSheet

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { BalanceGroup, BalanceGroupKey } from "@/lib/dashboard";
 import { currencyLabel } from "@/lib/money";
+import { AccountBankIcon, AccountCardIcon, AccountCashIcon, AccountOtherIcon, AccountWalletIcon, ChevronDownIcon } from "./icons";
 import { ContextualBottomSheet, Money } from "./ui";
 
 /**
@@ -93,22 +94,22 @@ export function BalanceDistributionBar({
 }
 
 function ChevronDown() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0 text-muted transition-transform duration-200 group-hover:translate-y-0.5"
-      aria-hidden="true"
-    >
-      <path d="M4 6l4 4 4-4" />
-    </svg>
-  );
+  return <ChevronDownIcon className="h-[14px] w-[14px] shrink-0 text-muted transition-transform duration-200 group-hover:translate-y-0.5" />;
+}
+
+function BalanceGroupIcon({ groupKey }: { groupKey: BalanceGroupKey }) {
+  switch (groupKey) {
+    case "cash":
+      return <AccountCashIcon className="h-5 w-5" />;
+    case "cards":
+      return <AccountCardIcon className="h-5 w-5" />;
+    case "bank":
+      return <AccountBankIcon className="h-5 w-5" />;
+    case "ewallet":
+      return <AccountWalletIcon className="h-5 w-5" />;
+    default:
+      return <AccountOtherIcon className="h-5 w-5" />;
+  }
 }
 
 /**
@@ -196,7 +197,7 @@ function BreakdownRow({ group, unit }: { group: BalanceGroup; unit: string }) {
         className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-lg shadow-xs transition-transform duration-200 group-hover:scale-105 ${tone.chipBg} ${tone.chipText}`}
         aria-hidden="true"
       >
-        {group.icon}
+        <BalanceGroupIcon groupKey={group.key} />
       </span>
       <div className="min-w-0 flex-1">
         <p className={`truncate text-[14.5px] font-semibold ${isZero ? "text-fg-soft" : "text-fg"}`}>{group.label}</p>

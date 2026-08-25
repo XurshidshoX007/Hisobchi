@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
+import { CloseIcon, SearchIcon, TransferIcon } from "@/components/icons";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
 import { SwipeActions } from "@/components/swipe-actions";
@@ -110,10 +111,7 @@ function TransactionsView() {
           Tarixdan qidirish
         </label>
         <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m16.5 16.5 4 4" strokeLinecap="round" />
-          </svg>
+          <SearchIcon className="h-[18px] w-[18px]" />
         </span>
         <TextInput
           id="history-search"
@@ -131,7 +129,7 @@ function TransactionsView() {
             aria-label="Qidiruvni tozalash"
             className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 touch-manipulation"
           >
-            ✕
+            <CloseIcon className="h-4 w-4" />
           </button>
         ) : null}
       </div>
@@ -157,7 +155,7 @@ function TransactionsView() {
                 aria-label={`${context.label} kontekstini olib tashlash`}
                 className="grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors hover:bg-surface/70 touch-manipulation"
               >
-                ✕
+                <CloseIcon className="h-4 w-4" />
               </Link>
             </div>
           ))}
@@ -178,7 +176,7 @@ function TransactionsView() {
 
       {grouped.length === 0 ? (
         <EmptyState
-          icon="🔍"
+          icon={<SearchIcon className="h-6 w-6 text-fg-soft" />}
           title={
             state.transactions.length === 0
               ? "Tarix hozircha bo‘sh."
@@ -257,14 +255,14 @@ function TransactionsView() {
                             className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
                             aria-label={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : "Bekor qilish"}
                           >
-                            ✕
+                            <CloseIcon className="h-[18px] w-[18px]" />
                           </button>
                         </>
                       }
                     >
                       <div className="flex min-w-0 items-center gap-2.5 py-3 sm:gap-3">
                         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">
-                          {transaction.type === "transfer" ? "↔️" : transaction.categoryIcon}
+                          {transaction.type === "transfer" ? <TransferIcon className="h-[18px] w-[18px]" /> : transaction.categoryIcon}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="flex min-w-0 items-center gap-1.5 truncate text-[14px] font-medium">
