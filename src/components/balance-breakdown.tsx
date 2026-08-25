@@ -52,7 +52,7 @@ export function BalanceDistributionBar({
       type="button"
       onClick={onOpen}
       aria-label="Balans taqsimotini ochish"
-      className="group mt-3.5 block w-full select-none rounded-xl p-1.5 text-left transition-colors duration-200 hover:bg-surface-2/80 active:bg-surface-3 active:scale-[0.99] touch-manipulation"
+      className="group mt-3.5 block w-full select-none rounded-xl p-1.5 text-left transition-all duration-200 hover:bg-surface-2/80 active:bg-surface-3 active:scale-[0.99] touch-manipulation"
     >
       {hasBar ? (
         <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface-3 p-[1px]" role="presentation">
@@ -62,7 +62,7 @@ export function BalanceDistributionBar({
             return (
               <span
                 key={group.key}
-                className={`${tone.bar} h-full rounded-full transition-[width] duration-200 ease-out`}
+                className={`${tone.bar} h-full rounded-full transition-all duration-500 ease-out group-hover:brightness-105`}
                 style={{ width: `${width}%` }}
                 aria-hidden="true"
               />
@@ -141,7 +141,7 @@ export function BalanceBreakdownSheet({
         <Link
           href="/accounts"
           onClick={onClose}
-          className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-5 py-2 text-[15px] font-semibold text-accent-text shadow-xs transition-colors duration-200 hover:border-line-strong hover:bg-surface-2 active:scale-[0.98] active:bg-surface-3 touch-manipulation"
+          className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-5 py-2 text-[15px] font-semibold text-accent-text shadow-xs transition-all duration-200 hover:border-line-strong hover:bg-surface-2 active:scale-[0.98] active:bg-surface-3 touch-manipulation"
         >
           Hisoblarni boshqarish
           <span className="inline-block transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true">→</span>
@@ -166,7 +166,7 @@ export function BalanceBreakdownSheet({
                 return (
                   <span
                     key={group.key}
-                    className={`${tone.bar} h-full rounded-full transition-[width] duration-200 ease-out`}
+                    className={`${tone.bar} h-full rounded-full transition-all duration-500 ease-out`}
                     style={{ width: `${width}%` }}
                     aria-hidden="true"
                   />

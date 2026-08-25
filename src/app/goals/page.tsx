@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { AdvancedSection, AmountField, Chip, DateField, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
-import { Badge, Card, EmptyState, Field, Icon, Money, Progress, Skeleton, TextInput } from "@/components/ui";
+import { Badge, Card, EmptyState, Field, Money, Progress, Skeleton, TextInput } from "@/components/ui";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { GoalView } from "@/lib/finance";
@@ -106,7 +106,7 @@ export default function GoalsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon={<Icon name="goal" size={20} />} title="Maqsadlar yo‘q." description="Pastdagi + tugmasi orqali maqsad qo‘shing." />
+        <EmptyState icon="🏆" title="Maqsadlar yo‘q." description="Pastdagi + tugmasi orqali maqsad qo‘shing." />
       )}
 
       <GoalSheet open={sheet} onClose={closeSheet} editing={editing} />

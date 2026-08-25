@@ -20,144 +20,6 @@ function BodyPortal({ children }: { children: ReactNode }) {
   return createPortal(children, document.body);
 }
 
-/**
- * Small, quiet line icons for the product chrome. User-created category icons
- * stay as user content; navigation and controls never rely on emoji glyphs.
- */
-export type AppIconName =
-  | "home"
-  | "history"
-  | "plans"
-  | "analytics"
-  | "more"
-  | "bot"
-  | "bell"
-  | "sun"
-  | "moon"
-  | "monitor"
-  | "accounts"
-  | "budget"
-  | "debt"
-  | "goal"
-  | "settings"
-  | "warning"
-  | "close"
-  | "search"
-  | "chevronRight"
-  | "wallet"
-  | "filter"
-  | "transfer"
-  | "check"
-  | "pause"
-  | "play"
-  | "edit"
-  | "archive"
-  | "plus";
-
-export function Icon({ name, size = 18, className = "" }: { name: AppIconName; size?: number; className?: string }) {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    className,
-    "aria-hidden": true,
-  };
-
-  let shape: ReactNode;
-  switch (name) {
-    case "home":
-      shape = <><path d="M3.5 10.5 12 3.8l8.5 6.7V20a1 1 0 0 1-1 1h-5v-5.5h-5V21h-5a1 1 0 0 1-1-1z" /><path d="M9.5 21v-5.5h5V21" /></>;
-      break;
-    case "history":
-      shape = <><path d="M4 7h16M4 12h16M4 17h10" /><circle cx="6" cy="7" r=".6" fill="currentColor" stroke="none" /><circle cx="6" cy="12" r=".6" fill="currentColor" stroke="none" /><circle cx="6" cy="17" r=".6" fill="currentColor" stroke="none" /></>;
-      break;
-    case "plans":
-      shape = <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M8 3.5v3M16 3.5v3M3.5 10h17" /></>;
-      break;
-    case "analytics":
-      shape = <><path d="M4 19.5V5M4 19.5h16" /><path d="M8 16v-4M12.5 16V8M17 16v-6" /></>;
-      break;
-    case "more":
-      shape = <><rect x="4" y="4" width="6" height="6" rx="1.5" /><rect x="14" y="4" width="6" height="6" rx="1.5" /><rect x="4" y="14" width="6" height="6" rx="1.5" /><rect x="14" y="14" width="6" height="6" rx="1.5" /></>;
-      break;
-    case "bot":
-      shape = <><rect x="4" y="7" width="16" height="12" rx="3" /><path d="M12 4v3M8.5 12h.01M15.5 12h.01M8 16h8" /><path d="M2.5 11v4M21.5 11v4" /></>;
-      break;
-    case "bell":
-      shape = <><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>;
-      break;
-    case "sun":
-      shape = <><circle cx="12" cy="12" r="3.5" /><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" /></>;
-      break;
-    case "moon":
-      shape = <path d="M19.5 15.3A7.8 7.8 0 0 1 8.7 4.5 8.5 8.5 0 1 0 19.5 15.3Z" />;
-      break;
-    case "monitor":
-      shape = <><rect x="3.5" y="4" width="17" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>;
-      break;
-    case "accounts":
-      shape = <><path d="M4 7.5V6a2 2 0 0 1 2-2h11.5a2 2 0 0 1 2 2v2" /><path d="M4.5 8h14A1.5 1.5 0 0 1 20 9.5v8A2.5 2.5 0 0 1 17.5 20h-11A2.5 2.5 0 0 1 4 17.5v-8A1.5 1.5 0 0 1 5.5 8Z" /><path d="M16 12h4v4h-4a2 2 0 0 1 0-4Z" /></>;
-      break;
-    case "budget":
-      shape = <><path d="M4 19V5h16v14Z" /><path d="M8 16v-3M12 16V8M16 16v-5" /></>;
-      break;
-    case "debt":
-      shape = <><rect x="4" y="3.5" width="16" height="17" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></>;
-      break;
-    case "goal":
-      shape = <><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" /></>;
-      break;
-    case "settings":
-      shape = <><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6 18 18M18 6l-1.4 1.4M7.4 16.6 6 18" /><circle cx="12" cy="12" r="4.5" /></>;
-      break;
-    case "warning":
-      shape = <><path d="m12 3 9 17H3Z" /><path d="M12 9v5M12 17.5h.01" /></>;
-      break;
-    case "close":
-      shape = <path d="m6 6 12 12M18 6 6 18" />;
-      break;
-    case "search":
-      shape = <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></>;
-      break;
-    case "chevronRight":
-      shape = <path d="m9 5 7 7-7 7" />;
-      break;
-    case "wallet":
-      shape = <><path d="M4.5 7.5V6.2A2.2 2.2 0 0 1 6.7 4h10.8a2 2 0 0 1 2 2v1.5" /><path d="M4.5 7.5h14.2a1.8 1.8 0 0 1 1.8 1.8v8.2a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 17.5V9.1a1.6 1.6 0 0 1 1.6-1.6" /><path d="M16.4 11.2h4.1v4.6h-4.1a2.3 2.3 0 1 1 0-4.6Z" /></>;
-      break;
-    case "filter":
-      shape = <path d="M4 5h16l-6.4 7.2v5.3l-3.2 1.5v-6.8L4 5Z" />;
-      break;
-    case "transfer":
-      shape = <><path d="M4 8h13M14 5l3 3-3 3M20 16H7M10 13l-3 3 3 3" /></>;
-      break;
-    case "check":
-      shape = <path d="m5 12.5 4.2 4.2L19 7" />;
-      break;
-    case "pause":
-      shape = <><path d="M9 5v14M15 5v14" /></>;
-      break;
-    case "play":
-      shape = <path d="m8 5 11 7-11 7Z" />;
-      break;
-    case "edit":
-      shape = <path d="m4 16.8-.8 4 4-.8L19 8.2a2.8 2.8 0 1 0-4-4Z" />;
-      break;
-    case "archive":
-      shape = <><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6" /></>;
-      break;
-    case "plus":
-      shape = <path d="M12 5v14M5 12h14" />;
-      break;
-  }
-  return <svg {...common}>{shape}</svg>;
-}
-
 export function Card({
   children,
   className = "",
@@ -253,7 +115,7 @@ export function Button({
   type?: "button" | "submit";
 }) {
   const base =
-    "inline-flex select-none items-center justify-center gap-2 rounded-xl font-semibold transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.99] touch-manipulation";
+    "inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-all active:scale-[0.97] touch-manipulation";
   const sizes: Record<string, string> = {
     sm: "min-h-9 px-3.5 text-[12.5px] sm:min-h-9 sm:text-xs",
     md: "min-h-11 px-4 text-sm",
@@ -298,7 +160,7 @@ export function Badge({
   };
   return (
     <span
-      className={`inline-flex max-w-full items-center gap-1 truncate rounded-md px-2 py-1 text-[11px] font-semibold ${tones[tone]}`}
+      className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold ${tones[tone]}`}
     >
       {children}
     </span>
@@ -314,7 +176,6 @@ export function Money({
   zeroSign,
   currency,
   compactSuffix,
-  className = "",
 }: {
   value: number;
   size?: "xs" | "sm" | "md" | "lg" | "xl" | "hero";
@@ -326,7 +187,6 @@ export function Money({
   zeroSign?: "+" | "−";
   currency?: string;
   compactSuffix?: string;
-  className?: string;
 }) {
   const sizes: Record<string, string> = {
     xs: "text-xs",
@@ -345,7 +205,7 @@ export function Money({
   const magnitude = whole ? Math.round(Math.abs(value)) : Math.abs(value);
   const sign = signed ? (magnitude === 0 ? zeroSign ?? "" : value > 0 ? "+" : "−") : "";
   return (
-    <span className={`num ${sizes[size]} ${tones[tone]} break-words ${className}`}>
+    <span className={`num ${sizes[size]} ${tones[tone]} break-words`}>
       {sign}
       {formatAmount(magnitude)}
       {compactSuffix ? <span className="ml-1 text-xs font-normal text-muted">{compactSuffix}</span> : null}
@@ -444,7 +304,7 @@ export function Segmented<T extends string>({
                 tabs[next]?.focus();
                 tabs[next]?.click();
               }}
-              className={`flex min-h-11 flex-1 shrink-0 touch-manipulation select-none items-center justify-center whitespace-nowrap rounded-full px-3 text-xs font-semibold transition-colors sm:min-h-10 ${
+              className={`flex min-h-11 flex-1 shrink-0 touch-manipulation select-none items-center justify-center whitespace-nowrap rounded-full px-3 text-xs font-semibold transition-all sm:min-h-10 ${
                 active ? "shadow-sm" : "text-fg-soft hover:bg-surface-3 hover:text-fg active:bg-surface-3"
               }`}
               style={active ? { background: "var(--segmented-active)", color: "var(--segmented-active-fg)" } : undefined}
@@ -486,7 +346,7 @@ export function Progress({
         className="w-full overflow-hidden rounded-full bg-surface-3"
         style={{ height }}
       >
-        <div className="h-full rounded-full transition-[width] duration-200 ease-out" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
+        <div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
       </div>
       {label ? <p className="mt-1 text-[11px] text-muted">{label}</p> : null}
     </div>
@@ -790,7 +650,7 @@ export function ContextualBottomSheet({
             completeExit();
           }
         }}
-        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[20px] border border-line bg-surface shadow-[0_-12px_32px_-20px_rgba(16,24,32,0.5)] outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-[20px]"
+        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-[20px]"
       >
         <div className="shrink-0 px-5 pt-3 sm:hidden">
           <div className="mx-auto h-1.5 w-10 rounded-full bg-line-strong" />
@@ -812,10 +672,10 @@ export function ContextualBottomSheet({
               if (open) onCloseRef.current();
             }}
             data-hit="expanded"
-            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-surface-3 hover:text-fg active:scale-[0.98] touch-manipulation"
+            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-surface-3 hover:text-fg active:scale-[0.96] touch-manipulation"
             aria-label="Yopish"
           >
-            <Icon name="close" size={17} />
+            ✕
           </button>
         </div>
         <div className="sheet-body min-h-0 flex-1 px-5 pb-4">
@@ -843,14 +703,14 @@ export function EmptyState({
   description,
   action,
 }: {
-  icon: ReactNode;
+  icon: string;
   title: string;
   description: string;
   action?: ReactNode;
 }) {
   return (
     <div className="flat-card flex flex-col items-center gap-3 px-5 py-8 text-center sm:px-6 sm:py-10">
-      <div className="grid h-12 w-12 place-items-center rounded-xl bg-surface-3 text-muted">{icon}</div>
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-3 text-xl">{icon}</div>
       <div className="max-w-[300px]">
         <p className="text-[15px] font-semibold">{title}</p>
         <p className="mx-auto mt-1 text-[13px] leading-relaxed text-muted">{description}</p>

@@ -3,23 +3,9 @@
 
 import { useEffect, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Button, Card, Divider, Field, Icon, Segmented, Select, Skeleton, TextInput, type AppIconName } from "@/components/ui";
+import { Button, Card, Divider, Field, Segmented, Select, Skeleton, TextInput } from "@/components/ui";
 import { formatAmount } from "@/lib/money";
 import { TERMS } from "@/lib/copy";
-
-function SettingTitle({ icon, title, description }: { icon: AppIconName; title: string; description: string }) {
-  return (
-    <div className="mb-4 flex items-start gap-2.5">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted" aria-hidden="true">
-        <Icon name={icon} size={16} />
-      </span>
-      <div className="min-w-0">
-        <p className="text-[15px] font-semibold tracking-tight">{title}</p>
-        <p className="mt-0.5 text-[12px] leading-snug text-muted">{description}</p>
-      </div>
-    </div>
-  );
-}
 
 export default function SettingsPage() {
   const { state, loading, mutate, theme, setTheme, telegram } = useFinance();
@@ -72,7 +58,7 @@ export default function SettingsPage() {
       {/* §19/§22: swipe-back replaces the old ‹ Menyu back link. */}
 
       <Card>
-        <SettingTitle icon="accounts" title="Profil" description="Asosiy hisobchi ma’lumotlari" />
+        <p className="mb-4 text-[15px] font-semibold">Profil</p>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
           <Field label="Ism">
             <TextInput value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -95,7 +81,8 @@ export default function SettingsPage() {
       </Card>
 
       <Card>
-        <SettingTitle icon="wallet" title={TERMS.safeToSpend} description="Shu qiymatlar asosida hisoblanadi" />
+        <p className="mb-1 text-[15px] font-semibold">{TERMS.safeToSpend}</p>
+        <p className="mb-4 text-[12px] leading-snug text-muted">Shu qiymatlar asosida hisoblanadi.</p>
         <Field label="Minimal zaxira">
           <TextInput value={minReserve} onChange={(e) => setMinReserve(e.target.value)} inputMode="decimal" />
         </Field>
@@ -144,25 +131,20 @@ export default function SettingsPage() {
       </Card>
 
       <Card>
-        <SettingTitle icon="bell" title="Eslatmalar" description="Qaysi voqealar haqida xabar olasiz" />
+        <p className="mb-4 text-[15px] font-semibold">Eslatmalar</p>
         <div className="space-y-4">
           {(
             [
-              { key: "payments" as const, icon: "plans" as AppIconName, label: "To‘lov", desc: "Ertaga to‘lov bor" },
-              { key: "income" as const, icon: "analytics" as AppIconName, label: "Daromad", desc: "Daromad kutilmoqda" },
-              { key: "budget" as const, icon: "budget" as AppIconName, label: "Budjet", desc: "Limit oshishi yaqin" },
-              { key: "risk" as const, icon: "warning" as AppIconName, label: "Xavf", desc: "Balans yetmasligi mumkin" },
+              { key: "payments" as const, label: "To‘lov", desc: "Ertaga to‘lov bor" },
+              { key: "income" as const, label: "Daromad", desc: "Daromad kutilmoqda" },
+              { key: "budget" as const, label: "Budjet", desc: "Limit oshishi yaqin" },
+              { key: "risk" as const, label: "Xavf", desc: "Balans yetmasligi mumkin" },
             ] as const
           ).map((row) => (
             <div key={row.key} className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 flex-1 items-start gap-2.5">
-                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted" aria-hidden="true">
-                  <Icon name={row.icon} size={16} />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[14px] font-medium">{row.label}</p>
-                  <p className="mt-0.5 text-[11.5px] leading-snug text-muted">{row.desc}</p>
-                </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-medium">{row.label}</p>
+                <p className="mt-0.5 text-[11.5px] leading-snug text-muted">{row.desc}</p>
               </div>
               <button
                 type="button"
@@ -175,7 +157,7 @@ export default function SettingsPage() {
                 }`}
               >
                 <span
-                  className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full shadow-sm transition-[left,background-color] duration-200 ${
+                  className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full shadow-sm transition-all ${
                     notif[row.key] ? "left-[26px] bg-positive-fg" : "left-[3px] bg-muted"
                   }`}
                 />
@@ -186,14 +168,14 @@ export default function SettingsPage() {
       </Card>
 
       <Card>
-        <SettingTitle icon="sun" title="Ko‘rinish" description="Ilova ranglarini moslang" />
+        <p className="mb-4 text-[15px] font-semibold">Ko‘rinish</p>
         <Segmented
           value={theme}
           onChange={setTheme}
           options={[
-            { value: "light", label: "Kunduzgi" },
-            { value: "dark", label: "Tungi" },
-            { value: "system", label: "Tizim" },
+            { value: "light", label: "☀️ Kunduzgi" },
+            { value: "dark", label: "🌙 Tungi" },
+            { value: "system", label: "🖥 Tizim" },
           ]}
         />
 
