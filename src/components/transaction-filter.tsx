@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useState, type ReactNode } from "react";
+import { useId, useMemo, useState } from "react";
 import type { CategoryView } from "@/lib/finance";
 import {
   DEFAULT_TRANSACTION_FILTER_STATE,
@@ -10,7 +10,6 @@ import {
   type TransactionFilterState,
 } from "@/lib/transaction-filters";
 import { FilterButton, FilterRadioGroup, FilterSection } from "./filter-controls";
-import { CategoryIcon, CloseIcon, TransferIcon } from "./icons";
 import { ContextualBottomSheet, TextInput } from "./ui";
 
 type FlatCategory = Omit<CategoryView, "children">;
@@ -114,7 +113,7 @@ export function TransactionFilter({
               className="flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 text-left text-[14px] transition-colors hover:border-line-strong hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-60 touch-manipulation"
             >
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-3" aria-hidden="true">
-                {filters.type === "transfer" ? <TransferIcon className="h-4 w-4" /> : selectedCategory?.icon ?? <CategoryIcon className="h-4 w-4" />}
+                {filters.type === "transfer" ? "↔" : selectedCategory?.icon ?? "◎"}
               </span>
               <span className="min-w-0 flex-1 truncate font-medium">
                 {filters.type === "transfer"
@@ -148,7 +147,7 @@ export function TransactionFilter({
                       name={categoryRadioName}
                       value=""
                       label="Barcha kategoriyalar"
-                      icon={<CategoryIcon className="h-4 w-4" />}
+                      icon="◎"
                       selected={!filters.categoryId}
                       onSelect={selectCategory}
                     />
@@ -185,7 +184,7 @@ export function TransactionFilter({
                       aria-label={`${context.label} kontekstini olib tashlash`}
                       className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg touch-manipulation"
                     >
-                      <CloseIcon className="h-4 w-4" />
+                      ✕
                     </Link>
                   </div>
                 ))}
@@ -223,7 +222,7 @@ function CategoryOption({
   name: string;
   value: string;
   label: string;
-  icon: ReactNode;
+  icon: string;
   selected: boolean;
   onSelect: (value: string) => void;
 }) {

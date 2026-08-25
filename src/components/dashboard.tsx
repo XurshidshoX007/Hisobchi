@@ -2,8 +2,47 @@ import Link from "next/link";
 import type { DashboardCategory, DashboardFacts } from "@/lib/dashboard";
 import { currencyLabel } from "@/lib/money";
 import { BalanceDistributionBar } from "./balance-breakdown";
-import { TrendDownIcon, TrendUpIcon, WalletIcon } from "./icons";
 import { Card, Money, Section, Skeleton } from "./ui";
+
+function WalletIcon() {
+  return (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4.5 7.5V6.2A2.2 2.2 0 0 1 6.7 4h10.8a2 2 0 0 1 2 2v1.5" />
+      <path d="M4.5 7.5h14.2a1.8 1.8 0 0 1 1.8 1.8v8.2a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 17.5V9.1a1.6 1.6 0 0 1 1.6-1.6" />
+      <path d="M16.4 11.2h4.1v4.6h-4.1a2.3 2.3 0 1 1 0-4.6Z" />
+      <path d="M16.5 13.5h.01" />
+    </svg>
+  );
+}
+
+function TrendIcon({ direction }: { direction: "up" | "down" }) {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={`transition-transform duration-200 ${direction === "up" ? "group-hover:-translate-y-0.5" : "group-hover:translate-y-0.5"}`}
+    >
+      {direction === "up" ? <path d="M8 13V3m0 0L4.5 6.5M8 3l3.5 3.5" /> : <path d="M8 3v10m0 0 3.5-3.5M8 13 4.5 9.5" />}
+    </svg>
+  );
+}
 
 /** One balance source, one primary balance UI. */
 export function DashboardHero({
@@ -35,8 +74,8 @@ export function DashboardHero({
               <span className={`text-xs font-semibold sm:text-sm ${facts.balance < 0 ? "text-negative-text" : "text-muted"}`}>{unit}</span>
             </div>
           </div>
-          <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[16px] border border-accent/15 bg-accent-soft text-accent-text shadow-xs transition-all duration-300 hover:scale-105 hover:shadow-sm">
-            <WalletIcon className="h-8 w-8" />
+          <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[16px] bg-accent-soft text-accent-text border border-accent/15 shadow-xs transition-all duration-300 hover:scale-105 hover:shadow-sm">
+            <WalletIcon />
           </span>
         </div>
 
@@ -48,7 +87,7 @@ export function DashboardHero({
       <div className="relative grid min-w-0 grid-cols-2 border-t border-line bg-surface-2/60 backdrop-blur-xs">
         <div className="group min-w-0 px-4 py-4.5 sm:px-6 sm:py-5 transition-colors duration-200 hover:bg-positive-soft/25">
           <div className="flex min-w-0 items-center gap-2 text-positive-text">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-positive-soft shadow-xs transition-transform duration-200 group-hover:scale-110"><TrendUpIcon className="h-[15px] w-[15px] group-hover:-translate-y-0.5 transition-transform duration-200" /></span>
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-positive-soft shadow-xs transition-transform duration-200 group-hover:scale-110"><TrendIcon direction="up" /></span>
             <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Daromad</span>
           </div>
           <div className="mt-2 min-w-0 leading-tight">
@@ -57,7 +96,7 @@ export function DashboardHero({
         </div>
         <div className="group min-w-0 border-l border-line px-4 py-4.5 sm:px-6 sm:py-5 transition-colors duration-200 hover:bg-negative-soft/25">
           <div className="flex min-w-0 items-center gap-2 text-negative-text">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-negative-soft shadow-xs transition-transform duration-200 group-hover:scale-110"><TrendDownIcon className="h-[15px] w-[15px] group-hover:translate-y-0.5 transition-transform duration-200" /></span>
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-negative-soft shadow-xs transition-transform duration-200 group-hover:scale-110"><TrendIcon direction="down" /></span>
             <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Xarajat</span>
           </div>
           <div className="mt-2 min-w-0 leading-tight">

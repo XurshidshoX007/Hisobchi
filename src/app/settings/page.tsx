@@ -2,7 +2,6 @@
 /* eslint-disable react-hooks/set-state-in-effect -- editable settings draft synchronizes to loaded server state */
 
 import { useEffect, useState } from "react";
-import { ThemeMoonIcon, ThemeSunIcon, ThemeSystemIcon } from "@/components/icons";
 import { useFinance } from "@/components/providers";
 import { Button, Card, Divider, Field, Segmented, Select, Skeleton, TextInput } from "@/components/ui";
 import { formatAmount } from "@/lib/money";
@@ -174,30 +173,9 @@ export default function SettingsPage() {
           value={theme}
           onChange={setTheme}
           options={[
-            {
-              value: "light",
-              label: (
-                <span className="inline-flex items-center gap-1.5">
-                  <ThemeSunIcon className="h-4 w-4" /> Kunduzgi
-                </span>
-              ),
-            },
-            {
-              value: "dark",
-              label: (
-                <span className="inline-flex items-center gap-1.5">
-                  <ThemeMoonIcon className="h-4 w-4" /> Tungi
-                </span>
-              ),
-            },
-            {
-              value: "system",
-              label: (
-                <span className="inline-flex items-center gap-1.5">
-                  <ThemeSystemIcon className="h-4 w-4" /> Tizim
-                </span>
-              ),
-            },
+            { value: "light", label: "☀️ Kunduzgi" },
+            { value: "dark", label: "🌙 Tungi" },
+            { value: "system", label: "🖥 Tizim" },
           ]}
         />
 

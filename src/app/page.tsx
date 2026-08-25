@@ -6,7 +6,6 @@ import { DashboardCategorySection, DashboardHero, DashboardLoading } from "@/com
 import { useFabPage } from "@/components/fab";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
-import { AlertWarningIcon } from "@/components/icons";
 import { Button, EmptyState } from "@/components/ui";
 import { selectDashboardFacts } from "@/lib/dashboard";
 import type { FabTransactionType } from "@/lib/fab";
@@ -34,7 +33,7 @@ export default function DashboardPage() {
   if (error && !state) {
     return (
       <EmptyState
-        icon={<AlertWarningIcon className="h-6 w-6 text-warning-text" />}
+        icon="⚠️"
         title="Ma’lumotni yuklashda xatolik yuz berdi."
         description="Internet aloqasini tekshirib, qayta urinib ko‘ring."
         action={<Button onClick={() => void refresh()}>Qayta urinish</Button>}
