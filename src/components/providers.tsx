@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AppState } from "@/lib/types";
+import { CheckIcon, InfoIcon, WarningIcon } from "./icons";
 import { ERRORS } from "@/lib/copy";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -278,11 +279,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   return (
     <FinanceContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 top-[70px] z-[100] flex flex-col items-center gap-2 px-3 sm:top-auto sm:bottom-8 sm:items-end sm:px-6">
+      <div
+        aria-live="polite"
+        role="status"
+        className="pointer-events-none fixed inset-x-0 top-[70px] z-[var(--z-toast)] flex flex-col items-center gap-2 px-3 sm:top-auto sm:bottom-8 sm:items-end sm:px-6"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="animate-pop w-full max-w-sm rounded-2xl border border-line bg-surface px-4 py-2.5 text-[13px] shadow-xl shadow-black/10 sm:text-sm"
+            className="animate-pop flex w-full max-w-sm items-center gap-2.5 rounded-2xl border border-line bg-surface px-4 py-2.5 text-[13px] shadow-xl shadow-black/10 sm:text-sm"
             style={{
               borderColor:
                 t.tone === "success"
@@ -292,10 +297,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     : "var(--border)",
             }}
           >
-            <span className="flex items-center gap-2">
-              {t.tone === "success" ? "✅" : t.tone === "error" ? "⛔" : "ℹ️"}
-              {t.text}
+            <span
+              className={`shrink-0 ${t.tone === "success" ? "text-positive-text" : t.tone === "error" ? "text-negative-text" : "text-accent-text"}`}
+              aria-hidden="true"
+            >
+              {t.tone === "success" ? <CheckIcon size={15} /> : t.tone === "error" ? <WarningIcon size={15} /> : <InfoIcon size={15} />}
             </span>
+            <span className="min-w-0">{t.text}</span>
           </div>
         ))}
       </div>

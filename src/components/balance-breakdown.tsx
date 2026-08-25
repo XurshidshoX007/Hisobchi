@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { BalanceGroup, BalanceGroupKey } from "@/lib/dashboard";
+import { ChevronDownIcon } from "./icons";
 import { currencyLabel } from "@/lib/money";
 import { ContextualBottomSheet, Money } from "./ui";
 
@@ -93,22 +94,7 @@ export function BalanceDistributionBar({
 }
 
 function ChevronDown() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0 text-muted transition-transform duration-200 group-hover:translate-y-0.5"
-      aria-hidden="true"
-    >
-      <path d="M4 6l4 4 4-4" />
-    </svg>
-  );
+  return <ChevronDownIcon size={15} className="shrink-0 text-muted transition-transform duration-200 group-hover:translate-y-0.5" />;
 }
 
 /**

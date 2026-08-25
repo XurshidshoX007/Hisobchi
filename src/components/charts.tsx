@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { compact, formatAmount, monthLabel, shortDate } from "@/lib/money";
 
 type Pt = { x: number; y: number };
@@ -10,9 +10,11 @@ const line = (pts: Pt[]) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFix
 export function IncomeExpenseBars({
   data,
   height = 150,
+  ariaLabel = "Daromad va xarajatlarning oylik taqqoslamasi",
 }: {
   data: Array<{ month: string; income: number; expense: number }>;
   height?: number;
+  ariaLabel?: string;
 }) {
   const W = 320;
   const H = height;
@@ -24,7 +26,7 @@ export function IncomeExpenseBars({
   const barW = Math.max(4, group * 0.28);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={ariaLabel}>
       {[0.25, 0.5, 0.75, 1].map((g) => (
         <line
           key={g}
@@ -86,6 +88,7 @@ export function ForecastArea({
   height?: number;
   description?: string;
 }) {
+  const uid = useId();
   const W = 320;
   const H = height;
   const pad = { top: 10, bottom: 18, left: 4, right: 4 };
@@ -110,7 +113,7 @@ export function ForecastArea({
   return (
     <ForecastAreaInteractive data={data} description={description} W={W} H={H} pad={pad} x={x} y={y} innerH={innerH}>
       <defs>
-        <linearGradient id="fa-fill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`${uid}-fa-fill`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
           <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
         </linearGradient>
@@ -118,7 +121,7 @@ export function ForecastArea({
       <path d={`${line(top)} ${line(bottom).replace("M", "L")} Z`} fill="var(--fg)" opacity={0.07} />
       <path
         d={`${line(base)} L ${x(data.length - 1)} ${pad.top + innerH} L ${x(0)} ${pad.top + innerH} Z`}
-        fill="url(#fa-fill)"
+        fill={`url(#${uid}-fa-fill)`}
       />
       {min < 0 ? (
         <line x1={pad.left} x2={W - pad.right} y1={zeroY} y2={zeroY} stroke="var(--negative)" strokeWidth="1" strokeDasharray="3 3" />
@@ -235,10 +238,13 @@ function ForecastAreaInteractive({
 export function BalanceLine({
   data,
   height = 130,
+  ariaLabel = "Balans o‘zgarish grafigi",
 }: {
   data: Array<{ date: string; balance: number }>;
   height?: number;
+  ariaLabel?: string;
 }) {
+  const uid = useId();
   const W = 320;
   const H = height;
   const pad = { top: 10, bottom: 16, left: 4, right: 4 };
@@ -255,14 +261,14 @@ export function BalanceLine({
   const area = `${line(pts)} L ${pts[pts.length - 1].x} ${pad.top + innerH} L ${pts[0].x} ${pad.top + innerH} Z`;
   const last = pts[pts.length - 1];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={ariaLabel}>
       <defs>
-        <linearGradient id="bl-fill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`${uid}-bl-fill`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--fg)" stopOpacity="0.14" />
           <stop offset="100%" stopColor="var(--fg)" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={area} fill="url(#bl-fill)" />
+      <path d={area} fill={`url(#${uid}-bl-fill)`} />
       <path d={line(pts)} fill="none" stroke="var(--fg)" strokeWidth="1.8" strokeLinecap="round" />
       <circle cx={last.x} cy={last.y} r="3" fill="var(--fg)" />
       <circle cx={last.x} cy={last.y} r="6" fill="var(--fg)" opacity="0.15" />
@@ -273,12 +279,14 @@ export function BalanceLine({
 /** Horizontal category spending bars */
 export function CategoryBars({
   items,
+  ariaLabel = "Kategoriyalar bo‘yicha sarf",
 }: {
   items: Array<{ name: string; icon: string; amount: number; share: number }>;
+  ariaLabel?: string;
 }) {
   const max = Math.max(1, ...items.map((i) => i.amount));
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-3.5" role="img" aria-label={ariaLabel}>
       {items.map((c) => (
         <div key={c.name}>
           <div className="mb-1.5 flex items-baseline justify-between gap-2">
@@ -310,12 +318,14 @@ export function Ring({
   label,
   sublabel,
   tone = "auto",
+  ariaLabel = "Ball",
 }: {
   value: number;
   size?: number;
   label?: string;
   sublabel?: string;
   tone?: "auto" | "accent";
+  ariaLabel?: string;
 }) {
   const pct = Math.max(0, Math.min(1, value));
   const r = 46;
@@ -330,7 +340,15 @@ export function Ring({
           : "var(--negative)";
   return (
     <div className="relative grid place-items-center" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+      <div
+        role="progressbar"
+        aria-label={ariaLabel}
+        aria-valuenow={Math.round(pct * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className="contents"
+      >
+        <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
         <circle cx="60" cy="60" r={r} fill="none" stroke="var(--surface-3)" strokeWidth="10" />
         <circle
           cx="60"
@@ -344,16 +362,17 @@ export function Ring({
           className="transition-[stroke-dasharray] duration-1000 ease-out"
         />
       </svg>
-      <div className="absolute text-center">
-        {label ? <div className="num text-xl font-semibold leading-none">{label}</div> : null}
-        {sublabel ? <div className="mt-1 text-[10px] uppercase tracking-wide text-muted">{sublabel}</div> : null}
+        <div className="absolute text-center">
+          {label ? <div className="num text-xl font-semibold leading-none">{label}</div> : null}
+          {sublabel ? <div className="mt-1 text-[10px] uppercase tracking-wide text-muted">{sublabel}</div> : null}
+        </div>
       </div>
     </div>
   );
 }
 
 /** Small sparkline for savings trend */
-export function Sparkline({ values, height = 44 }: { values: number[]; height?: number }) {
+export function Sparkline({ values, height = 44, ariaLabel = "Jamg‘arma trendi" }: { values: number[]; height?: number; ariaLabel?: string }) {
   const W = 120;
   const H = height;
   if (values.length < 2) return <div style={{ height: H }} />;
@@ -366,7 +385,7 @@ export function Sparkline({ values, height = 44 }: { values: number[]; height?: 
   }));
   const positive = values[values.length - 1] >= values[0];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" preserveAspectRatio="none" role="img" aria-label={ariaLabel}>
       <path
         d={line(pts)}
         fill="none"
@@ -382,12 +401,14 @@ export function Sparkline({ values, height = 44 }: { values: number[]; height?: 
 /** Cash flow calendar strip: green/red bars per day */
 export function CashFlowStrip({
   data,
+  ariaLabel = "Kunlik pul oqimi taqvimi",
 }: {
   data: Array<{ date: string; inflow: number; outflow: number; projectedBase: number }>;
+  ariaLabel?: string;
 }) {
   const max = Math.max(1, ...data.map((d) => Math.max(d.inflow, d.outflow)));
   return (
-    <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+    <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="group" aria-label={ariaLabel}>
       {data.map((d) => {
         const hasEvent = d.inflow > 0 || d.outflow > 0;
         const negative = d.projectedBase < 0;
