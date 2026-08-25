@@ -86,7 +86,7 @@ export function FloatingActionButton({
     <button
       type="button"
       {...props}
-      className={`global-fab grid place-items-center rounded-full bg-primary text-primary-fg transition-[background-color,opacity,transform] duration-200 hover:bg-primary-hover active:scale-95 touch-manipulation ${className}`}
+      className={`global-fab grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-fg transition-[background-color,opacity,transform] duration-200 hover:bg-primary-hover active:scale-95 touch-manipulation ${className}`}
     >
       {children}
     </button>
@@ -122,7 +122,7 @@ export function Button({
     lg: "min-h-12 px-5 text-[15px]",
   };
   const variants: Record<string, string> = {
-    primary: "bg-primary text-primary-fg hover:bg-primary-hover shadow-[0_8px_20px_-14px_rgba(13,59,52,0.7)]",
+    primary: "bg-primary text-primary-fg hover:bg-primary-hover shadow-sm",
     secondary: "border border-line bg-surface text-fg hover:bg-surface-2 hover:border-line-strong",
     ghost: "text-fg-soft hover:bg-surface-2 hover:text-fg",
     danger: "bg-negative text-negative-fg hover:opacity-90",
@@ -209,7 +209,7 @@ export function Money({
       {sign}
       {formatAmount(magnitude)}
       {compactSuffix ? <span className="ml-1 text-xs font-normal text-muted">{compactSuffix}</span> : null}
-      {currency ? <span className="ml-1 text-[0.68em] font-medium text-muted">{currency}</span> : null}
+      {currency ? <span className="ml-1 text-[0.62em] font-normal text-muted">{currency}</span> : null}
     </span>
   );
 }
@@ -650,7 +650,7 @@ export function ContextualBottomSheet({
             completeExit();
           }
         }}
-        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-xl border border-line bg-surface shadow-2xl outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-lg"
+        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-2xl border border-line bg-surface shadow-2xl outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-xl"
       >
         <div className="shrink-0 px-5 pt-3 sm:hidden">
           <div className="mx-auto h-1.5 w-10 rounded-full bg-line-strong" />

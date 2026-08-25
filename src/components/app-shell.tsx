@@ -189,7 +189,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
       {/* Bottom navigation has deterministic geometry; FAB positioning and
           content clearance consume the same CSS variables. */}
       <nav className="app-bottom-nav glass-nav fixed inset-x-0 bottom-0 border-t border-line lg:hidden">
-        <div className="mobile-bottom-nav-inner mx-auto flex max-w-lg items-stretch justify-between gap-1 px-1.5 pt-2 sm:px-2">
+        <div className="mobile-bottom-nav-inner mx-auto flex max-w-lg items-stretch justify-between gap-0.5 px-1 pt-1.5 sm:px-2">
           {NAV.map((item) => (
             <NavItem
               key={item.href}
@@ -312,13 +312,11 @@ function NavItem({
       href={href}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} o‘qilmagan eslatma` : undefined}
-      className={`nav-item flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-0.5 pb-1 pt-1.5 touch-manipulation ${
-        active ? "text-primary" : "text-muted"
-      }`}
+      className="nav-item flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-0.5 pb-1 pt-1.5 touch-manipulation"
     >
       <span
-        className={`relative grid h-8 w-full place-items-center rounded-md transition-[background-color,color] duration-200 ease-out ${
-          active ? "bg-primary text-primary-fg shadow-[0_8px_18px_-14px_rgba(13,59,52,0.65)]" : "bg-transparent"
+        className={`relative grid h-7 w-full place-items-center rounded-md transition-[background-color] duration-200 ease-out ${
+          active ? "bg-accent-soft" : "bg-transparent"
         }`}
       >
         <span
@@ -330,7 +328,7 @@ function NavItem({
         {badge > 0 ? (
           <span
             key={badge}
-            className="animate-badge-pop absolute right-1/2 top-0 grid h-[15px] min-w-[15px] translate-x-[15px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[8px] font-bold leading-none text-negative-fg"
+            className="animate-badge-pop absolute right-1/2 top-0 grid h-[15px] min-w-[15px] translate-x-[14px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[8px] font-bold leading-none text-negative-fg"
           >
             {badge > 9 ? "9+" : badge}
           </span>
@@ -338,13 +336,13 @@ function NavItem({
       </span>
       <span
         className={`w-full truncate text-center text-[10px] leading-none transition-[color,font-weight] duration-200 ease-out ${
-          active ? "font-semibold text-primary" : "font-medium text-muted"
+          active ? "font-semibold text-fg" : "font-medium text-muted"
         }`}
       >
         {label}
       </span>
       <span
-        className="mt-0.5 h-[3px] w-4 rounded-full bg-primary transition-[transform,opacity] duration-200 ease-out"
+        className="mt-0.5 h-[3px] w-4 rounded-full bg-accent transition-[transform,opacity] duration-200 ease-out"
         style={{
           transform: active ? "scaleX(1)" : "scaleX(0.5)",
           opacity: active ? 1 : 0,

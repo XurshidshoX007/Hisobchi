@@ -59,8 +59,7 @@ export function DashboardHero({
   const valueKey = `${facts.monthLabel}-${facts.balance}-${facts.income}-${facts.expense}`;
 
   return (
-    <Card padded={false} className="relative overflow-hidden border-line/90 shadow-card">
-      <div className="h-1 w-full bg-primary" aria-hidden="true" />
+    <Card padded={false} className="relative overflow-hidden border-line/90">
       <div key={valueKey} className="dashboard-value-transition relative min-w-0 px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5">
         <div className="flex min-w-0 items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
@@ -75,7 +74,7 @@ export function DashboardHero({
               <span className={`text-xs font-semibold sm:text-sm ${facts.balance < 0 ? "text-negative-text" : "text-muted"}`}>{unit}</span>
             </div>
           </div>
-          <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line bg-surface-2 text-accent-text">
+          <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-accent/15 bg-accent-soft text-accent-text">
             <WalletIcon />
           </span>
         </div>
@@ -86,7 +85,7 @@ export function DashboardHero({
       </div>
 
       <div className="relative grid min-w-0 grid-cols-2 border-t border-line bg-surface-2/70">
-        <div className="group min-w-0 px-4 py-3.5 sm:px-6 sm:py-4 transition-colors duration-200 hover:bg-positive-soft/25">
+        <div className="group min-w-0 px-4 py-4 sm:px-6 sm:py-4.5 transition-colors duration-200 hover:bg-positive-soft/25">
           <div className="flex min-w-0 items-center gap-2 text-positive-text">
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-positive-soft transition-transform duration-200 group-hover:scale-105"><TrendIcon direction="up" /></span>
             <span className="truncate text-[11px] font-semibold uppercase">Daromad</span>
@@ -95,7 +94,7 @@ export function DashboardHero({
             <Money whole value={facts.income} size="lg" tone="positive" zeroSign="+" currency={unit} />
           </div>
         </div>
-        <div className="group min-w-0 border-l border-line px-4 py-3.5 sm:px-6 sm:py-4 transition-colors duration-200 hover:bg-negative-soft/25">
+        <div className="group min-w-0 border-l border-line px-4 py-4 sm:px-6 sm:py-4.5 transition-colors duration-200 hover:bg-negative-soft/25">
           <div className="flex min-w-0 items-center gap-2 text-negative-text">
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-negative-soft transition-transform duration-200 group-hover:scale-105"><TrendIcon direction="down" /></span>
             <span className="truncate text-[11px] font-semibold uppercase">Xarajat</span>
@@ -142,23 +141,23 @@ export function DashboardCategorySection({
       }
     >
       {items.length ? (
-        <div className="overflow-hidden rounded-lg border border-line bg-surface shadow-card">
+        <div className="overflow-hidden rounded-lg border border-line bg-surface shadow-[0_1px_3px_rgba(12,18,34,0.03)] transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(12,18,34,0.06)]">
           {items.map((item, index) => {
             const progress = Math.min(100, (item.amount / max) * 100);
             return (
               <div
                 key={item.id ?? `${tone}-${item.name}`}
-                className={`group min-w-0 px-4 py-3 transition-colors duration-150 hover:bg-surface-2/70 ${index ? "border-t border-line" : ""}`}
+                className={`group min-w-0 px-4 py-3.5 sm:px-4.5 transition-colors duration-150 hover:bg-surface-2/60 ${index ? "border-t border-line" : ""}`}
               >
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <span className="flex min-w-0 items-center gap-2.5 text-[13.5px] font-medium">
                     <span
-                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-md text-[13px] transition-transform duration-200 group-hover:scale-105 ${tone === "income" ? "bg-positive-soft text-positive-text" : "bg-negative-soft text-negative-text"}`}
+                      className={`grid h-8.5 w-8.5 shrink-0 place-items-center rounded-md text-[14px] transition-transform duration-200 group-hover:scale-105 ${tone === "income" ? "bg-positive-soft text-positive-text" : "bg-negative-soft text-negative-text"}`}
                       aria-hidden="true"
                     >
                       {item.icon || "•"}
                     </span>
-                    <span className="truncate font-semibold text-fg transition-colors group-hover:text-fg-soft">{item.name}</span>
+                    <span className="truncate font-medium text-fg transition-colors group-hover:text-fg-soft">{item.name}</span>
                   </span>
                   <span className="max-w-[48%] shrink-0 text-right leading-tight">
                     <Money whole value={item.amount} size="sm" currency={unit} />

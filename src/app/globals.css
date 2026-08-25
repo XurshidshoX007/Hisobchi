@@ -12,13 +12,13 @@
 
 :root {
   /* Light — calm finance workspace */
-  --bg: #f4f7f6;
+  --bg: #f6f8fb;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #eef3f2;
-  --surface-3: #e2e9e7;
-  --border: #d8e2df;
-  --border-strong: #bfcbc7;
+  --surface-2: #f0f3f7;
+  --surface-3: #e7ecf2;
+  --border: #dbe2ea;
+  --border-strong: #c7d0db;
 
   /* Text ramp — AA on all surfaces */
   --fg: #0c1222; /* 18.7:1 */
@@ -27,17 +27,17 @@
   --faint: #616671; /* 4.5:1 on surface-3 */
 
   /* Brand */
-  --primary: #0d3b34;
+  --primary: #11352f;
   --primary-fg: #f7f7f5;
-  --primary-hover: #115247;
-  --segmented-active: #0d3b34;
+  --primary-hover: #17483f;
+  --segmented-active: #11352f;
   --segmented-active-fg: #f7f7f5;
 
   /* Semantic FILL (bars, progress, rings) */
   --positive: #0e884e; /* 4.52:1 against white labels */
   --negative: #c02a2a;
   --warning: #b7791f;
-  --accent: #2f6fed;
+  --accent: #2563eb;
 
   /* Semantic TEXT — AA on surface and on their soft tint */
   --positive-text: #0d7b47; /* 4.7:1 on soft, 5.3:1 on surface */
@@ -54,15 +54,15 @@
   --warning-soft: #fdf3e2;
   --accent-soft: #e8f0ff;
 
-  --shadow-card: 0 1px 2px rgba(13, 59, 52, 0.05), 0 16px 36px -26px rgba(13, 59, 52, 0.34);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 30px -22px rgba(15, 23, 42, 0.28);
   --chart-grid: rgba(12, 18, 34, 0.07);
   --focus: #3b5bdb;
 
   /* Fixed mobile chrome geometry. One source drives navigation height, FAB
      offset and the scroll clearance below page content. */
-  --bottom-nav-height: 74px;
-  --fab-size: 52px;
-  --fab-gap: 8px;
+  --bottom-nav-height: 68px;
+  --fab-size: 56px;
+  --fab-gap: 14px;
   /* Clearance left after the final row has scrolled completely above a FAB. */
   --content-bottom-gap: 16px;
   --app-safe-area-bottom: max(
@@ -181,7 +181,7 @@ body {
 
 body {
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 62%, transparent), transparent 280px),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 52%, transparent), transparent 260px),
     var(--bg);
   font-feature-settings: "tnum" 1, "cv01" 1;
   overscroll-behavior-y: none;
@@ -294,10 +294,9 @@ input::placeholder {
 }
 
 .glass-nav {
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: saturate(180%) blur(18px);
-  -webkit-backdrop-filter: saturate(180%) blur(18px);
-  box-shadow: 0 -8px 24px -22px rgba(13, 59, 52, 0.55);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: saturate(180%) blur(22px);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
 }
 
 .glass-bar {
@@ -356,8 +355,8 @@ input::placeholder {
   height: var(--fab-size);
   z-index: var(--z-fab);
   isolation: isolate;
-  border: 1px solid color-mix(in srgb, var(--primary-fg) 18%, var(--primary));
-  box-shadow: 0 8px 22px -12px rgba(13, 59, 52, 0.72), 0 2px 5px rgba(13, 59, 52, 0.22);
+  border: 1px solid color-mix(in srgb, var(--primary-fg) 22%, var(--primary));
+  box-shadow: 0 2px 5px rgba(12, 18, 34, 0.18), 0 10px 24px -10px rgba(12, 18, 34, 0.42);
 }
 
 /*
