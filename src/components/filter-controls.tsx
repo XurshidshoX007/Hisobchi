@@ -92,7 +92,7 @@ export function FilterRadioGroup<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div id={id} role="radiogroup" aria-label={label} className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
+    <div id={id} role="radiogroup" aria-label={label} className="divide-y divide-line overflow-hidden rounded-lg border border-line">
       {options.map((option) => {
         const selected = option.value === value;
         return (

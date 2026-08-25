@@ -52,7 +52,7 @@ export function BalanceDistributionBar({
       type="button"
       onClick={onOpen}
       aria-label="Balans taqsimotini ochish"
-      className="group mt-3.5 block w-full select-none rounded-xl p-1.5 text-left transition-all duration-200 hover:bg-surface-2/80 active:bg-surface-3 active:scale-[0.99] touch-manipulation"
+      className="group mt-3.5 block w-full select-none rounded-lg p-1.5 text-left transition-all duration-200 hover:bg-surface-2/80 active:bg-surface-3 active:scale-[0.99] touch-manipulation"
     >
       {hasBar ? (
         <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface-3 p-[1px]" role="presentation">
@@ -62,7 +62,7 @@ export function BalanceDistributionBar({
             return (
               <span
                 key={group.key}
-                className={`${tone.bar} h-full rounded-full transition-all duration-500 ease-out group-hover:brightness-105`}
+                className={`${tone.bar} h-full rounded-sm transition-all duration-500 ease-out group-hover:brightness-105`}
                 style={{ width: `${width}%` }}
                 aria-hidden="true"
               />
@@ -141,7 +141,7 @@ export function BalanceBreakdownSheet({
         <Link
           href="/accounts"
           onClick={onClose}
-          className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-5 py-2 text-[15px] font-semibold text-accent-text shadow-xs transition-all duration-200 hover:border-line-strong hover:bg-surface-2 active:scale-[0.98] active:bg-surface-3 touch-manipulation"
+          className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-line bg-surface px-5 py-2 text-[15px] font-semibold text-accent-text shadow-xs transition-all duration-200 hover:border-line-strong hover:bg-surface-2 active:scale-[0.98] active:bg-surface-3 touch-manipulation"
         >
           Hisoblarni boshqarish
           <span className="inline-block transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true">→</span>
@@ -149,8 +149,8 @@ export function BalanceBreakdownSheet({
       }
     >
       <div className="space-y-5">
-        <div className="rounded-2xl border border-line bg-surface-2/60 px-4 py-4 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Jami</p>
+        <div className="rounded-lg border border-line bg-surface-2/60 px-4 py-4 text-center">
+          <p className="text-[11px] font-semibold uppercase text-muted">Jami</p>
           <div className="mt-1">
             <Money whole value={total} size="xl" tone={total < 0 ? "negative" : "default"} currency={unit} />
           </div>
@@ -166,7 +166,7 @@ export function BalanceBreakdownSheet({
                 return (
                   <span
                     key={group.key}
-                    className={`${tone.bar} h-full rounded-full transition-all duration-500 ease-out`}
+                    className={`${tone.bar} h-full rounded-sm transition-all duration-500 ease-out`}
                     style={{ width: `${width}%` }}
                     aria-hidden="true"
                   />
@@ -175,7 +175,7 @@ export function BalanceBreakdownSheet({
           </div>
         ) : null}
 
-        <ul className="divide-y divide-line rounded-2xl border border-line bg-surface shadow-xs">
+        <ul className="divide-y divide-line rounded-lg border border-line bg-surface shadow-xs">
           {groups.map((group) => (
             <BreakdownRow key={group.key} group={group} unit={unit} />
           ))}
@@ -193,7 +193,7 @@ function BreakdownRow({ group, unit }: { group: BalanceGroup; unit: string }) {
   return (
     <li className="group flex items-center gap-3 px-4 py-3.5 transition-colors duration-150 hover:bg-surface-2/60">
       <span
-        className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-lg shadow-xs transition-transform duration-200 group-hover:scale-105 ${tone.chipBg} ${tone.chipText}`}
+        className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg text-lg shadow-xs transition-transform duration-200 group-hover:scale-105 ${tone.chipBg} ${tone.chipText}`}
         aria-hidden="true"
       >
         {group.icon}

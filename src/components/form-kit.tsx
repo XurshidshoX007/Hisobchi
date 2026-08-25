@@ -199,7 +199,7 @@ export function FormSheet({
 
       {confirmClose ? (
         <div className="absolute inset-0 z-20 flex items-end overflow-hidden bg-black/35 px-4 pb-4 sm:items-center sm:justify-center">
-          <div className="w-full min-w-0 max-w-full rounded-2xl border border-line bg-surface p-4 shadow-xl sm:max-w-xs">
+          <div className="w-full min-w-0 max-w-full rounded-lg border border-line bg-surface p-4 shadow-xl sm:max-w-xs">
             <p className="text-[14px] font-semibold">Saqlanmagan ma’lumot bor</p>
             <p className="mt-1 text-[12.5px] leading-snug text-muted">Chiqsangiz kiritilgan ma’lumot yo‘qoladi.</p>
             <div className="mt-3 flex flex-wrap gap-2 [&>*]:min-w-0">
@@ -620,7 +620,7 @@ export function AmountField({
       </div>
       <div
         onClick={() => inputRef.current?.focus()}
-        className={`min-w-0 cursor-text rounded-2xl border bg-surface-2 px-4 py-3.5 transition-[border-color,box-shadow] duration-150 ${
+        className={`min-w-0 cursor-text rounded-lg border bg-surface-2 px-4 py-3.5 transition-[border-color,box-shadow] duration-150 ${
           error
             ? "border-negative shadow-[0_0_0_3px_var(--negative-soft)]"
             : "border-line focus-within:border-accent focus-within:bg-surface focus-within:shadow-[0_0_0_3px_var(--accent-soft)]"
@@ -639,7 +639,7 @@ export function AmountField({
             aria-describedby={error ? errorId : undefined}
             placeholder={placeholder}
             autoFocus={autoFocus}
-            className={`num w-full min-w-0 max-w-full bg-transparent font-bold leading-none tracking-[-0.01em] outline-none placeholder:font-semibold placeholder:text-faint ${sizeClass}`}
+            className={`num w-full min-w-0 max-w-full bg-transparent font-bold leading-none tracking-normal outline-none placeholder:font-semibold placeholder:text-faint ${sizeClass}`}
           />
           {hasValue ? (
             <button

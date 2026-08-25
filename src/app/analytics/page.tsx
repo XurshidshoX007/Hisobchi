@@ -16,7 +16,7 @@ export default function AnalyticsPage() {
   return (
     <div className="animate-fade-up flex min-h-[62dvh] flex-col items-center justify-center px-6 py-12 text-center">
       <div
-        className="grid h-16 w-16 place-items-center rounded-2xl bg-accent-soft text-[32px] leading-none"
+        className="grid h-16 w-16 place-items-center rounded-lg bg-accent-soft text-[32px] leading-none"
         aria-hidden="true"
       >
         📊

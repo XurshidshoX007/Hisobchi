@@ -11,14 +11,14 @@
    ========================================================================== */
 
 :root {
-  /* Light — Pure White / Deep Navy */
-  --bg: #ffffff;
+  /* Light — calm finance workspace */
+  --bg: #f6f8fb;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #faf9f7;
-  --surface-3: #f1efeb;
-  --border: #e5e2db;
-  --border-strong: #d3cfc6;
+  --surface-2: #f0f3f7;
+  --surface-3: #e7ecf2;
+  --border: #dbe2ea;
+  --border-strong: #c7d0db;
 
   /* Text ramp — AA on all surfaces */
   --fg: #0c1222; /* 18.7:1 */
@@ -27,23 +27,23 @@
   --faint: #616671; /* 4.5:1 on surface-3 */
 
   /* Brand */
-  --primary: #101828;
+  --primary: #11352f;
   --primary-fg: #f7f7f5;
-  --primary-hover: #1d2939;
-  --segmented-active: #101828;
+  --primary-hover: #17483f;
+  --segmented-active: #11352f;
   --segmented-active-fg: #f7f7f5;
 
   /* Semantic FILL (bars, progress, rings) */
   --positive: #0e884e; /* 4.52:1 against white labels */
   --negative: #c02a2a;
   --warning: #b7791f;
-  --accent: #3b5bdb;
+  --accent: #2563eb;
 
   /* Semantic TEXT — AA on surface and on their soft tint */
   --positive-text: #0d7b47; /* 4.7:1 on soft, 5.3:1 on surface */
   --negative-text: #c02a2a; /* 4.7:1 / 5.4:1 */
   --warning-text: #8f5d17; /* 5.1:1 / 5.6:1 */
-  --accent-text: #3452c4; /* 5.8:1 / 6.7:1 */
+  --accent-text: #1d4ed8; /* AA on light surfaces */
 
   /* Foreground for filled semantic buttons */
   --positive-fg: #ffffff;
@@ -52,9 +52,9 @@
   --positive-soft: #e7f5ed;
   --negative-soft: #fdecec;
   --warning-soft: #fdf3e2;
-  --accent-soft: #eaeeff;
+  --accent-soft: #e8f0ff;
 
-  --shadow-card: 0 1px 2px rgba(12, 18, 34, 0.04), 0 8px 24px -12px rgba(12, 18, 34, 0.12);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 30px -22px rgba(15, 23, 42, 0.28);
   --chart-grid: rgba(12, 18, 34, 0.07);
   --focus: #3b5bdb;
 
@@ -115,7 +115,7 @@
   --positive: #34d399;
   --negative: #f87171;
   --warning: #fbbf24;
-  --accent: #7ca5ff;
+  --accent: #86a9ff;
 
   /* TEXT — slightly lifted so they pass on dark surfaces */
   --positive-text: #3ed598;
@@ -132,7 +132,7 @@
   --warning-soft: #2a2317;
   --accent-soft: #171f30;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 40px -24px rgba(0, 0, 0, 0.8);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 42px -28px rgba(0, 0, 0, 0.9);
   --chart-grid: rgba(255, 255, 255, 0.07);
   --focus: #7ca5ff;
 }
@@ -166,7 +166,7 @@
   --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
   --font-sans: ui-sans-serif, -apple-system, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --radius-card: 20px;
+  --radius-card: 8px;
 }
 
 * {
@@ -180,6 +180,9 @@ body {
 }
 
 body {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 52%, transparent), transparent 260px),
+    var(--bg);
   font-feature-settings: "tnum" 1, "cv01" 1;
   overscroll-behavior-y: none;
   -webkit-text-size-adjust: 100%;
@@ -204,7 +207,7 @@ body[data-tab-swipe] {
 /* Numeric data is always tabular so figures never jitter */
 .num {
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .card {
@@ -217,7 +220,7 @@ body[data-tab-swipe] {
 .flat-card {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 8px;
 }
 
 /* Keyboard / switch-accessibility focus ring */
@@ -517,16 +520,6 @@ body[data-sheet-open] .global-fab {
     transform: translateY(0);
   }
 }
-@keyframes aurora-pulse {
-  0%, 100% {
-    opacity: 0.06;
-    transform: scale(1) translate3d(0, 0, 0);
-  }
-  50% {
-    opacity: 0.12;
-    transform: scale(1.08) translate3d(-4px, 4px, 0);
-  }
-}
 @keyframes pulse-subtle {
   0%, 100% {
     opacity: 1;
@@ -563,9 +556,6 @@ body[data-sheet-open] .global-fab {
 }
 .animate-shimmer {
   animation: shimmer 1.6s ease-in-out infinite;
-}
-.animate-aurora {
-  animation: aurora-pulse 6s ease-in-out infinite;
 }
 .animate-pulse-subtle {
   animation: pulse-subtle 2.5s ease-in-out infinite;
@@ -615,7 +605,6 @@ body[data-sheet-open] .global-fab {
   .dashboard-value-transition,
   .animate-shimmer,
   .animate-badge-pop,
-  .animate-aurora,
   .animate-pulse-subtle,
   .animate-hero-in,
   .animate-category-in {

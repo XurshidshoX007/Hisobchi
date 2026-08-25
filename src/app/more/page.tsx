@@ -43,14 +43,14 @@ export default function MorePage() {
       {/* No section-name headline: the profile header + menu list start at the
           top. The Menu route owns the profile header, not a "Menyu" title. */}
       <Section>
-        <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-line rounded-2xl border border-line bg-surface">
+        <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-line rounded-lg border border-line bg-surface shadow-card">
           {LINKS.map((l) => (
             <Link
               key={l.href}
               href={l.href}
               className="flex min-h-12 items-center gap-3 px-4 py-2 transition-colors hover:bg-surface-2 active:bg-surface-2 touch-manipulation"
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-surface-3 text-base" aria-hidden="true">
                 {l.icon}
               </span>
               <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium">{l.title}</span>

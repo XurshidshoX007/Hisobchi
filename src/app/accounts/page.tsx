@@ -98,7 +98,7 @@ export default function AccountsPage() {
         state.accounts.length ? (
           /* §13: one account = one compact row. Per-account balance has its
              single home here — no extra distribution hero above the list. */
-          <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
+          <div className="divide-y divide-line rounded-lg border border-line bg-surface">
             {state.accounts.map((a) => (
               <div key={a.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
