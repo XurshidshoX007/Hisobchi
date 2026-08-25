@@ -78,14 +78,14 @@ export default function DebtsPage() {
       {state.debts.length ? (
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-            <Card className="p-4">
+            <Card className="module-summary p-4">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Men qarzdorman</p>
               <div className="mt-1.5">
                 <Money value={iOweTotal > 0 ? -iOweTotal : 0} size="lg" tone="negative" signed />
               </div>
               <p className="mt-1 text-[11.5px] text-muted">{iOwe.length} ta yozuv</p>
             </Card>
-            <Card className="p-4">
+            <Card className="module-summary p-4">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Menga qarzdor</p>
               <div className="mt-1.5">
                 <Money value={toMeTotal} size="lg" tone="positive" />
@@ -107,7 +107,7 @@ export default function DebtsPage() {
             />
           </div>
 
-          <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
+          <div className="data-list divide-y divide-line">
             {state.debts
               .filter((d) => filter === "all" || d.direction === filter)
               .map((d) => (

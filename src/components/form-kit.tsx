@@ -206,7 +206,7 @@ export function FormSheet({
               <button
                 type="button"
                 onClick={() => setConfirmClose(false)}
-                className="min-h-11 flex-1 rounded-full border border-line bg-surface text-[13px] font-semibold text-fg transition-colors hover:bg-surface-2 touch-manipulation"
+                className="min-h-11 flex-1 rounded-xl border border-line bg-surface text-[13px] font-semibold text-fg transition-colors hover:bg-surface-2 touch-manipulation"
               >
                 Qolish
               </button>
@@ -216,7 +216,7 @@ export function FormSheet({
                   setConfirmClose(false);
                   onClose();
                 }}
-                className="min-h-11 flex-1 rounded-full bg-negative text-[13px] font-semibold text-negative-fg transition-opacity hover:opacity-90 touch-manipulation"
+                className="min-h-11 flex-1 rounded-xl bg-negative text-[13px] font-semibold text-negative-fg transition-opacity hover:opacity-90 touch-manipulation"
               >
                 Chiqish
               </button>
@@ -671,7 +671,7 @@ export function AmountField({
               key={amount}
               type="button"
               onClick={() => onChange(addQuickAmount(value, amount))}
-              className="num min-h-9 min-w-0 max-w-full touch-manipulation rounded-full border border-line bg-surface-2 px-3.5 text-[12px] font-semibold text-fg-soft transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-text active:scale-95"
+              className="num min-h-9 min-w-0 max-w-full touch-manipulation rounded-xl border border-line bg-surface-2 px-3.5 text-[12px] font-semibold text-fg-soft transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-text active:scale-95"
             >
               {quickAmountLabel(amount)}
             </button>
@@ -984,7 +984,7 @@ export function NoteField({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-1 text-[13px] font-semibold text-accent-text transition-colors touch-manipulation"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-1 text-[13px] font-semibold text-accent-text transition-colors touch-manipulation"
       >
         + {label}
       </button>
