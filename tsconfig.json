@@ -1,42 +1,41 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
-    "allowJs": false,
-    "skipLibCheck": true,
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
+    "skipLibCheck": true,
     "isolatedModules": true,
+    "resolveJsonModule": true,
     "jsx": "react-jsx",
-    "incremental": true,
+    "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    },
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ]
+      "@hisobchi/shared/lib/*": ["./shared/src/lib/*"],
+      "@/lib/api": ["./frontend/src/lib/api.ts"],
+      "@/lib/router": ["./frontend/src/lib/router.ts"],
+      "@/lib/dashboard": ["./frontend/src/lib/dashboard.ts"],
+      "@/lib/fab": ["./frontend/src/lib/fab.ts"],
+      "@/lib/form-kit": ["./frontend/src/lib/form-kit.ts"],
+      "@/lib/navigation": ["./frontend/src/lib/navigation.ts"],
+      "@/lib/tab-swipe": ["./frontend/src/lib/tab-swipe.ts"],
+      "@/lib/transaction-filters": ["./frontend/src/lib/transaction-filters.ts"],
+      "@/db": ["./backend/src/db/index.ts"],
+      "@/db/*": ["./backend/src/db/*"],
+      "@/routes": ["./backend/src/routes/index.ts"],
+      "@/routes/*": ["./backend/src/routes/*"],
+      "@/web-handler": ["./backend/src/web-handler.ts"],
+      "@/lib/*": ["./backend/src/lib/*"],
+      "@/*": ["./frontend/src/*"]
+    }
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
+    "tests/**/*.ts",
+    "frontend/src/**/*",
+    "backend/src/**/*",
+    "shared/src/**/*"
   ]
 }

@@ -6,8 +6,8 @@
     "ghcr.io/itsmechlark/features/postgresql:1": {},
     "ghcr.io/itsmechlark/features/redis-server:1": {}
   },
-  "postCreateCommand": "npm install && node scripts/migrate.mjs",
-  "forwardPorts": [3000, 5432, 6379],
+  "postCreateCommand": "npm install && npm run migrate",
+  "forwardPorts": [4000, 5173, 5432, 6379],
   "customizations": {
     "vscode": {
       "extensions": [

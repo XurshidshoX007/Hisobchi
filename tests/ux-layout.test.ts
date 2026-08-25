@@ -2,14 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
-const shell = readFileSync(new URL("../src/components/app-shell.tsx", import.meta.url), "utf8");
-const fab = readFileSync(new URL("../src/components/fab.tsx", import.meta.url), "utf8");
-const plans = readFileSync(new URL("../src/app/plans/page.tsx", import.meta.url), "utf8");
-const planFilter = readFileSync(new URL("../src/components/plan-status-filter.tsx", import.meta.url), "utf8");
-const filterControls = readFileSync(new URL("../src/components/filter-controls.tsx", import.meta.url), "utf8");
-const transactionFilter = readFileSync(new URL("../src/components/transaction-filter.tsx", import.meta.url), "utf8");
-const history = readFileSync(new URL("../src/app/transactions/page.tsx", import.meta.url), "utf8");
+const css = readFileSync(new URL("../frontend/src/globals.css", import.meta.url), "utf8");
+const shell = readFileSync(new URL("../frontend/src/components/app-shell.tsx", import.meta.url), "utf8");
+const fab = readFileSync(new URL("../frontend/src/components/fab.tsx", import.meta.url), "utf8");
+const plans = readFileSync(new URL("../frontend/src/pages/plans.tsx", import.meta.url), "utf8");
+const planFilter = readFileSync(new URL("../frontend/src/components/plan-status-filter.tsx", import.meta.url), "utf8");
+const filterControls = readFileSync(new URL("../frontend/src/components/filter-controls.tsx", import.meta.url), "utf8");
+const transactionFilter = readFileSync(new URL("../frontend/src/components/transaction-filter.tsx", import.meta.url), "utf8");
+const history = readFileSync(new URL("../frontend/src/pages/transactions.tsx", import.meta.url), "utf8");
 
 test("mobile chrome uses shared geometry instead of magic FAB offsets", () => {
   for (const variable of ["--bottom-nav-height", "--fab-size", "--fab-gap", "--content-bottom-gap"]) {
@@ -134,10 +134,10 @@ test("History edit and cancel icons share one button geometry", () => {
 
 /* ============ Plans → To‘lovlar / Daromad: no summary cards above the lists ============ */
 
-const ui = readFileSync(new URL("../src/components/ui.tsx", import.meta.url), "utf8");
+const ui = readFileSync(new URL("../frontend/src/components/ui.tsx", import.meta.url), "utf8");
 
 test("the plan summary component no longer exists in the tree", () => {
-  assert.equal(existsSync(new URL("../src/components/plan-summary.tsx", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../frontend/src/components/plan-summary.tsx", import.meta.url)), false);
   assert.doesNotMatch(plans, /plan-summary/);
   assert.doesNotMatch(plans, /MonthlyPlanSummary|SecondaryPlanMetrics|MonthLoadCard|StatCard/);
 });
@@ -175,8 +175,8 @@ test("spacing collapses after the removed summaries — no stale gap under the t
 });
 
 test("the business logic behind the removed summaries is still available", () => {
-  const state = readFileSync(new URL("../src/lib/state.ts", import.meta.url), "utf8");
-  const finance = readFileSync(new URL("../src/lib/finance.ts", import.meta.url), "utf8");
+  const state = readFileSync(new URL("../backend/src/lib/state.ts", import.meta.url), "utf8");
+  const finance = readFileSync(new URL("../shared/src/lib/finance.ts", import.meta.url), "utf8");
   assert.match(state, /currentMonthPlan/);
   assert.match(state, /currentMonthIncome/);
   assert.match(finance, /export function buildCurrentMonthPlan/);
@@ -210,14 +210,14 @@ test("every section page starts with content — no section-name headline at the
     { page: "transactions", name: "Tarix" },
   ];
   for (const { page, name } of pages) {
-    const src = readFileSync(new URL(`../src/app/${page}/page.tsx`, import.meta.url), "utf8");
+    const src = readFileSync(new URL(`../frontend/src/pages/${page}.tsx`, import.meta.url), "utf8");
     assert.doesNotMatch(src, /<PageHeader[^>]*title=/, `${page} still renders a PageHeader section title`);
     assert.doesNotMatch(src, new RegExp(`<h1\\b[^>]*>${name}`), `${page} renders its name in an <h1> headline`);
     assert.doesNotMatch(src, /<h1\b/, `${page} renders a top-level <h1> headline`);
   }
   // The Tahlil section is a "coming soon" placeholder: it keeps its own content
   // message but never renders the section name ("Tahlil") as a headline.
-  const analytics = readFileSync(new URL("../src/app/analytics/page.tsx", import.meta.url), "utf8");
+  const analytics = readFileSync(new URL("../frontend/src/pages/analytics.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(analytics, /<h1\b[^>]*>Tahlil/);
   assert.match(analytics, /<h1\b[^>]*>Tez kunda/);
 });

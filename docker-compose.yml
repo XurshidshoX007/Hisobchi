@@ -1,0 +1,74 @@
+# Hisobchi — to'liq lokal stack: PostgreSQL + Redis + backend + frontend.
+#
+#   docker compose up --build
+#
+#   Frontend:  http://localhost:8080
+#   Backend:   http://localhost:4000/api/health
+#
+# Birinchi ishga tushirishda migratsiyani qo'lda bajaring:
+#   docker compose exec backend node scripts/migrate.mjs
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hisobchi
+      POSTGRES_PASSWORD: hisobchi
+      POSTGRES_DB: hisobchi
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hisobchi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://hisobchi:hisobchi@db:5432/hisobchi
+      REDIS_URL: redis://redis:6379
+      BOT_TOKEN: ${BOT_TOKEN:-123456789:local-dev-token}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-local-dev-webhook-secret-0123456789abcdef}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      NOTIFICATION_CRON_SECRET: local-dev-cron-secret-0123456789abcdef
+      LOG_HASH_SECRET: local-dev-log-hash-secret-0123456789abcdef
+      PORT: "4000"
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      PORT: "8080"
+      BACKEND_ORIGIN: http://backend:4000
+      API_PUBLIC_URL: ""
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+
+volumes:
+  db-data:

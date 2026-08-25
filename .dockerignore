@@ -1,12 +1,15 @@
 node_modules
+dist
 .next
 .git
 .env
 .env.*
-!.env.example
+!backend/.env.example
+!frontend/.env.example
 npm-debug.log*
 Dockerfile*
 README*.md
+docs
 coverage
 .vscode
 .idea
