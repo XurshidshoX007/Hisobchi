@@ -59,23 +59,24 @@ export function DashboardHero({
   const valueKey = `${facts.monthLabel}-${facts.balance}-${facts.income}-${facts.expense}`;
 
   return (
-    <Card padded={false} className="dashboard-hero relative overflow-hidden transition-transform duration-300 hover:-translate-y-0.5">
-      <div className="pointer-events-none absolute -right-16 -top-20 h-60 w-60 rounded-full bg-positive opacity-[0.11] blur-3xl animate-aurora" aria-hidden="true" />
-      <div className="pointer-events-none absolute -bottom-24 -left-16 h-52 w-52 rounded-full bg-accent opacity-[0.09] blur-3xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute right-7 top-7 h-28 w-28 rounded-full border border-white/[0.06]" aria-hidden="true" />
-      <div className="pointer-events-none absolute right-[4.25rem] top-[4.25rem] h-14 w-14 rounded-full border border-white/[0.05]" aria-hidden="true" />
+    <Card padded={false} className="relative overflow-hidden border-line/90 shadow-[0_2px_8px_rgba(12,18,34,0.04),0_12px_28px_-12px_rgba(12,18,34,0.08)] transition-all duration-300 hover:shadow-[0_4px_16px_rgba(12,18,34,0.06),0_16px_36px_-12px_rgba(12,18,34,0.12)]">
+      {/* Ambient aurora lighting */}
+      <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent opacity-[0.08] blur-2xl animate-aurora" aria-hidden="true" />
+      <div className="pointer-events-none absolute -left-12 -bottom-16 h-44 w-44 rounded-full bg-positive opacity-[0.05] blur-2xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute right-8 top-8 h-24 w-24 rounded-full border border-accent/15 opacity-[0.08]" aria-hidden="true" />
 
       <div key={valueKey} className="dashboard-value-transition relative min-w-0 px-5 pb-5 pt-5 sm:px-7 sm:pb-6 sm:pt-6">
         <div className="flex min-w-0 items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <p className="hero-label">Balans</p>
-            <div className="hero-balance-row">
-              <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "inverse"} />
-              <span className={facts.balance < 0 ? "hero-negative" : "hero-muted"}>{unit}</span>
+            <p className="text-[14px] font-semibold tracking-tight text-fg-soft">Balans</p>
+            <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} />
+              <span className={`text-xs font-semibold sm:text-sm ${facts.balance < 0 ? "text-negative-text" : "text-muted"}`}>{unit}</span>
             </div>
-            <p className="hero-muted mt-2 text-[11px]">Bugungi mavjud mablag‘</p>
           </div>
-          <span className="hero-wallet"><WalletIcon /></span>
+          <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[16px] bg-accent-soft text-accent-text border border-accent/15 shadow-xs transition-all duration-300 hover:scale-105 hover:shadow-sm">
+            <WalletIcon />
+          </span>
         </div>
 
         {facts.hasBalanceBreakdown && onOpenBreakdown ? (
@@ -83,23 +84,23 @@ export function DashboardHero({
         ) : null}
       </div>
 
-      <div className="hero-line relative grid min-w-0 grid-cols-2 border-t">
-        <div className="hero-stat group min-w-0 px-4 py-4 sm:px-7 sm:py-5">
-          <div className="hero-positive flex min-w-0 items-center gap-2">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[0.07] transition-transform duration-200 group-hover:-translate-y-0.5"><TrendIcon direction="up" /></span>
-            <span className="truncate text-[10px] font-bold uppercase tracking-[0.11em]">Daromad</span>
+      <div className="relative grid min-w-0 grid-cols-2 border-t border-line bg-surface-2/60 backdrop-blur-xs">
+        <div className="group min-w-0 px-4 py-4.5 sm:px-6 sm:py-5 transition-colors duration-200 hover:bg-positive-soft/25">
+          <div className="flex min-w-0 items-center gap-2 text-positive-text">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-positive-soft shadow-xs transition-transform duration-200 group-hover:scale-110"><TrendIcon direction="up" /></span>
+            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Daromad</span>
           </div>
           <div className="mt-2 min-w-0 leading-tight">
-            <Money whole value={facts.income} size="lg" tone="inverse" zeroSign="+" currency={unit} />
+            <Money whole value={facts.income} size="lg" tone="positive" zeroSign="+" currency={unit} />
           </div>
         </div>
-        <div className="hero-stat hero-line group min-w-0 border-l px-4 py-4 sm:px-7 sm:py-5">
-          <div className="flex min-w-0 items-center gap-2 text-white/70">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[0.07] transition-transform duration-200 group-hover:translate-y-0.5"><TrendIcon direction="down" /></span>
-            <span className="truncate text-[10px] font-bold uppercase tracking-[0.11em]">Xarajat</span>
+        <div className="group min-w-0 border-l border-line px-4 py-4.5 sm:px-6 sm:py-5 transition-colors duration-200 hover:bg-negative-soft/25">
+          <div className="flex min-w-0 items-center gap-2 text-negative-text">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-negative-soft shadow-xs transition-transform duration-200 group-hover:scale-110"><TrendIcon direction="down" /></span>
+            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Xarajat</span>
           </div>
           <div className="mt-2 min-w-0 leading-tight">
-            <Money whole value={-facts.expense} size="lg" tone="inverse" currency={unit} />
+            <Money whole value={-facts.expense} size="lg" tone="negative" currency={unit} />
           </div>
         </div>
       </div>
@@ -146,8 +147,7 @@ export function DashboardCategorySection({
             return (
               <div
                 key={item.id ?? `${tone}-${item.name}`}
-                data-tone={tone}
-                className={`category-row group min-w-0 px-4 py-3.5 sm:px-4.5 ${index ? "border-t border-line" : ""}`}
+                className={`group min-w-0 px-4 py-3.5 sm:px-4.5 transition-colors duration-150 hover:bg-surface-2/60 ${index ? "border-t border-line" : ""}`}
               >
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <span className="flex min-w-0 items-center gap-2.5 text-[13.5px] font-medium">

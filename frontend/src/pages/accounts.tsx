@@ -87,8 +87,8 @@ export function AccountsPage() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: "accounts", label: "Hisoblar" },
-            { value: "categories", label: "Kategoriyalar" },
+            { value: "accounts", label: "💳 Hisoblar" },
+            { value: "categories", label: "📂 Kategoriyalar" },
           ]}
         />
       </div>
@@ -97,7 +97,7 @@ export function AccountsPage() {
         state.accounts.length ? (
           /* §13: one account = one compact row. Per-account balance has its
              single home here — no extra distribution hero above the list. */
-          <div className="data-list divide-y divide-line">
+          <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
             {state.accounts.map((a) => (
               <div key={a.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
@@ -150,7 +150,7 @@ export function AccountsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {(["expense", "income"] as const).map((type) => (
-              <Card key={type} className="module-card overflow-hidden" padded={false}>
+              <Card key={type} className="overflow-hidden" padded={false}>
                 <div className="border-b border-line px-4 py-3 sm:px-5">
                   <p className="text-[15px] font-semibold">{type === "expense" ? "Xarajat kategoriyalari" : "Daromad kategoriyalari"}</p>
                 </div>

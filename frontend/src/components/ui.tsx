@@ -50,10 +50,10 @@ export function SectionTitle({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-3 flex items-end justify-between gap-2 sm:mb-3.5 sm:gap-3">
+    <div className="mb-2.5 flex items-end justify-between gap-2 sm:mb-3 sm:gap-3">
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-[16px] font-bold tracking-[-0.025em]">{title}</h2>
-        {hint ? <p className="mt-1 truncate text-xs text-muted">{hint}</p> : null}
+        <h2 className="truncate text-[15px] font-semibold tracking-tight">{title}</h2>
+        {hint ? <p className="mt-0.5 truncate text-xs text-muted">{hint}</p> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
@@ -114,18 +114,18 @@ export function Button({
   type?: "button" | "submit";
 }) {
   const base =
-    "inline-flex select-none items-center justify-center gap-2 rounded-xl font-semibold tracking-[-0.01em] transition-all active:scale-[0.97] touch-manipulation";
+    "inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-all active:scale-[0.97] touch-manipulation";
   const sizes: Record<string, string> = {
     sm: "min-h-9 px-3.5 text-[12.5px] sm:min-h-9 sm:text-xs",
-    md: "min-h-11 px-4.5 text-sm",
+    md: "min-h-11 px-4 text-sm",
     lg: "min-h-12 px-5 text-[15px]",
   };
   const variants: Record<string, string> = {
-    primary: "bg-primary text-primary-fg hover:bg-primary-hover shadow-[0_10px_22px_-14px_rgba(10,40,30,0.8)]",
-    secondary: "border border-line bg-surface text-fg hover:bg-surface-2 hover:border-line-strong shadow-xs",
+    primary: "bg-primary text-primary-fg hover:bg-primary-hover shadow-sm",
+    secondary: "border border-line bg-surface text-fg hover:bg-surface-2 hover:border-line-strong",
     ghost: "text-fg-soft hover:bg-surface-2 hover:text-fg",
-    danger: "bg-negative text-negative-fg hover:brightness-95 shadow-sm",
-    positive: "bg-positive text-positive-fg hover:brightness-95 shadow-sm",
+    danger: "bg-negative text-negative-fg hover:opacity-90",
+    positive: "bg-positive text-positive-fg hover:opacity-90",
   };
   const disabledClasses =
     "disabled:pointer-events-none disabled:active:scale-100 disabled:bg-surface-3 disabled:text-muted disabled:border-transparent disabled:shadow-none disabled:hover:bg-surface-3";
@@ -159,7 +159,7 @@ export function Badge({
   };
   return (
     <span
-      className={`inline-flex max-w-full items-center gap-1 truncate rounded-lg px-2 py-1 text-[10.5px] font-bold tracking-[-0.005em] ${tones[tone]}`}
+      className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold ${tones[tone]}`}
     >
       {children}
     </span>
@@ -178,7 +178,7 @@ export function Money({
 }: {
   value: number;
   size?: "xs" | "sm" | "md" | "lg" | "xl" | "hero";
-  tone?: "default" | "positive" | "negative" | "muted" | "inverse";
+  tone?: "default" | "positive" | "negative" | "muted";
   signed?: boolean;
   /** Display-only rounding to the nearest whole currency unit. */
   whole?: boolean;
@@ -200,7 +200,6 @@ export function Money({
     positive: "text-positive-text",
     negative: "text-negative-text",
     muted: "text-muted",
-    inverse: "text-white",
   };
   const magnitude = whole ? Math.round(Math.abs(value)) : Math.abs(value);
   const sign = signed ? (magnitude === 0 ? zeroSign ?? "" : value > 0 ? "+" : "−") : "";
@@ -228,7 +227,7 @@ export function Field({
 }) {
   return (
     <label className="block w-full">
-      <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-muted">{label}</span>
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
       <div className={error ? "[&_input]:border-negative [&_select]:border-negative [&_textarea]:border-negative" : undefined}>
         {children}
       </div>
@@ -248,7 +247,7 @@ export function Field({
  * zooming the page — and a zoom is a horizontal viewport shift (§21).
  */
 const inputClass =
-  "w-full min-w-0 max-w-full rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-base leading-tight outline-none transition-[border-color,background-color,box-shadow] placeholder:text-faint hover:border-line-strong focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_var(--accent-soft)] sm:py-2.5 sm:text-[15px]";
+  "w-full min-w-0 max-w-full rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-base leading-tight outline-none transition-colors placeholder:text-muted focus:border-accent focus:bg-surface sm:py-2.5 sm:text-[15px]";
 
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputClass} ${props.className ?? ""}`} />;
@@ -272,14 +271,14 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="no-scrollbar w-full max-w-full overflow-x-auto overscroll-x-contain rounded-[14px]" data-segmented-scroll>
+    <div className="no-scrollbar w-full max-w-full overflow-x-auto overscroll-x-contain rounded-full" data-segmented-scroll>
       {/*
        * The inner row grows equally while labels fit, then becomes horizontally
        * scrollable when their intrinsic widths no longer fit. Labels are never
        * ellipsized: “Hammasi” must remain fully readable at 320px and every
        * longer segmented control keeps the same behaviour globally.
        */}
-      <div role="tablist" className="flex w-max min-w-full gap-1 rounded-[14px] border border-line bg-surface-2 p-1">
+      <div role="tablist" className="flex w-max min-w-full gap-1 rounded-full border border-line bg-surface-2 p-1">
         {options.map((o) => {
           const active = value === o.value;
           return (
@@ -304,7 +303,7 @@ export function Segmented<T extends string>({
                 tabs[next]?.focus();
                 tabs[next]?.click();
               }}
-              className={`flex min-h-11 flex-1 shrink-0 touch-manipulation select-none items-center justify-center whitespace-nowrap rounded-[10px] px-3 text-xs font-semibold transition-all sm:min-h-10 ${
+              className={`flex min-h-11 flex-1 shrink-0 touch-manipulation select-none items-center justify-center whitespace-nowrap rounded-full px-3 text-xs font-semibold transition-all sm:min-h-10 ${
                 active ? "shadow-sm" : "text-fg-soft hover:bg-surface-3 hover:text-fg active:bg-surface-3"
               }`}
               style={active ? { background: "var(--segmented-active)", color: "var(--segmented-active-fg)" } : undefined}
@@ -650,18 +649,18 @@ export function ContextualBottomSheet({
             completeExit();
           }
         }}
-        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[28px] border border-line bg-surface shadow-[0_-14px_70px_-28px_rgba(6,28,20,0.7)] outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-[24px]"
+        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-[20px]"
       >
         <div className="shrink-0 px-5 pt-3 sm:hidden">
           <div className="mx-auto h-1.5 w-10 rounded-full bg-line-strong" />
         </div>
-        <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-4 pt-3 sm:px-6">
+        <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-3">
           <div className="min-w-0 flex-1">
-            <h3 id={titleId} className="truncate text-[17px] font-bold tracking-[-0.025em] sm:text-lg">
+            <h3 id={titleId} className="truncate text-[15px] font-semibold tracking-tight sm:text-base">
               {content.title}
             </h3>
             {content.subtitle ? (
-              <p id={subtitleId} className="mt-1 truncate text-[12px] leading-snug text-muted">
+              <p id={subtitleId} className="mt-0.5 truncate text-[11.5px] leading-snug text-muted">
                 {content.subtitle}
               </p>
             ) : null}
@@ -678,7 +677,7 @@ export function ContextualBottomSheet({
             ✕
           </button>
         </div>
-        <div className="sheet-body min-h-0 flex-1 px-5 pb-4 sm:px-6">
+        <div className="sheet-body min-h-0 flex-1 px-5 pb-4">
           <div className="sheet-form space-y-4 pb-2">{content.children}</div>
         </div>
         {content.footer ? (
@@ -709,12 +708,11 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flat-card relative flex flex-col items-center gap-3 overflow-hidden px-5 py-9 text-center sm:px-6 sm:py-11">
-      <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-px w-28 bg-gradient-to-r from-transparent via-accent to-transparent" />
-      <div className="grid h-13 w-13 place-items-center rounded-2xl border border-line bg-surface text-xl shadow-sm">{icon}</div>
-      <div className="max-w-[320px]">
-        <p className="text-[15px] font-bold tracking-[-0.015em]">{title}</p>
-        <p className="mx-auto mt-1.5 text-[13px] leading-relaxed text-muted">{description}</p>
+    <div className="flat-card flex flex-col items-center gap-3 px-5 py-8 text-center sm:px-6 sm:py-10">
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-3 text-xl">{icon}</div>
+      <div className="max-w-[300px]">
+        <p className="text-[15px] font-semibold">{title}</p>
+        <p className="mx-auto mt-1 text-[13px] leading-relaxed text-muted">{description}</p>
       </div>
       {action ? <div className="mt-1">{action}</div> : null}
     </div>
@@ -753,7 +751,7 @@ export function Section({
 }
 
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-shimmer rounded-[14px] bg-surface-3 ${className}`} />;
+  return <div className={`animate-shimmer rounded-xl bg-surface-3 ${className}`} />;
 }
 
 /**

@@ -7,48 +7,16 @@ import { getFabActions, supportsFab } from "@/lib/fab";
 import { MENU_ROUTE, isMenuSubroute, showsProfileHeader } from "@/lib/navigation";
 import { useFinance } from "./providers";
 import { FabProvider, GlobalAddFab, useFab } from "./fab";
-import { Badge, Button, Money, Sheet } from "./ui";
+import { Badge, Button, Divider, Money, Sheet } from "./ui";
 import { SwipeBack } from "./swipe-back";
 
 const NAV = [
   { href: "/", label: "Asosiy", short: "Asosiy", icon: HomeIcon },
-  { href: "/transactions", label: "Operatsiyalar", short: "Tarix", icon: ListIcon },
-  { href: "/plans", label: "Rejalar", short: "Reja", icon: CalendarIcon },
+  { href: "/transactions", label: "Tarix", short: "Tarix", icon: ListIcon },
+  { href: "/plans", label: "Reja", short: "Reja", icon: CalendarIcon },
   { href: "/analytics", label: "Tahlil", short: "Tahlil", icon: ChartIcon },
-  { href: "/more", label: "Boshqaruv", short: "Menyu", icon: GridIcon },
+  { href: "/more", label: "Ko‘proq", short: "Menyu", icon: GridIcon },
 ];
-
-const PAGE_DETAILS: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
-  "/": { eyebrow: "Moliya markazi", title: "Umumiy ko‘rinish", subtitle: "Balans va oylik pul harakati" },
-  "/transactions": { eyebrow: "Hisob-kitob", title: "Operatsiyalar", subtitle: "Barcha daromad va xarajatlar tarixi" },
-  "/plans": { eyebrow: "Oldindan nazorat", title: "Moliyaviy rejalar", subtitle: "To‘lovlar, daromadlar va pul oqimi" },
-  "/analytics": { eyebrow: "Moliyaviy razvedka", title: "Tahlil", subtitle: "Trendlar va foydali xulosalar" },
-  "/more": { eyebrow: "Ish maydoni", title: "Boshqaruv", subtitle: "Moliya vositalari va sozlamalar" },
-  "/accounts": { eyebrow: "Boshqaruv", title: "Hisoblar", subtitle: "Hamyonlar va kategoriyalar" },
-  "/budgets": { eyebrow: "Boshqaruv", title: "Budjetlar", subtitle: "Oylik limitlar va sarf nazorati" },
-  "/debts": { eyebrow: "Boshqaruv", title: "Qarzdorlik", subtitle: "Berilgan va olingan qarzlar" },
-  "/goals": { eyebrow: "Boshqaruv", title: "Maqsadlar", subtitle: "Jamg‘arma rejalari va natijalar" },
-  "/bot": { eyebrow: "Avtomatlashtirish", title: "Telegram bot", subtitle: "Operatsiyalarni suhbat orqali kiriting" },
-  "/settings": { eyebrow: "Tizim", title: "Sozlamalar", subtitle: "Profil, eslatma va ko‘rinish" },
-};
-
-function pageDetails(pathname: string) {
-  const exact = PAGE_DETAILS[pathname];
-  if (exact) return exact;
-  const key = Object.keys(PAGE_DETAILS).find((route) => route !== "/" && pathname.startsWith(`${route}/`));
-  return (key && PAGE_DETAILS[key]) || PAGE_DETAILS["/"];
-}
-
-function BrandMark({ compact = false }: { compact?: boolean }) {
-  return (
-    <span className={`brand-mark ${compact ? "h-9 w-9 rounded-xl" : "h-10 w-10 rounded-[14px]"}`} aria-hidden="true">
-      <svg width={compact ? 18 : 20} height={compact ? 18 : 20} viewBox="0 0 24 24" fill="none">
-        <path d="M7 5v14M17 5v14M7 12h10" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-        <path d="m14.5 7.5 2.5-2.5 2.5 2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </span>
-  );
-}
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -77,22 +45,18 @@ function AppShellContent({ children }: { children: ReactNode }) {
   // provider, only its render location changes.
   const profileHeader = showsProfileHeader(pathname);
   const isSub = isMenuSubroute(pathname);
-  const details = pageDetails(pathname);
 
   if (error === "auth") {
     return (
-      <div className="flex min-h-dvh items-center justify-center px-6 py-12">
-        <div className="card relative w-full max-w-sm overflow-hidden p-7 text-center sm:p-8">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-accent to-transparent" />
-          <div className="mx-auto w-fit"><BrandMark /></div>
-          <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.18em] text-accent-text">Xavfsiz kirish</p>
-          <h1 className="mt-1.5 text-xl font-bold tracking-[-0.035em]">Hisobchi</h1>
-          <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            Ilovani Telegram ichidan oching. Shaxsingiz xavfsiz tarzda avtomatik tasdiqlanadi.
-          </p>
-          <div className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-surface-2 px-3 py-2.5 text-[11.5px] text-muted">
-            <LockIcon /> Ma’lumotlaringiz himoyalangan
+      <div className="flex min-h-dvh items-center justify-center bg-bg px-6">
+        <div className="card w-full max-w-sm p-6 text-center">
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary text-lg font-bold text-primary-fg">
+            ₮
           </div>
+          <h1 className="mt-4 text-lg font-semibold tracking-tight">Hisobchi</h1>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">
+            Ilovani Telegram orqali oching — kirish Telegramda tasdiqlanadi.
+          </p>
         </div>
       </div>
     );
@@ -100,14 +64,16 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
   return (
     <>
-    <div className={`app-shell-layout mx-auto flex min-h-dvh w-full max-w-[1440px] gap-7 px-3.5 pt-0 sm:px-6 lg:px-5 lg:pt-5 ${hasFloatingAction ? "has-global-fab" : ""}`}>
+    <div className={`app-shell-layout mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 ${hasFloatingAction ? "has-global-fab" : ""}`}>
       {/* Sidebar — desktop */}
-      <aside className="sidebar-panel sticky top-5 hidden h-[calc(100dvh-2.5rem)] w-[252px] shrink-0 flex-col gap-1 lg:flex">
-        <div className="mb-6 flex items-center gap-3 px-2 pt-0.5">
-          <BrandMark />
+      <aside className="sticky top-6 hidden h-fit w-60 shrink-0 flex-col gap-1 lg:flex">
+        <div className="mb-5 flex items-center gap-2.5 px-2">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-[15px] font-bold text-primary-fg">
+            <span>₮</span>
+          </div>
           <div>
-            <p className="text-[15px] font-bold leading-tight tracking-[-0.025em] text-white">Hisobchi</p>
-            <p className="sidebar-subtle mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em]">Moliya tizimi</p>
+            <p className="text-[13px] font-semibold leading-tight">Hisobchi</p>
+            <p className="text-[11px] text-muted">Shaxsiy moliya</p>
           </div>
         </div>
         {NAV.map((item) => {
@@ -116,120 +82,110 @@ function AppShellContent({ children }: { children: ReactNode }) {
             <Link
               key={item.href}
               to={item.href}
-              data-active={active}
-              className={`sidebar-nav-item flex min-h-11 items-center gap-3 rounded-[13px] px-3 text-[13.5px] ${active ? "font-semibold" : "font-medium"}`}
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] transition-colors ${
+                active ? "bg-primary font-semibold text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
+              }`}
             >
-              <span className="grid h-7 w-7 place-items-center"><item.icon active={active} /></span>
+              <item.icon active={active} />
               {item.label}
-              {active ? <span className="ml-auto h-1.5 w-1.5 rounded-full bg-current opacity-70" /> : null}
             </Link>
           );
         })}
-        <div className="my-2 h-px bg-white/10" />
+        <Divider />
         <Link
           to="/bot"
-          data-active={pathname === "/bot"}
-          className={`sidebar-nav-item flex min-h-11 items-center gap-3 rounded-[13px] px-3 text-[13.5px] ${pathname === "/bot" ? "font-semibold" : "font-medium"}`}
+          className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] transition-colors ${
+            pathname === "/bot" ? "bg-primary text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
+          }`}
         >
-          <span className="grid h-7 w-7 place-items-center"><BotIcon /></span> Telegram bot
+          <span className="text-base">🤖</span> Telegram bot
         </Link>
 
-        <div className="mt-auto space-y-2 pt-6">
-          {/* Balance is a compact reference, never a duplicate dashboard hero. */}
-          <Link to="/" className="sidebar-balance block rounded-2xl px-3.5 py-3.5 transition-colors hover:bg-white/[0.09]">
-            <div className="flex items-center justify-between gap-2">
-              <p className="sidebar-subtle text-[9.5px] font-bold uppercase tracking-[0.12em]">Umumiy balans</p>
-              <span className="sidebar-subtle text-[11px]">→</span>
-            </div>
-            <p className="num mt-1.5 truncate text-[17px] font-semibold tracking-[-0.03em] text-white">
-              {formatAmount(state?.currentBalance ?? 0)}
-              <span className="ml-1 text-[9px] font-medium tracking-normal text-white/50">{state?.user.currency ?? "UZS"}</span>
-            </p>
-            <p className="sidebar-subtle mt-1 text-[10px]">{state?.accounts.length ?? 0} ta faol hisob</p>
-          </Link>
+        {/* Balance is OWNED by the Dashboard hero — the sidebar carries only a
+            one-line reference to it (§4), never a second hero. */}
+        <Link to="/" className="mt-6 block rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2">
+          <p className="text-[11.5px] text-muted">
+            Balans: <span className="num font-semibold text-fg">{formatAmount(state?.currentBalance ?? 0)}</span>
+          </p>
+          <p className="text-[10.5px] text-muted">{state?.accounts.length ?? 0} hisob · Asosiy →</p>
+        </Link>
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setAlertsOpen(true)}
-              className="relative flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] text-[11.5px] font-medium text-white/70 transition-colors hover:bg-white/[0.09] hover:text-white touch-manipulation"
-            >
-              <BellIcon /> Eslatma
-              {unread > 0 ? (
-                <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-[#0b1e18] bg-negative px-1 text-[8px] font-bold text-negative-fg">
-                  {unread > 9 ? "9+" : unread}
-                </span>
-              ) : null}
-            </button>
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
-              className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] text-[11.5px] font-medium text-white/70 transition-colors hover:bg-white/[0.09] hover:text-white touch-manipulation"
-            >
-              <ThemeIcon theme={theme} /> {theme === "dark" ? "Tungi" : theme === "light" ? "Yorug‘" : "Tizim"}
-            </button>
-          </div>
-        </div>
+        <button
+          onClick={() => setAlertsOpen(true)}
+          className="mt-4 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
+        >
+          <span className="text-base">🔔</span>
+          Eslatmalar
+          {unread > 0 ? (
+            <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-negative px-1.5 text-[10px] font-bold text-negative-fg">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          ) : null}
+        </button>
+
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
+          className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
+        >
+          <span className="text-base">{theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}</span>
+          {theme === "dark" ? "Tungi" : theme === "light" ? "Kunduzgi" : "Tizim"}
+        </button>
       </aside>
 
-      <main className="min-w-0 flex-1 lg:pt-0.5">
-        {/* A consistent route header makes hierarchy obvious on every screen.
-            Only Menu owns profile facts; other routes show product context. */}
-        <header className="shell-topbar glass-bar sticky top-0 z-30 -mx-3.5 mb-4 flex min-h-[72px] items-center justify-between gap-3 px-3.5 py-2.5 sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:min-h-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none">
-          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-            {isSub ? (
-              <Link
-                to={MENU_ROUTE}
-                aria-label="Boshqaruvga qaytish"
-                className="shell-icon-button shrink-0 lg:hidden"
-              >
-                <BackIcon />
-              </Link>
-            ) : (
-              <span className="shrink-0 lg:hidden"><BrandMark compact /></span>
-            )}
-            <div className="min-w-0">
-              <p className="shell-eyebrow truncate">
-                {profileHeader ? `Salom, ${state?.user.firstName ?? "…"}` : details.eyebrow}
-              </p>
-              <h1 className="shell-title mt-0.5 truncate">{details.title}</h1>
-              <p className="mt-1 hidden truncate text-[12px] text-muted sm:block">
-                {profileHeader
-                  ? `${formatAmount(state?.currentBalance ?? 0)} ${state?.user.currency ?? "UZS"} · ${details.subtitle}`
-                  : details.subtitle}
-              </p>
+      <main className="min-w-0 flex-1">
+        {/*
+         * Mobile profile header — `/more` (Menu) route ONLY. Internal pages
+         * reached from Menu start with their own compact back affordance instead.
+         * It is not hidden with CSS: on every other route the element is never
+         * mounted, so it occupies zero height/margin/padding and the page
+         * content starts at the top of the viewport.
+         */}
+        {profileHeader ? (
+          <header className="glass-bar sticky top-0 z-30 -mx-3.5 mb-3 flex items-center justify-between gap-2 border-b border-line px-3.5 py-2.5 sm:-mx-6 sm:mb-4 sm:px-6 lg:hidden">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-[15px] font-bold text-primary-fg">
+                ₮
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-semibold leading-tight">Salom, {state?.user.firstName ?? "…"} 👋</p>
+                <p className="num truncate text-[11.5px] font-semibold leading-tight">
+                  {formatAmount(state?.currentBalance ?? 0)}{" "}
+                  <span className="font-normal text-muted">{state?.user.currency ?? "UZS"}</span>
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
-              className="shell-icon-button"
-              aria-label="Mavzuni almashtirish"
-              title={theme === "dark" ? "Tungi mavzu" : theme === "light" ? "Yorug‘ mavzu" : "Tizim mavzusi"}
-            >
-              <ThemeIcon theme={theme} />
-            </button>
-            <button
-              onClick={() => setAlertsOpen(true)}
-              className="shell-icon-button relative"
-              aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
-            >
-              <BellIcon />
-              {unread > 0 ? (
-                <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[8px] font-bold text-negative-fg">
-                  {unread > 9 ? "9+" : unread}
-                </span>
-              ) : null}
-            </button>
-          </div>
-        </header>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
+                className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
+                aria-label="Mavzuni almashtirish"
+              >
+                {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}
+              </button>
+              <button
+                onClick={() => setAlertsOpen(true)}
+                className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
+                aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
+              >
+                🔔
+                {unread > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[9px] font-bold text-negative-fg">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                ) : null}
+              </button>
+            </div>
+          </header>
+        ) : null}
 
         <SwipeBack enabled={isSub}>
-          <div className="min-w-0 pb-1">{children}</div>
+          <div className="min-w-0">{children}</div>
         </SwipeBack>
       </main>
 
       {/* Bottom navigation has deterministic geometry; FAB positioning and
           content clearance consume the same CSS variables. */}
-      <nav className="app-bottom-nav glass-nav fixed inset-x-0 bottom-0 px-2 lg:hidden">
+      <nav className="app-bottom-nav glass-nav fixed inset-x-0 bottom-0 border-t border-line lg:hidden">
         <div className="mobile-bottom-nav-inner mx-auto flex max-w-lg items-stretch justify-between gap-0.5 px-1 pt-1.5 sm:px-2">
           {NAV.map((item) => (
             <NavItem
@@ -353,7 +309,7 @@ function NavItem({
       to={href}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} o‘qilmagan eslatma` : undefined}
-      className={`nav-item flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1.5 touch-manipulation ${active ? "text-accent-text" : "text-muted"}`}
+      className="nav-item flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1.5 touch-manipulation"
     >
       <span
         className={`relative grid h-7 w-full place-items-center rounded-lg transition-[background-color] duration-200 ease-out ${
@@ -394,96 +350,41 @@ function NavItem({
   );
 }
 
-function BellIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
-      <path d="M10 21h4" />
-    </svg>
-  );
-}
-
-function ThemeIcon({ theme }: { theme: "light" | "dark" | "system" }) {
-  if (theme === "system") {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" />
-      </svg>
-    );
-  }
-  if (theme === "dark") {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M20.5 15.2A8.6 8.6 0 0 1 8.8 3.5 8.6 8.6 0 1 0 20.5 15.2Z" />
-      </svg>
-    );
-  }
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3.5" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  );
-}
-
-function BackIcon() {
-  return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  );
-}
-
-function BotIcon() {
-  return (
-    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="4" y="7" width="16" height="12" rx="4" /><path d="M12 3v4M8.5 12h.01M15.5 12h.01M9 16h6" />
-    </svg>
-  );
-}
-
-function LockIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" />
-    </svg>
-  );
-}
-
 type IconProps = { active?: boolean };
 
-function HomeIcon({}: IconProps) {
+function HomeIcon({ active }: IconProps) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
       <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z" strokeLinejoin="round" />
     </svg>
   );
 }
-function ListIcon({}: IconProps) {
+function ListIcon({ active }: IconProps) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
       <path d="M4 7h16M4 12h16M4 17h10" strokeLinecap="round" />
     </svg>
   );
 }
-function CalendarIcon({}: IconProps) {
+function CalendarIcon({ active }: IconProps) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
       <rect x="3.5" y="5" width="17" height="15" rx="3" />
       <path d="M8 3.5v3M16 3.5v3M3.5 10h17" strokeLinecap="round" />
     </svg>
   );
 }
-function ChartIcon({}: IconProps) {
+function ChartIcon({ active }: IconProps) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
       <path d="M4 19V5M4 19h16" strokeLinecap="round" />
       <path d="M8 16v-4M12.5 16V8M17 16v-6" strokeLinecap="round" />
     </svg>
   );
 }
-function GridIcon({}: IconProps) {
+function GridIcon({ active }: IconProps) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
       <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
       <rect x="13.5" y="4" width="6.5" height="6.5" rx="2" />
       <rect x="4" y="13.5" width="6.5" height="6.5" rx="2" />

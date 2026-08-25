@@ -529,7 +529,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 /** ONE bordered container per list — rows inside carry no frame of their own (§17/§24). */
 function PlanRowList({ children }: { children: React.ReactNode }) {
-  return <div className="data-list divide-y divide-line">{children}</div>;
+  return <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">{children}</div>;
 }
 
 /**
@@ -994,7 +994,7 @@ function CashflowTab({
 
   return (
     <div className="space-y-3.5 sm:space-y-4">
-      <Card className="module-summary space-y-4">
+      <Card className="space-y-4">
         {/* Month navigation first (§31) */}
         <div className="flex items-center justify-between gap-2">
           <button
@@ -1075,7 +1075,7 @@ function CashflowTab({
         )}
       </Card>
 
-      <Card className="module-card">
+      <Card>
         <p className="mb-3 text-[15px] font-semibold">Muhim sanalar · {monthLabel}</p>
         {items.length ? (
           <div className="divide-y divide-line">
@@ -1100,7 +1100,7 @@ function CashflowTab({
         )}
       </Card>
 
-      <Card className="module-card">
+      <Card>
         <p className="mb-2 text-[15px] font-semibold">⚠️ Xavf kunlari · {monthLabel}</p>
         {risks.length ? (
           <>

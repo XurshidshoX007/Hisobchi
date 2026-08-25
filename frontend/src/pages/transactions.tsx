@@ -204,8 +204,8 @@ function TransactionsView() {
             const dayIn = reportingItems.filter((transaction) => transaction.type === "income").reduce((sum, transaction) => sum + transaction.amount, 0);
             const dayOut = reportingItems.filter((transaction) => transaction.type === "expense").reduce((sum, transaction) => sum + transaction.amount, 0);
             return (
-              <section key={date} className="data-list">
-                <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-2 px-4 py-2.5">
+              <section key={date}>
+                <div className="flex items-center justify-between gap-3 border-b border-line px-1 pb-2">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-muted">{humanDate(date)}</span>
                   <span className="num flex items-center gap-2 text-[12px]">
                     {dayIn > 0 ? <span className="font-medium text-positive-text">+{compact(dayIn)}</span> : null}
