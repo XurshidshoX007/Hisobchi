@@ -24,7 +24,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ContextualBottomSheet, TextArea, TextInput } from "./ui";
+import { ContextualBottomSheet, Icon, TextArea, TextInput, type AppIconName } from "./ui";
 import { useFinance } from "./providers";
 import {
   QUICK_AMOUNTS,
@@ -199,7 +199,7 @@ export function FormSheet({
 
       {confirmClose ? (
         <div className="absolute inset-0 z-20 flex items-end overflow-hidden bg-black/35 px-4 pb-4 sm:items-center sm:justify-center">
-          <div className="w-full min-w-0 max-w-full rounded-2xl border border-line bg-surface p-4 shadow-xl sm:max-w-xs">
+          <div className="w-full min-w-0 max-w-full rounded-xl border border-line bg-surface p-4 shadow-sm sm:max-w-xs">
             <p className="text-[14px] font-semibold">Saqlanmagan ma’lumot bor</p>
             <p className="mt-1 text-[12.5px] leading-snug text-muted">Chiqsangiz kiritilgan ma’lumot yo‘qoladi.</p>
             <div className="mt-3 flex flex-wrap gap-2 [&>*]:min-w-0">
@@ -309,7 +309,7 @@ export type ChoiceOption<T extends string> = {
   label: string;
   /** Optional second line — only for the card size, never for compact rows. */
   description?: string;
-  icon?: string;
+  icon?: ReactNode;
 };
 
 function useRovingChoice() {
@@ -519,7 +519,7 @@ export function Chip({
   active?: boolean;
   onClick: () => void;
   children: ReactNode;
-  /** Leading emoji/glyph — kept outside the truncating label. */
+  /** Leading icon or user-created glyph — kept outside the truncating label. */
   icon?: ReactNode;
   ariaLabel?: string;
   title?: string;
@@ -620,10 +620,10 @@ export function AmountField({
       </div>
       <div
         onClick={() => inputRef.current?.focus()}
-        className={`min-w-0 cursor-text rounded-2xl border bg-surface-2 px-4 py-3.5 transition-[border-color,box-shadow] duration-150 ${
+        className={`min-w-0 cursor-text rounded-xl border bg-surface-2 px-4 py-3.5 transition-[border-color,background-color] duration-150 ${
           error
-            ? "border-negative shadow-[0_0_0_3px_var(--negative-soft)]"
-            : "border-line focus-within:border-accent focus-within:bg-surface focus-within:shadow-[0_0_0_3px_var(--accent-soft)]"
+            ? "border-negative"
+            : "border-line focus-within:border-accent focus-within:bg-surface"
         }`}
       >
         <div className="flex min-w-0 items-center gap-2.5">
@@ -842,7 +842,7 @@ export function DateField({
               {chip.label}
             </Chip>
           ))}
-          <Chip icon="📅" active={showCalendar} onClick={() => setShowCalendar(true)} ariaLabel="Boshqa sanani tanlash">
+          <Chip icon={<Icon name="plans" size={15} />} active={showCalendar} onClick={() => setShowCalendar(true)} ariaLabel="Boshqa sanani tanlash">
             Boshqa
           </Chip>
         </ChipRow>
@@ -866,13 +866,13 @@ export function DateField({
 
 /* ============================ Account ============================ */
 
-export const ACCOUNT_TYPE_ICON: Record<string, string> = {
-  cash: "💵",
-  uzcard: "💳",
-  humo: "💳",
-  bank: "🏦",
-  ewallet: "📱",
-  other: "•",
+export const ACCOUNT_TYPE_ICON: Record<string, AppIconName> = {
+  cash: "wallet",
+  uzcard: "accounts",
+  humo: "accounts",
+  bank: "accounts",
+  ewallet: "wallet",
+  other: "accounts",
 };
 
 /**
@@ -928,7 +928,7 @@ export function AccountPicker({
         <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
         <p className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-[13.5px]">
           <span className="shrink-0" aria-hidden="true">
-            {ACCOUNT_TYPE_ICON[only.type] ?? "•"}
+            <Icon name={ACCOUNT_TYPE_ICON[only.type] ?? "accounts"} size={17} />
           </span>
           <span className="min-w-0 break-words font-medium">{only.name}</span>
         </p>
@@ -947,7 +947,7 @@ export function AccountPicker({
         {options.map((a) => (
           <Chip
             key={a.id}
-            icon={ACCOUNT_TYPE_ICON[a.type] ?? "•"}
+            icon={<Icon name={ACCOUNT_TYPE_ICON[a.type] ?? "accounts"} size={16} />}
             title={a.name}
             active={String(a.id) === value}
             onClick={() => onChange(String(a.id))}

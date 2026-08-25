@@ -19,6 +19,7 @@ import {
   Card,
   EmptyState,
   Field,
+  Icon,
   Money,
   Progress,
   Segmented,
@@ -198,7 +199,7 @@ export default function DebtsPage() {
           </div>
         </>
       ) : (
-        <EmptyState icon="📋" title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
+        <EmptyState icon={<Icon name="debt" size={20} />} title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
       )}
 
       <DebtSheet open={sheet} onClose={closeSheet} editing={editing} />

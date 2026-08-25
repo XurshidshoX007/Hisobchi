@@ -24,7 +24,7 @@ export function IncomeExpenseBars({
   const barW = Math.max(4, group * 0.28);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Daromad va xarajatlarning olti oylik taqqoslanishi">
       {[0.25, 0.5, 0.75, 1].map((g) => (
         <line
           key={g}
@@ -109,16 +109,10 @@ export function ForecastArea({
 
   return (
     <ForecastAreaInteractive data={data} description={description} W={W} H={H} pad={pad} x={x} y={y} innerH={innerH}>
-      <defs>
-        <linearGradient id="fa-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
       <path d={`${line(top)} ${line(bottom).replace("M", "L")} Z`} fill="var(--fg)" opacity={0.07} />
       <path
         d={`${line(base)} L ${x(data.length - 1)} ${pad.top + innerH} L ${x(0)} ${pad.top + innerH} Z`}
-        fill="url(#fa-fill)"
+        fill="var(--accent-soft)" opacity="0.7"
       />
       {min < 0 ? (
         <line x1={pad.left} x2={W - pad.right} y1={zeroY} y2={zeroY} stroke="var(--negative)" strokeWidth="1" strokeDasharray="3 3" />
@@ -255,14 +249,8 @@ export function BalanceLine({
   const area = `${line(pts)} L ${pts[pts.length - 1].x} ${pad.top + innerH} L ${pts[0].x} ${pad.top + innerH} Z`;
   const last = pts[pts.length - 1];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img">
-      <defs>
-        <linearGradient id="bl-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--fg)" stopOpacity="0.14" />
-          <stop offset="100%" stopColor="var(--fg)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#bl-fill)" />
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Balansning so‘nggi 90 kunlik o‘zgarishi">
+      <path d={area} fill="var(--surface-2)" opacity="0.85" />
       <path d={line(pts)} fill="none" stroke="var(--fg)" strokeWidth="1.8" strokeLinecap="round" />
       <circle cx={last.x} cy={last.y} r="3" fill="var(--fg)" />
       <circle cx={last.x} cy={last.y} r="6" fill="var(--fg)" opacity="0.15" />

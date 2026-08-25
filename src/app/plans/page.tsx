@@ -26,6 +26,7 @@ import {
   Card,
   EmptyState,
   Field,
+  Icon,
   Money,
   Progress,
   Segmented,
@@ -310,7 +311,7 @@ export default function PlansPage() {
                     </div>
                   ) : (
                     <EmptyState
-                      icon="📌"
+                      icon={<Icon name="plans" size={20} />}
                       title="Rejalashtirilgan to‘lovlar yo‘q."
                       description="Pastdagi + tugmasi orqali to‘lov rejasini qo‘shing."
                     />
@@ -323,7 +324,7 @@ export default function PlansPage() {
                   </PlanRowList>
                 ) : (
                   <EmptyState
-                    icon={planTab === "cancelled" ? "🚫" : planTab === "completed" ? "🏁" : "❚❚"}
+                    icon={<Icon name={planTab === "cancelled" ? "archive" : planTab === "completed" ? "check" : "pause"} size={20} />}
                     title={
                       planTab === "paused"
                         ? "Pauzadagi reja yo‘q"
@@ -384,7 +385,7 @@ export default function PlansPage() {
                     </div>
                   ) : (
                     <EmptyState
-                      icon="💰"
+                      icon={<Icon name="plans" size={20} />}
                       title="Daromadlar hali kiritilmagan."
                       description="Pastdagi + tugmasi orqali kutilayotgan daromadni qo‘shing."
                     />
@@ -397,7 +398,7 @@ export default function PlansPage() {
                   </PlanRowList>
                 ) : (
                   <EmptyState
-                    icon={incomeTab === "cancelled" ? "🚫" : incomeTab === "completed" ? "🏁" : "❚❚"}
+                    icon={<Icon name={incomeTab === "cancelled" ? "archive" : incomeTab === "completed" ? "check" : "pause"} size={20} />}
                     title={
                       incomeTab === "paused"
                         ? "Pauzadagi daromad rejasi yo‘q"
@@ -576,7 +577,7 @@ function PaymentPlanRow({
             {status === "active" && r.paidThisMonth ? <span className="shrink-0 text-[11px] font-medium text-positive-text">✓ bu oy</span> : null}
           </div>
           <p className="mt-0.5 truncate text-[11.5px] text-muted">
-            <span className={TONE_TEXT[due.tone]}>{due.overdue ? "🔴 " : ""}{due.text}</span>
+            <span className={TONE_TEXT[due.tone]}>{due.overdue ? <Icon name="warning" size={13} className="mr-1 inline-block" /> : null}{due.text}</span>
             {" · "}
             {metaBits.join(" · ")}
           </p>
@@ -628,7 +629,7 @@ function PaymentPlanRow({
         )}
         {r.paymentsCount ? (
           <button type="button" className={`${LINK_BTN} hidden sm:inline-flex`} onClick={() => onAction("history", r)}>
-            🧾 {r.paymentsCount} ta
+            <Icon name="history" size={14} /> {r.paymentsCount} ta
           </button>
         ) : null}
         <button
@@ -637,7 +638,7 @@ function PaymentPlanRow({
           aria-label={`${r.name} — boshqa amallar`}
           onClick={() => onMenu(r)}
         >
-          •••
+          <span className="flex gap-0.5" aria-hidden="true"><i className="h-1 w-1 rounded-full bg-current" /><i className="h-1 w-1 rounded-full bg-current" /><i className="h-1 w-1 rounded-full bg-current" /></span>
         </button>
       </div>
     </div>
@@ -677,7 +678,7 @@ function IncomePlanRow({
             {status === "active" && i.received ? <span className="shrink-0 text-[11px] font-medium text-positive-text">✓ bu oy</span> : null}
           </div>
           <p className="mt-0.5 truncate text-[11.5px] text-muted">
-            <span className={TONE_TEXT[due.tone]}>{due.overdue ? "⏳ " : ""}{due.text}</span>
+            <span className={TONE_TEXT[due.tone]}>{due.text}</span>
             {" · "}
             {metaBits.join(" · ")}
           </p>
@@ -724,7 +725,7 @@ function IncomePlanRow({
         )}
         {i.receiptsCount ? (
           <button type="button" className={`${LINK_BTN} hidden sm:inline-flex`} onClick={() => onAction("history", i)}>
-            🧾 {i.receiptsCount} ta
+            <Icon name="history" size={14} /> {i.receiptsCount} ta
           </button>
         ) : null}
         <button
@@ -733,7 +734,7 @@ function IncomePlanRow({
           aria-label={`${i.sourceName} — boshqa amallar`}
           onClick={() => onMenu(i)}
         >
-          •••
+          <span className="flex gap-0.5" aria-hidden="true"><i className="h-1 w-1 rounded-full bg-current" /><i className="h-1 w-1 rounded-full bg-current" /><i className="h-1 w-1 rounded-full bg-current" /></span>
         </button>
       </div>
     </div>
@@ -789,12 +790,12 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
           </button>
         ) : null}
         <button type="button" className={rowClass} onClick={() => plan && run(plan.onEdit)}>
-          <span className="w-6 shrink-0 text-center" aria-hidden="true">✏️</span>
+          <span className="w-6 shrink-0 text-center" aria-hidden="true"><Icon name="edit" size={16} /></span>
           Tahrirlash
         </button>
         {plan?.paymentsCount ? (
           <button type="button" className={rowClass} onClick={() => plan && run(plan.onHistory)}>
-            <span className="w-6 shrink-0 text-center" aria-hidden="true">🧾</span>
+            <span className="w-6 shrink-0 text-center" aria-hidden="true"><Icon name="history" size={16} /></span>
             Tarixni ko‘rish ({plan.paymentsCount} ta)
           </button>
         ) : null}
@@ -804,7 +805,7 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
             className={`${rowClass} text-negative-text`}
             onClick={() => plan && run(plan.onCancel)}
           >
-            <span className="w-6 shrink-0 text-center" aria-hidden="true">🚫</span>
+            <span className="w-6 shrink-0 text-center" aria-hidden="true"><Icon name="archive" size={16} /></span>
             Rejani bekor qilish
           </button>
         ) : null}
@@ -1102,7 +1103,7 @@ function CashflowTab({
       </Card>
 
       <Card>
-        <p className="mb-2 text-[15px] font-semibold">⚠️ Xavf kunlari · {monthLabel}</p>
+        <p className="mb-2 flex items-center gap-2 text-[15px] font-semibold"><Icon name="warning" size={17} className="text-warning-text" /> Xavf kunlari · {monthLabel}</p>
         {risks.length ? (
           <>
             {/* Timeline context only — the full risk explanation is OWNED by
