@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { botIntent, isStartCommand, parseBatchCallback, parseDraftCallback } from "../backend/src/lib/bot-routing";
+import { botIntent, isStartCommand, parseBatchCallback, parseDraftCallback } from "../src/lib/bot-routing";
 import {
   BUTTON,
   draftSummary,
@@ -11,37 +11,14 @@ import {
   PROMPT,
   startNew,
   startReturning,
-} from "../shared/src/lib/bot-copy";
-import { buildAnalytics, buildForecast, buildPlanned, remainingOccurrences } from "../shared/src/lib/finance";
-import { extractDate, parseDraft, parseDrafts, splitOperations } from "../shared/src/lib/nlp";
-import { addDays, addMonths, dayDiff, monthEnd, monthKey, monthStart } from "../shared/src/lib/money";
+} from "../src/lib/bot-copy";
+import { buildAnalytics, buildForecast, buildPlanned, remainingOccurrences } from "../src/lib/finance";
+import { extractDate, parseDraft, parseDrafts, splitOperations } from "../src/lib/nlp";
+import { addDays, addMonths, dayDiff, monthEnd, monthKey, monthStart } from "../src/lib/money";
 import { readFileSync, readdirSync } from "node:fs";
-import { Segmented } from "../frontend/src/components/ui";
+import { Segmented } from "../src/components/ui";
 
 /* ============================ BOT ROUTING ============================ */
-
-
-/**
- * Monorepo yo'l yordamchisi: eski monolit yo'li (`src/...`) ni yangi
- * paket layoutiga (frontend/backend/shared) xaritalab o'qiydi.
- */
-const SHARED_LIBS = new Set(["money", "finance", "nlp", "reconciliation", "types", "copy", "bot-copy"]);
-function resolveMonorepoPath(oldPath: string): string {
-  let m;
-  if (oldPath === "app/page.tsx") return "../frontend/src/pages/dashboard.tsx";
-  if ((m = oldPath.match(/^app\/([a-z-]+)\/page\.tsx$/))) return `../frontend/src/pages/${m[1]}.tsx`;
-  if ((m = oldPath.match(/^components\/(.+)$/))) return `../frontend/src/components/${m[1]}`;
-  if ((m = oldPath.match(/^lib\/([a-z-]+)\.ts$/)) && SHARED_LIBS.has(m[1])) return `../shared/src/lib/${m[1]}.ts`;
-  if ((m = oldPath.match(/^lib\/(.+)$/))) return `../backend/src/lib/${m[1]}`;
-  if ((m = oldPath.match(/^db\/(.+)$/))) return `../backend/src/db/${m[1]}`;
-  if (oldPath === "app/api/telegram/webhook/route.ts") return "../backend/src/routes/telegram-webhook.ts";
-  if (oldPath === "app/api/mutate/route.ts") return "../backend/src/routes/mutate.ts";
-  if ((m = oldPath.match(/^drizzle\/(.+)$/))) return `../backend/drizzle/${m[1]}`;
-  return `../${oldPath}`;
-}
-function read(oldPath: string): string {
-  return readFileSync(new URL(resolveMonorepoPath(oldPath), import.meta.url), "utf8");
-}
 
 test("Telegram commands support BotFather suffixes and deep-link payloads", () => {
   assert.equal(botIntent("/start@hisobchi_bot referral-42"), "start");
@@ -67,7 +44,7 @@ test("the Telegram main keyboard is exactly the three core finance actions", () 
   // Product spec: the persistent MAIN keyboard shows only
   // 💰 Daromad / 💸 Xarajat / 🔄 Transfer — one row, three buttons.
   // The keyboard is read from source: importing lib/bot would pull in the DB.
-  const botSource = readFileSync(new URL(resolveMonorepoPath("lib/bot.ts"), import.meta.url), "utf8");
+  const botSource = readFileSync(new URL("../src/lib/bot.ts", import.meta.url), "utf8");
   const mainMenu = botSource.slice(botSource.indexOf("export const MAIN_MENU"), botSource.indexOf("export const MORE_MENU"));
   const rows = [...mainMenu.matchAll(/\[[^\][]+\]/g)].map((row) => [...row[0].matchAll(/"([^"]+)"/g)].map((match) => match[1]));
   assert.equal(rows.length, 1, "MAIN_MENU must be a single row");
@@ -85,7 +62,7 @@ test("retained MORE_MENU buttons still route to real intents", () => {
   // MORE_MENU is retained on purpose: deep-section flows answer with it, and
   // typed text can still reach it. Every remaining button must resolve to a
   // concrete intent — never fall through to the natural-language parser.
-  const botSource = readFileSync(new URL(resolveMonorepoPath("lib/bot.ts"), import.meta.url), "utf8");
+  const botSource = readFileSync(new URL("../src/lib/bot.ts", import.meta.url), "utf8");
   const moreMenu = botSource.slice(botSource.indexOf("export const MORE_MENU"), botSource.indexOf("const mon ="));
   const buttons = [...moreMenu.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
   assert.ok(buttons.length >= 9, "MORE_MENU buttons should be discovered");
@@ -136,8 +113,8 @@ test("Mini App and bot never mix synonyms for one concept", () => {
     "components/quick-add.tsx",
     "components/transaction-filter.tsx",
     "components/app-shell.tsx",
-  ].map((path) => read(path));
-  const bot = readFileSync(new URL(resolveMonorepoPath("lib/bot.ts"), import.meta.url), "utf8");
+  ].map((path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8"));
+  const bot = readFileSync(new URL("../src/lib/bot.ts", import.meta.url), "utf8");
   for (const source of [...uiSources, bot]) {
     // "Kirim"/"Chiqim" are retired user-facing synonyms of Daromad/Xarajat.
     assert.doesNotMatch(source, /"[^"]*\bKirim\b[^"]*"/, "user-facing copy must say Daromad");
@@ -152,7 +129,7 @@ test("Mini App and bot never mix synonyms for one concept", () => {
   }
   // The bot reads the SAME dictionary the Mini App does.
   assert.match(bot, /TERMS\.safeToSpend/);
-  const copy = readFileSync(new URL(resolveMonorepoPath("lib/copy.ts"), import.meta.url), "utf8");
+  const copy = readFileSync(new URL("../src/lib/copy.ts", import.meta.url), "utf8");
   assert.match(copy, /safeToSpend: "Sarflash mumkin"/);
 });
 
@@ -188,7 +165,7 @@ test("/start for a returning user states two facts and one action", () => {
 });
 
 test("the bot never advertises a Mini App feature as its own", () => {
-  const botCopy = readFileSync(new URL(resolveMonorepoPath("lib/bot-copy.ts"), import.meta.url), "utf8");
+  const botCopy = readFileSync(new URL("../src/lib/bot-copy.ts", import.meta.url), "utf8");
   const miniAppFeatures = /budjet|qarzdorlik|maqsad|tahlil/i;
   // Those words may appear ONLY in a sentence that names the Mini App.
   for (const literal of botCopy.match(/"[^"\n]*"/g) ?? []) {
@@ -214,7 +191,9 @@ test("an action prompt never repeats the button the user just pressed", () => {
 });
 
 test("bot copy speaks one vocabulary and one apostrophe", () => {
-  const sources = ["lib/bot-copy.ts", "lib/bot.ts"].map((path) => read(path));
+  const sources = ["lib/bot-copy.ts", "lib/bot.ts"].map((path) =>
+    readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8"),
+  );
   for (const source of sources) {
     for (const literal of source.match(/"[^"\n]*"/g) ?? []) {
       if (literal.startsWith('"@/') || literal.startsWith('"./')) continue;
@@ -225,7 +204,7 @@ test("bot copy speaks one vocabulary and one apostrophe", () => {
     }
   }
   // The draft confirmation exists once and is shared by both bot surfaces.
-  const webhook = readFileSync(new URL(resolveMonorepoPath("app/api/telegram/webhook/route.ts"), import.meta.url), "utf8");
+  const webhook = readFileSync(new URL("../src/app/api/telegram/webhook/route.ts", import.meta.url), "utf8");
   assert.match(webhook, /draftSummary\(/);
   assert.match(webhook, /batchSummary\(/);
   assert.doesNotMatch(webhook, /Quyidagi operatsiyani topdim/);
@@ -246,8 +225,8 @@ test("/help explains the bot without promising deeper sections", () => {
 });
 
 test("the dashboard hero states only balance and current-month real movement (§3/§7/§15)", () => {
-  const page = readFileSync(new URL(resolveMonorepoPath("app/page.tsx"), import.meta.url), "utf8");
-  const components = readFileSync(new URL("../frontend/src/components/dashboard.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+  const components = readFileSync(new URL("../src/components/dashboard.tsx", import.meta.url), "utf8");
   const dashboard = `${page}\n${components}`;
   // The month context appears once above the card; labels do not repeat
   // "current", "real", or "this month" beside every amount.
@@ -668,8 +647,8 @@ test("min/base/max scenarios order correctly with mixed certainty", () => {
 /* ============================ SECURITY REGRESSION ============================ */
 
 test("ownership and callback replay guards remain in server mutation paths", () => {
-  const mutations = readFileSync(new URL(resolveMonorepoPath("lib/mutations.ts"), import.meta.url), "utf8");
-  const webhook = readFileSync(new URL(resolveMonorepoPath("app/api/telegram/webhook/route.ts"), import.meta.url), "utf8");
+  const mutations = readFileSync(new URL("../src/lib/mutations.ts", import.meta.url), "utf8");
+  const webhook = readFileSync(new URL("../src/app/api/telegram/webhook/route.ts", import.meta.url), "utf8");
   assert.match(mutations, /eq\(expectedIncomes\.userId, userId\)/);
   assert.match(mutations, /eq\(expectedIncomes\.expectedDate, row\[0\]\.expectedDate\)/);
   assert.match(webhook, /eq\(pendingDrafts\.userId, user\.id\)/);
@@ -679,7 +658,7 @@ test("ownership and callback replay guards remain in server mutation paths", () 
 });
 
 test("batch confirm keeps per-draft atomic claims and user scoping", () => {
-  const webhook = readFileSync(new URL(resolveMonorepoPath("app/api/telegram/webhook/route.ts"), import.meta.url), "utf8");
+  const webhook = readFileSync(new URL("../src/app/api/telegram/webhook/route.ts", import.meta.url), "utf8");
   assert.match(webhook, /parseBatchCallback/);
   assert.match(webhook, /eq\(pendingDrafts\.batchId, batchId\)/);
   // every batch query is scoped to the calling user
@@ -688,7 +667,7 @@ test("batch confirm keeps per-draft atomic claims and user scoping", () => {
 });
 
 test("recurring pay claims the due date before inserting a transaction", () => {
-  const mutations = readFileSync(new URL(resolveMonorepoPath("lib/mutations.ts"), import.meta.url), "utf8");
+  const mutations = readFileSync(new URL("../src/lib/mutations.ts", import.meta.url), "utf8");
   assert.match(mutations, /eq\(recurringExpenses\.nextDueDate, rec\[0\]\.nextDueDate\)/);
   assert.match(mutations, /eq\(recurringExpenses\.installmentsPaid, rec\[0\]\.installmentsPaid\)/);
 });
@@ -730,11 +709,11 @@ test("paid recurring occurrence is removed from the planned timeline", () => {
 
 test("every SQL migration file is registered in the drizzle journal", () => {
   const journal = JSON.parse(
-    readFileSync(new URL(resolveMonorepoPath("drizzle/meta/_journal.json"), import.meta.url), "utf8"),
+    readFileSync(new URL("../drizzle/meta/_journal.json", import.meta.url), "utf8"),
   ) as { entries: Array<{ tag: string }> };
   const journalTags = new Set(journal.entries.map((e) => e.tag));
 
-  const sqlFiles = readdirSync(new URL("../backend/drizzle", import.meta.url))
+  const sqlFiles = readdirSync(new URL("../drizzle", import.meta.url))
     .filter((name) => name.endsWith(".sql"))
     .map((name) => name.replace(/\.sql$/, ""));
 
@@ -760,7 +739,7 @@ test("every SQL migration file is registered in the drizzle journal", () => {
   assert.ok(latest, "journal has no latest migration");
   const prefix = latest.slice(0, 4);
   const snapshot = JSON.parse(
-    readFileSync(new URL(resolveMonorepoPath(`drizzle/meta/${prefix}_snapshot.json`), import.meta.url), "utf8"),
+    readFileSync(new URL(`../drizzle/meta/${prefix}_snapshot.json`, import.meta.url), "utf8"),
   ) as { tables?: Record<string, unknown> };
   assert.ok(snapshot.tables?.["public.credit_installments"], "latest snapshot misses credit_installments");
   assert.ok(snapshot.tables?.["public.image_intakes"], "latest snapshot misses image_intakes");
@@ -784,7 +763,7 @@ test("conservative forecast includes estimated minimum income", () => {
 /* ============================ MONEY PRECISION BOUND ============================ */
 
 test("MAX_MONEY keeps every accepted amount exact in the IEEE-754 cents domain", async () => {
-  const { MAX_MONEY, roundMoney } = await import("../shared/src/lib/money");
+  const { MAX_MONEY, roundMoney } = await import("../src/lib/money");
   // amount×100 must stay an exactly-representable integer (< 2^53), otherwise
   // numeric(18,2) ⇄ JS number round-trips could silently lose tiyin precision.
   assert.ok(Math.round(MAX_MONEY * 100) <= Number.MAX_SAFE_INTEGER);
@@ -797,10 +776,10 @@ test("MAX_MONEY keeps every accepted amount exact in the IEEE-754 cents domain",
 });
 
 test("debt ledger rows are linked and managed from the debt module", () => {
-  const schema = readFileSync(new URL(resolveMonorepoPath("db/schema.ts"), import.meta.url), "utf8");
-  const mutations = readFileSync(new URL(resolveMonorepoPath("lib/mutations.ts"), import.meta.url), "utf8");
-  const history = readFileSync(new URL("../frontend/src/pages/transactions.tsx", import.meta.url), "utf8");
-  const debtsPage = readFileSync(new URL("../frontend/src/pages/debts.tsx", import.meta.url), "utf8");
+  const schema = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
+  const mutations = readFileSync(new URL("../src/lib/mutations.ts", import.meta.url), "utf8");
+  const history = readFileSync(new URL("../src/app/transactions/page.tsx", import.meta.url), "utf8");
+  const debtsPage = readFileSync(new URL("../src/app/debts/page.tsx", import.meta.url), "utf8");
 
   assert.match(schema, /debtId: integer\("debt_id"\)\.references\(\(\) => debts\.id/);
   assert.match(schema, /debtPaymentId: integer\("debt_payment_id"\)\.references\(\(\) => debtPayments\.id/);
