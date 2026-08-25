@@ -1,4 +1,5 @@
 node_modules/
+dist/
 .next/
 *.tsbuildinfo
 next-env.d.ts
@@ -6,6 +7,8 @@ next-env.d.ts
 # Never allow Next.js/Railway environment variants into source control.
 .env*
 !.env.example
+!backend/.env.example
+!frontend/.env.example
 
 # Common credential material.
 *.pem

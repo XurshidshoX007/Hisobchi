@@ -1,38 +1,35 @@
 {
   "name": "hisobchi",
+  "version": "1.0.0",
   "private": true,
+  "type": "module",
+  "description": "Hisobchi — shaxsiy moliya Telegram Mini App'i (monorepo: shared + backend + frontend).",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "dev": "node scripts/dev.mjs",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace frontend",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
-    "test:db": "tsx --test tests/*-db.test.ts",
-    "audit:db": "node scripts/db-preflight.mjs"
-  },
-  "dependencies": {
-    "dotenv": "17.3.1",
-    "drizzle-orm": "0.45.2",
-    "next": "^16.3.1",
-    "pg": "8.20.0",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
-    "redis": "^5.8.3"
+    "test:all": "npm test && npm run test --workspaces --if-present",
+    "test:db": "npm run test:db --workspace backend",
+    "migrate": "npm run migrate --workspace backend",
+    "audit:db": "npm run audit:db --workspace backend",
+    "security-smoke": "node backend/scripts/security-smoke.mjs"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.1.17",
     "@types/node": "22.19.15",
-    "@types/pg": "8.18.0",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
-    "drizzle-kit": "0.31.10",
-    "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
-    "postcss": "^8.5.26",
-    "tailwindcss": "4.1.17",
     "tsx": "^4.23.12",
-    "typescript": "5.9.3"
-  },
-  "version": "1.0.0"
+    "typescript": "5.9.3",
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^6.1.0",
+    "globals": "^16.4.0",
+    "typescript-eslint": "^8.46.0"
+  }
 }
