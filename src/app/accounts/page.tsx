@@ -9,7 +9,6 @@ import {
   Badge,
   Card,
   EmptyState,
-  Icon,
   Field,
   Money,
   Segmented,
@@ -29,13 +28,13 @@ const TYPES = [
   { value: "other", label: "Boshqa" },
 ];
 
-const TYPE_ICON: Record<string, "wallet" | "accounts"> = {
-  cash: "wallet",
-  uzcard: "accounts",
-  humo: "accounts",
-  bank: "accounts",
-  ewallet: "wallet",
-  other: "accounts",
+const TYPE_ICON: Record<string, string> = {
+  cash: "💵",
+  uzcard: "💳",
+  humo: "💳",
+  bank: "🏦",
+  ewallet: "📱",
+  other: "•",
 };
 
 export default function AccountsPage() {
@@ -89,8 +88,8 @@ export default function AccountsPage() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: "accounts", label: "Hisoblar" },
-            { value: "categories", label: "Kategoriyalar" },
+            { value: "accounts", label: "💳 Hisoblar" },
+            { value: "categories", label: "📂 Kategoriyalar" },
           ]}
         />
       </div>
@@ -104,7 +103,7 @@ export default function AccountsPage() {
               <div key={a.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
-                    <Icon name={TYPE_ICON[a.type] ?? "accounts"} size={18} />
+                    {TYPE_ICON[a.type] ?? "•"}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14.5px] font-medium">{a.name}</p>
@@ -146,7 +145,7 @@ export default function AccountsPage() {
             ))}
           </div>
         ) : (
-          <EmptyState icon={<Icon name="accounts" size={20} />} title="Hisoblar yo‘q." description="Pastdagi + tugmasi orqali hisob qo‘shing." />
+          <EmptyState icon="💳" title="Hisoblar yo‘q." description="Pastdagi + tugmasi orqali hisob qo‘shing." />
         )
       ) : (
         <div className="space-y-4">

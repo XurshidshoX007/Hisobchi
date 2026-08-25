@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { AmountField, Chip, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
-import { Badge, Card, EmptyState, Field, Icon, Money, Progress, Select, Skeleton } from "@/components/ui";
+import { Badge, Card, EmptyState, Field, Money, Progress, Select, Skeleton } from "@/components/ui";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { addMonths, compact, formatAmount, monthKey, monthLabel, monthStart, todayISO } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
@@ -54,18 +54,18 @@ export default function BudgetsPage() {
           budget row as a badge). */}
       {budgets.length ? (
         <Card>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Limit</p>
-              <div className="mt-1.5"><Money value={totalLimit} size="sm" /></div>
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy limit</p>
+              <div className="mt-1.5">
+                <Money value={totalLimit} size="xl" />
+              </div>
             </div>
-            <div className="min-w-0">
+            <div className="shrink-0 text-right">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Sarflandi</p>
-              <div className="mt-1.5"><Money value={totalSpent} size="sm" tone="negative" /></div>
-            </div>
-            <div className="min-w-0 text-right">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Qoldi</p>
-              <div className="mt-1.5"><Money value={Math.max(0, totalLimit - totalSpent)} size="sm" tone={totalSpent > totalLimit ? "negative" : "positive"} /></div>
+              <div className="mt-1.5">
+                <Money value={totalSpent} size="lg" />
+              </div>
             </div>
           </div>
           <div className="mt-3.5">
@@ -129,7 +129,7 @@ export default function BudgetsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon={<Icon name="budget" size={20} />} title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
+        <EmptyState icon="🎯" title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
       )}
 
       <BudgetSheet open={sheet} onClose={closeSheet} editing={editing} />

@@ -7,7 +7,7 @@ import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
 import { SwipeActions } from "@/components/swipe-actions";
 import { TransactionFilter, type TransactionFilterContext } from "@/components/transaction-filter";
-import { Badge, Button, EmptyState, Icon, Money, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { Badge, Button, EmptyState, Money, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { compact, humanDate } from "@/lib/money";
 import { LOADING } from "@/lib/copy";
 import type { TxView } from "@/lib/finance";
@@ -131,7 +131,7 @@ function TransactionsView() {
             aria-label="Qidiruvni tozalash"
             className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 touch-manipulation"
           >
-            <Icon name="close" size={16} />
+            ✕
           </button>
         ) : null}
       </div>
@@ -157,7 +157,7 @@ function TransactionsView() {
                 aria-label={`${context.label} kontekstini olib tashlash`}
                 className="grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors hover:bg-surface/70 touch-manipulation"
               >
-                <Icon name="close" size={14} />
+                ✕
               </Link>
             </div>
           ))}
@@ -178,7 +178,7 @@ function TransactionsView() {
 
       {grouped.length === 0 ? (
         <EmptyState
-          icon={<Icon name="search" size={20} />}
+          icon="🔍"
           title={
             state.transactions.length === 0
               ? "Tarix hozircha bo‘sh."
@@ -257,14 +257,14 @@ function TransactionsView() {
                             className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
                             aria-label={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : "Bekor qilish"}
                           >
-                            <Icon name="close" size={16} />
+                            ✕
                           </button>
                         </>
                       }
                     >
                       <div className="flex min-w-0 items-center gap-2.5 py-3 sm:gap-3">
                         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">
-                          {transaction.type === "transfer" ? <Icon name="transfer" size={18} /> : transaction.categoryIcon}
+                          {transaction.type === "transfer" ? "↔️" : transaction.categoryIcon}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="flex min-w-0 items-center gap-1.5 truncate text-[14px] font-medium">

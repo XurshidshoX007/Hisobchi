@@ -4,59 +4,59 @@
 
 /* ============================================================================
    Personal Financial OS — Design tokens
-   Contrast-aware tokens: body text stays comfortably readable in both themes;
-   semantic fills and text variants are kept separate for charts and controls.
+   Palette is WCAG-verified: every text/bg pair used in the product measures
+   >= 4.5:1 in BOTH light and dark mode (see tokens marked "AA").
    Separate tokens exist for FILL colours (charts/progress) vs TEXT colours,
    because a saturated green that works as a bar fill is unreadable as body text.
    ========================================================================== */
 
 :root {
-  /* Light — Warm White / Deep Navy */
-  --bg: #f7f7f5;
+  /* Light — Pure White / Deep Navy */
+  --bg: #ffffff;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f3f4f1;
-  --surface-3: #e9ebe7;
-  --border: #e1e3df;
-  --border-strong: #c8ccc7;
+  --surface-2: #faf9f7;
+  --surface-3: #f1efeb;
+  --border: #e5e2db;
+  --border-strong: #d3cfc6;
 
   /* Text ramp — AA on all surfaces */
-  --fg: #101820; /* quiet ink */
-  --fg-soft: #3d4853;
-  --muted: #64707a;
-  --faint: #78828b;
+  --fg: #0c1222; /* 18.7:1 */
+  --fg-soft: #333b4d; /* 11.2:1 */
+  --muted: #555b67; /* 5.9:1 on surface-3 */
+  --faint: #616671; /* 4.5:1 on surface-3 */
 
   /* Brand */
-  --primary: #15243a;
+  --primary: #101828;
   --primary-fg: #f7f7f5;
-  --primary-hover: #223650;
-  --segmented-active: #15243a;
+  --primary-hover: #1d2939;
+  --segmented-active: #101828;
   --segmented-active-fg: #f7f7f5;
 
   /* Semantic FILL (bars, progress, rings) */
-  --positive: #167653;
-  --negative: #c44b46;
-  --warning: #9a6a17;
-  --accent: #326276;
+  --positive: #0e884e; /* 4.52:1 against white labels */
+  --negative: #c02a2a;
+  --warning: #b7791f;
+  --accent: #3b5bdb;
 
   /* Semantic TEXT — AA on surface and on their soft tint */
-  --positive-text: #126746;
-  --negative-text: #b83f3b;
-  --warning-text: #7f5815;
-  --accent-text: #285469;
+  --positive-text: #0d7b47; /* 4.7:1 on soft, 5.3:1 on surface */
+  --negative-text: #c02a2a; /* 4.7:1 / 5.4:1 */
+  --warning-text: #8f5d17; /* 5.1:1 / 5.6:1 */
+  --accent-text: #3452c4; /* 5.8:1 / 6.7:1 */
 
   /* Foreground for filled semantic buttons */
   --positive-fg: #ffffff;
   --negative-fg: #ffffff;
 
-  --positive-soft: #e7f2ec;
-  --negative-soft: #f9e9e8;
-  --warning-soft: #f7efdf;
-  --accent-soft: #e7eff1;
+  --positive-soft: #e7f5ed;
+  --negative-soft: #fdecec;
+  --warning-soft: #fdf3e2;
+  --accent-soft: #eaeeff;
 
-  --shadow-card: 0 1px 2px rgba(16, 24, 32, 0.035), 0 8px 20px -16px rgba(16, 24, 32, 0.16);
+  --shadow-card: 0 1px 2px rgba(12, 18, 34, 0.04), 0 8px 24px -12px rgba(12, 18, 34, 0.12);
   --chart-grid: rgba(12, 18, 34, 0.07);
-  --focus: #326276;
+  --focus: #3b5bdb;
 
   /* Fixed mobile chrome geometry. One source drives navigation height, FAB
      offset and the scroll clearance below page content. */
@@ -91,50 +91,50 @@
 
 .dark {
   /* Dark — its own system, not an inversion */
-  --bg: #0b1016;
-  --bg-elevated: #121a22;
-  --surface: #111922;
-  --surface-2: #17212b;
-  --surface-3: #202b35;
-  --border: #28343d;
-  --border-strong: #3a4853;
+  --bg: #070910;
+  --bg-elevated: #10141d;
+  --surface: #0f131c;
+  --surface-2: #151a25;
+  --surface-3: #1c2230;
+  --border: #242b3a;
+  --border-strong: #333d50;
 
-  --fg: #edf1f2;
-  --fg-soft: #c5cdd1;
-  --muted: #9aa8ad;
-  --faint: #849298;
+  --fg: #f1f3f7; /* 16.7:1 */
+  --fg-soft: #c8cfdb; /* 11.9:1 */
+  --muted: #9ba3b3; /* 6.3:1 on surface-3 */
+  --faint: #838b9b; /* 4.6:1 on surface-3 */
 
-  --primary: #eaf0f1;
-  --primary-fg: #101820;
+  --primary: #f1f3f7;
+  --primary-fg: #0b0f18;
   --primary-hover: #ffffff;
   /* Segmented selection remains Deep Navy in both themes. */
-  --segmented-active: #15243a;
+  --segmented-active: #101828;
   --segmented-active-fg: #f7f7f5;
 
   /* FILL — light, saturated */
-  --positive: #4fc593;
-  --negative: #ee8580;
-  --warning: #e5bb63;
-  --accent: #8ab4bd;
+  --positive: #34d399;
+  --negative: #f87171;
+  --warning: #fbbf24;
+  --accent: #7ca5ff;
 
   /* TEXT — slightly lifted so they pass on dark surfaces */
-  --positive-text: #63d0a0;
-  --negative-text: #f29a95;
-  --warning-text: #edc976;
-  --accent-text: #9bc4ca;
+  --positive-text: #3ed598;
+  --negative-text: #f98a8a;
+  --warning-text: #fcc534;
+  --accent-text: #8fb0ff;
 
   /* Light fills need dark text, not white */
   --positive-fg: #07130c;
   --negative-fg: #1a0808;
 
-  --positive-soft: #132920;
-  --negative-soft: #2b2021;
-  --warning-soft: #2c271c;
-  --accent-soft: #17262d;
+  --positive-soft: #12251d;
+  --negative-soft: #2a1b1f;
+  --warning-soft: #2a2317;
+  --accent-soft: #171f30;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.42), 0 12px 28px -22px rgba(0, 0, 0, 0.7);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 40px -24px rgba(0, 0, 0, 0.8);
   --chart-grid: rgba(255, 255, 255, 0.07);
-  --focus: #8ab4bd;
+  --focus: #7ca5ff;
 }
 
 @theme inline {
@@ -166,7 +166,7 @@
   --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
   --font-sans: ui-sans-serif, -apple-system, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --radius-card: 16px;
+  --radius-card: 20px;
 }
 
 * {
@@ -290,6 +290,18 @@ input::placeholder {
   transform: translateX(calc(-1 * var(--swipe-actions-reveal)));
 }
 
+.glass-nav {
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: saturate(180%) blur(22px);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+}
+
+.glass-bar {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(160%) blur(18px);
+  -webkit-backdrop-filter: saturate(160%) blur(18px);
+}
+
 .sheet-footer-safe {
   padding-bottom: calc(1rem + var(--app-safe-area-bottom));
 }
@@ -395,8 +407,8 @@ body[data-sheet-open] .global-fab {
   .sheet-backdrop {
     background: rgb(0 0 0 / 50%);
     opacity: 0;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     transition:
       opacity var(--motion-duration-sheet-exit) var(--motion-ease-standard);
   }
@@ -505,6 +517,16 @@ body[data-sheet-open] .global-fab {
     transform: translateY(0);
   }
 }
+@keyframes aurora-pulse {
+  0%, 100% {
+    opacity: 0.06;
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  50% {
+    opacity: 0.12;
+    transform: scale(1.08) translate3d(-4px, 4px, 0);
+  }
+}
 @keyframes pulse-subtle {
   0%, 100% {
     opacity: 1;
@@ -531,25 +553,28 @@ body[data-sheet-open] .global-fab {
 }
 
 .animate-fade-up {
-  animation: fade-up 0.18s var(--motion-ease-standard) both;
+  animation: fade-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .animate-pop {
-  animation: pop-in 0.16s var(--motion-ease-standard) both;
+  animation: pop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .dashboard-value-transition {
-  animation: dashboard-value-in 0.18s var(--motion-ease-standard) both;
+  animation: dashboard-value-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .animate-shimmer {
-  animation: none; opacity: 0.65;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+.animate-aurora {
+  animation: aurora-pulse 6s ease-in-out infinite;
 }
 .animate-pulse-subtle {
   animation: pulse-subtle 2.5s ease-in-out infinite;
 }
 .animate-hero-in {
-  animation: fade-up 0.18s var(--motion-ease-standard) both;
+  animation: fade-up 0.32s cubic-bezier(0.16, 1, 0.3, 1) 0ms both;
 }
 .animate-category-in {
-  animation: fade-up 0.2s var(--motion-ease-standard) 20ms both;
+  animation: fade-up 0.36s cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
 }
 
 /*
@@ -590,6 +615,7 @@ body[data-sheet-open] .global-fab {
   .dashboard-value-transition,
   .animate-shimmer,
   .animate-badge-pop,
+  .animate-aurora,
   .animate-pulse-subtle,
   .animate-hero-in,
   .animate-category-in {
@@ -619,53 +645,5 @@ body[data-sheet-open] .global-fab {
   .nav-item * {
     transition-duration: 0.01ms !important;
     transform: none !important;
-  }
-}
-
-
-/* ============================================================================
-   SOKIN PREMIUM OVERRIDES
-   A restrained surface language for a financial product: hierarchy comes from
-   type, spacing and semantic color — not blur, glow or decoration.
-   ========================================================================== */
-
-:root {
-  --radius-control: 12px;
-  --radius-surface: 16px;
-  --shadow-soft: 0 1px 2px rgb(16 24 32 / 0.04), 0 10px 24px -20px rgb(16 24 32 / 0.18);
-}
-
-.dark {
-  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.42), 0 12px 28px -22px rgb(0 0 0 / 0.72);
-}
-
-/* Primary surfaces stay legible without a floating-card effect. */
-.card {
-  box-shadow: var(--shadow-soft);
-}
-
-/* The footer action keeps the legacy pill class for compatibility, but the
-   product-wide button shape is a compact control with a clear hierarchy. */
-.sheet-footer button {
-  border-radius: var(--radius-control);
-}
-
-/* No backdrop blur in the chrome; opaque surfaces remain stable in Telegram
-   WebViews and in dark mode. */
-.app-chrome {
-  background: var(--bg-elevated);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.global-fab {
-  box-shadow: 0 3px 8px rgb(16 24 32 / 0.16), 0 12px 22px -16px rgb(16 24 32 / 0.28);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
   }
 }

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
-import { Button, Card, Icon, Skeleton, TextInput } from "@/components/ui";
+import { Button, Card, Skeleton, TextInput } from "@/components/ui";
 import { ERRORS } from "@/lib/copy";
 import { BUTTON, startNew } from "@/lib/bot-copy";
 import { formatAmount } from "@/lib/money";
@@ -26,15 +26,15 @@ const BOT_CONSOLE_ENABLED = process.env.NODE_ENV !== "production";
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
 
 const QUICK = [
-  { value: "📊 Hisobot", label: "Hisobot" },
-  { value: "📅 Reja", label: "Reja" },
-  { value: "💳 Hisoblar", label: "Hisoblar" },
-  { value: "📌 To‘lovlar", label: "To‘lovlar" },
-  { value: "💵 Kutilayotgan daromad", label: "Kutilayotgan daromad" },
-  { value: "🎯 Budjet", label: "Budjet" },
-  { value: "📋 Qarzdorlik", label: "Qarzdorlik" },
-  { value: "🏆 Maqsadlar", label: "Maqsadlar" },
-  { value: "🔔 Eslatmalar", label: "Eslatmalar" },
+  "📊 Hisobot",
+  "📅 Reja",
+  "💳 Hisoblar",
+  "📌 To‘lovlar",
+  "💵 Kutilayotgan daromad",
+  "🎯 Budjet",
+  "📋 Qarzdorlik",
+  "🏆 Maqsadlar",
+  "🔔 Eslatmalar",
 ];
 
 export default function BotPage() {
@@ -90,7 +90,7 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
   async function send(text: string, confirm?: Record<string, unknown> | null) {
     const value = text.trim();
     if (!value && !confirm) return;
-    setMessages((prev) => [...prev, { id: counter.current++, role: "user", text: value || "Tasdiqlash" }]);
+    setMessages((prev) => [...prev, { id: counter.current++, role: "user", text: value || "✅ Tasdiqlash" }]);
     setInput("");
     setDrafts([]);
     setBusy(true);
@@ -144,7 +144,7 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
                 {drafts.map((d, i) => (
                   <p key={i} className="text-[13px] leading-snug">
                     {drafts.length > 1 ? `${i + 1}. ` : ""}
-                    {d.type === "income" ? "Daromad" : d.type === "transfer" ? "Transfer" : "Xarajat"} ·{" "}
+                    {d.type === "income" ? "➕ Daromad" : d.type === "transfer" ? "↔️ Transfer" : "➖ Xarajat"} ·{" "}
                     {d.amount === null ? "—" : formatAmount(d.amount)} · {d.categoryName ?? "kategoriya yo‘q"} · {d.date}
                   </p>
                 ))}
@@ -160,7 +160,7 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
                     })
                   }
                 >
-                  <Icon name="check" size={15} /> Tasdiqlash
+                  ✅ Tasdiqlash
                 </Button>
                 <Button type="button" size="sm" variant="secondary" onClick={() => setDrafts([])}>
                   Bekor qilish
@@ -173,12 +173,12 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
             <div className="no-scrollbar -mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-0.5">
               {QUICK.map((q) => (
                 <button
-                  key={q.value}
+                  key={q}
                   type="button"
-                  onClick={() => send(q.value)}
+                  onClick={() => send(q)}
                   className="min-h-9 shrink-0 touch-manipulation whitespace-nowrap rounded-full border border-line bg-surface-2 px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:bg-surface-3"
                 >
-                  {q.label}
+                  {q}
                 </button>
               ))}
             </div>
@@ -201,10 +201,10 @@ Botga Telegram chatidan /start, /report, /forecast yoki /help yuboring. Operatsi
       <Card>
         <p className="mb-2 text-[15px] font-semibold">Botda nima bor</p>
         <div className="grid grid-cols-1 gap-2 text-[12.5px] leading-snug text-muted sm:grid-cols-2">
-          <p>Daromad · Xarajat · Transfer</p>
-          <p>Operatsiyani o‘z so‘zingiz bilan yozish</p>
-          <p>/report — bugun va bu oy</p>
-          <p>/forecast — kelayotgan to‘lovlar</p>
+          <p>{BUTTON.income} · {BUTTON.expense} · {BUTTON.transfer}</p>
+          <p>✍️ Operatsiyani o‘z so‘zingiz bilan yozish</p>
+          <p>📊 /report — bugun va bu oy</p>
+          <p>📅 /forecast — kelayotgan to‘lovlar</p>
         </div>
       </Card>
     </div>

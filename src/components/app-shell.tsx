@@ -8,7 +8,7 @@ import { getFabActions, supportsFab } from "@/lib/fab";
 import { MENU_ROUTE, isMenuSubroute, showsProfileHeader } from "@/lib/navigation";
 import { useFinance } from "./providers";
 import { FabProvider, GlobalAddFab, useFab } from "./fab";
-import { Badge, Button, Divider, Icon, Money, Sheet } from "./ui";
+import { Badge, Button, Divider, Money, Sheet } from "./ui";
 import { SwipeBack } from "./swipe-back";
 
 const NAV = [
@@ -51,8 +51,8 @@ function AppShellContent({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-bg px-6">
         <div className="card w-full max-w-sm p-6 text-center">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-primary text-primary-fg" aria-hidden="true">
-            <Icon name="wallet" size={22} />
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary text-lg font-bold text-primary-fg">
+            ₮
           </div>
           <h1 className="mt-4 text-lg font-semibold tracking-tight">Hisobchi</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
@@ -65,12 +65,12 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
   return (
     <>
-    <div className={`app-shell-layout mx-auto flex min-h-dvh w-full max-w-6xl gap-8 px-4 pt-4 sm:px-8 lg:gap-10 lg:pt-8 ${hasFloatingAction ? "has-global-fab" : ""}`}>
+    <div className={`app-shell-layout mx-auto flex min-h-dvh w-full max-w-6xl gap-6 px-3.5 pt-3 sm:px-6 ${hasFloatingAction ? "has-global-fab" : ""}`}>
       {/* Sidebar — desktop */}
       <aside className="sticky top-6 hidden h-fit w-60 shrink-0 flex-col gap-1 lg:flex">
         <div className="mb-5 flex items-center gap-2.5 px-2">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-fg" aria-hidden="true">
-            <Icon name="wallet" size={18} />
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-[15px] font-bold text-primary-fg">
+            <span>₮</span>
           </div>
           <div>
             <p className="text-[13px] font-semibold leading-tight">Hisobchi</p>
@@ -78,13 +78,13 @@ function AppShellContent({ children }: { children: ReactNode }) {
           </div>
         </div>
         {NAV.map((item) => {
-          const active = pathname === item.href || (item.href === MENU_ROUTE && isMenuSubroute(pathname));
+          const active = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] transition-colors ${
-                active ? "border-l-2 border-accent bg-accent-soft font-semibold text-fg" : "border-l-2 border-transparent text-fg-soft hover:bg-surface-2 hover:text-fg"
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] transition-colors ${
+                active ? "bg-primary font-semibold text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
               }`}
             >
               <item.icon active={active} />
@@ -95,16 +95,16 @@ function AppShellContent({ children }: { children: ReactNode }) {
         <Divider />
         <Link
           href="/bot"
-          className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] transition-colors ${
-            pathname === "/bot" ? "border-l-2 border-accent bg-accent-soft text-fg" : "border-l-2 border-transparent text-fg-soft hover:bg-surface-2 hover:text-fg"
+          className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] transition-colors ${
+            pathname === "/bot" ? "bg-primary text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
           }`}
         >
-          <Icon name="bot" size={18} /> Telegram bot
+          <span className="text-base">🤖</span> Telegram bot
         </Link>
 
         {/* Balance is OWNED by the Dashboard hero — the sidebar carries only a
             one-line reference to it (§4), never a second hero. */}
-        <Link href="/" className="mt-6 block rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-2">
+        <Link href="/" className="mt-6 block rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2">
           <p className="text-[11.5px] text-muted">
             Balans: <span className="num font-semibold text-fg">{formatAmount(state?.currentBalance ?? 0)}</span>
           </p>
@@ -113,9 +113,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
         <button
           onClick={() => setAlertsOpen(true)}
-          className="mt-4 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
+          className="mt-4 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
-          <Icon name="bell" size={18} />
+          <span className="text-base">🔔</span>
           Eslatmalar
           {unread > 0 ? (
             <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-negative px-1.5 text-[10px] font-bold text-negative-fg">
@@ -126,9 +126,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
         <button
           onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
-          className="mt-1 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
+          className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
-          <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={18} />
+          <span className="text-base">{theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}</span>
           {theme === "dark" ? "Tungi" : theme === "light" ? "Kunduzgi" : "Tizim"}
         </button>
       </aside>
@@ -142,13 +142,13 @@ function AppShellContent({ children }: { children: ReactNode }) {
          * content starts at the top of the viewport.
          */}
         {profileHeader ? (
-          <header className="bg-bg-elevated sticky top-0 z-30 -mx-4 mb-3 flex items-center justify-between gap-2 border-b border-line px-4 py-2.5 sm:-mx-8 sm:mb-4 sm:px-8 lg:hidden">
+          <header className="glass-bar sticky top-0 z-30 -mx-3.5 mb-3 flex items-center justify-between gap-2 border-b border-line px-3.5 py-2.5 sm:-mx-6 sm:mb-4 sm:px-6 lg:hidden">
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-fg" aria-hidden="true">
-                <Icon name="wallet" size={18} />
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-[15px] font-bold text-primary-fg">
+                ₮
               </div>
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-semibold leading-tight">Salom, {state?.user.firstName ?? "…"}</p>
+                <p className="truncate text-[13px] font-semibold leading-tight">Salom, {state?.user.firstName ?? "…"} 👋</p>
                 <p className="num truncate text-[11.5px] font-semibold leading-tight">
                   {formatAmount(state?.currentBalance ?? 0)}{" "}
                   <span className="font-normal text-muted">{state?.user.currency ?? "UZS"}</span>
@@ -161,14 +161,14 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
                 aria-label="Mavzuni almashtirish"
               >
-                <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={18} />
+                {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}
               </button>
               <button
                 onClick={() => setAlertsOpen(true)}
                 className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
                 aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
               >
-                <Icon name="bell" size={18} />
+                🔔
                 {unread > 0 ? (
                   <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[9px] font-bold text-negative-fg">
                     {unread > 9 ? "9+" : unread}
@@ -186,7 +186,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
       {/* Bottom navigation has deterministic geometry; FAB positioning and
           content clearance consume the same CSS variables. */}
-      <nav className="app-bottom-nav app-chrome fixed inset-x-0 bottom-0 border-t border-line lg:hidden">
+      <nav className="app-bottom-nav glass-nav fixed inset-x-0 bottom-0 border-t border-line lg:hidden">
         <div className="mobile-bottom-nav-inner mx-auto flex max-w-lg items-stretch justify-between gap-0.5 px-1 pt-1.5 sm:px-2">
           {NAV.map((item) => (
             <NavItem
@@ -234,7 +234,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           >
             <div className="flex items-start justify-between gap-3">
               <p className="text-[14px] font-semibold">
-                <Icon name="warning" size={16} /> {a.title}
+                {a.severity === "critical" ? "🚨" : a.severity === "warning" ? "⚠️" : "🔔"} {a.title}
               </p>
               {a.amount ? <Money value={a.amount} size="sm" tone={a.severity === "critical" ? "negative" : "default"} /> : null}
             </div>
