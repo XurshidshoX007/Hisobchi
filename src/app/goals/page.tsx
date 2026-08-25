@@ -46,7 +46,7 @@ export default function GoalsPage() {
       {state.goals.length ? (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
           {state.goals.map((g) => (
-            <Card key={g.id} className="module-card">
+            <Card key={g.id}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-3 text-lg">{g.icon}</div>

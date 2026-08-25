@@ -53,7 +53,7 @@ export default function BudgetsPage() {
           balance and no per-status count grid (statuses already live on each
           budget row as a badge). */}
       {budgets.length ? (
-        <Card className="module-summary">
+        <Card>
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy limit</p>
@@ -81,7 +81,7 @@ export default function BudgetsPage() {
       {budgets.length ? (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
           {budgets.map((b) => (
-            <Card key={b.id} className="module-card">
+            <Card key={b.id}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-3 text-lg">{b.categoryIcon}</div>
