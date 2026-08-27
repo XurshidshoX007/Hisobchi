@@ -275,21 +275,21 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
 
   if (!items.length) return null;
 
-  // A long one-column legend used to make the fixed 112px donut look tiny.
-  // Let the visual have more presence when the breakdown is detailed, then
-  // use the available horizontal room for a compact, balanced legend.
+  // Keep the donut and its legend visually connected at every width. Detailed
+  // lists gain a little chart presence, while the legend only becomes two
+  // columns once each column still has room for a readable category name.
   const hasDetailedBreakdown = items.length > 4;
-  const donutSize = hasDetailedBreakdown ? 156 : 128;
+  const donutSize = hasDetailedBreakdown ? 140 : 124;
   const summary = items.map((i) => `${i.name} ${Math.round(i.share * 100)}%`).join(", ");
 
   return (
     <Card className="mt-3.5">
       <Label>Xarajat taqsimoti · {monthLabel.split(" ")[0].toUpperCase()}</Label>
       <figure
-        className={`mt-3.5 grid min-w-0 items-center gap-x-5 gap-y-4 ${
+        className={`mt-3.5 grid min-w-0 grid-cols-[7.75rem_minmax(0,1fr)] items-center gap-x-4 ${
           hasDetailedBreakdown
-            ? "grid-cols-1 sm:grid-cols-[9.75rem_minmax(0,1fr)] sm:gap-x-6"
-            : "grid-cols-[8rem_minmax(0,1fr)]"
+            ? "min-[520px]:grid-cols-[9rem_minmax(0,1fr)] min-[520px]:gap-x-5"
+            : ""
         }`}
       >
         <div className="flex justify-center">
@@ -298,7 +298,7 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
         <figcaption
           className={`min-w-0 ${
             hasDetailedBreakdown
-              ? "grid grid-cols-2 gap-x-4 gap-y-2.5 max-[399px]:grid-cols-1"
+              ? "space-y-2.5 min-[520px]:grid min-[520px]:grid-cols-2 min-[520px]:gap-x-4 min-[520px]:gap-y-2.5 min-[520px]:space-y-0"
               : "space-y-2.5"
           }`}
         >

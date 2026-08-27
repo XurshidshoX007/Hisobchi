@@ -26,7 +26,7 @@ test("bottom navigation is a floating glass panel, not a flush bar", () => {
   // clearance both consume --bottom-nav-height, which must therefore stay the
   // TOTAL occupied space (panel + inset), not just the panel height.
   assert.match(css, /--bottom-nav-panel-height:\s*62px/);
-  assert.match(css, /--bottom-nav-inset:\s*14px/);
+  assert.match(css, /--bottom-nav-inset:\s*8px/);
   assert.match(
     css,
     /--bottom-nav-height:\s*calc\(var\(--bottom-nav-panel-height\) \+ var\(--bottom-nav-inset\)\)/,

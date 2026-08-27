@@ -862,6 +862,26 @@ body[data-sheet-open] .global-fab {
   animation: badge-pop 180ms ease-out both;
 }
 
+/* Expense split: each arc draws itself in sequence, making a data refresh
+   feel intentional without a looping distraction. The final values stay in
+   the SVG attributes, so later updates still use the normal transition. */
+@keyframes donut-segment-in {
+  from {
+    opacity: 0;
+    stroke-dasharray: 0 100;
+    stroke-dashoffset: 0;
+  }
+  to {
+    opacity: 1;
+    stroke-dasharray: var(--donut-dash);
+    stroke-dashoffset: var(--donut-offset);
+  }
+}
+
+.donut-segment {
+  animation: donut-segment-in 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-pop,
@@ -872,6 +892,10 @@ body[data-sheet-open] .global-fab {
   .animate-pulse-subtle,
   .animate-hero-in,
   .animate-category-in {
+    animation: none !important;
+  }
+
+  .donut-segment {
     animation: none !important;
   }
 

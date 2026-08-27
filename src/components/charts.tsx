@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { compact, formatAmount, monthLabel, shortDate } from "@/lib/money";
 import { Icon } from "@/components/icon";
 
@@ -345,7 +345,7 @@ export function CategoryDonut({
       focusable="false"
     >
       <circle cx="21" cy="21" r={R} fill="none" stroke="var(--surface-3)" strokeWidth="7" />
-      {slices.map((slice) => (
+      {slices.map((slice, index) => (
         <circle
           key={slice.name}
           cx="21"
@@ -357,7 +357,12 @@ export function CategoryDonut({
           strokeDasharray={`${slice.pct} ${100 - slice.pct}`}
           /* dashoffset runs backwards along the path, hence the negation. */
           strokeDashoffset={-slice.start}
-          className="transition-[stroke-dasharray,stroke-dashoffset] duration-700 ease-out"
+          style={{
+            "--donut-dash": `${slice.pct} ${100 - slice.pct}`,
+            "--donut-offset": `${-slice.start}`,
+            animationDelay: `${index * 70}ms`,
+          } as CSSProperties}
+          className="donut-segment transition-[stroke-dasharray,stroke-dashoffset] duration-700 ease-out"
         />
       ))}
     </svg>
