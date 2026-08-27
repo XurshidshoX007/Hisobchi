@@ -4,8 +4,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { AdvancedSection, AmountField, ChoiceList, Chip, DateField, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
-import { Badge, Card, ContextualBottomSheet, EmptyState, Field, Money, Progress, Skeleton, TextInput } from "@/components/ui";
+import { AdvancedSection, AmountField, Chip, DateField, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
+import { Badge, Card, EmptyState, Field, Money, Progress, Skeleton, TextInput } from "@/components/ui";
+import { RowActionsButton, RowActionsSheet } from "@/components/row-actions";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { GoalView } from "@/lib/finance";
@@ -104,14 +105,7 @@ export default function GoalsPage() {
                 >
                   Jamg‘arma
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setMenuGoal(g)}
-                  aria-label={`${g.name} — boshqa amallar`}
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation"
-                >
-                  <Icon name="more" size={16} />
-                </button>
+                <RowActionsButton label={g.name} onClick={() => setMenuGoal(g)} />
               </div>
             </Card>
           ))}
@@ -123,33 +117,41 @@ export default function GoalsPage() {
 
 
       {/* Secondary actions live behind "•••" so each card shows exactly ONE
-          primary action — the same grammar the plan rows use. */}
-      <ContextualBottomSheet
+          primary action — the same grammar every other list row uses. */}
+      <RowActionsSheet
         open={Boolean(menuGoal)}
         onClose={() => setMenuGoal(null)}
         title={menuGoal?.name ?? ""}
-        icon="goal"
-        iconTone="gold"
         eyebrow="Maqsad"
-      >
-        <ChoiceList
-          options={[
-            { id: "edit", label: "Tahrirlash", icon: "edit", description: "Nomi, summasi, muddati" },
-            { id: "delete", label: "O‘chirish", icon: "close", description: "Maqsad ro‘yxatdan olinadi" },
-          ]}
-          onSelect={(id) => {
-            const target = menuGoal;
-            setMenuGoal(null);
-            if (!target) return;
-            if (id === "edit") {
-              setEditing(target);
-              setSheet(true);
-              return;
-            }
-            void mutate("goal", "delete", { id: target.id });
-          }}
-        />
-      </ContextualBottomSheet>
+        icon={menuGoal?.icon ?? "goal"}
+        iconTone="gold"
+        actions={[
+          { id: "edit", label: "Tahrirlash", icon: "edit", description: "Nomi, summasi, muddati" },
+          {
+            id: "delete",
+            label: "O‘chirish",
+            icon: "close",
+            tone: "danger",
+            description: "Maqsad ro‘yxatdan olinadi",
+            confirm: {
+              title: "Maqsadni o‘chirish",
+              body: "Maqsad ro‘yxatdan olib tashlanadi. Unga yig‘ilgan pul hisoblaringizda qoladi — faqat maqsadning o‘zi yo‘qoladi.",
+              verb: "O‘chirish",
+              busyVerb: "O‘chirilmoqda…",
+            },
+          },
+        ]}
+        onSelect={(id) => {
+          const target = menuGoal;
+          if (!target) return;
+          if (id === "edit") {
+            setEditing(target);
+            setSheet(true);
+            return;
+          }
+          return mutate("goal", "delete", { id: target.id });
+        }}
+      />
       <GoalSheet open={sheet} onClose={closeSheet} editing={editing} />
       <ContributeSheet goal={goal} onClose={() => setGoal(null)} />
     </div>

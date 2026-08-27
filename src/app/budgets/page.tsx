@@ -10,11 +10,13 @@ import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "
 import { addMonths, compact, formatAmount, monthKey, monthLabel, monthStart, todayISO } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
 import { Icon } from "@/components/icon";
+import { RowActionsButton, RowActionsSheet } from "@/components/row-actions";
 
 export default function BudgetsPage() {
   const { state, loading, mutate } = useFinance();
   const [sheet, setSheet] = useState(false);
   const [editing, setEditing] = useState<BudgetView | null>(null);
+  const [menuBudget, setMenuBudget] = useState<BudgetView | null>(null);
 
   function openCreate() {
     setEditing(null);
@@ -109,9 +111,12 @@ export default function BudgetsPage() {
                     <p className="text-[11.5px] text-muted">{monthLabel(b.month)}</p>
                   </div>
                 </div>
-                <Badge tone={b.status === "exceeded" ? "negative" : b.status === "warning" ? "warning" : "positive"}>
-                  {(b.usage * 100).toFixed(0)}%
-                </Badge>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge tone={b.status === "exceeded" ? "negative" : b.status === "warning" ? "warning" : "positive"}>
+                    {(b.usage * 100).toFixed(0)}%
+                  </Badge>
+                  <RowActionsButton label={b.categoryName ?? "Umumiy oylik"} onClick={() => setMenuBudget(b)} />
+                </div>
               </div>
               <div className="mt-4">
                 <Progress value={b.usage} />
@@ -125,31 +130,48 @@ export default function BudgetsPage() {
                     : `Qoldi ${compact(b.amount - b.spent)} · kuniga ${compact(Math.max(0, b.amount - b.spent) / Math.max(1, daysLeft))}`}
                 </p>
               </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(b);
-                    setSheet(true);
-                  }}
-                  className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
-                >
-                  Tahrir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => mutate("budget", "delete", { id: b.id })}
-                  className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-muted transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
-                >
-                  O‘chirish
-                </button>
-              </div>
+
             </Card>
           ))}
         </div>
       ) : (
         <EmptyState icon="target" title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
       )}
+
+      <RowActionsSheet
+        open={Boolean(menuBudget)}
+        onClose={() => setMenuBudget(null)}
+        title={menuBudget?.categoryName ?? "Umumiy oylik"}
+        eyebrow="Budjet"
+        icon={menuBudget?.categoryIcon ?? "target"}
+        iconTone="gold"
+        actions={[
+          { id: "edit", label: "Tahrirlash", icon: "edit", description: "Limit summasi" },
+          {
+            id: "delete",
+            label: "O‘chirish",
+            icon: "close",
+            tone: "danger",
+            description: "Limit olib tashlanadi",
+            confirm: {
+              title: "Budjetni o‘chirish",
+              body: "Limit olib tashlanadi. Bu kategoriyaga kiritilgan xarajatlar joyida qoladi — faqat nazorat chegarasi yo‘qoladi.",
+              verb: "O‘chirish",
+              busyVerb: "O‘chirilmoqda…",
+            },
+          },
+        ]}
+        onSelect={(id) => {
+          const target = menuBudget;
+          if (!target) return;
+          if (id === "edit") {
+            setEditing(target);
+            setSheet(true);
+            return;
+          }
+          return mutate("budget", "delete", { id: target.id });
+        }}
+      />
 
       <BudgetSheet open={sheet} onClose={closeSheet} editing={editing} />
     </div>

@@ -19,6 +19,7 @@ import {
 import { formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import type { AccountView, CategoryView } from "@/lib/finance";
 import { Icon, IconPicker } from "@/components/icon";
+import { RowActionsButton, RowActionsSheet } from "@/components/row-actions";
 
 const TYPES = [
   { value: "cash", label: "Naqd pul" },
@@ -53,6 +54,10 @@ export default function AccountsPage() {
   const [editingAccount, setEditingAccount] = useState<AccountView | null>(null);
   const [catSheet, setCatSheet] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryView | null>(null);
+  // Row actions live behind "•••" so a list row shows its data, not a strip of
+  // equally-weighted buttons.
+  const [menuAccount, setMenuAccount] = useState<AccountView | null>(null);
+  const [menuCategory, setMenuCategory] = useState<CategoryView | null>(null);
 
   // Global FAB: account vs category depends on the active sub-tab.
   useFabPage(
@@ -146,27 +151,7 @@ export default function AccountsPage() {
                       </div>
                     ) : null}
                   </div>
-                </div>
-                <div className="mt-2 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingAccount(a);
-                      setSheet(true);
-                    }}
-                    aria-label={`${a.name} hisobini tahrirlash`}
-                    className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
-                  >
-                    Tahrir
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => mutate("account", "update", { id: a.id, isActive: !a.isActive })}
-                    aria-label={`${a.name} hisobini ${a.isActive ? "noaktiv qilish" : "faollashtirish"}`}
-                    className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
-                  >
-                    {a.isActive ? "Noaktiv" : "Faol"}
-                  </button>
+                  <RowActionsButton label={a.name} onClick={() => setMenuAccount(a)} />
                 </div>
               </div>
             ))}
@@ -186,14 +171,7 @@ export default function AccountsPage() {
                   {state.categories
                     .filter((c) => c.type === type)
                     .map((c) => (
-                      <CategoryRow
-                        key={c.id}
-                        node={c}
-                        onEdit={(category) => {
-                          setEditingCategory(category);
-                          setCatSheet(true);
-                        }}
-                      />
+                      <CategoryRow key={c.id} node={c} onMenu={setMenuCategory} />
                     ))}
                 </div>
               </Card>
@@ -218,12 +196,71 @@ export default function AccountsPage() {
         }}
         editing={editingCategory}
       />
+
+      <RowActionsSheet
+        open={Boolean(menuAccount)}
+        onClose={() => setMenuAccount(null)}
+        title={menuAccount?.name ?? ""}
+        eyebrow="Hisob"
+        icon="card"
+        iconTone="gold"
+        actions={[
+          { id: "edit", label: "Tahrirlash", icon: "edit", description: "Nomi, turi, boshlang‘ich qoldiq" },
+          {
+            id: "toggle",
+            label: menuAccount?.isActive ? "Noaktiv qilish" : "Faollashtirish",
+            icon: menuAccount?.isActive ? "eye" : "check",
+            description: menuAccount?.isActive
+              ? "Ro‘yxatlardan yashiriladi, tarix saqlanadi"
+              : "Yana tanlash mumkin bo‘ladi",
+          },
+        ]}
+        onSelect={(id) => {
+          const target = menuAccount;
+          if (!target) return;
+          if (id === "edit") {
+            setEditingAccount(target);
+            setSheet(true);
+            return;
+          }
+          return mutate("account", "update", { id: target.id, isActive: !target.isActive });
+        }}
+      />
+
+      <RowActionsSheet
+        open={Boolean(menuCategory)}
+        onClose={() => setMenuCategory(null)}
+        title={menuCategory?.name ?? ""}
+        eyebrow="Kategoriya"
+        icon={menuCategory?.icon ?? "tag"}
+        iconTone="neutral"
+        actions={[
+          { id: "edit", label: "Tahrirlash", icon: "edit", description: "Nomi, ikonasi, ota kategoriya" },
+          {
+            id: "toggle",
+            label: menuCategory?.isActive ? "Yashirish" : "Ko‘rsatish",
+            icon: menuCategory?.isActive ? "eye" : "check",
+            description: menuCategory?.isActive
+              ? "Tanlov ro‘yxatlaridan chiqadi, yozuvlar qoladi"
+              : "Yana tanlash mumkin bo‘ladi",
+          },
+        ]}
+        onSelect={(id) => {
+          const target = menuCategory;
+          if (!target) return;
+          if (id === "edit") {
+            setEditingCategory(target);
+            setCatSheet(true);
+            return;
+          }
+          return mutate("category", "update", { id: target.id, isActive: !target.isActive });
+        }}
+      />
     </div>
   );
 }
 
-function CategoryRow({ node, onEdit }: { node: CategoryView; onEdit: (category: CategoryView) => void }) {
-  const { mutate } = useFinance();
+function CategoryRow({ node, onMenu }: { node: CategoryView; onMenu: (category: CategoryView) => void }) {
   return (
     <div className="py-3">
       <div className="flex items-center gap-3">
@@ -232,20 +269,7 @@ function CategoryRow({ node, onEdit }: { node: CategoryView; onEdit: (category: 
           <p className="truncate text-[14px] font-medium">{node.name}</p>
           {node.isEssential ? <p className="text-[11px] text-muted">Majburiy</p> : null}
         </div>
-        <button
-          type="button"
-          onClick={() => onEdit(node)}
-          className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11px] font-medium text-fg-soft transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
-        >
-          Tahrir
-        </button>
-        <button
-          type="button"
-          onClick={() => mutate("category", "update", { id: node.id, isActive: !node.isActive })}
-          className="min-h-8 rounded-full border border-line bg-surface px-2.5 text-[11px] font-medium text-muted transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
-        >
-          {node.isActive ? "Yashirish" : "Ko‘rsatish"}
-        </button>
+        <RowActionsButton label={node.name} onClick={() => onMenu(node)} />
       </div>
       {node.children.length ? (
         <div className="mt-2 ml-7 space-y-1.5 border-l-2 border-line pl-3">
@@ -254,9 +278,7 @@ function CategoryRow({ node, onEdit }: { node: CategoryView; onEdit: (category: 
               <Icon name={ch.icon} size={15} className="shrink-0 text-muted" />
               <span className="flex-1 truncate text-[13px] text-fg-soft">{ch.name}</span>
               {ch.isEssential ? <Badge tone="neutral">Majburiy</Badge> : null}
-              <button type="button" onClick={() => onEdit(ch)} className="min-h-8 px-1.5 text-[11px] font-medium text-accent-text">
-                Tahrir
-              </button>
+              <RowActionsButton label={ch.name} onClick={() => onMenu(ch)} />
             </div>
           ))}
         </div>

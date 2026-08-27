@@ -36,11 +36,13 @@ import {
 } from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { DebtView } from "@/lib/finance";
+import { RowActionsButton, RowActionsSheet } from "@/components/row-actions";
 
 export default function DebtsPage() {
   const { state, loading, mutate } = useFinance();
   const [sheet, setSheet] = useState(false);
   const [editing, setEditing] = useState<DebtView | null>(null);
+  const [menuDebt, setMenuDebt] = useState<DebtView | null>(null);
   const [payFor, setPayFor] = useState<DebtView | null>(null);
   const [filter, setFilter] = useState<"all" | "i_owe" | "owed_to_me">("all");
 
@@ -139,44 +141,19 @@ export default function DebtsPage() {
                     <Progress value={d.progress} height={6} ariaLabel={`${d.personName} qarz to‘lovi progressi`} />
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-[11.5px] text-muted">to‘langan {compact(d.paidAmount)}</span>
-                      <div className="flex flex-wrap justify-end gap-2">
+                      {/* Recording a payment is what this row is FOR; editing,
+                          cancelling and archiving are housekeeping. */}
+                      <div className="flex shrink-0 items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setPayFor(d)}
                           aria-label={`${d.personName} uchun to‘lov kiritish`}
-                          className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:bg-surface-3 touch-manipulation"
+                          className="min-h-9 rounded-xl px-3.5 text-[12px] font-bold transition-[filter] hover:brightness-105 active:scale-[0.98] touch-manipulation"
+                          style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
                         >
                           To‘lov
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditing(d);
-                            setSheet(true);
-                          }}
-                          aria-label={`${d.personName} qarzini tahrirlash`}
-                          className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
-                        >
-                          Tahrir
-                        </button>
-                        {d.paidAmount === 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => mutate("debt", "cancel", { id: d.id })}
-                            aria-label={`${d.personName} qarzini bekor qilish`}
-                            className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-muted transition-colors hover:text-negative-text active:bg-surface-3 touch-manipulation"
-                          >
-                            Bekor
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => mutate("debt", "delete", { id: d.id })}
-                          aria-label={`${d.personName} qarzini arxivlash`}
-                          className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-muted transition-colors hover:text-fg active:bg-surface-3 touch-manipulation"
-                        >
-                          Arxiv
-                        </button>
+                        <RowActionsButton label={d.personName} onClick={() => setMenuDebt(d)} />
                       </div>
                     </div>
                   </div>
@@ -201,6 +178,59 @@ export default function DebtsPage() {
       ) : (
         <EmptyState icon="doc" title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
       )}
+
+      <RowActionsSheet
+        open={Boolean(menuDebt)}
+        onClose={() => setMenuDebt(null)}
+        title={menuDebt?.personName ?? ""}
+        eyebrow="Qarz"
+        icon="doc"
+        iconTone={menuDebt?.direction === "i_owe" ? "negative" : "positive"}
+        actions={[
+          { id: "edit", label: "Tahrirlash", icon: "edit", description: "Summa, muddat, izoh" },
+          ...(menuDebt && menuDebt.paidAmount === 0
+            ? [
+                {
+                  id: "cancel",
+                  label: "Bekor qilish",
+                  icon: "ban",
+                  tone: "danger" as const,
+                  description: "Hech qanday to‘lov kiritilmagan",
+                  confirm: {
+                    title: "Qarzni bekor qilish",
+                    body: "Yozuv bekor qilinadi. Bu qarz bo‘yicha hech qanday to‘lov kiritilmagani uchun hisob-kitobga ta’sir qilmaydi.",
+                    verb: "Bekor qilish",
+                    busyVerb: "Bekor qilinmoqda…",
+                  },
+                },
+              ]
+            : []),
+          {
+            id: "archive",
+            label: "Arxivlash",
+            icon: "close",
+            tone: "danger",
+            description: "Ro‘yxatdan olib tashlanadi",
+            confirm: {
+              title: "Qarzni arxivlash",
+              body: "Yozuv ro‘yxatdan olib tashlanadi. Kiritilgan to‘lovlar tarixda qoladi.",
+              verb: "Arxivlash",
+              busyVerb: "Arxivlanmoqda…",
+            },
+          },
+        ]}
+        onSelect={(id) => {
+          const target = menuDebt;
+          if (!target) return;
+          if (id === "edit") {
+            setEditing(target);
+            setSheet(true);
+            return;
+          }
+          if (id === "cancel") return mutate("debt", "cancel", { id: target.id });
+          return mutate("debt", "delete", { id: target.id });
+        }}
+      />
 
       <DebtSheet open={sheet} onClose={closeSheet} editing={editing} />
       <PaySheet debt={payFor} onClose={() => setPayFor(null)} />
