@@ -45,8 +45,10 @@ test("Analytics has no create action", () => {
   assert.equal(supportsFab("/analytics"), false);
 });
 
-test("Menu exposes the 5 secondary-tool entities", () => {
-  assert.deepEqual(ids({ pathname: "/more" }), ["account", "debt", "goal", "budget", "category"]);
+test("Menu offers no create action — each entity is added on its own page", () => {
+  // The Menu routes; it does not create. A cross-entity add menu here would be
+  // a second way into forms that already live one tap away on their own page.
+  assert.deepEqual(ids({ pathname: "/more" }), []);
 });
 
 test("Accounts sub-tab switches between account and category", () => {
@@ -80,7 +82,6 @@ test("action lists stay compact (never a giant menu)", () => {
   for (const ctx of [
     { pathname: "/plans" },
     { pathname: "/plans", tab: "income" as const },
-    { pathname: "/more" },
     { pathname: "/accounts" },
     { pathname: "/debts" },
     { pathname: "/goals" },

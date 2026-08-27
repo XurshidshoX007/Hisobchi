@@ -21,10 +21,14 @@ const fab = read("components/fab.tsx");
 const history = read("app/transactions/page.tsx");
 
 const dashboard = read("app/page.tsx");
+const menu = read("app/more/page.tsx");
 
 /*
- * The Dashboard is no longer in this list: it owns quick-action tiles that open
- * the shared add sheet directly, so it deliberately registers NO FAB context.
+ * Two screens are deliberately NOT in this list, and neither registers a FAB
+ * context:
+ *   - the Dashboard owns quick-action tiles that open the shared add sheet;
+ *   - the Menu only navigates — each entity is created on the page that owns
+ *     it, so a cross-entity add menu here would be a second way in.
  * Every other create screen still routes through the one global FAB.
  */
 const CREATE_PAGES = {
@@ -33,7 +37,6 @@ const CREATE_PAGES = {
   debts: read("app/debts/page.tsx"),
   goals: read("app/goals/page.tsx"),
   budgets: read("app/budgets/page.tsx"),
-  menu: read("app/more/page.tsx"),
 };
 
 /* ==================== §2 ONE global FAB, no duplicates ==================== */
@@ -54,8 +57,13 @@ test("Dashboard replaces the FAB with quick actions on the same shared sheet", (
   assert.match(dashboard, /const openAdd = \(type: QuickActionId\)/);
 });
 
+test("the Menu navigates and never creates", () => {
+  // No FAB context, no add sheet, no create form — only links out.
+  assert.doesNotMatch(menu, /useFabPage|GlobalAddFab|<FormSheet|QuickAddSheet/);
+});
+
 test("no page renders its own floating add control", () => {
-  for (const [name, source] of Object.entries({ ...CREATE_PAGES, dashboard, history })) {
+  for (const [name, source] of Object.entries({ ...CREATE_PAGES, dashboard, menu, history })) {
     assert.doesNotMatch(source, /global-fab/, `${name} must not restyle the global FAB`);
     assert.doesNotMatch(source, /fixed bottom-\d/, `${name} must not float its own button`);
   }

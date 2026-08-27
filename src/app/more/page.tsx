@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { AlertsSheet } from "@/components/app-shell";
 import { useFinance } from "@/components/providers";
-import { useFab, useFabPage } from "@/components/fab";
 import { Badge, Card, Label, Skeleton } from "@/components/ui";
 import { Icon } from "@/components/icon";
 
@@ -27,18 +26,6 @@ const LINKS: Array<{ href: string; icon: string; title: string }> = [
 export default function MorePage() {
   const { state, loading, theme, setTheme, telegram } = useFinance();
   const [alertsOpen, setAlertsOpen] = useState(false);
-
-  // Global FAB → secondary tools. Each entry routes to the page that OWNS the
-  // form, which auto-opens its own create sheet (no duplicated forms).
-  const { route } = useFab();
-  useFabPage({}, {
-    account: (a) => route("/accounts", a),
-    debt: (a) => route("/debts", a),
-    goal: (a) => route("/goals", a),
-    budget: (a) => route("/budgets", a),
-    // Category creation is owned by Accounts → Kategoriyalar tab (§35).
-    category: (a) => route("/accounts", a),
-  });
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
@@ -88,18 +75,6 @@ export default function MorePage() {
         <p className="mt-1 truncate text-[11.5px] text-faint">
           {user.username ? `@${user.username} · ` : ""}Telegram Mini App
         </p>
-
-        <div className="mt-4 grid grid-cols-2 gap-2.5">
-          {[
-            { label: "Hisoblar", value: accountCount },
-            { label: "Yozuvlar", value: state.transactions.length },
-          ].map((cell) => (
-            <div key={cell.label} className="rounded-xl px-3 py-2.5" style={{ background: "var(--tint-neutral)" }}>
-              <p className="num text-[17px] font-bold leading-none">{cell.value}</p>
-              <Label className="mt-1.5 block">{cell.label}</Label>
-            </div>
-          ))}
-        </div>
       </Card>
 
       <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-hairline rounded-2xl border border-line bg-surface">

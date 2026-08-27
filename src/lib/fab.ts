@@ -49,9 +49,10 @@ export function normalizePath(pathname: string): string {
 }
 
 /**
- * Resolve the contextual actions for a route. Kept 1–3 (Dashboard) to 5 (Menu)
- * items — never a second "giant menu". Returns an empty array for contexts that
- * must NOT offer a create action (e.g. Cash-flow: analysis only).
+ * Resolve the contextual actions for a route. At most a couple of items —
+ * never a second "giant menu". Returns an empty array for every context that
+ * must NOT offer a create action: Cash-flow and Analytics are read-only, the
+ * Dashboard has its own quick-action tiles, and the Menu only navigates.
  */
 export function getFabActions(ctx: FabContext): FabActionDef[] {
   const path = normalizePath(ctx.pathname);
@@ -82,14 +83,11 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
       return [];
 
     case "/more":
-      // Menu = secondary tools. Only entities that actually live here.
-      return [
-        { id: "account", label: "Hisob", icon: "card", description: "Karta, naqd, bank" },
-        { id: "debt", label: "Qarz", icon: "doc", description: "Qarzdorman / qarzdor" },
-        { id: "goal", label: "Maqsad", icon: "goal", description: "Jamg‘arma rejasi" },
-        { id: "budget", label: "Budjet", icon: "target", description: "Oylik limit" },
-        { id: "category", label: "Kategoriya", icon: "tag", description: "Daromad / xarajat" },
-      ];
+      // Menu is a navigation hub, not a create surface. Adding an account
+      // starts inside Hisoblar, a budget inside Budjetlar, and so on — the
+      // page that OWNS the entity also owns its add button. A cross-entity
+      // menu here would be a second, competing way in.
+      return [];
 
     case "/accounts":
       return ctx.accountsTab === "categories"
