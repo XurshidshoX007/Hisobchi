@@ -313,6 +313,44 @@ body {
 }
 
 /*
+ * Mobile UI scale
+ *
+ * Telegram Mini Apps are normally used one-handed on relatively small,
+ * high-density screens. Give the compact mobile interface a small, deliberate
+ * lift without changing desktop density or the layout on tablets. Using the
+ * root type scale preserves the existing rem-based Tailwind rhythm; the
+ * fixed mobile chrome below grows alongside it so touch targets do not feel
+ * comparatively small.
+ */
+@media (max-width: 639px) and (pointer: coarse) {
+  html {
+    font-size: 106.25%;
+  }
+
+  :root {
+    --bottom-nav-panel-height: 66px;
+    --bottom-nav-inset: 16px;
+    --fab-size: 60px;
+    --fab-gap: 16px;
+    --content-bottom-gap: 18px;
+  }
+
+  .lb {
+    font-size: 10.5px;
+  }
+
+  .tag {
+    min-height: 24px;
+    font-size: 11px;
+    padding: 4px 9px;
+  }
+
+  .nav-item {
+    min-height: 62px;
+  }
+}
+
+/*
  * Swipe-back and plans TabSwipe temporarily translate the active page or
  * adjacent ghost panes. ONLY while that gesture (or its exit animation) is
  * running, keep the transform from widening the document and shifting the
