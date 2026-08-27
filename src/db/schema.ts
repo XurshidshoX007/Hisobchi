@@ -438,6 +438,8 @@ export const goalContributions = pgTable(
     id: serial("id").primaryKey(),
     userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     goalId: integer("goal_id").notNull().references(() => goals.id, { onDelete: "cascade" }),
+    /** The ledger row created by this contribution; History deletion reverses this aggregate through the link. */
+    transactionId: integer("transaction_id").references(() => transactions.id, { onDelete: "set null" }),
     amount: money("amount").notNull(),
     date: date("date", { mode: "string" }).notNull(),
     note: text("note"),
@@ -445,6 +447,7 @@ export const goalContributions = pgTable(
   },
   (t) => [
     index("goal_contrib_goal_idx").on(t.goalId),
+    uniqueIndex("goal_contrib_transaction_unique").on(t.transactionId),
     check("goal_contributions_amount_check", sql`${t.amount} > 0`),
   ],
 );

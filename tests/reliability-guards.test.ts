@@ -64,6 +64,19 @@ test("the PostgreSQL pool handles idle-client error events without logging raw m
   assert.doesNotMatch(source, /error\.message/);
 });
 
+test("deleting a goal contribution from History reverses its saved amount", () => {
+  const mutations = readFileSync(new URL("../src/lib/mutations.ts", import.meta.url), "utf8");
+  const schema = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../drizzle/0011_goal_transaction_link.sql", import.meta.url), "utf8");
+
+  assert.match(schema, /transactionId: integer\("transaction_id"\)/);
+  assert.match(mutations, /transactionId: transaction\.id/);
+  assert.match(mutations, /eq\(goalContributions\.transactionId, existing\[0\]\.id\)/);
+  assert.match(mutations, /savedAfterReversal/);
+  assert.match(migration, /goal_contributions_transaction_id_transactions_id_fk/);
+  assert.match(migration, /DELETE FROM "goal_contributions"/);
+});
+
 test("ledger currency cannot be relabelled or mixed without an FX model", () => {
   const user = readFileSync(new URL("../src/lib/user.ts", import.meta.url), "utf8");
   const state = readFileSync(new URL("../src/lib/state.ts", import.meta.url), "utf8");

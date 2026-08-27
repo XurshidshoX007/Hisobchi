@@ -364,6 +364,27 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             }
           }
 
+          // A goal contribution also has a normal ledger expense. Their stable
+          // link lets History deletion restore the goal exactly once.
+          const contribution = await tx
+            .select()
+            .from(goalContributions)
+            .where(and(eq(goalContributions.userId, userId), eq(goalContributions.transactionId, existing[0].id)))
+            .limit(1);
+          if (contribution[0]) {
+            const savedAfterReversal = sql`greatest(0, ${goals.savedAmount} - ${contribution[0].amount})`;
+            await tx
+              .update(goals)
+              .set({
+                savedAmount: savedAfterReversal,
+                status: sql`case when ${savedAfterReversal} >= ${goals.targetAmount} then 'reached' else 'active' end`,
+              })
+              .where(and(eq(goals.id, contribution[0].goalId), eq(goals.userId, userId), eq(goals.isDeleted, false)));
+            await tx
+              .delete(goalContributions)
+              .where(and(eq(goalContributions.id, contribution[0].id), eq(goalContributions.userId, userId)));
+          }
+
           const [row] = await tx
             .update(transactions)
             .set({ isDeleted: true, deletedAt: new Date() })
@@ -1486,8 +1507,12 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             .where(and(eq(goals.id, id), eq(goals.userId, userId), sql`${goals.savedAmount} + ${amount} <= ${goals.targetAmount}`))
             .returning({ id: goals.id });
           if (!updated[0]) return false;
-          await tx.insert(goalContributions).values({ userId, goalId: id, amount, date: isoDate(d.date, today) ?? today });
-          await tx.insert(transactions).values({ userId, accountId, type: "expense", amount, date: isoDate(d.date, today) ?? today, note: `Maqsad: ${row[0].name}`, source: "miniapp", currency: user.currency });
+          const date = isoDate(d.date, today) ?? today;
+          const [transaction] = await tx
+            .insert(transactions)
+            .values({ userId, accountId, type: "expense", amount, date, note: `Maqsad: ${row[0].name}`, source: "miniapp", currency: user.currency })
+            .returning({ id: transactions.id });
+          await tx.insert(goalContributions).values({ userId, goalId: id, transactionId: transaction.id, amount, date });
           return true;
         });
         if (!contributed) return { ok: false, message: "Maqsad uchun qolgan summa yetarli emas" };
