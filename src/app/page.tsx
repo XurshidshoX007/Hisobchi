@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { BalanceBreakdownSheet } from "@/components/balance-breakdown";
 import {
-  DashboardHeader,
   DashboardHero,
   DashboardLoading,
   ExpenseBreakdown,
@@ -13,7 +12,6 @@ import {
 } from "@/components/dashboard";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
-import { AlertsSheet } from "@/components/app-shell";
 import { Button, EmptyState } from "@/components/ui";
 import { selectDashboardFacts } from "@/lib/dashboard";
 
@@ -22,7 +20,6 @@ export default function DashboardPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [defaultType, setDefaultType] = useState<QuickActionId>("expense");
   const [breakdownOpen, setBreakdownOpen] = useState(false);
-  const [alertsOpen, setAlertsOpen] = useState(false);
 
   /*
    * The quick-action tiles replace the floating add button on this route (see
@@ -36,8 +33,6 @@ export default function DashboardPage() {
   };
 
   const facts = useMemo(() => (state ? selectDashboardFacts(state) : null), [state]);
-  const unread =
-    (state?.alerts.length ?? 0) + (state?.notifications.filter((n) => !n.isRead).length ?? 0);
 
   if (loading && !state) return <DashboardLoading />;
 
@@ -56,13 +51,6 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-fade-up min-w-0">
-      <DashboardHeader
-        monthLabel={facts.monthLabel}
-        name={state.user.firstName}
-        unread={unread}
-        onOpenAlerts={() => setAlertsOpen(true)}
-      />
-
       <div className="animate-hero-in">
         <DashboardHero
           facts={facts}
@@ -86,7 +74,6 @@ export default function DashboardPage() {
         total={facts.balance}
         currency={state.user.currency}
       />
-      <AlertsSheet open={alertsOpen} onClose={() => setAlertsOpen(false)} />
     </div>
   );
 }

@@ -8,57 +8,6 @@ import { Card, Label, Money, Skeleton } from "./ui";
 import { Icon } from "@/components/icon";
 import { useBalanceHidden, useFinance } from "./providers";
 
-/* ============================== HEADER ============================== */
-
-/**
- * The screen's own header — month, who you are, and one notification control.
- * Deliberately NOT another balance: the hero below owns that number, and
- * repeating it was the single biggest source of duplication on this screen.
- */
-export function DashboardHeader({
-  monthLabel,
-  name,
-  unread,
-  onOpenAlerts,
-}: {
-  monthLabel: string;
-  name: string;
-  unread: number;
-  onOpenAlerts: () => void;
-}) {
-  return (
-    <header className="mb-5 flex items-center gap-3">
-      <span
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl"
-        style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
-        aria-hidden="true"
-      >
-        <Icon name="ledger" size={18} strokeWidth={1.9} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <Label>{monthLabel.toUpperCase()}</Label>
-        <p className="mt-0.5 truncate text-[15px] font-bold leading-tight">{name}</p>
-      </div>
-      <button
-        type="button"
-        onClick={onOpenAlerts}
-        aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
-        className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-neutral-soft text-fg-soft transition-colors active:bg-surface-3 touch-manipulation"
-      >
-        <Icon name="bell" size={17} />
-        {unread > 0 ? (
-          // Ringed in the page background so the dot reads as separate from the
-          // icon rather than as part of it.
-          <span
-            className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-negative shadow-[0_0_0_2px_var(--bg)]"
-            aria-hidden="true"
-          />
-        ) : null}
-      </button>
-    </header>
-  );
-}
-
 /* =============================== HERO =============================== */
 
 const GROUP_FILL: Record<string, string> = {

@@ -133,9 +133,8 @@ function AppShellContent({ children }: { children: ReactNode }) {
       <main className="min-w-0 flex-1">
         {/*
          * No shell-level header on any route. The Menu owns its profile card
-         * (src/app/more/page.tsx) and the Dashboard owns its own header, so
-         * every screen starts with its own content at the top of the viewport
-         * and no route pays for chrome it does not use.
+         * (src/app/more/page.tsx), while the Dashboard starts straight at its
+         * balance card, so no route pays for chrome it does not use.
          */}
         <SwipeBack enabled={isSub}>
           <div className="min-w-0">{children}</div>
