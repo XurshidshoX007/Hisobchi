@@ -15,4 +15,8 @@ next-env.d.ts
 *.pfx
 .npmrc
 
+# Production database exports are sensitive audit artifacts.
+*.dump
+*.backup
+
 coverage/
