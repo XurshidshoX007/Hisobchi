@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { compact, formatAmount, monthLabel, shortDate } from "@/lib/money";
+import { Icon } from "@/components/icon";
 
 type Pt = { x: number; y: number };
 const line = (pts: Pt[]) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
@@ -111,8 +112,8 @@ export function ForecastArea({
     <ForecastAreaInteractive data={data} description={description} W={W} H={H} pad={pad} x={x} y={y} innerH={innerH}>
       <defs>
         <linearGradient id="fa-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--gold)" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="var(--gold)" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={`${line(top)} ${line(bottom).replace("M", "L")} Z`} fill="var(--fg)" opacity={0.07} />
@@ -130,12 +131,12 @@ export function ForecastArea({
         return (
           <>
             {actual.length > 1 ? <path d={line(actual)} fill="none" stroke="var(--fg)" strokeWidth="2" strokeLinecap="round" /> : null}
-            {projected.length > 1 ? <path d={line(projected)} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeDasharray={lastActual >= 0 ? "4 2" : undefined} /> : null}
+            {projected.length > 1 ? <path d={line(projected)} fill="none" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round" strokeDasharray={lastActual >= 0 ? "5 5" : undefined} /> : null}
           </>
         );
       })()}
       {risks.map((r) => (
-        <circle key={r.date} cx={x(r.i)} cy={y(r.projectedMin)} r="2.6" fill="var(--negative)" />
+        <circle key={r.date} cx={x(r.i)} cy={y(r.projectedMin)} r="4.5" fill="var(--negative)" />
       ))}
       {[0, Math.floor(data.length / 2), data.length - 1].map((i) => (
         <text key={i} x={x(i)} y={H - 5} textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"} fontSize="8.5" fill="var(--muted)">
@@ -283,7 +284,7 @@ export function CategoryBars({
         <div key={c.name}>
           <div className="mb-1.5 flex items-baseline justify-between gap-2">
             <span className="truncate text-[13px] font-medium">
-              <span className="mr-1.5 text-muted">{c.icon}</span>
+              <Icon name={c.icon} size={14} className="mr-1.5 inline-block shrink-0 align-[-2px] text-muted" />
               {c.name}
             </span>
             <span className="num shrink-0 text-[13px] text-fg-soft">
@@ -303,6 +304,66 @@ export function CategoryBars({
   );
 }
 
+/**
+ * Multi-segment donut for a category split.
+ *
+ * Geometry follows the design handoff: a 42-unit viewBox with r = 15.9 makes
+ * the circumference ≈ 100, so a segment's stroke-dasharray IS its percentage —
+ * no circumference maths at the call site, and no rounding drift between the
+ * arc and the legend beside it.
+ *
+ * The chart is decorative markup; the readable version is the legend, so the
+ * SVG is aria-hidden and the whole figure carries one text summary instead.
+ */
+export function CategoryDonut({
+  items,
+  size = 112,
+}: {
+  items: Array<{ name: string; share: number; color: string }>;
+  size?: number;
+}) {
+  const R = 15.9155;
+  // Each slice starts where the previous one ended, so the offsets are a
+  // running total computed up front — no mutation during render.
+  const slices = items.reduce<Array<{ name: string; color: string; pct: number; start: number }>>(
+    (acc, item) => {
+      const pct = Math.max(0, Math.min(100, item.share * 100));
+      const previous = acc[acc.length - 1];
+      const start = previous ? previous.start + previous.pct : 0;
+      return pct > 0 ? [...acc, { name: item.name, color: item.color, pct, start }] : acc;
+    },
+    [],
+  );
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 42 42"
+      className="shrink-0 -rotate-90"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="21" cy="21" r={R} fill="none" stroke="var(--surface-3)" strokeWidth="7" />
+      {slices.map((slice) => (
+        <circle
+          key={slice.name}
+          cx="21"
+          cy="21"
+          r={R}
+          fill="none"
+          stroke={slice.color}
+          strokeWidth="7"
+          strokeDasharray={`${slice.pct} ${100 - slice.pct}`}
+          /* dashoffset runs backwards along the path, hence the negation. */
+          strokeDashoffset={-slice.start}
+          className="transition-[stroke-dasharray,stroke-dashoffset] duration-700 ease-out"
+        />
+      ))}
+    </svg>
+  );
+}
+
 /** Progress ring used for health score / budget usage */
 export function Ring({
   value,
@@ -310,35 +371,41 @@ export function Ring({
   label,
   sublabel,
   tone = "auto",
+  color: colorOverride,
+  strokeWidth = 10,
 }: {
   value: number;
   size?: number;
   label?: string;
   sublabel?: string;
   tone?: "auto" | "accent";
+  /** Explicit colour when the ring's meaning is not "high is good". */
+  color?: string;
+  strokeWidth?: number;
 }) {
   const pct = Math.max(0, Math.min(1, value));
   const r = 46;
   const c = 2 * Math.PI * r;
   const color =
-    tone === "accent"
+    colorOverride ??
+    (tone === "accent"
       ? "var(--accent)"
       : pct >= 0.8
         ? "var(--positive)"
         : pct >= 0.6
           ? "var(--warning)"
-          : "var(--negative)";
+          : "var(--negative)");
   return (
     <div className="relative grid place-items-center" style={{ width: size, height: size }}>
       <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-        <circle cx="60" cy="60" r={r} fill="none" stroke="var(--surface-3)" strokeWidth="10" />
+        <circle cx="60" cy="60" r={r} fill="none" stroke="var(--surface-3)" strokeWidth={strokeWidth} />
         <circle
           cx="60"
           cy="60"
           r={r}
           fill="none"
           stroke={color}
-          strokeWidth="10"
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={`${c * pct} ${c}`}
           className="transition-[stroke-dasharray] duration-1000 ease-out"

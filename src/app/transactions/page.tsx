@@ -7,7 +7,8 @@ import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
 import { SwipeActions } from "@/components/swipe-actions";
 import { TransactionFilter, type TransactionFilterContext } from "@/components/transaction-filter";
-import { Badge, Button, EmptyState, Money, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { Badge, Button, EmptyState, Label, Money, Sheet, Skeleton, TextInput } from "@/components/ui";
+import { Icon } from "@/components/icon";
 import { compact, humanDate } from "@/lib/money";
 import { LOADING } from "@/lib/copy";
 import type { TxView } from "@/lib/finance";
@@ -18,6 +19,13 @@ import {
   localTransactionFilterCount,
   type TransactionFilterState,
 } from "@/lib/transaction-filters";
+
+/** Row-icon tint per direction. Expense stays neutral on purpose (see below). */
+const ROW_ICON_TONE: Record<string, { background: string; color: string }> = {
+  income: { background: "var(--tint-green)", color: "var(--green)" },
+  expense: { background: "var(--tint-neutral)", color: "var(--fg-soft)" },
+  transfer: { background: "var(--tint-blue)", color: "var(--blue)" },
+};
 
 export default function TransactionsPage() {
   // useSearchParams needs a Suspense boundary during prerender (Next app router).
@@ -109,11 +117,8 @@ function TransactionsView() {
         <label htmlFor="history-search" className="sr-only">
           Tarixdan qidirish
         </label>
-        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m16.5 16.5 4 4" strokeLinecap="round" />
-          </svg>
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" aria-hidden="true">
+          <Icon name="search" size={18} />
         </span>
         <TextInput
           id="history-search"
@@ -122,7 +127,9 @@ function TransactionsView() {
           onChange={(event) => setSearchQuery(event.target.value)}
           placeholder="Kategoriya, izoh yoki summa"
           autoComplete="off"
-          className="pl-10 pr-11"
+          // The shared input radius is 12px; the search field is the one place the
+          // design asks for 15px, so it overrides rather than forking inputClass.
+          className="h-[46px] rounded-[15px]! pl-10 pr-11"
         />
         {searchQuery ? (
           <button
@@ -131,7 +138,7 @@ function TransactionsView() {
             aria-label="Qidiruvni tozalash"
             className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 touch-manipulation"
           >
-            ✕
+            <Icon name="close" size={14} />
           </button>
         ) : null}
       </div>
@@ -157,7 +164,7 @@ function TransactionsView() {
                 aria-label={`${context.label} kontekstini olib tashlash`}
                 className="grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors hover:bg-surface/70 touch-manipulation"
               >
-                ✕
+                <Icon name="close" size={12} />
               </Link>
             </div>
           ))}
@@ -170,15 +177,15 @@ function TransactionsView() {
         aria-live="polite"
       >
         <span className="font-semibold text-positive-text">+{compact(totals.income)}</span>
-        <span aria-hidden="true" className="text-muted">·</span>
+        <span aria-hidden="true" className="text-text-4">·</span>
         <span className="font-medium">−{compact(totals.expense)}</span>
-        <span aria-hidden="true" className="text-muted">·</span>
-        <span>{totals.count} ta</span>
+        <span aria-hidden="true" className="text-text-4">·</span>
+        <span className="text-faint">{totals.count} ta</span>
       </div>
 
       {grouped.length === 0 ? (
         <EmptyState
-          icon="🔍"
+          icon="search"
           title={
             state.transactions.length === 0
               ? "Tarix hozircha bo‘sh."
@@ -207,7 +214,7 @@ function TransactionsView() {
             return (
               <section key={date}>
                 <div className="flex items-center justify-between gap-3 border-b border-line px-1 pb-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-muted">{humanDate(date)}</span>
+                  <Label>{humanDate(date)}</Label>
                   <span className="num flex items-center gap-2 text-[12px]">
                     {dayIn > 0 ? <span className="font-medium text-positive-text">+{compact(dayIn)}</span> : null}
                     {dayOut > 0 ? <span className="text-fg-soft">−{compact(dayOut)}</span> : null}
@@ -231,23 +238,10 @@ function TransactionsView() {
                             className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
                             aria-label={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : "Tahrirlash"}
                           >
-                            {/* Inline SVG, not a text glyph: the Unicode pencil (✎ U+270E
-                                “lower right pencil”) points to the LOWER right, so it reads
-                                mirrored and its rendering varies by font. SVG pins the standard
-                                edit orientation — tip at the lower LEFT, body to the upper right. */}
-                            <svg
-                              width="18"
-                              height="18"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                            </svg>
+                            {/* Registry icon, not a text glyph: the Unicode pencil
+                                (✎ U+270E) points to the LOWER right, so it reads
+                                mirrored and varies by font. */}
+                            <Icon name="edit" size={18} />
                           </button>
                           <button
                             type="button"
@@ -257,14 +251,24 @@ function TransactionsView() {
                             className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-negative-text active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
                             aria-label={transaction.debtId && !transaction.debtPaymentId ? "Qarz ochilishi Qarzdorlik bo‘limidan bekor qilinadi" : "Bekor qilish"}
                           >
-                            ✕
+                            <Icon name="close" size={16} />
                           </button>
                         </>
                       }
                     >
                       <div className="flex min-w-0 items-center gap-2.5 py-3 sm:gap-3">
-                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base">
-                          {transaction.type === "transfer" ? "↔️" : transaction.categoryIcon}
+                        {/* Tinted by direction so the eye can sort the column
+                            without reading it: income green, transfer blue,
+                            expense deliberately neutral — a page of red rows
+                            reads as a page of errors. */}
+                        <div
+                          className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[13px]"
+                          style={ROW_ICON_TONE[transaction.type] ?? ROW_ICON_TONE.expense}
+                        >
+                          <Icon
+                            name={transaction.type === "transfer" ? "transfer" : transaction.categoryIcon}
+                            size={17}
+                          />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="flex min-w-0 items-center gap-1.5 truncate text-[14px] font-medium">

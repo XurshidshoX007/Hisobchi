@@ -1,50 +1,79 @@
+"use client";
+
 import Link from "next/link";
-import type { DashboardCategory, DashboardFacts } from "@/lib/dashboard";
-import { currencyLabel } from "@/lib/money";
-import { BalanceDistributionBar } from "./balance-breakdown";
-import { Card, Money, Section, Skeleton } from "./ui";
+import type { DashboardFacts } from "@/lib/dashboard";
+import { compact, currencyLabel } from "@/lib/money";
+import { CategoryDonut } from "./charts";
+import { Card, Label, Money, Skeleton } from "./ui";
+import { Icon } from "@/components/icon";
+import { useBalanceHidden, useFinance } from "./providers";
 
-function WalletIcon() {
+/* ============================== HEADER ============================== */
+
+/**
+ * The screen's own header — month, who you are, and one notification control.
+ * Deliberately NOT another balance: the hero below owns that number, and
+ * repeating it was the single biggest source of duplication on this screen.
+ */
+export function DashboardHeader({
+  monthLabel,
+  name,
+  unread,
+  onOpenAlerts,
+}: {
+  monthLabel: string;
+  name: string;
+  unread: number;
+  onOpenAlerts: () => void;
+}) {
   return (
-    <svg
-      width="32"
-      height="32"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4.5 7.5V6.2A2.2 2.2 0 0 1 6.7 4h10.8a2 2 0 0 1 2 2v1.5" />
-      <path d="M4.5 7.5h14.2a1.8 1.8 0 0 1 1.8 1.8v8.2a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 17.5V9.1a1.6 1.6 0 0 1 1.6-1.6" />
-      <path d="M16.4 11.2h4.1v4.6h-4.1a2.3 2.3 0 1 1 0-4.6Z" />
-      <path d="M16.5 13.5h.01" />
-    </svg>
+    <header className="mb-5 flex items-center gap-3">
+      <span
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl"
+        style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
+        aria-hidden="true"
+      >
+        <Icon name="ledger" size={18} strokeWidth={1.9} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <Label>{monthLabel.toUpperCase()}</Label>
+        <p className="mt-0.5 truncate text-[15px] font-bold leading-tight">{name}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onOpenAlerts}
+        aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
+        className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-neutral-soft text-fg-soft transition-colors active:bg-surface-3 touch-manipulation"
+      >
+        <Icon name="bell" size={17} />
+        {unread > 0 ? (
+          // Ringed in the page background so the dot reads as separate from the
+          // icon rather than as part of it.
+          <span
+            className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-negative shadow-[0_0_0_2px_var(--bg)]"
+            aria-hidden="true"
+          />
+        ) : null}
+      </button>
+    </header>
   );
 }
 
-function TrendIcon({ direction }: { direction: "up" | "down" }) {
-  return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={`transition-transform duration-200 ${direction === "up" ? "group-hover:-translate-y-0.5" : "group-hover:translate-y-0.5"}`}
-    >
-      {direction === "up" ? <path d="M8 13V3m0 0L4.5 6.5M8 3l3.5 3.5" /> : <path d="M8 3v10m0 0 3.5-3.5M8 13 4.5 9.5" />}
-    </svg>
-  );
-}
+/* =============================== HERO =============================== */
 
-/** One balance source, one primary balance UI. */
+const GROUP_FILL: Record<string, string> = {
+  bank: "var(--gold-gradient)",
+  cards: "var(--blue)",
+  cash: "var(--green)",
+  ewallet: "var(--red)",
+  other: "rgba(255,255,255,.12)",
+};
+
+/**
+ * One balance, one panel. The old design nested a second card inside this one
+ * for the account split; here the split is a segmented bar plus a divided
+ * footer row, so the whole composition reads as a single object.
+ */
 export function DashboardHero({
   facts,
   currency,
@@ -52,174 +81,303 @@ export function DashboardHero({
 }: {
   facts: DashboardFacts;
   currency: string;
-  /** Opens the account-composition sheet. Omit to keep the bar as pure display. */
   onOpenBreakdown?: () => void;
 }) {
   const unit = currencyLabel(currency);
-  const valueKey = `${facts.monthLabel}-${facts.balance}-${facts.income}-${facts.expense}`;
+  const hidden = useBalanceHidden();
+  const { setBalanceHidden } = useFinance();
+  const valueKey = `${facts.monthLabel}-${facts.balance}`;
+
+  const positive = facts.balanceGroups.filter((group) => group.amount > 0);
+  const positiveTotal = positive.reduce((sum, group) => sum + group.amount, 0);
+  // The footer names at most three sources; a fourth would not fit at 320px
+  // and the full list already has a primary home in /accounts.
+  const footer = positive.slice(0, 3);
 
   return (
-    <Card padded={false} className="relative overflow-hidden border-line/90 shadow-[0_2px_8px_rgba(12,18,34,0.04),0_12px_28px_-12px_rgba(12,18,34,0.08)] transition-all duration-300 hover:shadow-[0_4px_16px_rgba(12,18,34,0.06),0_16px_36px_-12px_rgba(12,18,34,0.12)]">
-      {/* Ambient aurora lighting */}
-      <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent opacity-[0.08] blur-2xl animate-aurora" aria-hidden="true" />
-      <div className="pointer-events-none absolute -left-12 -bottom-16 h-44 w-44 rounded-full bg-positive opacity-[0.05] blur-2xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute right-8 top-8 h-24 w-24 rounded-full border border-accent/15 opacity-[0.08]" aria-hidden="true" />
+    <Card
+      padded={false}
+      className="relative overflow-hidden"
+      style={{ borderRadius: "var(--radius-hero)" }}
+    >
+      {/* A gold hairline across the top edge and a soft glow behind the corner.
+          Both are decoration only — they carry no state. */}
+      <span
+        className="pointer-events-none absolute left-[22px] right-[22px] top-0 h-px"
+        style={{ background: "linear-gradient(90deg, transparent, rgba(245,181,68,.75), transparent)" }}
+        aria-hidden="true"
+      />
+      <span
+        className="pointer-events-none absolute -right-8 -top-8 h-[210px] w-[210px]"
+        style={{ background: "radial-gradient(circle, rgba(245,181,68,.14), transparent 68%)" }}
+        aria-hidden="true"
+      />
 
-      <div key={valueKey} className="dashboard-value-transition relative min-w-0 px-5 pb-5 pt-5 sm:px-7 sm:pb-6 sm:pt-6">
-        <div className="flex min-w-0 items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold tracking-tight text-fg-soft">Balans</p>
-            <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} />
-              <span className={`text-xs font-semibold sm:text-sm ${facts.balance < 0 ? "text-negative-text" : "text-muted"}`}>{unit}</span>
-            </div>
-          </div>
-          <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[16px] bg-accent-soft text-accent-text border border-accent/15 shadow-xs transition-all duration-300 hover:scale-105 hover:shadow-sm">
-            <WalletIcon />
+      <div key={valueKey} className="dashboard-value-transition relative min-w-0 px-5 pb-4.5 pt-5">
+        <div className="flex items-center justify-between gap-3">
+          <Label>Umumiy balans</Label>
+          <button
+            type="button"
+            onClick={() => setBalanceHidden(!hidden)}
+            aria-pressed={hidden}
+            aria-label={hidden ? "Summalarni ko‘rsatish" : "Summalarni yashirish"}
+            className="-mr-1 grid h-7.5 w-7.5 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:text-fg-soft active:bg-surface-3 touch-manipulation"
+          >
+            <Icon name="eye" size={16} />
+          </button>
+        </div>
+
+        <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} />
+          <span className={`text-[13px] font-semibold ${facts.balance < 0 ? "text-negative-text" : "text-faint"}`}>
+            {unit}
           </span>
         </div>
 
-        {facts.hasBalanceBreakdown && onOpenBreakdown ? (
-          <BalanceDistributionBar groups={facts.balanceGroups} onOpen={onOpenBreakdown} />
+        {facts.hasBalanceBreakdown && positiveTotal > 0 ? (
+          <BalanceSegments groups={positive} total={positiveTotal} onOpen={onOpenBreakdown} />
         ) : null}
       </div>
 
-      <div className="relative grid min-w-0 grid-cols-2 border-t border-line bg-surface-2/60 backdrop-blur-xs">
-        <div className="group min-w-0 px-4 py-4.5 sm:px-6 sm:py-5 transition-colors duration-200 hover:bg-positive-soft/25">
-          <div className="flex min-w-0 items-center gap-2 text-positive-text">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-positive-soft shadow-xs transition-transform duration-200 group-hover:scale-110"><TrendIcon direction="up" /></span>
-            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Daromad</span>
-          </div>
-          <div className="mt-2 min-w-0 leading-tight">
-            <Money whole value={facts.income} size="lg" tone="positive" zeroSign="+" currency={unit} />
-          </div>
+      {footer.length >= 2 ? (
+        <div
+          className="relative grid border-t border-line"
+          style={{
+            background: "rgba(0,0,0,.22)",
+            gridTemplateColumns: `repeat(${footer.length}, minmax(0, 1fr))`,
+          }}
+        >
+          {footer.map((group, index) => (
+            <div key={group.key} className={`min-w-0 px-4 py-3 ${index ? "border-l border-line" : ""}`}>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className="h-[7px] w-[7px] shrink-0 rounded-[2px]"
+                  style={{ background: GROUP_FILL[group.key] ?? "var(--text-3)" }}
+                  aria-hidden="true"
+                />
+                <span className="truncate text-[10.5px] font-bold text-faint">{group.label}</span>
+              </span>
+              <p className="num mt-1 truncate text-[13px] font-bold">
+                {/* Compact form: three full amounts side by side do not fit at
+                    320px, and this row is a reference, not the primary figure. */}
+                {hidden ? "•••••" : compact(group.amount)}
+              </p>
+            </div>
+          ))}
         </div>
-        <div className="group min-w-0 border-l border-line px-4 py-4.5 sm:px-6 sm:py-5 transition-colors duration-200 hover:bg-negative-soft/25">
-          <div className="flex min-w-0 items-center gap-2 text-negative-text">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-negative-soft shadow-xs transition-transform duration-200 group-hover:scale-110"><TrendIcon direction="down" /></span>
-            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.07em]">Xarajat</span>
-          </div>
-          <div className="mt-2 min-w-0 leading-tight">
-            <Money whole value={-facts.expense} size="lg" tone="negative" currency={unit} />
-          </div>
-        </div>
-      </div>
+      ) : null}
     </Card>
   );
 }
 
-export function DashboardCategorySection({
-  title,
-  emptyText,
-  items,
-  currency,
-  hasMore,
-  tone,
+function BalanceSegments({
+  groups,
+  total,
+  onOpen,
 }: {
-  title: string;
-  emptyText: string;
-  items: DashboardCategory[];
-  currency: string;
-  hasMore: boolean;
-  tone: "income" | "expense";
+  groups: DashboardFacts["balanceGroups"];
+  total: number;
+  onOpen?: () => void;
 }) {
-  const max = Math.max(1, ...items.map((item) => item.amount));
-  const unit = currencyLabel(currency);
+  const bar = (
+    <div className="flex h-2 w-full gap-[3px]" role="presentation">
+      {groups.map((group) => (
+        <span
+          key={group.key}
+          className="h-full rounded transition-[width] duration-500 ease-out"
+          style={{
+            width: `${Math.max(3, (group.amount / total) * 100)}%`,
+            background: GROUP_FILL[group.key] ?? "var(--text-3)",
+          }}
+          aria-hidden="true"
+        />
+      ))}
+    </div>
+  );
+
+  if (!onOpen) return <div className="mt-4">{bar}</div>;
 
   return (
-    <Section
-      title={title}
-      action={
-        hasMore ? (
-          <Link
-            href="/transactions"
-            className="group inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-accent-text transition-colors hover:text-accent"
-          >
-            Barchasi <span className="inline-block transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true">→</span>
-          </Link>
-        ) : undefined
-      }
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Balans taqsimotini ochish"
+      className="mt-4 block w-full rounded-lg text-left transition-opacity active:opacity-70 touch-manipulation"
     >
-      {items.length ? (
-        <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_3px_rgba(12,18,34,0.03)] transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(12,18,34,0.06)]">
-          {items.map((item, index) => {
-            const progress = Math.min(100, (item.amount / max) * 100);
-            return (
-              <div
-                key={item.id ?? `${tone}-${item.name}`}
-                className={`group min-w-0 px-4 py-3.5 sm:px-4.5 transition-colors duration-150 hover:bg-surface-2/60 ${index ? "border-t border-line" : ""}`}
-              >
-                <div className="flex min-w-0 items-center justify-between gap-3">
-                  <span className="flex min-w-0 items-center gap-2.5 text-[13.5px] font-medium">
-                    <span
-                      className={`grid h-8.5 w-8.5 shrink-0 place-items-center rounded-xl text-[14px] shadow-xs transition-transform duration-200 group-hover:scale-110 ${tone === "income" ? "bg-positive-soft text-positive-text" : "bg-negative-soft text-negative-text"}`}
-                      aria-hidden="true"
-                    >
-                      {item.icon || "•"}
-                    </span>
-                    <span className="truncate font-medium text-fg transition-colors group-hover:text-fg-soft">{item.name}</span>
-                  </span>
-                  <span className="max-w-[48%] shrink-0 text-right leading-tight">
-                    <Money whole value={item.amount} size="sm" currency={unit} />
-                  </span>
-                </div>
-                <div
-                  role="progressbar"
-                  aria-label={`${item.name}: eng katta kategoriya summasining ${Math.round(progress)} foizi`}
-                  aria-valuenow={Math.round(progress)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface-3"
-                >
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ease-out group-hover:brightness-105 ${tone === "income" ? "bg-positive" : "bg-negative"}`}
-                    style={{ width: `${progress}%`, opacity: 0.82 }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-line bg-surface px-5 py-6 text-center shadow-[0_1px_2px_rgba(12,18,34,0.02)]">
-          <p className="text-[13px] text-muted">{emptyText}</p>
-        </div>
-      )}
-    </Section>
+      {bar}
+    </button>
   );
 }
 
+/* =========================== QUICK ACTIONS =========================== */
+
+export type QuickActionId = "income" | "expense" | "transfer";
+
+const QUICK_ACTIONS: Array<{
+  id: QuickActionId;
+  label: string;
+  icon: string;
+  color: string;
+  tint: string;
+}> = [
+  { id: "income", label: "Daromad", icon: "arrow-up", color: "var(--green)", tint: "var(--tint-green)" },
+  { id: "expense", label: "Xarajat", icon: "arrow-down", color: "var(--red)", tint: "var(--tint-red)" },
+  { id: "transfer", label: "Transfer", icon: "transfer", color: "var(--blue)", tint: "var(--tint-blue)" },
+];
+
+/**
+ * Replaces the floating add button ON THIS SCREEN. The FAB cost two taps —
+ * open the menu, then pick a direction — for the app's most frequent action;
+ * these tiles open the add sheet with the type already chosen.
+ *
+ * The fourth tile is a receipt. The Mini App has no camera intake yet (photos
+ * are parsed by the Telegram bot), so it links to the bot rather than opening
+ * a control that would do nothing.
+ */
+export function QuickActions({ onAdd }: { onAdd: (id: QuickActionId) => void }) {
+  const tile =
+    "flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-[17px] border border-line-strong py-3 transition-transform active:scale-[0.97] touch-manipulation";
+  const raised = { background: "var(--surface-raised)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.09)" };
+
+  return (
+    <div className="mt-5 grid grid-cols-4 gap-2">
+      {QUICK_ACTIONS.map((action) => (
+        <button key={action.id} type="button" onClick={() => onAdd(action.id)} className={tile} style={raised}>
+          <span
+            className="grid h-8 w-8 place-items-center rounded-[10px]"
+            style={{ background: action.tint, color: action.color }}
+            aria-hidden="true"
+          >
+            <Icon name={action.icon} size={16} />
+          </span>
+          <span className="text-[10px] font-bold text-fg-soft">{action.label}</span>
+        </button>
+      ))}
+      <Link href="/bot" className={tile} style={raised}>
+        <span
+          className="grid h-8 w-8 place-items-center rounded-[10px]"
+          style={{ background: "var(--tint-gold)", color: "var(--gold)" }}
+          aria-hidden="true"
+        >
+          <Icon name="camera" size={16} />
+        </span>
+        <span className="text-[10px] font-bold text-fg-soft">Chek</span>
+      </Link>
+    </div>
+  );
+}
+
+/* =========================== MONTH RESULT =========================== */
+
+export function MonthResult({ facts, currency }: { facts: DashboardFacts; currency: string }) {
+  const unit = currencyLabel(currency);
+  const cells = [
+    { label: "Daromad", value: facts.income, icon: "arrow-up", color: "var(--green)", tint: "var(--tint-green)", tone: "positive" as const },
+    { label: "Xarajat", value: facts.expense, icon: "arrow-down", color: "var(--red)", tint: "var(--tint-red)", tone: "negative" as const },
+  ];
+
+  return (
+    <div className="mt-4.5 grid min-w-0 grid-cols-2 gap-2.5">
+      {cells.map((cell) => (
+        <Card key={cell.label} padded={false} className="min-w-0 p-3.75">
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-lg"
+              style={{ background: cell.tint, color: cell.color }}
+              aria-hidden="true"
+            >
+              <Icon name={cell.icon} size={13} strokeWidth={2} />
+            </span>
+            <Label className="truncate">{cell.label}</Label>
+          </span>
+          <div className="mt-2 min-w-0 leading-tight">
+            <Money whole value={cell.value} size="lg" tone={cell.tone} currency={unit} />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+/* ========================= EXPENSE BREAKDOWN ========================= */
+
+const DONUT_COLORS = ["var(--gold)", "var(--blue)", "var(--green)", "var(--red)", "var(--text-4)"];
+
+/**
+ * Replaces the two stacked category lists (income + expense, each row with its
+ * own progress bar) that used to fill the rest of this screen. One chart answers
+ * "where did it go?"; the per-category detail belongs to Analytics and History.
+ */
+export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts; monthLabel: string }) {
+  const items = facts.expenseCategories.slice(0, 5).map((category, index) => ({
+    name: category.name,
+    share: category.share,
+    color: DONUT_COLORS[index] ?? "var(--text-4)",
+  }));
+
+  if (!items.length) return null;
+
+  const summary = items.map((i) => `${i.name} ${Math.round(i.share * 100)}%`).join(", ");
+
+  return (
+    <Card className="mt-3.5">
+      <Label>Xarajat taqsimoti · {monthLabel.split(" ")[0].toUpperCase()}</Label>
+      <figure className="mt-3.5 flex min-w-0 items-center gap-4">
+        <CategoryDonut items={items} />
+        <figcaption className="min-w-0 flex-1 space-y-2.5">
+          {items.map((item) => (
+            <span key={item.name} className="flex min-w-0 items-center gap-2.5">
+              <span
+                className="h-2 w-2 shrink-0 rounded-[2px]"
+                style={{ background: item.color }}
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{item.name}</span>
+              <span className="num shrink-0 text-[12.5px] font-bold text-faint">
+                {Math.round(item.share * 100)}%
+              </span>
+            </span>
+          ))}
+          <span className="sr-only">{summary}</span>
+        </figcaption>
+      </figure>
+    </Card>
+  );
+}
+
+/* ============================== LOADING ============================== */
+
 export function DashboardLoading() {
   return (
-    <div className="space-y-4 sm:space-y-5" aria-label="Ma’lumotlar yuklanmoqda" aria-busy="true">
-      <div className="card overflow-hidden">
-        <div className="p-5 sm:p-7">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <Skeleton className="h-4 w-14" />
-              <Skeleton className="mt-2 h-9 w-4/5 max-w-80" />
-            </div>
-            <Skeleton className="h-11 w-11 shrink-0 rounded-[14px]" />
-          </div>
+    <div aria-label="Ma’lumotlar yuklanmoqda" aria-busy="true">
+      <div className="mb-5 flex items-center gap-3">
+        <Skeleton className="h-9 w-9 rounded-xl" />
+        <div className="flex-1"><Skeleton className="h-2.5 w-20" /><Skeleton className="mt-1.5 h-4 w-32" /></div>
+        <Skeleton className="h-9 w-9 rounded-xl" />
+      </div>
+      <div className="card overflow-hidden" style={{ borderRadius: "var(--radius-hero)" }}>
+        <div className="px-5 pb-4.5 pt-5">
+          <Skeleton className="h-2.5 w-28" />
+          <Skeleton className="mt-2.5 h-10 w-4/5 max-w-72" />
+          <Skeleton className="mt-4 h-2 w-full rounded" />
         </div>
-        <div className="grid grid-cols-2 border-t border-line bg-surface-2/60">
-          <div className="p-4 sm:p-6"><Skeleton className="h-5 w-24" /><Skeleton className="mt-2 h-6 w-4/5" /></div>
-          <div className="border-l border-line p-4 sm:p-6"><Skeleton className="h-5 w-24" /><Skeleton className="mt-2 h-6 w-4/5" /></div>
+        <div className="grid grid-cols-3 border-t border-line">
+          {[0, 1, 2].map((cell) => (
+            <div key={cell} className={`px-4 py-3 ${cell ? "border-l border-line" : ""}`}>
+              <Skeleton className="h-2.5 w-12" />
+              <Skeleton className="mt-1.5 h-3.5 w-16" />
+            </div>
+          ))}
         </div>
       </div>
-      <div className="grid min-w-0 gap-5 md:grid-cols-2">
-        {[0, 1].map((column) => (
-          <div key={column}>
-            <Skeleton className="mb-3 h-5 w-44" />
-            <div className="overflow-hidden rounded-2xl border border-line bg-surface p-4">
-              {[0, 1, 2, 3].map((row) => (
-                <div key={row} className={row ? "border-t border-line py-4" : "pb-4"}>
-                  <div className="flex items-center justify-between gap-4"><Skeleton className="h-8 w-32" /><Skeleton className="h-4 w-24" /></div>
-                  <Skeleton className="mt-2 h-1.5 w-full" />
-                </div>
-              ))}
-            </div>
-          </div>
+      <div className="mt-5 grid grid-cols-4 gap-2">
+        {[0, 1, 2, 3].map((tile) => (
+          <Skeleton key={tile} className="h-16 rounded-[17px]" />
+        ))}
+      </div>
+      <div className="mt-4.5 grid grid-cols-2 gap-2.5">
+        {[0, 1].map((cell) => (
+          <div key={cell} className="card p-3.75"><Skeleton className="h-6 w-24" /><Skeleton className="mt-2 h-5 w-4/5" /></div>
         ))}
       </div>
     </div>

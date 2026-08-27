@@ -456,7 +456,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             parentId,
             name,
             type,
-            icon: str(d.icon, "•") ?? "•",
+            icon: str(d.icon, "dot") ?? "dot",
             isEssential: bool(d.isEssential, false),
             sortOrder: int(d.sortOrder, 50) ?? 50,
           })
@@ -487,7 +487,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
             name,
             type,
             parentId,
-            icon: d.icon !== undefined ? str(d.icon, "•") ?? "•" : existing[0].icon,
+            icon: d.icon !== undefined ? str(d.icon, "dot") ?? "dot" : existing[0].icon,
             isEssential: d.isEssential !== undefined ? bool(d.isEssential, existing[0].isEssential) : existing[0].isEssential,
             isActive: d.isActive !== undefined ? bool(d.isActive, existing[0].isActive) : existing[0].isActive,
           })
@@ -1457,7 +1457,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
           .values({
             userId,
             name,
-            icon: str(d.icon, "🎯") ?? "🎯",
+            icon: str(d.icon, "target") ?? "target",
             targetAmount,
             savedAmount,
             targetDate: isoDate(d.targetDate),
@@ -1510,7 +1510,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (d.targetDate && !targetDate) return { ok: false, message: "Sana noto'g'ri" };
         const updated = await db
           .update(goals)
-          .set({ name, icon: icon ?? "🎯", targetAmount, monthlyContribution, targetDate })
+          .set({ name, icon: icon ?? "target", targetAmount, monthlyContribution, targetDate })
           .where(and(eq(goals.id, id), eq(goals.userId, userId), eq(goals.isDeleted, false)))
           .returning({ id: goals.id });
         if (!updated[0]) return { ok: false, message: "Maqsad topilmadi yoki ruxsat yo'q" };
@@ -1803,7 +1803,7 @@ async function resolveCategoryId(userId: number, name: string | null, type: stri
   if (rows[0]) return rows[0].id;
   const created = await db
     .insert(categories)
-    .values({ userId, name, type: categoryType, icon: "•" })
+    .values({ userId, name, type: categoryType, icon: "dot" })
     .returning();
   return created[0].id;
 }

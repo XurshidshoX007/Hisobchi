@@ -15,12 +15,12 @@ test("normalizePath strips query/hash and normalizes root", () => {
   assert.equal(normalizePath("/"), "/");
 });
 
-test("Dashboard resolves to the three transaction directions", () => {
-  const actions = getFabActions({ pathname: "/" });
-  assert.deepEqual(ids({ pathname: "/" }), ["transaction:income", "transaction:expense", "transaction:transfer"]);
-  assert.equal(actions[0].label, "Daromad");
-  assert.equal(actions[1].label, "Xarajat");
-  assert.equal(actions[2].label, "Transfer");
+test("Dashboard exposes no FAB action — its quick-action tiles own creation", () => {
+  // The three directions moved onto the screen itself as tiles, which open the
+  // shared add sheet with the type preselected. A FAB here would be a second
+  // entry point to the same flow, one tap slower.
+  assert.deepEqual(ids({ pathname: "/" }), []);
+  assert.equal(getFabActions({ pathname: "/" }).length, 0);
 });
 
 test("History has no create action or FAB support", () => {
@@ -78,7 +78,6 @@ test("All create routes support the FAB", () => {
 
 test("action lists stay compact (never a giant menu)", () => {
   for (const ctx of [
-    { pathname: "/" },
     { pathname: "/plans" },
     { pathname: "/plans", tab: "income" as const },
     { pathname: "/more" },

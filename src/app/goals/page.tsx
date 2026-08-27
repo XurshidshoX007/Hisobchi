@@ -9,6 +9,8 @@ import { Badge, Card, EmptyState, Field, Money, Progress, Skeleton, TextInput } 
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { GoalView } from "@/lib/finance";
+import { Icon, IconPicker } from "@/components/icon";
+import { Ring } from "@/components/charts";
 
 export default function GoalsPage() {
   const { state, loading, mutate } = useFinance();
@@ -48,8 +50,14 @@ export default function GoalsPage() {
           {state.goals.map((g) => (
             <Card key={g.id}>
               <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-3 text-lg">{g.icon}</div>
+                <div className="flex min-w-0 items-center gap-3.5">
+                  <Ring
+                    value={g.progress}
+                    size={86}
+                    strokeWidth={13}
+                    color={g.onTrack ? "var(--green)" : "var(--gold)"}
+                    label={`${(g.progress * 100).toFixed(0)}%`}
+                  />
                   <div className="min-w-0">
                     <p className="truncate text-[15px] font-medium">{g.name}</p>
                     <p className="truncate text-[11.5px] text-muted">
@@ -76,11 +84,19 @@ export default function GoalsPage() {
                 </p>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex items-center gap-2 border-t border-hairline pt-3">
+                {g.requiredMonthly > 0 ? (
+                  <span className="min-w-0 flex-1 truncate text-[11.5px] text-faint">
+                    oyiga kerak <span className="num font-semibold text-fg-soft">{compact(g.requiredMonthly)}</span>
+                  </span>
+                ) : (
+                  <span className="min-w-0 flex-1" />
+                )}
                 <button
                   type="button"
                   onClick={() => setGoal(g)}
-                  className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-accent hover:text-accent-text active:bg-surface-3 touch-manipulation"
+                  className="min-h-9 shrink-0 rounded-xl px-3.5 text-[12px] font-bold transition-[filter] hover:brightness-105 active:scale-[0.98] touch-manipulation"
+                  style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
                 >
                   Jamg‘arma
                 </button>
@@ -106,7 +122,7 @@ export default function GoalsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon="🏆" title="Maqsadlar yo‘q." description="Pastdagi + tugmasi orqali maqsad qo‘shing." />
+        <EmptyState icon="goal" title="Maqsadlar yo‘q." description="Pastdagi + tugmasi orqali maqsad qo‘shing." />
       )}
 
       <GoalSheet open={sheet} onClose={closeSheet} editing={editing} />
@@ -122,7 +138,7 @@ export default function GoalsPage() {
 function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: GoalView | null }) {
   const { mutate, toast } = useFinance();
   const [name, setName] = useState("");
-  const [icon, setIcon] = useState("🎯");
+  const [icon, setIcon] = useState("target");
   const [targetAmount, setTargetAmount] = useState("");
   const [savedAmount, setSavedAmount] = useState("");
   const [targetDate, setTargetDate] = useState("");
@@ -134,7 +150,7 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
     if (!open) return;
     const draft = {
       name: editing?.name ?? "",
-      icon: editing?.icon ?? "🎯",
+      icon: editing?.icon ?? "target",
       targetAmount: editing ? formatAmountInput(String(editing.targetAmount)) : "",
       savedAmount: editing ? formatAmountInput(String(editing.savedAmount)) : "",
       targetDate: editing?.targetDate ?? "",
@@ -170,7 +186,7 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
       {
         id: editing?.id,
         name: name.trim(),
-        icon: icon || "🎯",
+        icon: icon || "target",
         targetAmount: target,
         savedAmount: parseAmountInput(savedAmount) ?? 0,
         targetDate: targetDate || null,
@@ -209,7 +225,8 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
       {target > 0 ? (
         <PreviewCard>
           <p className="min-w-0 break-words text-[13px] font-semibold">
-            {icon} {name.trim() || "Maqsad"}
+            <Icon name={icon} size={15} className="mr-1 inline-block align-[-2px] text-muted" />
+            {name.trim() || "Maqsad"}
           </p>
           <p className="num mt-0.5 break-words text-[12.5px] text-muted">
             {formatAmount(saved)} / {formatAmount(target)} so‘m
@@ -239,7 +256,7 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
             </div>
           )}
           <Field label="Ikona">
-            <TextInput value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🚗" />
+            <IconPicker value={icon} onChange={setIcon} />
           </Field>
         </div>
         <DateField value={targetDate} onChange={setTargetDate} label="Muddat (ixtiyoriy)" chips={false} />
@@ -292,7 +309,7 @@ function ContributeSheet({ goal, onClose }: { goal: GoalView | null; onClose: ()
     <FormSheet
       open={Boolean(goal)}
       onClose={onClose}
-      title={`${record.icon} ${record.name}`}
+      title={record.name}
       subtitle={`Qolgan ${formatAmount(record.remaining)} so‘m`}
       submitLabel="Saqlash"
       canSubmit={valid}

@@ -9,10 +9,13 @@ import {
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { formatAmount } from "@/lib/money";
+import { Icon } from "@/components/icon";
+import { useBalanceHidden } from "./providers";
 
 /** One body-level portal keeps every viewport layer out of transformed pages. */
 function BodyPortal({ children }: { children: ReactNode }) {
@@ -25,15 +28,19 @@ export function Card({
   className = "",
   padded = true,
   onClick,
+  style,
 }: {
   children: ReactNode;
   className?: string;
   padded?: boolean;
   onClick?: () => void;
+  /** For shape overrides a utility cannot express, e.g. the hero's radius. */
+  style?: CSSProperties;
 }) {
   return (
     <div
       onClick={onClick}
+      style={style}
       className={`card ${padded ? "p-4 sm:p-5" : ""} ${onClick ? "cursor-pointer transition-transform active:scale-[0.99]" : ""} ${className}`}
     >
       {children}
@@ -108,7 +115,7 @@ export function Button({
 }: {
   children: ReactNode;
   onClick?: () => void;
-  variant?: "primary" | "secondary" | "ghost" | "danger" | "positive";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "positive" | "positive-soft";
   size?: "sm" | "md" | "lg";
   className?: string;
   disabled?: boolean;
@@ -127,6 +134,9 @@ export function Button({
     ghost: "text-fg-soft hover:bg-surface-2 hover:text-fg",
     danger: "bg-negative text-negative-fg hover:opacity-90",
     positive: "bg-positive text-positive-fg hover:opacity-90",
+    // Tinted, not filled: used where the action sits INSIDE a list row and a
+    // solid green block would outweigh the row's own content.
+    "positive-soft": "border border-positive/40 bg-positive-soft text-positive-text hover:bg-positive-soft hover:border-positive/60",
   };
   const disabledClasses =
     "disabled:pointer-events-none disabled:active:scale-100 disabled:bg-surface-3 disabled:text-muted disabled:border-transparent disabled:shadow-none disabled:hover:bg-surface-3";
@@ -143,6 +153,21 @@ export function Button({
   );
 }
 
+/**
+ * Section label — the `.lb` role from the design system: 10px/700, uppercase,
+ * wide tracking. It names a block without competing with the number below it,
+ * so it is deliberately quiet and never grows to heading size.
+ */
+export function Label({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <span className={`lb ${className}`}>{children}</span>;
+}
+
+/**
+ * Status marker — the `.tag` role. Geometry lives in the `.tag` class so every
+ * marker in the product is the same size and shape; only the tone varies, and
+ * the tone is always backed by text (never colour alone), because a colour-only
+ * status is invisible to a colour-blind user.
+ */
 export function Badge({
   children,
   tone = "neutral",
@@ -158,13 +183,7 @@ export function Badge({
     accent: "bg-accent-soft text-accent-text",
     info: "bg-surface-3 text-fg-soft",
   };
-  return (
-    <span
-      className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold ${tones[tone]}`}
-    >
-      {children}
-    </span>
-  );
+  return <span className={`tag max-w-full truncate ${tones[tone]}`}>{children}</span>;
 }
 
 export function Money({
@@ -188,13 +207,17 @@ export function Money({
   currency?: string;
   compactSuffix?: string;
 }) {
+  const hidden = useBalanceHidden();
   const sizes: Record<string, string> = {
     xs: "text-xs",
     sm: "text-sm",
     md: "text-[14.5px] sm:text-[15px]",
     lg: "text-[clamp(0.95rem,4.5vw,1.125rem)] sm:text-xl",
     xl: "text-[22px] sm:text-3xl font-semibold",
-    hero: "text-[clamp(1.75rem,8.2vw,2.5rem)] font-bold leading-none tracking-tight",
+    // The balance. 42px at a 375px phone (the design's reference width), with
+    // line-height .9 so the figure reads as one solid block. Tracking is left
+    // to `.num` (-0.02em) rather than overridden by a utility here.
+    hero: "text-[clamp(2rem,11.2vw,2.625rem)] font-bold leading-[0.9]",
   };
   const tones: Record<string, string> = {
     default: "text-fg",
@@ -204,6 +227,22 @@ export function Money({
   };
   const magnitude = whole ? Math.round(Math.abs(value)) : Math.abs(value);
   const sign = signed ? (magnitude === 0 ? zeroSign ?? "" : value > 0 ? "+" : "−") : "";
+
+  /*
+   * Privacy toggle (the eye on the balance panel). Masking lives HERE rather
+   * than at each call site so "hide my balances" cannot be defeated by one
+   * screen that formats an amount its own way. The sign is masked too — a
+   * visible "−" would still leak that the account is overdrawn.
+   */
+  if (hidden) {
+    return (
+      <span className={`num ${sizes[size]} ${tones[tone]} break-words`} aria-label="Summa yashirilgan">
+        <span aria-hidden="true">•••••</span>
+        {currency ? <span className="ml-1 text-[0.62em] font-normal text-muted">{currency}</span> : null}
+      </span>
+    );
+  }
+
   return (
     <span className={`num ${sizes[size]} ${tones[tone]} break-words`}>
       {sign}
@@ -267,7 +306,8 @@ export function Segmented<T extends string>({
   value,
   onChange,
 }: {
-  options: Array<{ value: T; label: string }>;
+  /** `icon` is a key from the icon registry, drawn ahead of the label. */
+  options: Array<{ value: T; label: string; icon?: string }>;
   value: T;
   onChange: (value: T) => void;
 }) {
@@ -309,6 +349,7 @@ export function Segmented<T extends string>({
               }`}
               style={active ? { background: "var(--segmented-active)", color: "var(--segmented-active-fg)" } : undefined}
             >
+              {o.icon ? <Icon name={o.icon} size={14} className="mr-1.5 shrink-0" /> : null}
               {o.label}
             </button>
           );
@@ -455,8 +496,25 @@ type ContextualBottomSheetProps = {
   title: string;
   /** Optional one-line context under the title — same grammar in every sheet. */
   subtitle?: string;
+  /**
+   * Icon-registry key for the 36×36 tinted square left of the title. It states
+   * WHAT is being created (an expense, an account) so the title does not have
+   * to carry a "+" or repeat the direction in words.
+   */
+  icon?: string;
+  iconTone?: "positive" | "negative" | "accent" | "gold" | "neutral";
+  /** Small uppercase line above the title, e.g. "YANGI YOZUV". */
+  eyebrow?: string;
   children: ReactNode;
   footer?: ReactNode;
+};
+
+const SHEET_ICON_TONE: Record<string, { background: string; color: string }> = {
+  positive: { background: "var(--tint-green)", color: "var(--green)" },
+  negative: { background: "var(--tint-red)", color: "var(--red)" },
+  accent: { background: "var(--tint-blue)", color: "var(--blue)" },
+  gold: { background: "var(--tint-gold)", color: "var(--gold)" },
+  neutral: { background: "var(--tint-neutral)", color: "var(--fg-soft)" },
 };
 
 /**
@@ -473,6 +531,9 @@ export function ContextualBottomSheet({
   onExitComplete,
   title,
   subtitle,
+  icon,
+  iconTone = "neutral",
+  eyebrow,
   children,
   footer,
 }: ContextualBottomSheetProps) {
@@ -483,7 +544,7 @@ export function ContextualBottomSheet({
   const onExitCompleteRef = useRef(onExitComplete);
   const openRef = useRef(open);
   const exitNotifiedRef = useRef(false);
-  const contentRef = useRef({ title, subtitle, children, footer });
+  const contentRef = useRef({ title, subtitle, icon, iconTone, eyebrow, children, footer });
   const instanceIdRef = useRef(0);
   const titleId = useId();
   const subtitleId = useId();
@@ -494,7 +555,7 @@ export function ContextualBottomSheet({
   openRef.current = open;
   if (open) {
     exitNotifiedRef.current = false;
-    contentRef.current = { title, subtitle, children, footer };
+    contentRef.current = { title, subtitle, icon, iconTone, eyebrow, children, footer };
   }
 
   const completeExit = useCallback(() => {
@@ -650,21 +711,37 @@ export function ContextualBottomSheet({
             completeExit();
           }
         }}
-        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-2xl outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-[20px]"
+        style={{ background: "var(--sheet-gradient)", boxShadow: "var(--shadow-sheet)" }}
+        className="sheet-dialog relative z-10 flex max-h-[92dvh] flex-col overflow-hidden rounded-t-[30px] border border-line outline-none sm:max-h-[88dvh] sm:max-w-[520px] sm:rounded-t-[24px]"
       >
         <div className="shrink-0 px-5 pt-3 sm:hidden">
-          <div className="mx-auto h-1.5 w-10 rounded-full bg-line-strong" />
+          <div className="mx-auto h-[5px] w-[38px] rounded-full bg-white/20" />
         </div>
-        <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-3">
-          <div className="min-w-0 flex-1">
-            <h3 id={titleId} className="truncate text-[15px] font-semibold tracking-tight sm:text-base">
-              {content.title}
-            </h3>
-            {content.subtitle ? (
-              <p id={subtitleId} className="mt-0.5 truncate text-[11.5px] leading-snug text-muted">
-                {content.subtitle}
-              </p>
+        <div className="flex shrink-0 items-center justify-between gap-3 px-5.5 pb-3 pt-4.5">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {content.icon ? (
+              <span
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl"
+                style={SHEET_ICON_TONE[content.iconTone ?? "neutral"]}
+                aria-hidden="true"
+              >
+                <Icon name={content.icon} size={17} strokeWidth={2} />
+              </span>
             ) : null}
+            <div className="min-w-0 flex-1">
+              {content.eyebrow ? <span className="lb block">{content.eyebrow}</span> : null}
+              <h3
+                id={titleId}
+                className={`truncate text-[17px] font-bold tracking-[-0.02em] ${content.eyebrow ? "mt-0.5" : ""}`}
+              >
+                {content.title}
+              </h3>
+              {content.subtitle ? (
+                <p id={subtitleId} className="mt-0.5 truncate text-[11.5px] leading-snug text-muted">
+                  {content.subtitle}
+                </p>
+              ) : null}
+            </div>
           </div>
           <button
             type="button"
@@ -672,17 +749,17 @@ export function ContextualBottomSheet({
               if (open) onCloseRef.current();
             }}
             data-hit="expanded"
-            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-surface-3 hover:text-fg active:scale-[0.96] touch-manipulation"
+            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-neutral-soft text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-surface-3 hover:text-fg active:scale-[0.96] touch-manipulation"
             aria-label="Yopish"
           >
-            ✕
+            <Icon name="close" size={15} />
           </button>
         </div>
-        <div className="sheet-body min-h-0 flex-1 px-5 pb-4">
+        <div className="sheet-body min-h-0 flex-1 px-5.5 pb-4">
           <div className="sheet-form space-y-4 pb-2">{content.children}</div>
         </div>
         {content.footer ? (
-          <div className="sheet-footer-safe sheet-footer sticky bottom-0 shrink-0 border-t border-line bg-surface px-5 pt-4">
+          <div className="sheet-footer-safe sheet-footer sticky bottom-0 shrink-0 border-t border-line px-5.5 pt-4" style={{ background: "var(--sheet-gradient)" }}>
             <div className="flex min-w-0 flex-wrap gap-2.5 [&>*]:min-w-0">{content.footer}</div>
           </div>
         ) : (
@@ -710,7 +787,9 @@ export function EmptyState({
 }) {
   return (
     <div className="flat-card flex flex-col items-center gap-3 px-5 py-8 text-center sm:px-6 sm:py-10">
-      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-3 text-xl">{icon}</div>
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-3 text-muted">
+        <Icon name={icon} size={22} />
+      </div>
       <div className="max-w-[300px]">
         <p className="text-[15px] font-semibold">{title}</p>
         <p className="mx-auto mt-1 text-[13px] leading-relaxed text-muted">{description}</p>

@@ -11,6 +11,7 @@ import {
 } from "@/lib/transaction-filters";
 import { FilterButton, FilterRadioGroup, FilterSection } from "./filter-controls";
 import { ContextualBottomSheet, TextInput } from "./ui";
+import { Icon } from "@/components/icon";
 
 type FlatCategory = Omit<CategoryView, "children">;
 
@@ -113,7 +114,7 @@ export function TransactionFilter({
               className="flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 text-left text-[14px] transition-colors hover:border-line-strong hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-60 touch-manipulation"
             >
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-3" aria-hidden="true">
-                {filters.type === "transfer" ? "↔" : selectedCategory?.icon ?? "◎"}
+                <Icon name={filters.type === "transfer" ? "transfer" : selectedCategory?.icon} fallback="target" size={16} />
               </span>
               <span className="min-w-0 flex-1 truncate font-medium">
                 {filters.type === "transfer"
@@ -243,9 +244,7 @@ function CategoryOption({
         onChange={() => onSelect(value)}
         className="h-4 w-4 shrink-0 accent-accent"
       />
-      <span className="shrink-0" aria-hidden="true">
-        {icon}
-      </span>
+      <Icon name={icon} size={16} className="shrink-0" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
     </label>
   );

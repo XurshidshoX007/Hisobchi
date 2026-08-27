@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { Section, Skeleton } from "@/components/ui";
+import { Icon } from "@/components/icon";
 
 /**
  * MENU = NAVIGATION HUB (§37). It routes to secondary tools and nothing more.
@@ -12,12 +13,12 @@ import { Section, Skeleton } from "@/components/ui";
  * descriptions, no mini-dashboard: just icon + title + chevron per row.
  */
 const LINKS: Array<{ href: string; icon: string; title: string }> = [
-  { href: "/accounts", icon: "💳", title: "Hisoblar" },
-  { href: "/budgets", icon: "🎯", title: "Budjetlar" },
-  { href: "/debts", icon: "📋", title: "Qarzdorlik" },
-  { href: "/goals", icon: "🏆", title: "Maqsadlar" },
-  { href: "/bot", icon: "🤖", title: "Telegram bot" },
-  { href: "/settings", icon: "⚙️", title: "Sozlamalar" },
+  { href: "/accounts", icon: "card", title: "Hisoblar" },
+  { href: "/budgets", icon: "target", title: "Budjetlar" },
+  { href: "/debts", icon: "doc", title: "Qarzdorlik" },
+  { href: "/goals", icon: "goal", title: "Maqsadlar" },
+  { href: "/bot", icon: "telegram", title: "Telegram bot" },
+  { href: "/settings", icon: "settings", title: "Sozlamalar" },
 ];
 
 export default function MorePage() {
@@ -38,23 +39,34 @@ export default function MorePage() {
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
 
+  // A count is navigation information ("is there anything in there?"); a sum
+  // would be a second home for a number that already has one.
+  const counts: Record<string, number> = {
+    "/accounts": state.accounts.filter((a) => a.isActive).length,
+    "/budgets": state.budgets.length,
+    "/debts": state.debts.length,
+    "/goals": state.goals.length,
+  };
+  const links = LINKS.map((l) => ({ ...l, status: counts[l.href] ? String(counts[l.href]) : null }));
+
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-6">
       {/* No section-name headline: the profile header + menu list start at the
           top. The Menu route owns the profile header, not a "Menyu" title. */}
       <Section>
         <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-line rounded-2xl border border-line bg-surface">
-          {LINKS.map((l) => (
+          {links.map((l) => (
             <Link
               key={l.href}
               href={l.href}
               className="flex min-h-12 items-center gap-3 px-4 py-2 transition-colors hover:bg-surface-2 active:bg-surface-2 touch-manipulation"
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
-                {l.icon}
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-muted" aria-hidden="true">
+                <Icon name={l.icon} size={17} />
               </span>
               <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium">{l.title}</span>
-              <span className="shrink-0 text-muted" aria-hidden="true">›</span>
+              {l.status ? <span className="shrink-0 text-[12px] font-semibold text-faint">{l.status}</span> : null}
+              <Icon name="chevron-right" size={13} className="shrink-0 text-text-4" />
             </Link>
           ))}
         </nav>

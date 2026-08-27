@@ -36,8 +36,9 @@ import {
   quickAmountLabel,
   rankCategoryIds,
 } from "@/lib/form-kit";
-import { compact, todayISO } from "@/lib/money";
+import { compact, formatAmount, humanDate, todayISO } from "@/lib/money";
 import { ERRORS, LOADING } from "@/lib/copy";
+import { Icon } from "@/components/icon";
 
 /* ============================ Feedback ============================ */
 
@@ -81,6 +82,9 @@ export function FormSheet({
   onClose,
   title,
   subtitle,
+  icon,
+  iconTone,
+  eyebrow,
   submitLabel,
   submittingLabel = LOADING.saving,
   savedLabel = "Saqlandi ✓",
@@ -93,6 +97,10 @@ export function FormSheet({
   onClose: () => void;
   title: string;
   subtitle?: string;
+  /** Passed straight through to the sheet header — see ContextualBottomSheet. */
+  icon?: string;
+  iconTone?: "positive" | "negative" | "accent" | "gold" | "neutral";
+  eyebrow?: string;
   submitLabel: string;
   submittingLabel?: string;
   savedLabel?: string;
@@ -164,6 +172,9 @@ export function FormSheet({
       onClose={requestClose}
       title={title}
       subtitle={subtitle}
+      icon={icon}
+      iconTone={iconTone}
+      eyebrow={eyebrow}
       footer={
         <button
           type="button"
@@ -172,9 +183,21 @@ export function FormSheet({
           aria-busy={status === "saving"}
           // §15: a long Uzbek CTA ("Kutilayotgan daromadni saqlash") wraps
           // inside the footer instead of widening it past the viewport.
-          className="inline-flex min-h-12 w-full min-w-0 max-w-full flex-1 select-none items-center justify-center gap-2 break-words rounded-full bg-primary px-5 py-2 text-center text-[15px] font-semibold leading-tight text-primary-fg shadow-sm transition-[background-color,transform] duration-200 hover:bg-primary-hover active:scale-[0.98] disabled:pointer-events-none disabled:bg-surface-3 disabled:text-muted disabled:shadow-none touch-manipulation"
+          style={
+            canSubmit && !busy
+              ? {
+                  background: "var(--gold-gradient)",
+                  color: "var(--gold-on)",
+                  // The glow is what makes the CTA read as the one live control
+                  // on a dark sheet; it is dropped the moment the button is
+                  // disabled so a dead button never looks pressable.
+                  boxShadow: "0 14px 28px -12px rgba(245,181,68,.55)",
+                }
+              : undefined
+          }
+          className="inline-flex min-h-[54px] w-full min-w-0 max-w-full flex-1 select-none items-center justify-center gap-2 break-words rounded-[18px] bg-primary px-5 py-2 text-center text-[15px] font-extrabold leading-tight text-primary-fg transition-[filter,transform] duration-200 hover:brightness-105 active:scale-[0.98] disabled:pointer-events-none disabled:bg-surface-3 disabled:text-muted disabled:shadow-none touch-manipulation"
         >
-          {status === "saved" ? <CheckMark /> : null}
+          {status === "saved" ? <CheckMark /> : <Icon name="check" size={17} className="shrink-0" />}
           {label}
         </button>
       }
@@ -397,11 +420,7 @@ export function ChoiceGrid<T extends string>({
             }`}
           >
             <span className="flex w-full min-w-0 items-center justify-center gap-1.5">
-              {option.icon ? (
-                <span className="shrink-0" aria-hidden="true">
-                  {option.icon}
-                </span>
-              ) : null}
+              {option.icon ? <Icon name={option.icon} size={15} className="shrink-0" /> : null}
               <span className="min-w-0 break-words leading-tight">{option.label}</span>
             </span>
             {option.description ? (
@@ -444,17 +463,44 @@ export function CompactSegmented<T extends string>({
   label?: string;
   ariaLabel?: string;
 }) {
-  return (
-    <ChoiceGrid
-      options={options}
-      value={value}
-      onChange={onChange}
-      label={label}
-      ariaLabel={ariaLabel}
-      size="sm"
-      columns={options.length >= 3 ? 3 : 2}
-    />
+  const onKeyDown = useRovingChoice();
+  // Roving focus: ONE tab stop for the group, so a keyboard user arrows between
+  // options instead of tabbing through every one of them.
+  const focusIndex = Math.max(0, options.findIndex((o) => o.value === value));
+
+  const body = (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel ?? label}
+      className="flex min-w-0 gap-1 rounded-[15px] p-1"
+      style={{ background: "var(--surface-sunken)" }}
+    >
+      {options.map((option, index) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={index === focusIndex ? 0 : -1}
+            onKeyDown={onKeyDown}
+            onClick={() => onChange(option.value)}
+            style={active ? { background: "var(--gold-gradient)", color: "var(--gold-on)" } : undefined}
+            className={`flex min-h-10 flex-1 min-w-0 touch-manipulation select-none items-center justify-center gap-1.5 rounded-[11px] px-2 text-[12.5px] transition-colors ${
+              active ? "font-extrabold" : "font-semibold text-fg-soft hover:text-fg"
+            }`}
+          >
+            {option.icon ? <Icon name={option.icon} size={14} className="shrink-0" /> : null}
+            <span className="min-w-0 truncate leading-tight">{option.label}</span>
+          </button>
+        );
+      })}
+    </div>
   );
+
+  if (!label) return body;
+  return <FormGroup label={label}>{body}</FormGroup>;
 }
 
 /** Collapsed “QO‘SHIMCHA” block (§6/§24). Never open by default. */
@@ -531,10 +577,20 @@ export function Chip({
       aria-pressed={active}
       aria-label={ariaLabel}
       title={title}
-      className={`inline-flex min-h-11 min-w-0 max-w-full touch-manipulation items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition-colors ${
+      style={
         active
-          ? "border-transparent bg-accent-soft font-semibold text-accent-text ring-2 ring-inset ring-accent"
-          : "border-line bg-surface text-fg-soft hover:border-line-strong hover:text-fg active:bg-surface-3"
+          ? {
+              background: "linear-gradient(160deg, rgba(245,181,68,.22), rgba(245,181,68,.08))",
+              borderColor: "rgba(245,181,68,.45)",
+              color: "var(--gold-text)",
+            }
+          : undefined
+      }
+      // 44px minimum height is a touch-target rule, not a style choice.
+      className={`inline-flex min-h-11 min-w-0 max-w-full touch-manipulation items-center gap-1.5 rounded-[var(--radius-chip)] border px-3.5 text-[13px] transition-colors ${
+        active
+          ? "font-bold"
+          : "border-line bg-surface font-medium text-fg-soft hover:border-line-strong hover:text-fg active:bg-surface-3"
       }`}
     >
       {icon ? (
@@ -577,6 +633,7 @@ export function AmountField({
   autoFocus = false,
   quick = true,
   placeholder = "0",
+  variant = "field",
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -586,6 +643,12 @@ export function AmountField({
   autoFocus?: boolean;
   quick?: boolean;
   placeholder?: string;
+  /**
+   * "slab" is the hero treatment used by the daily add sheet: a centred, raised
+   * block where the amount IS the screen. Everywhere else the amount is one
+   * field among several, so it stays a normal labelled input.
+   */
+  variant?: "field" | "slab";
 }) {
   const id = useId();
   const errorId = `${id}-error`;
@@ -600,6 +663,75 @@ export function AmountField({
       : digits > 9
         ? "text-[26px] sm:text-[28px]"
         : "text-[31px] sm:text-[33px]";
+  const quickLadder = quick ? (
+    // §13: the quick ladder wraps below the field — never a second horizontal
+    // scroller, never clutter inside the hero box.
+    <div className={`flex min-w-0 flex-wrap gap-1.5 ${variant === "slab" ? "mt-3.5 justify-center" : "mt-2"}`}>
+      {QUICK_AMOUNTS.map((amount) => (
+        <button
+          key={amount}
+          type="button"
+          onClick={() => onChange(addQuickAmount(value, amount))}
+          className="num min-h-9 min-w-0 max-w-full touch-manipulation rounded-full border border-line bg-surface-2 px-3.5 text-[12px] font-semibold text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:scale-95"
+        >
+          {quickAmountLabel(amount)}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  if (variant === "slab") {
+    return (
+      <div className="min-w-0">
+        <div
+          onClick={() => inputRef.current?.focus()}
+          className={`min-w-0 cursor-text rounded-3xl border p-5.5 text-center transition-[border-color] duration-150 ${
+            error ? "border-negative" : "border-line-strong"
+          }`}
+          style={{ background: "var(--surface-raised)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.13)" }}
+        >
+          <label htmlFor={id} className="lb block">
+            {label}
+          </label>
+          {/* The input is sized to the sheet, not to the text, so a long sum
+              shrinks in place instead of pushing the slab sideways. */}
+          <div className="mt-2.5 flex min-w-0 items-baseline justify-center gap-1.5">
+            <input
+              ref={inputRef}
+              id={id}
+              value={value}
+              onChange={(e) => onChange(formatAmountInput(e.target.value))}
+              inputMode="decimal"
+              enterKeyHint="done"
+              autoComplete="off"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
+              placeholder={placeholder}
+              autoFocus={autoFocus}
+              size={1}
+              className={`num min-w-0 max-w-full bg-transparent text-center font-bold leading-[0.9] outline-none placeholder:font-bold placeholder:text-faint ${
+                digits > 12 ? "text-[28px]" : digits > 9 ? "text-[36px]" : "text-[46px]"
+              }`}
+              style={{ width: `${Math.max(1, value.length || 1)}ch` }}
+            />
+            {currency ? <span className="shrink-0 text-[13px] font-semibold text-faint">{currency}</span> : null}
+          </div>
+          {/* Live magnitude readout — the cheapest "did I type the right number
+              of zeros?" check there is. */}
+          <p className="num mt-1.5 h-4 text-[11.5px] font-bold" style={{ color: "var(--gold-text)" }} aria-hidden="true">
+            {parsed !== null && parsed >= 1_000 ? `≈ ${compact(parsed)}` : ""}
+          </p>
+          {quickLadder}
+        </div>
+        {error ? (
+          <p id={errorId} className="mt-1.5 text-center text-[11.5px] font-medium leading-snug text-negative-text">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="min-w-0">
       <div className="mb-1.5 flex min-w-0 items-baseline justify-between gap-2">
@@ -662,22 +794,7 @@ export function AmountField({
           ) : null}
         </div>
       </div>
-      {quick ? (
-        // §13: the quick ladder wraps below the field — never a second
-        // horizontal scroller, never clutter inside the hero box.
-        <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
-          {QUICK_AMOUNTS.map((amount) => (
-            <button
-              key={amount}
-              type="button"
-              onClick={() => onChange(addQuickAmount(value, amount))}
-              className="num min-h-9 min-w-0 max-w-full touch-manipulation rounded-full border border-line bg-surface-2 px-3.5 text-[12px] font-semibold text-fg-soft transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-text active:scale-95"
-            >
-              {quickAmountLabel(amount)}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {quickLadder}
       {error ? (
         <p id={errorId} className="mt-1.5 text-[11.5px] font-medium leading-snug text-negative-text">
           {error}
@@ -756,7 +873,7 @@ export function CategoryPicker({
           {ranked.map((c) => (
             <Chip
               key={c.id}
-              icon={c.icon}
+              icon={<Icon name={c.icon} size={15} />}
               title={c.name}
               active={String(c.id) === value}
               onClick={() => onChange(String(c.id))}
@@ -790,7 +907,7 @@ export function CategoryPicker({
                     : "hover:bg-surface-3"
                 }`}
               >
-                <span aria-hidden="true">{c.icon}</span>
+                <Icon name={c.icon} size={16} className="shrink-0" />
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
               </button>
             ))}
@@ -812,18 +929,88 @@ export function DateField({
   label = "Sana",
   error,
   chips = true,
+  variant = "field",
 }: {
   value: string;
   onChange: (next: string) => void;
   label?: string;
   error?: string | null;
   chips?: boolean;
+  /**
+   * "inline" collapses to a single summary line ("Bugun ›") that expands into
+   * the same chip row on tap — the pattern CategoryPicker already uses for
+   * "Barchasi →". It exists so the add sheet can put date and account on ONE
+   * row instead of two full-width blocks.
+   */
+  variant?: "field" | "inline";
 }) {
   const today = todayISO();
   const quick = useMemo(() => dateQuickChips(today), [today]);
   const isQuick = quick.some((chip) => chip.value === value);
   const [showCalendar, setShowCalendar] = useState(!chips || !isQuick);
+  const [expanded, setExpanded] = useState(false);
   const id = useId();
+
+  if (variant === "inline") {
+    const summary = quick.find((chip) => chip.value === value)?.label ?? humanDate(value);
+    return (
+      <div className="min-w-0">
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          aria-expanded={expanded}
+          className="flex min-h-11 w-full min-w-0 items-center justify-end gap-1.5 text-right touch-manipulation"
+        >
+          <span className="min-w-0 truncate text-[13.5px] font-semibold">{summary}</span>
+          <Icon
+            name="chevron-down"
+            size={13}
+            className={`shrink-0 text-faint transition-transform ${expanded ? "rotate-180" : ""}`}
+          />
+        </button>
+        {expanded ? (
+          <div className="mt-2">
+            <ChipRow>
+              {quick.map((chip) => (
+                <Chip
+                  key={chip.value}
+                  active={value === chip.value && !showCalendar}
+                  onClick={() => {
+                    onChange(chip.value);
+                    setShowCalendar(false);
+                    setExpanded(false);
+                  }}
+                >
+                  {chip.label}
+                </Chip>
+              ))}
+              <Chip
+                icon={<Icon name="calendar" size={15} />}
+                active={showCalendar}
+                onClick={() => setShowCalendar(true)}
+                ariaLabel="Boshqa sanani tanlash"
+              >
+                Boshqa
+              </Chip>
+            </ChipRow>
+            {showCalendar ? (
+              <div className="mt-2">
+                <TextInput
+                  id={id}
+                  type="date"
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  aria-label={label}
+                  aria-invalid={error ? true : undefined}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <FieldError>{error}</FieldError>
+      </div>
+    );
+  }
 
   return (
     <div className="min-w-0">
@@ -842,7 +1029,7 @@ export function DateField({
               {chip.label}
             </Chip>
           ))}
-          <Chip icon="📅" active={showCalendar} onClick={() => setShowCalendar(true)} ariaLabel="Boshqa sanani tanlash">
+          <Chip icon={<Icon name="calendar" size={15} />} active={showCalendar} onClick={() => setShowCalendar(true)} ariaLabel="Boshqa sanani tanlash">
             Boshqa
           </Chip>
         </ChipRow>
@@ -867,12 +1054,12 @@ export function DateField({
 /* ============================ Account ============================ */
 
 export const ACCOUNT_TYPE_ICON: Record<string, string> = {
-  cash: "💵",
-  uzcard: "💳",
-  humo: "💳",
-  bank: "🏦",
-  ewallet: "📱",
-  other: "•",
+  cash: "wallet",
+  uzcard: "card",
+  humo: "card",
+  bank: "bank",
+  ewallet: "phone",
+  other: "dot",
 };
 
 /**
@@ -886,6 +1073,7 @@ export function AccountPicker({
   excludeId,
   error,
   includeArchivedId,
+  variant = "field",
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -893,6 +1081,8 @@ export function AccountPicker({
   excludeId?: string;
   error?: string | null;
   includeArchivedId?: number | null;
+  /** See DateField — collapses to one summary line for the add sheet's meta row. */
+  variant?: "field" | "inline";
 }) {
   const { state } = useFinance();
   const accounts = useMemo(
@@ -908,6 +1098,18 @@ export function AccountPicker({
   useEffect(() => {
     if (onlyId && value !== onlyId) onChange(onlyId);
   }, [onlyId, value, onChange]);
+
+  if (variant === "inline") {
+    return (
+      <InlineAccountPicker
+        options={options}
+        value={value}
+        onChange={onChange}
+        selected={selected}
+        error={error}
+      />
+    );
+  }
 
   if (options.length === 0) {
     return (
@@ -927,9 +1129,7 @@ export function AccountPicker({
       <div className="min-w-0">
         <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
         <p className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-[13.5px]">
-          <span className="shrink-0" aria-hidden="true">
-            {ACCOUNT_TYPE_ICON[only.type] ?? "•"}
-          </span>
+          <Icon name={ACCOUNT_TYPE_ICON[only.type]} size={15} className="shrink-0" />
           <span className="min-w-0 break-words font-medium">{only.name}</span>
         </p>
         <FieldError>{error}</FieldError>
@@ -947,7 +1147,7 @@ export function AccountPicker({
         {options.map((a) => (
           <Chip
             key={a.id}
-            icon={ACCOUNT_TYPE_ICON[a.type] ?? "•"}
+            icon={<Icon name={ACCOUNT_TYPE_ICON[a.type]} size={15} />}
             title={a.name}
             active={String(a.id) === value}
             onClick={() => onChange(String(a.id))}
@@ -964,6 +1164,106 @@ export function AccountPicker({
 /* ============================ Note ============================ */
 
 /** §12: notes are optional and collapsed — never a textarea on quick add. */
+/**
+ * The collapsed account summary: a miniature of the real card material, the
+ * account name and its balance. Tapping expands the same chip row the full
+ * picker uses, so there is one selection mechanism, not two.
+ */
+function InlineAccountPicker({
+  options,
+  value,
+  onChange,
+  selected,
+  error,
+}: {
+  options: Array<{ id: number; name: string; type: string; currentBalance: number }>;
+  value: string;
+  onChange: (next: string) => void;
+  selected: { id: number; name: string; type: string; currentBalance: number } | null;
+  error?: string | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const account = selected ?? options[0] ?? null;
+  if (!account) {
+    return <p className="text-[12.5px] leading-snug text-muted">Faol hisob yo‘q</p>;
+  }
+
+  return (
+    <div className="min-w-0">
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        disabled={options.length <= 1}
+        className="flex min-h-11 w-full min-w-0 items-center gap-2.5 text-left disabled:cursor-default touch-manipulation"
+      >
+        {/* A 40×28 stand-in for the card itself — the same metal gradient and
+            gold chip used on the Accounts screen, so the two read as one object. */}
+        <span
+          className="relative grid h-7 w-10 shrink-0 place-items-start overflow-hidden rounded-[5px] p-1"
+          style={{ background: "var(--card-metal)" }}
+          aria-hidden="true"
+        >
+          <span className="h-1.5 w-2 rounded-[1.5px]" style={{ background: "var(--chip-gold)" }} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13.5px] font-semibold leading-tight">{account.name}</span>
+          <span className="num block truncate text-[11px] font-semibold leading-tight text-faint">
+            {formatAmount(account.currentBalance)}
+          </span>
+        </span>
+        {options.length > 1 ? (
+          <Icon
+            name="chevron-down"
+            size={13}
+            className={`shrink-0 text-faint transition-transform ${expanded ? "rotate-180" : ""}`}
+          />
+        ) : null}
+      </button>
+      {expanded ? (
+        <div className="mt-2">
+          <ChipRow>
+            {options.map((a) => (
+              <Chip
+                key={a.id}
+                icon={<Icon name={ACCOUNT_TYPE_ICON[a.type]} size={15} />}
+                title={a.name}
+                active={String(a.id) === value}
+                onClick={() => {
+                  onChange(String(a.id));
+                  setExpanded(false);
+                }}
+              >
+                {a.name}
+              </Chip>
+            ))}
+          </ChipRow>
+        </div>
+      ) : null}
+      <FieldError>{error}</FieldError>
+    </div>
+  );
+}
+
+/**
+ * §11/§13 — account and date on ONE strip instead of two full-width blocks.
+ * Both are smart-defaulted (last used account, today), so they are corrections
+ * rather than decisions and do not deserve a section each. This is the single
+ * biggest height saving in the add sheet.
+ */
+export function MetaRow({ account, date }: { account: ReactNode; date: ReactNode }) {
+  return (
+    <div
+      className="flex min-w-0 items-center gap-3 rounded-[18px] px-3.5 py-1.5"
+      style={{ background: "var(--tint-neutral)" }}
+    >
+      <div className="min-w-0 flex-[3]">{account}</div>
+      <div className="h-6 w-px shrink-0" style={{ background: "var(--border)" }} aria-hidden="true" />
+      <div className="min-w-0 flex-[2]">{date}</div>
+    </div>
+  );
+}
+
 export function NoteField({
   value,
   onChange,
@@ -1027,8 +1327,8 @@ export function ChoiceList({
           className="flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium transition-colors hover:border-line-strong hover:bg-surface-3 active:bg-surface-3 touch-manipulation"
         >
           {option.icon ? (
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-3 text-base" aria-hidden="true">
-              {option.icon}
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-3 text-muted" aria-hidden="true">
+              <Icon name={option.icon} size={17} />
             </span>
           ) : null}
           <span className="min-w-0 flex-1">

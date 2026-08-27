@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import type { AccountView, CategoryView } from "@/lib/finance";
+import { Icon, IconPicker } from "@/components/icon";
 
 const TYPES = [
   { value: "cash", label: "Naqd pul" },
@@ -28,13 +29,21 @@ const TYPES = [
   { value: "other", label: "Boshqa" },
 ];
 
+/** Icon-container tint per account family. */
+const ACCOUNT_TONE: Record<string, { background: string; color: string }> = {
+  cash: { background: "var(--tint-green)", color: "var(--green)" },
+  bank: { background: "var(--tint-gold)", color: "var(--gold)" },
+  ewallet: { background: "var(--tint-blue)", color: "var(--blue)" },
+  other: { background: "var(--tint-neutral)", color: "var(--fg-soft)" },
+};
+
 const TYPE_ICON: Record<string, string> = {
-  cash: "💵",
-  uzcard: "💳",
-  humo: "💳",
-  bank: "🏦",
-  ewallet: "📱",
-  other: "•",
+  cash: "wallet",
+  uzcard: "card",
+  humo: "card",
+  bank: "bank",
+  ewallet: "phone",
+  other: "dot",
 };
 
 export default function AccountsPage() {
@@ -88,8 +97,8 @@ export default function AccountsPage() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: "accounts", label: "💳 Hisoblar" },
-            { value: "categories", label: "📂 Kategoriyalar" },
+            { value: "accounts", label: "Hisoblar", icon: "card" },
+            { value: "categories", label: "Kategoriyalar", icon: "tag" },
           ]}
         />
       </div>
@@ -102,9 +111,27 @@ export default function AccountsPage() {
             {state.accounts.map((a) => (
               <div key={a.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-3 text-base" aria-hidden="true">
-                    {TYPE_ICON[a.type] ?? "•"}
-                  </div>
+                  {/* A card-type account is shown in the card's own material —
+                      the metal gradient and gold chip — so the list reads as the
+                      physical things it represents. Everything else gets a
+                      tinted icon. */}
+                  {a.type === "uzcard" || a.type === "humo" ? (
+                    <span
+                      className="relative grid h-[29px] w-[42px] shrink-0 place-items-start overflow-hidden rounded-md border border-white/10 p-1.5"
+                      style={{ background: "var(--card-metal)" }}
+                      aria-hidden="true"
+                    >
+                      <span className="h-2 w-2.5 rounded-[2px]" style={{ background: "var(--chip-gold)" }} />
+                    </span>
+                  ) : (
+                    <span
+                      className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-xl"
+                      style={ACCOUNT_TONE[a.type] ?? ACCOUNT_TONE.other}
+                      aria-hidden="true"
+                    >
+                      <Icon name={TYPE_ICON[a.type] ?? "dot"} size={19} />
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14.5px] font-medium">{a.name}</p>
                     <p className="truncate text-[11.5px] text-muted">
@@ -145,7 +172,7 @@ export default function AccountsPage() {
             ))}
           </div>
         ) : (
-          <EmptyState icon="💳" title="Hisoblar yo‘q." description="Pastdagi + tugmasi orqali hisob qo‘shing." />
+          <EmptyState icon="card" title="Hisoblar yo‘q." description="Pastdagi + tugmasi orqali hisob qo‘shing." />
         )
       ) : (
         <div className="space-y-4">
@@ -200,7 +227,7 @@ function CategoryRow({ node, onEdit }: { node: CategoryView; onEdit: (category: 
   return (
     <div className="py-3">
       <div className="flex items-center gap-3">
-        <span className="text-base">{node.icon}</span>
+        <Icon name={node.icon} size={17} className="shrink-0 text-muted" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-medium">{node.name}</p>
           {node.isEssential ? <p className="text-[11px] text-muted">Majburiy</p> : null}
@@ -224,7 +251,7 @@ function CategoryRow({ node, onEdit }: { node: CategoryView; onEdit: (category: 
         <div className="mt-2 ml-7 space-y-1.5 border-l-2 border-line pl-3">
           {node.children.map((ch) => (
             <div key={ch.id} className="flex items-center gap-2">
-              <span className="text-sm">{ch.icon}</span>
+              <Icon name={ch.icon} size={15} className="shrink-0 text-muted" />
               <span className="flex-1 truncate text-[13px] text-fg-soft">{ch.name}</span>
               {ch.isEssential ? <Badge tone="neutral">Majburiy</Badge> : null}
               <button type="button" onClick={() => onEdit(ch)} className="min-h-8 px-1.5 text-[11px] font-medium text-accent-text">
@@ -348,7 +375,7 @@ function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () 
     const draft = {
       name: editing?.name ?? "",
       type: editing?.type ?? "expense",
-      icon: editing?.icon ?? "•",
+      icon: editing?.icon ?? "dot",
       parentId: editing?.parentId ? String(editing.parentId) : "",
       isEssential: editing?.isEssential ?? false,
     };
@@ -414,8 +441,8 @@ function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () 
 
       <AdvancedSection>
         <FormRow>
-          <Field label="Ikona (emoji)">
-            <TextInput value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🧸" />
+          <Field label="Ikona">
+            <IconPicker value={icon} onChange={setIcon} />
           </Field>
           <Field label="Muhimlik">
             <Select value={isEssential ? "1" : "0"} onChange={(e) => setIsEssential(e.target.value === "1")}>
@@ -429,7 +456,7 @@ function CategorySheet({ open, onClose, editing }: { open: boolean; onClose: () 
             <option value="">Yuqori daraja</option>
             {parents.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.icon} {p.name}
+                {p.name}
               </option>
             ))}
           </Select>

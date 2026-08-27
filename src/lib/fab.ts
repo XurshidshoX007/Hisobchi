@@ -58,12 +58,10 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
 
   switch (path) {
     case "/":
-      // Dashboard — ONE transaction entry point, three directions.
-      return [
-        { id: "transaction", label: "Daromad", icon: "➕", description: "Pul keldi", type: "income" },
-        { id: "transaction", label: "Xarajat", icon: "➖", description: "Pul ketdi", type: "expense" },
-        { id: "transaction", label: "Transfer", icon: "↔️", description: "Hisoblar orasida", type: "transfer" },
-      ];
+      // Dashboard owns quick-action tiles instead (see <QuickActions>). They
+      // open the same add sheet with the direction preselected, so a FAB here
+      // would be a second entry point to the same flow — one tap slower.
+      return [];
 
     case "/transactions":
       // History is read/filter/edit/delete. Dashboard owns transaction create.
@@ -71,13 +69,13 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
 
     case "/plans":
       if (ctx.tab === "income") {
-        return [{ id: "expected_income", label: "Kutilayotgan daromad", icon: "💵" }];
+        return [{ id: "expected_income", label: "Kutilayotgan daromad", icon: "wallet" }];
       }
       if (ctx.tab === "cashflow") {
         // Cash-flow is analysis: no direct create action, no misleading entry.
         return [];
       }
-      return [{ id: "payment_plan", label: "To‘lov rejasi", icon: "📌" }];
+      return [{ id: "payment_plan", label: "To‘lov rejasi", icon: "pin" }];
 
     case "/analytics":
       // Analytics is interpretation only. No create control is rendered here.
@@ -86,26 +84,26 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
     case "/more":
       // Menu = secondary tools. Only entities that actually live here.
       return [
-        { id: "account", label: "Hisob", icon: "💳", description: "Karta, naqd, bank" },
-        { id: "debt", label: "Qarz", icon: "💰", description: "Qarzdorman / qarzdor" },
-        { id: "goal", label: "Maqsad", icon: "🎯", description: "Jamg‘arma rejasi" },
-        { id: "budget", label: "Budjet", icon: "📊", description: "Oylik limit" },
-        { id: "category", label: "Kategoriya", icon: "🏷️", description: "Daromad / xarajat" },
+        { id: "account", label: "Hisob", icon: "card", description: "Karta, naqd, bank" },
+        { id: "debt", label: "Qarz", icon: "doc", description: "Qarzdorman / qarzdor" },
+        { id: "goal", label: "Maqsad", icon: "goal", description: "Jamg‘arma rejasi" },
+        { id: "budget", label: "Budjet", icon: "target", description: "Oylik limit" },
+        { id: "category", label: "Kategoriya", icon: "tag", description: "Daromad / xarajat" },
       ];
 
     case "/accounts":
       return ctx.accountsTab === "categories"
-        ? [{ id: "category", label: "Kategoriya", icon: "🏷️" }]
-        : [{ id: "account", label: "Hisob", icon: "💳" }];
+        ? [{ id: "category", label: "Kategoriya", icon: "tag" }]
+        : [{ id: "account", label: "Hisob", icon: "card" }];
 
     case "/debts":
-      return [{ id: "debt", label: "Qarz", icon: "💰" }];
+      return [{ id: "debt", label: "Qarz", icon: "doc" }];
 
     case "/goals":
-      return [{ id: "goal", label: "Maqsad", icon: "🎯" }];
+      return [{ id: "goal", label: "Maqsad", icon: "goal" }];
 
     case "/budgets":
-      return [{ id: "budget", label: "Budjet", icon: "📊" }];
+      return [{ id: "budget", label: "Budjet", icon: "target" }];
 
     default:
       return [];

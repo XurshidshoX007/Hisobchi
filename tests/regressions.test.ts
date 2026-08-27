@@ -231,9 +231,9 @@ test("the dashboard hero states only balance and current-month real movement (§
   // The month context appears once above the card; labels do not repeat
   // "current", "real", or "this month" beside every amount.
   assert.doesNotMatch(dashboard, /REAL · |Joriy real balans|Bu oy · daromad|Bu oy · xarajat/i);
-  assert.match(components, />Balans</);
-  assert.match(components, />Daromad</);
-  assert.match(components, />Xarajat</);
+  assert.match(components, />Umumiy balans</);
+  assert.match(components, /label: "Daromad"/);
+  assert.match(components, /label: "Xarajat"/);
   assert.doesNotMatch(dashboard, /TERMS\.safeToSpend|Sarflash mumkin|Sof natija/i);
 });
 

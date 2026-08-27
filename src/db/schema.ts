@@ -156,7 +156,9 @@ export const categories = pgTable(
     parentId: integer("parent_id"),
     name: text("name").notNull(),
     type: text("type").notNull(), // income | expense
-    icon: text("icon").notNull().default("•"),
+    // Semantic key from src/components/icon.tsx (migration 0010 replaced the
+    // emoji this column used to hold).
+    icon: text("icon").notNull().default("dot"),
     color: text("color"),
     isEssential: boolean("is_essential").notNull().default(false),
     isSystem: boolean("is_system").notNull().default(false),
@@ -413,7 +415,7 @@ export const goals = pgTable(
     id: serial("id").primaryKey(),
     userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    icon: text("icon").notNull().default("🎯"),
+    icon: text("icon").notNull().default("target"),
     targetAmount: money("target_amount").notNull(),
     savedAmount: money("saved_amount").notNull().default(0),
     targetDate: date("target_date", { mode: "string" }),

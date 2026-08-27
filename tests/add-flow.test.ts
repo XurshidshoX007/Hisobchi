@@ -20,8 +20,14 @@ const fab = read("components/fab.tsx");
 
 const history = read("app/transactions/page.tsx");
 
+const dashboard = read("app/page.tsx");
+
+/*
+ * The Dashboard is no longer in this list: it owns quick-action tiles that open
+ * the shared add sheet directly, so it deliberately registers NO FAB context.
+ * Every other create screen still routes through the one global FAB.
+ */
 const CREATE_PAGES = {
-  dashboard: read("app/page.tsx"),
   plans: read("app/plans/page.tsx"),
   accounts: read("app/accounts/page.tsx"),
   debts: read("app/debts/page.tsx"),
@@ -39,8 +45,17 @@ test("every create screen registers with the global FAB instead of owning a + bu
   }
 });
 
+test("Dashboard replaces the FAB with quick actions on the same shared sheet", () => {
+  // Tiles, not a floating button — and still exactly one add sheet.
+  assert.match(dashboard, /<QuickActions onAdd=/);
+  assert.doesNotMatch(dashboard, /useFabPage|GlobalAddFab/);
+  assert.match(dashboard, /<QuickAddSheet[\s\S]*?defaultType=\{defaultType\}/);
+  // The direction is chosen by the tile, so the sheet never opens undecided.
+  assert.match(dashboard, /const openAdd = \(type: QuickActionId\)/);
+});
+
 test("no page renders its own floating add control", () => {
-  for (const [name, source] of Object.entries({ ...CREATE_PAGES, history })) {
+  for (const [name, source] of Object.entries({ ...CREATE_PAGES, dashboard, history })) {
     assert.doesNotMatch(source, /global-fab/, `${name} must not restyle the global FAB`);
     assert.doesNotMatch(source, /fixed bottom-\d/, `${name} must not float its own button`);
   }
@@ -116,6 +131,41 @@ test("the daily transaction form reuses every shared control", () => {
   // No always-visible textarea and no giant category <select> on quick add.
   assert.doesNotMatch(quickAdd, /<TextArea/);
   assert.doesNotMatch(quickAdd, /<Select/);
+});
+
+/*
+ * The daily add sheet is the most-used surface in the product, so its shape is
+ * pinned: the amount is the hero, account+date share one strip, and everything
+ * optional is collapsed. These guard the density won back in the redesign.
+ */
+test("the add sheet leads with the amount and keeps optional fields collapsed", () => {
+  // ONE hero. The slab variant exists only here; every other AmountField in the
+  // product stays a normal labelled field.
+  assert.match(quickAdd, /<AmountField\s+variant="slab"/);
+  // One primitive owns the variant, and nothing else opts into it.
+  assert.equal((formKit.match(/variant\?: "field" \| "slab"/g) ?? []).length, 1);
+  assert.equal((Object.values(CREATE_PAGES).join("\n").match(/variant="slab"/g) ?? []).length, 0);
+
+  // Account + date are corrections, not questions: one row, not two blocks.
+  assert.match(quickAdd, /<MetaRow/);
+  assert.match(quickAdd, /<AccountPicker variant="inline"/);
+  assert.match(quickAdd, /<DateField variant="inline"/);
+
+  // The note and the natural-language helper live behind the collapsed section
+  // — present in the tree, absent from the default view.
+  const advanced = quickAdd.slice(quickAdd.indexOf("<AdvancedSection"));
+  assert.match(advanced, /<NoteField/, "the note must sit inside AdvancedSection");
+  assert.match(advanced, /Tabiiy tilda kiritish|To‘ldir/, "the NLP helper must be collapsed too");
+  assert.doesNotMatch(quickAdd.slice(0, quickAdd.indexOf("<AdvancedSection")), /<NoteField/);
+});
+
+test("the sheet header states the direction with an icon, not a + prefix", () => {
+  assert.match(quickAdd, /eyebrow=\{editing \? undefined : "Yangi yozuv"\}/);
+  assert.match(quickAdd, /icon=\{TYPE_HEADER\[type\]\.icon\}/);
+  assert.doesNotMatch(quickAdd, /"\+ Daromad"|"\+ Xarajat"|"\+ Transfer"/);
+  // The header props are threaded through the shared primitive, not re-invented.
+  assert.match(ui, /iconTone\?: "positive" \| "negative" \| "accent" \| "gold" \| "neutral"/);
+  assert.match(formKit, /icon=\{icon\}\r?\n\s*iconTone=\{iconTone\}\r?\n\s*eyebrow=\{eyebrow\}/);
 });
 
 test("amount is entered through the shared money input everywhere", () => {

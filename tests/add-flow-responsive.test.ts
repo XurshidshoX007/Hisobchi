@@ -95,7 +95,7 @@ test("the sticky footer stays inside the sheet and wraps long CTAs (§15)", () =
   assert.match(css, /\.sheet-footer\s*\{[^}]*width:\s*100%/);
   assert.match(ui, /sheet-footer[^"]*sticky/);
   assert.match(ui, /flex min-w-0 flex-wrap gap-2\.5 \[&>\*\]:min-w-0/);
-  assert.match(formKit, /break-words rounded-full bg-primary/);
+  assert.match(formKit, /break-words rounded-\[18px\] bg-primary/);
 });
 
 /* ==================== §13 no horizontal scrolling in forms ==================== */
@@ -110,7 +110,7 @@ test("no add-flow form contains a horizontal scroll container", () => {
   // Choice rows wrap instead of scrolling.
   assert.match(formKit, /flex w-full min-w-0 max-w-full flex-wrap gap-2/);
   // The amount ladder wraps below the field.
-  assert.match(formKit, /mt-2 flex min-w-0 flex-wrap gap-1\.5/);
+  assert.match(formKit, /flex min-w-0 flex-wrap gap-1\.5/);
 });
 
 test("form type switches use the compact grid, navigation keeps the scrollable Segmented", () => {
@@ -191,7 +191,9 @@ test("sheet chrome keeps comfortable hit areas and accessible names", () => {
   assert.match(ui, /data-hit="expanded"/); // 36px glyph, 48px hit area
   assert.match(formKit, /data-hit="expanded"/);
   assert.match(fab, /aria-expanded=\{open\}/);
-  assert.match(formKit, /min-h-11 min-w-0 max-w-full touch-manipulation items-center gap-1\.5 rounded-full border/);
+  // Chips are 14px-radius now; the 44px minimum height is the touch-target
+  // guarantee that must never move.
+  assert.match(formKit, /min-h-11 min-w-0 max-w-full touch-manipulation items-center gap-1\.5 rounded-\[var\(--radius-chip\)\] border/);
 });
 
 /* ==================== §39 business logic untouched ==================== */

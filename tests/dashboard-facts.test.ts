@@ -245,29 +245,50 @@ test("Dashboard presentation contains only the approved hierarchy and preserves 
   const components = readFileSync(new URL("../src/components/dashboard.tsx", import.meta.url), "utf8");
   const visibleSource = `${page}\n${components}`;
 
-  assert.match(visibleSource, /Balans/i);
-  assert.match(visibleSource, /Daromad kategoriyalari/);
-  assert.match(visibleSource, /Xarajat kategoriyalari/);
+  // ONE primary number, then one primary action set, then context. The month
+  // appears once, in the header, and never again beside an amount.
+  assert.match(components, />Umumiy balans</);
+  assert.match(components, /<Money whole value=\{facts\.balance\} size="hero"/);
   assert.doesNotMatch(page, /Dashboard oyi|<time\b/);
-  assert.doesNotMatch(components, />Hamyon<\/p>/);
-  assert.match(
-    components,
-    /items-start justify-between[\s\S]{0,500}>Balans<\/p>[\s\S]{0,500}<Money whole value=\{facts\.balance\}[\s\S]{0,500}<WalletIcon/,
-  );
-  assert.equal((components.match(/<Money whole/g) ?? []).length, 4, "every dashboard amount must hide fractional tiyin");
+  assert.equal((components.match(/<Money whole/g) ?? []).length, 2, "every dashboard amount must hide fractional tiyin");
+
+  // The per-category income + expense lists moved to Analytics; the screen now
+  // answers "where did it go?" with a single chart instead of two long lists.
+  assert.doesNotMatch(visibleSource, /Daromad kategoriyalari|Xarajat kategoriyalari/);
+  assert.match(components, /<CategoryDonut/);
+  assert.match(components, /Xarajat taqsimoti/);
+
+  // Ownership boundary: forecast/insight vocabulary still belongs to Reja.
   assert.doesNotMatch(visibleSource, /sof natija|safe.?to.?spend|prognoz|kutilayotgan daromad|majburiy to['‘’]?lov|cash.?flow|insight/i);
-  assert.doesNotMatch(page, /charts|buildForecast|buildMonthlyView/);
-  assert.match(page, /useFabPage/);
+  assert.doesNotMatch(page, /buildForecast|buildMonthlyView/);
+
+  // Shared flows survive the redesign.
   assert.match(page, /QuickAddSheet/);
   assert.match(page, /Qayta urinish/);
-  assert.match(components, /md:grid-cols-2/);
   assert.match(components, /min-w-0/);
 
   // The balance composition reference lives inside the hero (single card) and
   // opens the peek sheet from the same page — no new card, no new tab.
-  assert.match(components, /BalanceDistributionBar/);
+  assert.match(components, /BalanceSegments/);
   assert.match(page, /BalanceBreakdownSheet/);
   assert.match(page, /onOpenBreakdown/);
+});
+
+test("the balance panel is one object, not a card inside a card", () => {
+  const components = readFileSync(new URL("../src/components/dashboard.tsx", import.meta.url), "utf8");
+  const hero = components.slice(components.indexOf("export function DashboardHero"), components.indexOf("function BalanceSegments"));
+
+  // Exactly one <Card> opens the hero; the account split is a bar plus a
+  // divided footer row inside it, never a nested card.
+  assert.equal((hero.match(/<Card\b/g) ?? []).length, 1);
+  assert.match(hero, /border-t border-line/);
+
+  // The privacy toggle masks amounts globally through <Money>, so no screen can
+  // leak a figure by formatting it its own way.
+  assert.match(components, /aria-pressed=\{hidden\}/);
+  const ui = readFileSync(new URL("../src/components/ui.tsx", import.meta.url), "utf8");
+  assert.match(ui, /const hidden = useBalanceHidden\(\)/);
+  assert.match(ui, /if \(hidden\) \{/);
 });
 
 test("sync and user-isolation guards remain in the shared state/mutation paths", () => {
@@ -297,8 +318,11 @@ test("responsive contract keeps 320/375/390/430 mobile layouts stacked and deskt
   for (const viewport of [320, 375, 390, 430]) {
     assert.ok(viewport < 768, `${viewport}px must remain in the stacked layout`);
   }
-  assert.match(page, /grid min-w-0 gap-5 md:grid-cols-2/);
-  assert.match(dashboard, /grid min-w-0 grid-cols-2/);
+  // The screen is a single column at every phone width. The only side-by-side
+  // groups are fixed small grids (4 quick actions, 2 month cells) that fit at
+  // 320px because their content is an icon plus a short label.
+  assert.match(dashboard, /grid grid-cols-4 gap-2/);
+  assert.match(dashboard, /grid min-w-0 grid-cols-2 gap-2\.5/);
   assert.match(ui, /Money[\s\S]*break-words/);
   assert.doesNotMatch(dashboard, /overflow-x-auto|whitespace-nowrap/);
 

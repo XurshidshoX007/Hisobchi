@@ -18,6 +18,7 @@ import {
 import {
   Card,
   EmptyState,
+  Label,
   Field,
   Money,
   Progress,
@@ -78,15 +79,15 @@ export default function DebtsPage() {
       {state.debts.length ? (
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-            <Card className="p-4">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Men qarzdorman</p>
+            <Card className="p-4" style={{ borderColor: "rgba(255,122,122,.3)" }}>
+              <Label>Men qarzdorman</Label>
               <div className="mt-1.5">
                 <Money value={iOweTotal > 0 ? -iOweTotal : 0} size="lg" tone="negative" signed />
               </div>
               <p className="mt-1 text-[11.5px] text-muted">{iOwe.length} ta yozuv</p>
             </Card>
-            <Card className="p-4">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Menga qarzdor</p>
+            <Card className="p-4" style={{ borderColor: "rgba(78,216,160,.3)" }}>
+              <Label>Menga qarzdor</Label>
               <div className="mt-1.5">
                 <Money value={toMeTotal} size="lg" tone="positive" />
               </div>
@@ -117,8 +118,8 @@ export default function DebtsPage() {
                       <p className="truncate text-[14.5px] font-medium">{d.personName}</p>
                       {/* §16: direction is stated in TEXT, never color alone. */}
                       <p
-                        className={`mt-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] ${
-                          d.direction === "i_owe" ? "text-negative-text" : "text-positive-text"
+                        className={`lb mt-0.5 ${
+                          d.direction === "i_owe" ? "text-negative-text!" : "text-positive-text!"
                         }`}
                       >
                         {d.direction === "i_owe" ? "Men qarzdorman" : "Menga qarzdor"}
@@ -198,7 +199,7 @@ export default function DebtsPage() {
           </div>
         </>
       ) : (
-        <EmptyState icon="📋" title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
+        <EmptyState icon="doc" title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
       )}
 
       <DebtSheet open={sheet} onClose={closeSheet} editing={editing} />

@@ -26,6 +26,7 @@ import {
   Card,
   EmptyState,
   Field,
+  Label,
   Money,
   Progress,
   Segmented,
@@ -49,6 +50,7 @@ import {
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { filterPlansByTab, monthCashflow, monthPlanned, nextCreditInstallment } from "@/lib/finance";
 import type { ExpectedIncomeView, Forecast, PlanLifecycle, PlanListTab, RecurringView } from "@/lib/finance";
+import { Icon } from "@/components/icon";
 
 type Tab = "payments" | "income" | "cashflow";
 
@@ -77,6 +79,10 @@ const STATUS_META: Record<PlanLifecycle, { label: string; tone: Tone; icon: stri
 /** 44px round icon button — the standard secondary touch target of this page. */
 const ICON_BTN =
   "grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation disabled:pointer-events-none disabled:opacity-40";
+
+/** The month stepper: smaller than ICON_BTN so the month name stays the focus. */
+const NAV_BTN =
+  "grid h-[34px] w-[34px] shrink-0 place-items-center rounded-xl border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation disabled:pointer-events-none disabled:opacity-40";
 
 const LINK_BTN =
   "inline-flex min-h-9 items-center gap-1 rounded-full px-2 text-[12px] font-medium text-accent-text transition-colors hover:bg-accent-soft active:bg-accent-soft touch-manipulation";
@@ -310,7 +316,7 @@ export default function PlansPage() {
                     </div>
                   ) : (
                     <EmptyState
-                      icon="📌"
+                      icon="pin"
                       title="Rejalashtirilgan to‘lovlar yo‘q."
                       description="Pastdagi + tugmasi orqali to‘lov rejasini qo‘shing."
                     />
@@ -323,7 +329,7 @@ export default function PlansPage() {
                   </PlanRowList>
                 ) : (
                   <EmptyState
-                    icon={planTab === "cancelled" ? "🚫" : planTab === "completed" ? "🏁" : "❚❚"}
+                    icon={planTab === "cancelled" ? "ban" : planTab === "completed" ? "flag" : "pause"}
                     title={
                       planTab === "paused"
                         ? "Pauzadagi reja yo‘q"
@@ -384,7 +390,7 @@ export default function PlansPage() {
                     </div>
                   ) : (
                     <EmptyState
-                      icon="💰"
+                      icon="wallet"
                       title="Daromadlar hali kiritilmagan."
                       description="Pastdagi + tugmasi orqali kutilayotgan daromadni qo‘shing."
                     />
@@ -397,7 +403,7 @@ export default function PlansPage() {
                   </PlanRowList>
                 ) : (
                   <EmptyState
-                    icon={incomeTab === "cancelled" ? "🚫" : incomeTab === "completed" ? "🏁" : "❚❚"}
+                    icon={incomeTab === "cancelled" ? "ban" : incomeTab === "completed" ? "flag" : "pause"}
                     title={
                       incomeTab === "paused"
                         ? "Pauzadagi daromad rejasi yo‘q"
@@ -573,10 +579,15 @@ function PaymentPlanRow({
           <div className="flex min-w-0 items-center gap-1.5">
             <p className="truncate text-[14px] font-semibold leading-tight">{r.name}</p>
             {status !== "active" ? <Badge tone={meta.tone}>{meta.label}</Badge> : null}
-            {status === "active" && r.paidThisMonth ? <span className="shrink-0 text-[11px] font-medium text-positive-text">✓ bu oy</span> : null}
+            {status === "active" && r.paidThisMonth ? (
+              <span className="tag shrink-0 bg-positive-soft text-positive-text">
+                <Icon name="check" size={10} strokeWidth={3} />
+                bu oy
+              </span>
+            ) : null}
           </div>
           <p className="mt-0.5 truncate text-[11.5px] text-muted">
-            <span className={TONE_TEXT[due.tone]}>{due.overdue ? "🔴 " : ""}{due.text}</span>
+            <span className={TONE_TEXT[due.tone]}>{due.overdue ? <Icon name="warning" size={12} className="mr-1 inline-block align-[-1px]" /> : null}{due.text}</span>
             {" · "}
             {metaBits.join(" · ")}
           </p>
@@ -588,7 +599,7 @@ function PaymentPlanRow({
             <div>
               <Money value={headlineAmount} size="md" tone={due.overdue ? "negative" : "default"} />
               {nextInstallment ? (
-                <p className="mt-0.5 text-[9.5px] font-semibold uppercase tracking-[0.06em] text-muted">keyingi to‘lov</p>
+                <p className="lb mt-0.5">keyingi to‘lov</p>
               ) : null}
             </div>
           )}
@@ -612,7 +623,12 @@ function PaymentPlanRow({
 
       <div className="mt-2.5 flex items-center gap-2">
         {status === "active" ? (
-          <Button variant="positive" size="sm" className="min-w-0 flex-1 sm:max-w-44" onClick={() => onAction("pay", r)}>
+          <Button
+            variant="positive-soft"
+            size="sm"
+            className="min-h-[38px] min-w-0 flex-1 rounded-xl sm:max-w-44"
+            onClick={() => onAction("pay", r)}
+          >
             To‘landi
           </Button>
         ) : status === "paused" ? (
@@ -628,7 +644,8 @@ function PaymentPlanRow({
         )}
         {r.paymentsCount ? (
           <button type="button" className={`${LINK_BTN} hidden sm:inline-flex`} onClick={() => onAction("history", r)}>
-            🧾 {r.paymentsCount} ta
+            <Icon name="receipt" size={14} className="mr-1 inline-block align-[-2px]" />
+            {r.paymentsCount} ta
           </button>
         ) : null}
         <button
@@ -637,7 +654,7 @@ function PaymentPlanRow({
           aria-label={`${r.name} — boshqa amallar`}
           onClick={() => onMenu(r)}
         >
-          •••
+          <Icon name="more" size={16} />
         </button>
       </div>
     </div>
@@ -677,7 +694,7 @@ function IncomePlanRow({
             {status === "active" && i.received ? <span className="shrink-0 text-[11px] font-medium text-positive-text">✓ bu oy</span> : null}
           </div>
           <p className="mt-0.5 truncate text-[11.5px] text-muted">
-            <span className={TONE_TEXT[due.tone]}>{due.overdue ? "⏳ " : ""}{due.text}</span>
+            <span className={TONE_TEXT[due.tone]}>{due.overdue ? <Icon name="clock" size={12} className="mr-1 inline-block align-[-1px]" /> : null}{due.text}</span>
             {" · "}
             {metaBits.join(" · ")}
           </p>
@@ -708,7 +725,12 @@ function IncomePlanRow({
 
       <div className="mt-2.5 flex items-center gap-2">
         {status === "active" ? (
-          <Button variant="positive" size="sm" className="min-w-0 flex-1 sm:max-w-44" onClick={() => onAction("receive", i)}>
+          <Button
+            variant="positive-soft"
+            size="sm"
+            className="min-h-[38px] min-w-0 flex-1 rounded-xl sm:max-w-44"
+            onClick={() => onAction("receive", i)}
+          >
             Qabul
           </Button>
         ) : status === "paused" ? (
@@ -724,7 +746,8 @@ function IncomePlanRow({
         )}
         {i.receiptsCount ? (
           <button type="button" className={`${LINK_BTN} hidden sm:inline-flex`} onClick={() => onAction("history", i)}>
-            🧾 {i.receiptsCount} ta
+            <Icon name="receipt" size={14} className="mr-1 inline-block align-[-2px]" />
+            {i.receiptsCount} ta
           </button>
         ) : null}
         <button
@@ -733,7 +756,7 @@ function IncomePlanRow({
           aria-label={`${i.sourceName} — boshqa amallar`}
           onClick={() => onMenu(i)}
         >
-          •••
+          <Icon name="more" size={16} />
         </button>
       </div>
     </div>
@@ -794,7 +817,7 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
         </button>
         {plan?.paymentsCount ? (
           <button type="button" className={rowClass} onClick={() => plan && run(plan.onHistory)}>
-            <span className="w-6 shrink-0 text-center" aria-hidden="true">🧾</span>
+            <Icon name="receipt" size={16} className="w-6 shrink-0" />
             Tarixni ko‘rish ({plan.paymentsCount} ta)
           </button>
         ) : null}
@@ -804,7 +827,7 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
             className={`${rowClass} text-negative-text`}
             onClick={() => plan && run(plan.onCancel)}
           >
-            <span className="w-6 shrink-0 text-center" aria-hidden="true">🚫</span>
+            <Icon name="ban" size={16} className="w-6 shrink-0" />
             Rejani bekor qilish
           </button>
         ) : null}
@@ -1001,11 +1024,11 @@ function CashflowTab({
           <button
             type="button"
             onClick={() => setCashMonth(monthKey(addMonths(monthStart(cashMonth), -1)))}
-            className={ICON_BTN}
+            className={NAV_BTN}
             aria-label="Oldingi oy"
             disabled={cashMonth <= current}
           >
-            ‹
+            <Icon name="chevron-left" size={15} />
           </button>
           <div className="min-w-0 text-center">
             <p className="truncate text-[15px] font-semibold">{monthLabel}</p>
@@ -1014,10 +1037,10 @@ function CashflowTab({
           <button
             type="button"
             onClick={() => setCashMonth(monthKey(addMonths(monthStart(cashMonth), 1)))}
-            className={ICON_BTN}
+            className={NAV_BTN}
             aria-label="Keyingi oy"
           >
-            ›
+            <Icon name="chevron-right" size={15} />
           </button>
         </div>
 
@@ -1026,22 +1049,27 @@ function CashflowTab({
             {/* ONE contextual month strip (§20): opening → in/out → closing.
                 Mandatory load and expected income belong to the To‘lovlar /
                 Daromad tabs and are not repeated here. */}
-            <div className="grid grid-cols-2 divide-x divide-line rounded-xl border border-line sm:grid-cols-4">
-              <div className="min-w-0 p-3">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">{isCurrent ? "Bugungi balans" : "Ochilish"}</p>
-                <p className="num mt-1 break-words text-[13.5px] font-semibold">{formatAmount(opening)}</p>
+            {/* 1px gaps over a border-coloured backdrop: the cells read as one
+                object cut into four, rather than four boxes with their own edges. */}
+            <div
+              className="grid grid-cols-2 gap-px overflow-hidden rounded-[14px] sm:grid-cols-4"
+              style={{ background: "var(--border)" }}
+            >
+              <div className="min-w-0 bg-surface-2 px-3.5 py-3">
+                <Label className="block truncate">{isCurrent ? "Bugungi balans" : "Ochilish"}</Label>
+                <p className="num mt-1 break-words text-[13.5px] font-bold">{formatAmount(opening)}</p>
               </div>
-              <div className="min-w-0 p-3">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Daromad</p>
-                <p className="num mt-1 break-words text-[13.5px] font-semibold text-positive-text">+{formatAmount(inflow)}</p>
+              <div className="min-w-0 bg-surface-2 px-3.5 py-3">
+                <Label className="block truncate">Daromad</Label>
+                <p className="num mt-1 break-words text-[13.5px] font-bold text-positive-text">+{formatAmount(inflow)}</p>
               </div>
-              <div className="min-w-0 border-t border-line p-3 sm:border-t-0">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Xarajat</p>
-                <p className="num mt-1 break-words text-[13.5px] font-semibold">−{formatAmount(outflow)}</p>
+              <div className="min-w-0 bg-surface-2 px-3.5 py-3">
+                <Label className="block truncate">Xarajat</Label>
+                <p className="num mt-1 break-words text-[13.5px] font-bold">−{formatAmount(outflow)}</p>
               </div>
-              <div className="min-w-0 border-t border-line p-3 sm:border-t-0">
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">Yopilish</p>
-                <p className={`num mt-1 break-words text-[13.5px] font-semibold ${closing < 0 ? "text-negative-text" : ""}`}>{formatAmount(closing)}</p>
+              <div className="min-w-0 bg-surface-2 px-3.5 py-3">
+                <Label className="block truncate">Yopilish</Label>
+                <p className={`num mt-1 break-words text-[13.5px] font-bold ${closing < 0 ? "text-negative-text" : "text-warning-text"}`}>{formatAmount(closing)}</p>
               </div>
             </div>
             <p className="text-[11px] text-muted">
@@ -1056,7 +1084,7 @@ function CashflowTab({
                   <span className="inline-block h-0.5 w-4 rounded" style={{ background: "var(--fg)" }} /> real
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-0.5 w-4 rounded border-b border-dashed" style={{ borderColor: "var(--accent)" }} />{" "}
+                  <span className="inline-block h-0.5 w-4 rounded border-b border-dashed" style={{ borderColor: "var(--gold)" }} />{" "}
                   prognoz
                 </span>
                 <span className="flex items-center gap-1.5">
@@ -1101,8 +1129,24 @@ function CashflowTab({
         )}
       </Card>
 
-      <Card>
-        <p className="mb-2 text-[15px] font-semibold">⚠️ Xavf kunlari · {monthLabel}</p>
+      <Card
+        style={
+          risks.length
+            ? {
+                borderColor: "rgba(255,122,122,.28)",
+                background: "linear-gradient(180deg, rgba(255,122,122,.09), rgba(255,122,122,.03))",
+              }
+            : undefined
+        }
+      >
+        <p className="mb-2 flex items-center gap-2 text-[15px] font-semibold">
+          <Icon
+            name="warning"
+            size={16}
+            className={risks.length ? "shrink-0 text-negative-text" : "shrink-0 text-faint"}
+          />
+          Xavf kunlari · {monthLabel}
+        </p>
         {risks.length ? (
           <>
             {/* Timeline context only — the full risk explanation is OWNED by
@@ -1507,7 +1551,7 @@ function RecurringSheet({
             <option value="">Tanlanmagan</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.icon} {c.name}
+                {c.name}
               </option>
             ))}
           </Select>
@@ -1772,7 +1816,7 @@ function IncomeSheet({
               <option value="">Tanlanmagan</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.icon} {c.name}
+                  {c.name}
                 </option>
               ))}
             </Select>
