@@ -250,18 +250,27 @@ export function MonthResult({ facts, currency }: { facts: DashboardFacts; curren
 
 /* ========================= EXPENSE BREAKDOWN ========================= */
 
-const DONUT_COLORS = ["var(--gold)", "var(--blue)", "var(--green)", "var(--red)", "var(--text-4)"];
+const DONUT_COLORS = [
+  "var(--gold)",
+  "var(--blue)",
+  "var(--green)",
+  "var(--red)",
+  "#c084fc",
+  "#22c5b6",
+  "#f973a5",
+  "#fb923c",
+];
 
 /**
- * Replaces the two stacked category lists (income + expense, each row with its
- * own progress bar) that used to fill the rest of this screen. One chart answers
- * "where did it go?"; the per-category detail belongs to Analytics and History.
+ * Shows every category that has spending in the current month. One chart answers
+ * "where did it go?" and the readable legend preserves the complete breakdown.
  */
 export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts; monthLabel: string }) {
-  const items = facts.expenseCategories.slice(0, 5).map((category, index) => ({
+  const items = facts.expenseCategories.map((category, index) => ({
+    id: category.id,
     name: category.name,
     share: category.share,
-    color: DONUT_COLORS[index] ?? "var(--text-4)",
+    color: DONUT_COLORS[index % DONUT_COLORS.length],
   }));
 
   if (!items.length) return null;
@@ -275,7 +284,7 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
         <CategoryDonut items={items} />
         <figcaption className="min-w-0 flex-1 space-y-2.5">
           {items.map((item) => (
-            <span key={item.name} className="flex min-w-0 items-center gap-2.5">
+            <span key={item.id ?? item.name} className="flex min-w-0 items-center gap-2.5">
               <span
                 className="h-2 w-2 shrink-0 rounded-[2px]"
                 style={{ background: item.color }}

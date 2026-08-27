@@ -133,7 +133,7 @@ test("future income/payment are excluded; previous-month operations affect balan
   assert.equal(facts.monthLabel, "Avgust 2026");
 });
 
-test("category identity is based on id, positive rows are sorted and the dashboard list is capped", () => {
+test("category identity is based on id, positive rows are sorted and every current-month expense category is kept", () => {
   const categories = Array.from({ length: 8 }, (_, index) => ({
     id: index + 10,
     name: index < 2 ? "Bir xil nom" : `Kategoriya ${index}`,
@@ -151,8 +151,8 @@ test("category identity is based on id, positive rows are sorted and the dashboa
   rows.push({ id: 99, accountId: 1, type: "expense", amount: 900_000, date: "2026-07-15", categoryId: categories[7].id });
 
   const facts = dashboardFacts(rows, categories, 5);
-  assert.deepEqual(facts.expenseCategories.map((category) => category.amount), [70_000, 60_000, 50_000, 40_000, 30_000]);
-  assert.equal(facts.hasMoreExpenseCategories, true);
+  assert.deepEqual(facts.expenseCategories.map((category) => category.amount), [70_000, 60_000, 50_000, 40_000, 30_000, 20_000, 10_000]);
+  assert.equal(facts.hasMoreExpenseCategories, false);
   assert.equal(facts.expenseCategories.some((category) => category.amount <= 0), false);
 
   const sameName = dashboardFacts(rows, categories, 10).expenseCategories.filter((category) => category.name === "Bir xil nom");

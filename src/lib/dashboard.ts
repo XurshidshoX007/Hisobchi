@@ -62,8 +62,8 @@ export type DashboardFacts = {
  *
  * This selector does not calculate money. Balance remains owned by the shared
  * completed ledger, while current-month totals and category aggregation remain
- * owned by buildAnalytics. The dashboard only removes zero rows and limits
- * presentation length.
+ * owned by buildAnalytics. The dashboard removes zero rows; the expense
+ * breakdown deliberately retains every spent category for the current month.
  */
 export type DashboardFactsSource = {
   currentBalance: number;
@@ -178,9 +178,11 @@ export function selectDashboardFacts(
     income: source.analytics.monthTotals.income,
     expense: source.analytics.monthTotals.expense,
     incomeCategories: incomeCategories.slice(0, limit),
-    expenseCategories: expenseCategories.slice(0, limit),
+    // The home-page expense breakdown is the month’s complete record, not a
+    // “top 5” preview. Its card lists every category with an expense.
+    expenseCategories,
     hasMoreIncomeCategories: incomeCategories.length > limit,
-    hasMoreExpenseCategories: expenseCategories.length > limit,
+    hasMoreExpenseCategories: false,
     balanceGroups,
     // A one-group breakdown adds nothing beyond the hero headline.
     hasBalanceBreakdown: balanceGroups.length >= 2,
