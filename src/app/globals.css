@@ -140,7 +140,8 @@
      --bottom-nav-height stays that total, which is what the FAB offset and the
      page clearance below actually care about. */
   --bottom-nav-panel-height: 62px;
-  --bottom-nav-inset: 14px;
+  /* Keep the glass bar close to the edge without fighting iOS/Telegram safe areas. */
+  --bottom-nav-inset: 8px;
   --bottom-nav-height: calc(var(--bottom-nav-panel-height) + var(--bottom-nav-inset));
   --fab-size: 56px;
   --fab-gap: 14px;
