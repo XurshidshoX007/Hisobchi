@@ -27,6 +27,14 @@ const ROW_ICON_TONE: Record<string, { background: string; color: string }> = {
   transfer: { background: "var(--tint-blue)", color: "var(--blue)" },
 };
 
+/** Direction shortcuts. "Hammasi" carries no icon — it is the absence of one. */
+const TYPE_CHIPS: Array<{ value: TransactionFilterState["type"]; label: string; icon?: string }> = [
+  { value: "all", label: "Hammasi" },
+  { value: "income", label: "Daromad", icon: "arrow-up" },
+  { value: "expense", label: "Xarajat", icon: "arrow-down" },
+  { value: "transfer", label: "Transfer", icon: "transfer" },
+];
+
 export default function TransactionsPage() {
   // useSearchParams needs a Suspense boundary during prerender (Next app router).
   return (
@@ -141,6 +149,38 @@ function TransactionsView() {
             <Icon name="close" size={14} />
           </button>
         ) : null}
+      </div>
+
+      {/* Direction chips: the common filter, one tap away. They share
+          filterState.type with the filter sheet, so opening the sheet always
+          shows what the chips already selected. */}
+      <div className="no-scrollbar -mx-1 flex min-w-0 gap-1.5 overflow-x-auto px-1" role="group" aria-label="Tur bo‘yicha filtr">
+        {TYPE_CHIPS.map((chip) => {
+          const active = filterState.type === chip.value;
+          return (
+            <button
+              key={chip.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setFilterState((prev) => ({ ...prev, type: chip.value, categoryId: chip.value === "transfer" ? "" : prev.categoryId }))}
+              style={active ? { background: "var(--gold-gradient)" } : undefined}
+              className={`inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 transition-colors touch-manipulation ${
+                active ? "border-transparent" : "border-line bg-surface"
+              }`}
+            >
+              {chip.icon ? (
+                <Icon
+                  name={chip.icon}
+                  size={13}
+                  className={active ? "text-[color:var(--gold-on)]" : "text-faint"}
+                />
+              ) : null}
+              <span className={`text-[12.5px] ${active ? "font-bold text-[color:var(--gold-on)]" : "font-semibold text-fg-soft"}`}>
+                {chip.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <TransactionFilter

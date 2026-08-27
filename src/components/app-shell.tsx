@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { formatAmount, humanDate } from "@/lib/money";
 import { getFabActions, supportsFab } from "@/lib/fab";
-import { MENU_ROUTE, isMenuSubroute, showsProfileHeader } from "@/lib/navigation";
+import { MENU_ROUTE, isMenuSubroute } from "@/lib/navigation";
 import { useFinance } from "./providers";
 import { FabProvider, GlobalAddFab, useFab } from "./fab";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
@@ -40,12 +40,8 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const hasFloatingAction = hasGlobalFab || hasContextualFab;
 
   const unread = (state?.alerts.length ?? 0) + (state?.notifications.filter((n) => !n.isRead).length ?? 0);
-  // Route-aware header: TRUE only on `/more`. Internal pages (Hisoblar,
-  // Budjetlar, Qarzdorlik, Maqsadlar, Sozlamalar, Bot) never mount it — no
-  // CSS hiding, the element is simply absent from the DOM there. No data
-  // fetching depends on this flag: profile/balance state stays in the
-  // provider, only its render location changes.
-  const profileHeader = showsProfileHeader(pathname);
+  // Internal pages reached from the Menu (Hisoblar, Budjetlar, Qarzdorlik,
+  // Maqsadlar, Sozlamalar, Bot) get swipe-back instead of a back button.
   const isSub = isMenuSubroute(pathname);
 
   if (error === "auth") {
@@ -136,57 +132,11 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
       <main className="min-w-0 flex-1">
         {/*
-         * Mobile profile header — `/more` (Menu) route ONLY. Internal pages
-         * reached from Menu start with their own compact back affordance instead.
-         * It is not hidden with CSS: on every other route the element is never
-         * mounted, so it occupies zero height/margin/padding and the page
-         * content starts at the top of the viewport.
+         * No shell-level header on any route. The Menu owns its profile card
+         * (src/app/more/page.tsx) and the Dashboard owns its own header, so
+         * every screen starts with its own content at the top of the viewport
+         * and no route pays for chrome it does not use.
          */}
-        {profileHeader ? (
-          <header className="glass-bar sticky top-0 z-30 -mx-3.5 mb-3 flex items-center justify-between gap-2 border-b border-line px-3.5 py-2.5 sm:-mx-6 sm:mb-4 sm:px-6 lg:hidden">
-            <div className="flex min-w-0 items-center gap-2.5">
-              {/* Identity, not a second balance. The Menu is a navigation hub:
-                  every number it could show already has exactly one home on the
-                  page it links to, so repeating the balance here would create a
-                  second source of truth for the product's headline figure. */}
-              <div
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-[17px] font-extrabold"
-                style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
-                aria-hidden="true"
-              >
-                {(state?.user.firstName ?? "?").trim().charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-[15px] font-bold leading-tight">{state?.user.firstName ?? "…"}</p>
-                <p className="truncate text-[11.5px] leading-tight text-faint">
-                  {state?.user.username ? `@${state.user.username} · ` : ""}Telegram Mini App
-                </p>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <button
-                onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
-                className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
-                aria-label="Mavzuni almashtirish"
-              >
-                <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={17} />
-              </button>
-              <button
-                onClick={() => setAlertsOpen(true)}
-                className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
-                aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
-              >
-                <Icon name="bell" size={17} />
-                {unread > 0 ? (
-                  <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[9px] font-bold text-negative-fg">
-                    {unread > 9 ? "9+" : unread}
-                  </span>
-                ) : null}
-              </button>
-            </div>
-          </header>
-        ) : null}
-
         <SwipeBack enabled={isSub}>
           <div className="min-w-0">{children}</div>
         </SwipeBack>

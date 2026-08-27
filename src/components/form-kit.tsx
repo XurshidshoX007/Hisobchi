@@ -582,7 +582,7 @@ export function Chip({
           ? {
               background: "linear-gradient(160deg, rgba(245,181,68,.22), rgba(245,181,68,.08))",
               borderColor: "rgba(245,181,68,.45)",
-              color: "var(--gold-text)",
+              // No `color` here on purpose — see the note on the label spans.
             }
           : undefined
       }
@@ -593,12 +593,17 @@ export function Chip({
           : "border-line bg-surface font-medium text-fg-soft hover:border-line-strong hover:text-fg active:bg-surface-3"
       }`}
     >
+      {/* The selected tone is applied to the CHILDREN, not to the <button>.
+          Tailwind's preflight sets `color: inherit` on button/input/select, and
+          on this element that reset was winning over both the utility and an
+          inline style — the chip's fill and border turned gold while its label
+          stayed grey. Spans are not matched by that reset. */}
       {icon ? (
-        <span className="shrink-0" aria-hidden="true">
+        <span className={`shrink-0 ${active ? "text-warning-text" : ""}`} aria-hidden="true">
           {icon}
         </span>
       ) : null}
-      <span className="min-w-0 truncate">{children}</span>
+      <span className={`min-w-0 truncate ${active ? "text-warning-text" : ""}`}>{children}</span>
     </button>
   );
 }
@@ -1339,9 +1344,7 @@ export function ChoiceList({
               </span>
             ) : null}
           </span>
-          <span className="shrink-0 text-muted" aria-hidden="true">
-            ›
-          </span>
+          <Icon name="chevron-right" size={13} className="shrink-0 text-text-4" />
         </button>
       ))}
     </div>

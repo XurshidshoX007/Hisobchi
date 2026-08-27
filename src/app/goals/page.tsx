@@ -4,8 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { AdvancedSection, AmountField, Chip, DateField, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
-import { Badge, Card, EmptyState, Field, Money, Progress, Skeleton, TextInput } from "@/components/ui";
+import { AdvancedSection, AmountField, ChoiceList, Chip, DateField, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
+import { Badge, Card, ContextualBottomSheet, EmptyState, Field, Money, Progress, Skeleton, TextInput } from "@/components/ui";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { GoalView } from "@/lib/finance";
@@ -32,6 +32,10 @@ export default function GoalsPage() {
     const routed = consume();
     if (routed?.id === "goal") openCreate();
   }, [consume]);
+
+  // Secondary actions live behind "•••" so each card shows exactly ONE primary
+  // action — the same grammar the plan rows use.
+  const [menuGoal, setMenuGoal] = useState<GoalView | null>(null);
 
   function closeSheet() {
     setSheet(false);
@@ -102,20 +106,11 @@ export default function GoalsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setEditing(g);
-                    setSheet(true);
-                  }}
-                  className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-fg-soft transition-colors hover:border-line-strong active:bg-surface-3 touch-manipulation"
+                  onClick={() => setMenuGoal(g)}
+                  aria-label={`${g.name} — boshqa amallar`}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation"
                 >
-                  Tahrir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => mutate("goal", "delete", { id: g.id })}
-                  className="min-h-9 rounded-full border border-line bg-surface px-3 text-[11.5px] font-medium text-muted transition-colors hover:text-negative-text active:bg-surface-3 touch-manipulation"
-                >
-                  O‘chirish
+                  <Icon name="more" size={16} />
                 </button>
               </div>
             </Card>
@@ -125,6 +120,36 @@ export default function GoalsPage() {
         <EmptyState icon="goal" title="Maqsadlar yo‘q." description="Pastdagi + tugmasi orqali maqsad qo‘shing." />
       )}
 
+
+
+      {/* Secondary actions live behind "•••" so each card shows exactly ONE
+          primary action — the same grammar the plan rows use. */}
+      <ContextualBottomSheet
+        open={Boolean(menuGoal)}
+        onClose={() => setMenuGoal(null)}
+        title={menuGoal?.name ?? ""}
+        icon="goal"
+        iconTone="gold"
+        eyebrow="Maqsad"
+      >
+        <ChoiceList
+          options={[
+            { id: "edit", label: "Tahrirlash", icon: "edit", description: "Nomi, summasi, muddati" },
+            { id: "delete", label: "O‘chirish", icon: "close", description: "Maqsad ro‘yxatdan olinadi" },
+          ]}
+          onSelect={(id) => {
+            const target = menuGoal;
+            setMenuGoal(null);
+            if (!target) return;
+            if (id === "edit") {
+              setEditing(target);
+              setSheet(true);
+              return;
+            }
+            void mutate("goal", "delete", { id: target.id });
+          }}
+        />
+      </ContextualBottomSheet>
       <GoalSheet open={sheet} onClose={closeSheet} editing={editing} />
       <ContributeSheet goal={goal} onClose={() => setGoal(null)} />
     </div>
