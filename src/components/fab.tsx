@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ContextualBottomSheet, FloatingActionButton } from "./ui";
 import { getFabActions, normalizePath, supportsFab, type FabAction, type FabActionDef, type FabContext } from "@/lib/fab";
+import { Icon } from "@/components/icon";
 
 /**
  * Global Context-Aware Floating Action Button.
@@ -210,8 +211,8 @@ function GlobalFabControl({ actions, invoke }: { actions: FabActionDef[]; invoke
               onClick={() => run(action)}
               className="flex min-h-12 w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-left text-[14px] font-medium transition-colors hover:border-line-strong hover:bg-surface-3 active:bg-surface-3 touch-manipulation"
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-3 text-base" aria-hidden="true">
-                {action.icon}
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-3 text-muted" aria-hidden="true">
+                <Icon name={action.icon} size={17} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block break-words leading-tight">{action.label}</span>

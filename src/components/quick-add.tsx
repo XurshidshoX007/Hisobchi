@@ -26,6 +26,7 @@ import {
   DateField,
   FormActions,
   FormSheet,
+  MetaRow,
   NoteField,
   PreviewCard,
 } from "./form-kit";
@@ -33,10 +34,14 @@ import { Button, Money, TextInput } from "./ui";
 
 type TxType = "income" | "expense" | "transfer";
 
-const TYPE_TITLE: Record<TxType, string> = {
-  income: "+ Daromad",
-  expense: "+ Xarajat",
-  transfer: "+ Transfer",
+/**
+ * The header states the direction with a tinted icon rather than a "+" prefix,
+ * so the title is just the noun.
+ */
+const TYPE_HEADER: Record<TxType, { icon: string; tone: "positive" | "negative" | "accent" }> = {
+  income: { icon: "arrow-up", tone: "positive" },
+  expense: { icon: "arrow-down", tone: "negative" },
+  transfer: { icon: "transfer", tone: "accent" },
 };
 
 /**
@@ -182,8 +187,10 @@ export function QuickAddSheet({
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Operatsiyani tahrirlash" : TYPE_TITLE[type]}
-      subtitle={editing ? undefined : "Summa va kategoriya"}
+      title={editing ? "Operatsiyani tahrirlash" : TX_LABEL[type]}
+      eyebrow={editing ? undefined : "Yangi yozuv"}
+      icon={TYPE_HEADER[type].icon}
+      iconTone={TYPE_HEADER[type].tone}
       submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
@@ -208,6 +215,7 @@ export function QuickAddSheet({
       />
 
       <AmountField
+        variant="slab"
         value={amount}
         onChange={setAmount}
         currency={state?.user.currency ?? "UZS"}
@@ -234,13 +242,22 @@ export function QuickAddSheet({
         </>
       )}
 
-      <DateField value={date} onChange={setDate} error={showError("date")} />
+      {/* Account and date share one strip: both already carry a smart default,
+          so they are corrections, not questions. Transfer picks its accounts
+          above, so the strip carries the date alone there. */}
+      <MetaRow
+        account={
+          type !== "transfer" ? (
+            <AccountPicker variant="inline" value={accountId} onChange={setAccountId} />
+          ) : (
+            <span className="text-[12.5px] text-muted">Hisoblar yuqorida</span>
+          )
+        }
+        date={<DateField variant="inline" value={date} onChange={setDate} error={showError("date")} />}
+      />
 
-      {type !== "transfer" ? <AccountPicker value={accountId} onChange={setAccountId} /> : null}
-
-      <NoteField value={note} onChange={setNote} />
-
-      <AdvancedSection label="Tabiiy tilda kiritish">
+      <AdvancedSection>
+        <NoteField value={note} onChange={setNote} />
         {/* §14: input + action wrap instead of being squeezed into one line. */}
         <FormActions className="items-center gap-2">
           <TextInput

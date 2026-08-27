@@ -13,6 +13,7 @@ import {
 } from "react";
 import type { AppState } from "@/lib/types";
 import { ERRORS } from "@/lib/copy";
+import { Icon } from "@/components/icon";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -35,9 +36,24 @@ type FinanceContextValue = {
   setTheme: (mode: ThemeMode) => void;
   isDark: boolean;
   telegram: boolean;
+  /** Every amount in the product renders as ••••• while this is on. */
+  balanceHidden: boolean;
+  setBalanceHidden: (hidden: boolean) => void;
 };
 
 const FinanceContext = createContext<FinanceContextValue | null>(null);
+
+const BALANCE_HIDDEN_STORAGE_KEY = "pfos-balance-hidden";
+
+/**
+ * Privacy state for <Money>, read WITHOUT throwing when no provider is present.
+ * Money is a leaf primitive used in well over a hundred places, including a few
+ * that render before the provider mounts; a hard `useFinance()` there would
+ * turn a missing context into a crashed page rather than a visible amount.
+ */
+export function useBalanceHidden(): boolean {
+  return useContext(FinanceContext)?.balanceHidden ?? false;
+}
 
 type PendingMutation = { signature: string; key: string; createdAt: number };
 const PENDING_MUTATION_STORAGE_KEY = "hisobchi:pending-mutation:v1";
@@ -96,6 +112,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>("system");
   const [systemDark, setSystemDark] = useState(false);
   const [telegram, setTelegram] = useState(false);
+  const [balanceHidden, setBalanceHiddenState] = useState(false);
   const initDataRef = useRef<string | null>(null);
 
   const toast = useCallback((text: string, tone: Toast["tone"] = "info") => {
@@ -145,6 +162,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = (localStorage.getItem("pfos-theme") as ThemeMode | null) ?? "system";
     setThemeState(stored);
+    setBalanceHiddenState(localStorage.getItem(BALANCE_HIDDEN_STORAGE_KEY) === "1");
     const tg = (window as unknown as { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
     if (tg) {
       setTelegram(true);
@@ -185,6 +203,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const root = document.documentElement;
+    // Dark is the default palette in globals.css, so LIGHT is the opt-in class.
+    // `.dark` is kept in sync purely so the `dark:` variant keeps matching.
+    root.classList.toggle("light", !isDark);
     root.classList.toggle("dark", isDark);
     root.style.colorScheme = isDark ? "dark" : "light";
     const bg = getComputedStyle(root).getPropertyValue("--bg").trim();
@@ -198,6 +219,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const setTheme = useCallback((mode: ThemeMode) => {
     setThemeState(mode);
     localStorage.setItem("pfos-theme", mode);
+  }, []);
+
+  const setBalanceHidden = useCallback((hidden: boolean) => {
+    setBalanceHiddenState(hidden);
+    try {
+      localStorage.setItem(BALANCE_HIDDEN_STORAGE_KEY, hidden ? "1" : "0");
+    } catch {
+      // Private-storage restrictions must not break the toggle for this session.
+    }
   }, []);
 
   const inFlightRef = useRef(false);
@@ -271,8 +301,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<FinanceContextValue>(
-    () => ({ state, loading, error, refresh, mutate, mutating, toast, theme, setTheme, isDark, telegram }),
-    [state, loading, error, refresh, mutate, mutating, toast, theme, setTheme, isDark, telegram],
+    () => ({
+      state, loading, error, refresh, mutate, mutating, toast, theme, setTheme, isDark, telegram,
+      balanceHidden, setBalanceHidden,
+    }),
+    [state, loading, error, refresh, mutate, mutating, toast, theme, setTheme, isDark, telegram, balanceHidden, setBalanceHidden],
   );
 
   return (
@@ -293,7 +326,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             }}
           >
             <span className="flex items-center gap-2">
-              {t.tone === "success" ? "✅" : t.tone === "error" ? "⛔" : "ℹ️"}
+              <Icon name={t.tone === "success" ? "check-circle" : t.tone === "error" ? "ban" : "info"} size={16} />
               {t.text}
             </span>
           </div>
@@ -315,7 +348,9 @@ export function useCategoryOptions(type: "income" | "expense") {
     () =>
       (state?.flatCategories ?? [])
         .filter((c) => c.type === type && c.isActive)
-        .map((c) => ({ value: String(c.id), label: `${c.icon} ${c.name}` })),
+        // A native <option> cannot hold an SVG, and the icon is now a semantic
+        // key rather than a glyph, so the label is the category name alone.
+        .map((c) => ({ value: String(c.id), label: c.name })),
     [state?.flatCategories, type],
   );
 }

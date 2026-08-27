@@ -21,6 +21,45 @@ test("mobile chrome uses shared geometry instead of magic FAB offsets", () => {
   assert.doesNotMatch(css, /bottom:\s*(72|80)px/);
 });
 
+test("bottom navigation is a floating glass panel, not a flush bar", () => {
+  // The panel hovers above the safe area on all sides; the FAB offset and page
+  // clearance both consume --bottom-nav-height, which must therefore stay the
+  // TOTAL occupied space (panel + inset), not just the panel height.
+  assert.match(css, /--bottom-nav-panel-height:\s*62px/);
+  assert.match(css, /--bottom-nav-inset:\s*14px/);
+  assert.match(
+    css,
+    /--bottom-nav-height:\s*calc\(var\(--bottom-nav-panel-height\) \+ var\(--bottom-nav-inset\)\)/,
+  );
+  assert.match(css, /\.app-bottom-nav\s*\{[^}]*left:\s*var\(--bottom-nav-inset\)/);
+  assert.match(css, /\.app-bottom-nav\s*\{[^}]*border-radius:\s*var\(--radius-nav\)/);
+
+  // Utilities that would pin it back to the screen edge must not return.
+  assert.doesNotMatch(shell, /app-bottom-nav[^"]*inset-x-0/);
+  assert.doesNotMatch(shell, /app-bottom-nav[^"]*border-t/);
+});
+
+/*
+ * Lightning CSS (Tailwind v4) collapses `backdrop-filter` and its -webkit-
+ * twin into a single declaration and keeps the LAST one. With the standard
+ * property written first, only `-webkit-backdrop-filter` survived the build —
+ * and current Chromium does not implement that alias, so every glass surface
+ * silently lost its blur. The prefix must therefore come first.
+ */
+test("every backdrop-filter keeps the standard property last so the blur survives the build", () => {
+  const declarations = [...css.matchAll(/(-webkit-)?backdrop-filter:\s*[^;]+;/g)].map((m) => m[0]);
+  assert.ok(declarations.length >= 6, `expected the glass surfaces to declare blur, got ${declarations.length}`);
+
+  for (const [index, declaration] of declarations.entries()) {
+    if (!declaration.startsWith("-webkit-")) continue;
+    const next = declarations[index + 1];
+    assert.ok(
+      next && !next.startsWith("-webkit-"),
+      `"${declaration.trim()}" must be followed by the unprefixed backdrop-filter, or the build drops it`,
+    );
+  }
+});
+
 test("AppShell mounts one global add FAB and reserves the shared slot for History filters", () => {
   assert.equal((shell.match(/<GlobalAddFab\s*\/>/g) ?? []).length, 1);
   assert.match(shell, /const hasContextualFab = pathname === "\/transactions"/);
@@ -108,17 +147,19 @@ test("History edit action renders a standard-oriented SVG pencil, not a text gly
   // its rendering is also font-dependent, so it must not come back as UI text.
   assert.doesNotMatch(history, />\s*✎\s*</);
   assert.doesNotMatch(history, /✏️?/);
-  // The inline SVG pins the standard orientation: tip at the lower LEFT
+  // The path moved into the shared icon registry, but the guarantee is the
+  // same: a drawn SVG with the standard orientation — tip at the lower LEFT
   // (2,22), body rising to the upper right (17,3 → 21,7) — ╱, never ╲.
+  assert.match(history, /<Icon name="edit" size=\{18\} \/>/);
+  const icons = readFileSync(new URL("../src/components/icon.tsx", import.meta.url), "utf8");
   assert.match(
-    history,
-    /<svg[^>]*viewBox="0 0 24 24"[^>]*stroke="currentColor"[^>]*>[\s\S]*<path d="M17 3a2\.828 2\.828 0 1 1 4 4L7\.5 20\.5 2 22l1\.5-5\.5L17 3z" \/>/,
+    icons,
+    /edit: \{ box: 24, el: \[p\("M17 3a2\.828 2\.828 0 1 1 4 4L7\.5 20\.5 2 22l1\.5-5\.5L17 3z"\)\] \}/,
   );
-  assert.match(history, /strokeLinecap="round"/);
-  assert.match(history, /strokeLinejoin="round"/);
-  // Keep the icon optical and decorative: 18px, centred, hidden from AT while
-  // the button keeps the semantics.
-  assert.match(history, /<svg[^>]*width="18"[^>]*height="18"[^>]*aria-hidden="true"/);
+  // Every registry icon is round-capped and hidden from AT by construction.
+  assert.match(icons, /strokeLinecap="round"/);
+  assert.match(icons, /strokeLinejoin="round"/);
+  assert.match(icons, /aria-hidden="true"/);
   assert.match(history, /aria-label=\{transaction\.debtId \? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : "Tahrirlash"\}/);
   // No mirroring tricks anywhere around it — orientation is drawn, not flipped.
   assert.doesNotMatch(history, /scaleX\(|-scale-x-|rotate-180|direction:\s*rtl/);

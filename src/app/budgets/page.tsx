@@ -5,10 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import { AmountField, Chip, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
-import { Badge, Card, EmptyState, Field, Money, Progress, Select, Skeleton } from "@/components/ui";
+import { Badge, Card, EmptyState, Field, Label, Money, Progress, Select, Skeleton } from "@/components/ui";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { addMonths, compact, formatAmount, monthKey, monthLabel, monthStart, todayISO } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
+import { Icon } from "@/components/icon";
 
 export default function BudgetsPage() {
   const { state, loading, mutate } = useFinance();
@@ -38,7 +39,10 @@ export default function BudgetsPage() {
   if (loading && !state) return <Skeleton className="h-72 w-full" />;
   if (!state) return null;
 
-  const budgets = state.budgets;
+  const budgets = [...state.budgets].sort((a, b) => {
+    const rank = (s: string) => (s === "exceeded" ? 0 : s === "warning" ? 1 : 2);
+    return rank(a.status) - rank(b.status) || b.usage - a.usage;
+  });
   const totalLimit = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
   const exceeded = budgets.filter((b) => b.status === "exceeded").length;
@@ -56,13 +60,13 @@ export default function BudgetsPage() {
         <Card>
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Umumiy limit</p>
+              <Label>Umumiy limit</Label>
               <div className="mt-1.5">
                 <Money value={totalLimit} size="xl" />
               </div>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted">Sarflandi</p>
+              <Label>Sarflandi</Label>
               <div className="mt-1.5">
                 <Money value={totalSpent} size="lg" />
               </div>
@@ -72,7 +76,10 @@ export default function BudgetsPage() {
             <Progress value={totalLimit > 0 ? totalSpent / totalLimit : 0} height={10} ariaLabel="Umumiy budjet ishlatilishi" />
             <div className="mt-2 flex items-center justify-between text-[11.5px] text-muted">
               <span>{totalLimit > 0 ? ((totalSpent / totalLimit) * 100).toFixed(0) : 0}% ishlatildi</span>
-              <span>{exceeded > 0 ? `${exceeded} ta limit oshdi` : warning > 0 ? `${warning} ta ogohlantirish` : "Limitlar normal"}</span>
+              <span>
+                {exceeded > 0 ? `${exceeded} ta limit oshdi` : warning > 0 ? `${warning} ta ogohlantirish` : "Limitlar normal"}
+                {daysLeft > 0 ? <span className="text-faint"> · {daysLeft} kun qoldi</span> : null}
+              </span>
             </div>
           </div>
         </Card>
@@ -81,10 +88,22 @@ export default function BudgetsPage() {
       {budgets.length ? (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
           {budgets.map((b) => (
-            <Card key={b.id}>
+            <Card
+              key={b.id}
+              style={
+                b.status === "exceeded"
+                  ? {
+                      borderColor: "rgba(255,122,122,.3)",
+                      background: "linear-gradient(180deg, rgba(255,122,122,.09), rgba(255,122,122,.03))",
+                    }
+                  : undefined
+              }
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-3 text-lg">{b.categoryIcon}</div>
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-3 text-muted">
+                    <Icon name={b.categoryIcon} size={19} />
+                  </div>
                   <div className="min-w-0">
                     <p className="truncate text-[15px] font-medium">{b.categoryName}</p>
                     <p className="text-[11.5px] text-muted">{monthLabel(b.month)}</p>
@@ -129,7 +148,7 @@ export default function BudgetsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon="🎯" title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
+        <EmptyState icon="target" title="Budjetlar yo‘q." description="Pastdagi + tugmasi orqali budjet qo‘shing." />
       )}
 
       <BudgetSheet open={sheet} onClose={closeSheet} editing={editing} />
@@ -209,7 +228,7 @@ function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () =>
           <option value="">Umumiy oylik</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.icon} {c.name}
+              {c.name}
             </option>
           ))}
         </Select>

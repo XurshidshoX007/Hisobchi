@@ -152,14 +152,18 @@ export default function SettingsPage() {
                 role="switch"
                 aria-checked={notif[row.key]}
                 aria-label={row.label}
-                className={`relative h-7 w-12 shrink-0 touch-manipulation rounded-full border transition-colors ${
-                  notif[row.key] ? "border-transparent bg-positive" : "border-line bg-surface-3"
+                // 40×23 with an 18px knob — the design's switch geometry. Gold
+                // when on, because "on" is a brand-positive state here.
+                className={`relative h-[23px] w-10 shrink-0 touch-manipulation rounded-full border transition-colors ${
+                  notif[row.key] ? "border-transparent" : "border-line bg-surface-3"
                 }`}
+                style={notif[row.key] ? { background: "var(--gold)" } : undefined}
               >
                 <span
-                  className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full shadow-sm transition-all ${
-                    notif[row.key] ? "left-[26px] bg-positive-fg" : "left-[3px] bg-muted"
+                  className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full transition-all ${
+                    notif[row.key] ? "left-[20px]" : "left-[2px] bg-muted"
                   }`}
+                  style={notif[row.key] ? { background: "var(--gold-on)" } : undefined}
                 />
               </button>
             </div>
@@ -173,9 +177,9 @@ export default function SettingsPage() {
           value={theme}
           onChange={setTheme}
           options={[
-            { value: "light", label: "☀️ Kunduzgi" },
-            { value: "dark", label: "🌙 Tungi" },
-            { value: "system", label: "🖥 Tizim" },
+            { value: "light", label: "Kunduzgi", icon: "sun" },
+            { value: "dark", label: "Tungi", icon: "moon" },
+            { value: "system", label: "Tizim", icon: "monitor" },
           ]}
         />
 

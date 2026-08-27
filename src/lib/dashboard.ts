@@ -90,11 +90,11 @@ function visibleCategories(items: DashboardCategory[]): DashboardCategory[] {
 const GROUP_ORDER: BalanceGroupKey[] = ["cash", "cards", "bank", "ewallet", "other"];
 
 const GROUP_META: Record<BalanceGroupKey, { label: string; icon: string; tone: BalanceGroup["tone"] }> = {
-  cash: { label: "Naqd pul", icon: "💵", tone: "positive" },
-  cards: { label: "Kartalar", icon: "💳", tone: "accent" },
-  bank: { label: "Bank hisobi", icon: "🏦", tone: "info" },
-  ewallet: { label: "Elektron hamyon", icon: "📱", tone: "warning" },
-  other: { label: "Boshqa", icon: "•", tone: "neutral" },
+  cash: { label: "Naqd pul", icon: "wallet", tone: "positive" },
+  cards: { label: "Kartalar", icon: "card", tone: "accent" },
+  bank: { label: "Bank hisobi", icon: "bank", tone: "info" },
+  ewallet: { label: "Elektron hamyon", icon: "phone", tone: "warning" },
+  other: { label: "Boshqa", icon: "dot", tone: "neutral" },
 };
 
 function classifyAccountType(type: string): BalanceGroupKey {

@@ -10,13 +10,14 @@ import { useFinance } from "./providers";
 import { FabProvider, GlobalAddFab, useFab } from "./fab";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
 import { SwipeBack } from "./swipe-back";
+import { Icon } from "@/components/icon";
 
 const NAV = [
-  { href: "/", label: "Asosiy", short: "Asosiy", icon: HomeIcon },
-  { href: "/transactions", label: "Tarix", short: "Tarix", icon: ListIcon },
-  { href: "/plans", label: "Reja", short: "Reja", icon: CalendarIcon },
-  { href: "/analytics", label: "Tahlil", short: "Tahlil", icon: ChartIcon },
-  { href: "/more", label: "Ko‘proq", short: "Menyu", icon: GridIcon },
+  { href: "/", label: "Asosiy", short: "Asosiy", icon: "nav-home" },
+  { href: "/transactions", label: "Tarix", short: "Tarix", icon: "nav-history" },
+  { href: "/plans", label: "Reja", short: "Reja", icon: "nav-plans" },
+  { href: "/analytics", label: "Tahlil", short: "Tahlil", icon: "nav-analytics" },
+  { href: "/more", label: "Ko‘proq", short: "Menyu", icon: "nav-more" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -87,7 +88,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 active ? "bg-primary font-semibold text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
               }`}
             >
-              <item.icon active={active} />
+              <Icon name={item.icon} size={20} strokeWidth={active ? 1.9 : 1.8} />
               {item.label}
             </Link>
           );
@@ -99,7 +100,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
             pathname === "/bot" ? "bg-primary text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
           }`}
         >
-          <span className="text-base">🤖</span> Telegram bot
+          <Icon name="telegram" size={17} className="text-muted" /> Telegram bot
         </Link>
 
         {/* Balance is OWNED by the Dashboard hero — the sidebar carries only a
@@ -115,7 +116,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           onClick={() => setAlertsOpen(true)}
           className="mt-4 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
-          <span className="text-base">🔔</span>
+          <Icon name="bell" size={17} className="text-muted" />
           Eslatmalar
           {unread > 0 ? (
             <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-negative px-1.5 text-[10px] font-bold text-negative-fg">
@@ -128,7 +129,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
           className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
-          <span className="text-base">{theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}</span>
+          <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={17} className="text-muted" />
           {theme === "dark" ? "Tungi" : theme === "light" ? "Kunduzgi" : "Tizim"}
         </button>
       </aside>
@@ -144,14 +145,21 @@ function AppShellContent({ children }: { children: ReactNode }) {
         {profileHeader ? (
           <header className="glass-bar sticky top-0 z-30 -mx-3.5 mb-3 flex items-center justify-between gap-2 border-b border-line px-3.5 py-2.5 sm:-mx-6 sm:mb-4 sm:px-6 lg:hidden">
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-[15px] font-bold text-primary-fg">
-                ₮
+              {/* Identity, not a second balance. The Menu is a navigation hub:
+                  every number it could show already has exactly one home on the
+                  page it links to, so repeating the balance here would create a
+                  second source of truth for the product's headline figure. */}
+              <div
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-[17px] font-extrabold"
+                style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
+                aria-hidden="true"
+              >
+                {(state?.user.firstName ?? "?").trim().charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-semibold leading-tight">Salom, {state?.user.firstName ?? "…"} 👋</p>
-                <p className="num truncate text-[11.5px] font-semibold leading-tight">
-                  {formatAmount(state?.currentBalance ?? 0)}{" "}
-                  <span className="font-normal text-muted">{state?.user.currency ?? "UZS"}</span>
+                <p className="truncate text-[15px] font-bold leading-tight">{state?.user.firstName ?? "…"}</p>
+                <p className="truncate text-[11.5px] leading-tight text-faint">
+                  {state?.user.username ? `@${state.user.username} · ` : ""}Telegram Mini App
                 </p>
               </div>
             </div>
@@ -161,14 +169,14 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
                 aria-label="Mavzuni almashtirish"
               >
-                {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🖥"}
+                <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={17} />
               </button>
               <button
                 onClick={() => setAlertsOpen(true)}
                 className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-sm transition-colors active:bg-surface-3 touch-manipulation"
                 aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
               >
-                🔔
+                <Icon name="bell" size={17} />
                 {unread > 0 ? (
                   <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-bg bg-negative px-1 text-[9px] font-bold text-negative-fg">
                     {unread > 9 ? "9+" : unread}
@@ -184,10 +192,11 @@ function AppShellContent({ children }: { children: ReactNode }) {
         </SwipeBack>
       </main>
 
-      {/* Bottom navigation has deterministic geometry; FAB positioning and
-          content clearance consume the same CSS variables. */}
-      <nav className="app-bottom-nav glass-nav fixed inset-x-0 bottom-0 border-t border-line lg:hidden">
-        <div className="mobile-bottom-nav-inner mx-auto flex max-w-lg items-stretch justify-between gap-0.5 px-1 pt-1.5 sm:px-2">
+      {/* Floating glass navigation. Geometry (inset, height, radius) lives in
+          .app-bottom-nav; FAB positioning and content clearance consume the
+          same CSS variables, so the three never drift apart. */}
+      <nav className="app-bottom-nav glass-nav lg:hidden">
+        <div className="mobile-bottom-nav-inner mx-auto flex max-w-lg items-stretch justify-between gap-0.5 px-1.5 sm:px-2">
           {NAV.map((item) => (
             <NavItem
               key={item.href}
@@ -210,9 +219,24 @@ function AppShellContent({ children }: { children: ReactNode }) {
         </div>
       </nav>
 
+      <AlertsSheet open={alertsOpen} onClose={() => setAlertsOpen(false)} />
+    </div>
+    <GlobalAddFab />
+    </>
+  );
+}
+
+/**
+ * Notifications live in ONE sheet mounted by whichever surface owns the bell:
+ * the Menu header on `/more`, and the Dashboard header on `/`. Exporting it
+ * keeps a single implementation instead of a second copy per screen.
+ */
+export function AlertsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { state, mutate } = useFinance();
+  return (
       <Sheet
-        open={alertsOpen}
-        onClose={() => setAlertsOpen(false)}
+        open={open}
+        onClose={onClose}
         title="Eslatmalar"
         footer={
           <Button variant="secondary" className="flex-1" onClick={() => mutate("notification", "readAll", {})}>
@@ -234,7 +258,12 @@ function AppShellContent({ children }: { children: ReactNode }) {
           >
             <div className="flex items-start justify-between gap-3">
               <p className="text-[14px] font-semibold">
-                {a.severity === "critical" ? "🚨" : a.severity === "warning" ? "⚠️" : "🔔"} {a.title}
+                <Icon
+                  name={a.severity === "critical" ? "warning" : a.severity === "warning" ? "warning" : "bell"}
+                  size={15}
+                  className={`mr-1.5 inline-block align-[-2px] ${a.severity === "critical" ? "text-negative-text" : a.severity === "warning" ? "text-warning-text" : "text-muted"}`}
+                />
+                {a.title}
               </p>
               {a.amount ? <Money value={a.amount} size="sm" tone={a.severity === "critical" ? "negative" : "default"} /> : null}
             </div>
@@ -245,7 +274,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                   home (§23) — link there instead of reproducing the card. */}
               <Link
                 href={a.severity === "critical" ? "/" : "/plans"}
-                onClick={() => setAlertsOpen(false)}
+                onClick={onClose}
                 className="shrink-0 text-[11.5px] font-semibold text-accent-text touch-manipulation"
               >
                 {a.severity === "critical" ? "Asosiy →" : "Reja →"}
@@ -275,54 +304,47 @@ function AppShellContent({ children }: { children: ReactNode }) {
           </div>
         ))}
       </Sheet>
-    </div>
-    <GlobalAddFab />
-    </>
   );
 }
 
 function NavItem({
   href,
   label,
-  icon: Icon,
+  icon,
   active,
   badge = 0,
 }: {
   href: string;
   label: string;
-  icon: (p: { active: boolean }) => React.ReactNode;
+  icon: string;
   active: boolean;
   badge?: number;
 }) {
   /*
-   * Motion model (§6–§14):
-   *  - one shared ease-out curve + 200ms duration for background/icon/label/
-   *    indicator so every part of the active state changes in sync;
-   *  - the indicator expands/fades (scaleX + opacity) instead of repainting,
-   *    so the old line "shrinks" while the new one "grows" with no geometry change;
-   *  - the icon scales ~1.06 while active — a "you are here" cue, not a bounce;
-   *  - press feedback is a gentle 0.98 scale (no jump, no flash).
-   * Geometry is fixed: icon box, label baseline and indicator all keep their
-   * exact position and size, so switching tabs never shifts the nav layout.
+   * The active state is carried by COLOUR ALONE: gold icon, bright label, 700
+   * weight. The old underline indicator and the tinted pill behind the icon are
+   * both gone — with a five-tab bar they were three separate things saying the
+   * same thing, and on a floating glass panel the pill fought the blur.
+   *
+   * Geometry is fixed: the icon box and the label baseline keep their exact
+   * position and size in both states, so switching tabs never shifts layout.
+   * Motion is a 180ms colour crossfade (§ Motion: "Tab almashish"); press
+   * feedback stays the gentle 0.98 scale on `.nav-item`.
+   *
+   * `aria-current="page"` is what actually announces the active tab, so the
+   * removed indicator costs nothing in accessibility terms.
    */
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} o‘qilmagan eslatma` : undefined}
-      className="nav-item flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1.5 touch-manipulation"
+      className={`nav-item flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-0.5 py-1 transition-colors duration-[180ms] ease-out touch-manipulation ${
+        active ? "text-gold" : "text-faint"
+      }`}
     >
-      <span
-        className={`relative grid h-7 w-full place-items-center rounded-lg transition-[background-color] duration-200 ease-out ${
-          active ? "bg-accent-soft" : "bg-transparent"
-        }`}
-      >
-        <span
-          className="transition-transform duration-200 ease-out"
-          style={{ transform: active ? "scale(1.06)" : "scale(1)" }}
-        >
-          <Icon active={active} />
-        </span>
+      <span className="relative grid h-6 w-full place-items-center">
+        <Icon name={icon} size={22} strokeWidth={active ? 1.9 : 1.8} />
         {badge > 0 ? (
           <span
             key={badge}
@@ -333,63 +355,12 @@ function NavItem({
         ) : null}
       </span>
       <span
-        className={`w-full truncate text-center text-[10px] leading-none transition-[color,font-weight] duration-200 ease-out ${
-          active ? "font-semibold text-fg" : "font-medium text-muted"
+        className={`w-full truncate text-center text-[9.5px] leading-none transition-colors duration-[180ms] ease-out ${
+          active ? "font-bold text-fg" : "font-semibold"
         }`}
       >
         {label}
       </span>
-      <span
-        className="mt-0.5 h-[3px] w-4 rounded-full bg-accent transition-[transform,opacity] duration-200 ease-out"
-        style={{
-          transform: active ? "scaleX(1)" : "scaleX(0.5)",
-          opacity: active ? 1 : 0,
-          transformOrigin: "center",
-        }}
-      />
     </Link>
-  );
-}
-
-type IconProps = { active?: boolean };
-
-function HomeIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function ListIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <path d="M4 7h16M4 12h16M4 17h10" strokeLinecap="round" />
-    </svg>
-  );
-}
-function CalendarIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <rect x="3.5" y="5" width="17" height="15" rx="3" />
-      <path d="M8 3.5v3M16 3.5v3M3.5 10h17" strokeLinecap="round" />
-    </svg>
-  );
-}
-function ChartIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <path d="M4 19V5M4 19h16" strokeLinecap="round" />
-      <path d="M8 16v-4M12.5 16V8M17 16v-6" strokeLinecap="round" />
-    </svg>
-  );
-}
-function GridIcon({ active }: IconProps) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "currentColor" : "var(--muted)"} strokeWidth="1.8">
-      <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
-      <rect x="13.5" y="4" width="6.5" height="6.5" rx="2" />
-      <rect x="4" y="13.5" width="6.5" height="6.5" rx="2" />
-      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2" />
-    </svg>
   );
 }

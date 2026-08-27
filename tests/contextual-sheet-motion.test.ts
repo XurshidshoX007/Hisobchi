@@ -27,10 +27,12 @@ test("Add Flow, FormSheet and Filter share ContextualBottomSheet", () => {
 });
 
 test("sheet enter and exit use one tokenized timing/easing vocabulary", () => {
-  assert.match(css, /--motion-duration-sheet-enter:\s*260ms/);
+  // Sheets travel the full height of the viewport, so they own a curve that
+  // leaves fast and settles slowly. Both directions must use the SAME one.
+  assert.match(css, /--motion-duration-sheet-enter:\s*280ms/);
   assert.match(css, /--motion-duration-sheet-exit:\s*210ms/);
-  assert.match(css, /--motion-ease-standard:\s*cubic-bezier\(0\.22, 1, 0\.36, 1\)/);
-  assert.match(sheetRule, /var\(--motion-duration-sheet-exit\) var\(--motion-ease-standard\)/);
+  assert.match(css, /--motion-ease-sheet:\s*cubic-bezier\(0\.32, 0\.72, 0, 1\)/);
+  assert.match(sheetRule, /var\(--motion-duration-sheet-exit\) var\(--motion-ease-sheet\)/);
   assert.match(openSheetRule, /transition-duration:\s*var\(--motion-duration-sheet-enter\)/);
   assert.doesNotMatch(css, /@keyframes sheet-|\.animate-sheet/);
 });
@@ -45,7 +47,7 @@ test("all sheet breakpoints move only bottom to top", () => {
 
 test("backdrop and panel enter/exit from the same state machine", () => {
   assert.match(backdropRule, /opacity:\s*0/);
-  assert.match(backdropRule, /var\(--motion-duration-sheet-exit\) var\(--motion-ease-standard\)/);
+  assert.match(backdropRule, /var\(--motion-duration-sheet-exit\) var\(--motion-ease-sheet\)/);
   assert.match(css, /\.sheet-layer\[data-motion-state="open"\] \.sheet-backdrop\s*\{[^}]*opacity:\s*1/);
   assert.match(css, /\.sheet-layer\[data-motion-state="open"\] \.sheet-backdrop\s*\{[^}]*var\(--motion-duration-sheet-enter\)/);
   assert.match(ui, /data-motion-state=\{motionState\}/);
@@ -56,7 +58,7 @@ test("exit presence survives close and rapid reversal", () => {
   assert.match(ui, /else if \(present\)[\s\S]*setMotionState\("closed"\)/);
   assert.match(ui, /event\.propertyName === "transform" && !open[\s\S]*completeExit\(\)/);
   assert.match(ui, /window\.clearTimeout\(exitTimer\)/);
-  assert.match(ui, /if \(open\) \{[\s\S]*contentRef\.current = \{ title, subtitle, children, footer \}/);
+  assert.match(ui, /if \(open\) \{[\s\S]*contentRef\.current = \{ title, subtitle, icon, iconTone, eyebrow, children, footer \}/);
 });
 
 test("sheet-to-sheet actions wait for visual exit instead of doubling backdrops", () => {

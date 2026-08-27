@@ -19,6 +19,12 @@ import { addDays, addMonths, monthStart, todayISO } from "./money";
 
 let seeding: Promise<void> | null = null;
 
+/**
+ * `icon` is a semantic key from src/components/icon.tsx, not an emoji. These
+ * values are written straight into `categories.icon` for every new user (here
+ * and in bootstrap-user.ts), so they must stay inside the icon registry —
+ * tests/icon-system.test.ts enforces that.
+ */
 export const EXPENSE_TREE: Array<{
   name: string;
   icon: string;
@@ -27,33 +33,33 @@ export const EXPENSE_TREE: Array<{
 }> = [
   {
     name: "Uy",
-    icon: "🏠",
+    icon: "home",
     essential: true,
     children: [
-      { name: "Ijara", icon: "🔑", essential: true },
-      { name: "Kommunal", icon: "💡", essential: true },
-      { name: "Ta'mirlash", icon: "🛠", essential: false },
+      { name: "Ijara", icon: "key", essential: true },
+      { name: "Kommunal", icon: "utilities", essential: true },
+      { name: "Ta'mirlash", icon: "repair", essential: false },
     ],
   },
-  { name: "Oziq-ovqat", icon: "🥗", essential: true },
-  { name: "Transport", icon: "🚕", essential: true },
-  { name: "Kredit", icon: "🏦", essential: true },
-  { name: "Telefon / Internet", icon: "📱", essential: true },
-  { name: "Oila", icon: "👨‍👩‍👧", essential: true },
-  { name: "Sog'liq", icon: "💊", essential: true },
-  { name: "Ta'lim", icon: "📚", essential: false },
-  { name: "Kiyim", icon: "👕", essential: false },
-  { name: "Ko'ngilochar", icon: "🎬", essential: false },
-  { name: "Boshqa", icon: "•", essential: false },
+  { name: "Oziq-ovqat", icon: "food", essential: true },
+  { name: "Transport", icon: "transport", essential: true },
+  { name: "Kredit", icon: "bank", essential: true },
+  { name: "Telefon / Internet", icon: "phone", essential: true },
+  { name: "Oila", icon: "family", essential: true },
+  { name: "Sog'liq", icon: "health", essential: true },
+  { name: "Ta'lim", icon: "education", essential: false },
+  { name: "Kiyim", icon: "clothing", essential: false },
+  { name: "Ko'ngilochar", icon: "entertainment", essential: false },
+  { name: "Boshqa", icon: "dot", essential: false },
 ];
 
 export const INCOME_TREE: Array<{ name: string; icon: string }> = [
-  { name: "Ish haqi", icon: "💼" },
-  { name: "Biznes daromadi", icon: "🏪" },
-  { name: "Bonus", icon: "🎁" },
-  { name: "Qo'shimcha daromad", icon: "✨" },
-  { name: "Qarz qaytishi", icon: "🤝" },
-  { name: "Boshqa daromad", icon: "•" },
+  { name: "Ish haqi", icon: "salary" },
+  { name: "Biznes daromadi", icon: "business" },
+  { name: "Bonus", icon: "gift" },
+  { name: "Qo'shimcha daromad", icon: "sparkle" },
+  { name: "Qarz qaytishi", icon: "return" },
+  { name: "Boshqa daromad", icon: "dot" },
 ];
 
 export const ACCOUNT_PRESETS = [
@@ -355,9 +361,9 @@ export async function seedDemoWorld(): Promise<void> {
   const goalRows = await db
     .insert(goals)
     .values([
-      { userId, name: "Mashina", icon: "🚗", targetAmount: 100_000_000, savedAmount: 25_000_000, targetDate: addMonths(monthStart(today), 14), monthlyContribution: 3_000_000, accountId: acc("Bank jamg'arma") },
-      { userId, name: "Zaxira jamg'arma", icon: "🛟", targetAmount: 18_000_000, savedAmount: 11_400_000, targetDate: addMonths(monthStart(today), 5), monthlyContribution: 1_200_000, accountId: acc("Bank jamg'arma") },
-      { userId, name: "Turkey sayohat", icon: "✈️", targetAmount: 12_000_000, savedAmount: 1_800_000, targetDate: addMonths(monthStart(today), 9), monthlyContribution: 900_000 },
+      { userId, name: "Mashina", icon: "transport", targetAmount: 100_000_000, savedAmount: 25_000_000, targetDate: addMonths(monthStart(today), 14), monthlyContribution: 3_000_000, accountId: acc("Bank jamg'arma") },
+      { userId, name: "Zaxira jamg'arma", icon: "shield", targetAmount: 18_000_000, savedAmount: 11_400_000, targetDate: addMonths(monthStart(today), 5), monthlyContribution: 1_200_000, accountId: acc("Bank jamg'arma") },
+      { userId, name: "Turkey sayohat", icon: "telegram", targetAmount: 12_000_000, savedAmount: 1_800_000, targetDate: addMonths(monthStart(today), 9), monthlyContribution: 900_000 },
     ])
     .returning();
   await db.insert(goalContributions).values(

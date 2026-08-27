@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { BalanceGroup, BalanceGroupKey } from "@/lib/dashboard";
 import { currencyLabel } from "@/lib/money";
 import { ContextualBottomSheet, Money } from "./ui";
+import { Icon } from "@/components/icon";
 
 /**
  * Tone → paired background + text tokens.
@@ -196,7 +197,7 @@ function BreakdownRow({ group, unit }: { group: BalanceGroup; unit: string }) {
         className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-lg shadow-xs transition-transform duration-200 group-hover:scale-105 ${tone.chipBg} ${tone.chipText}`}
         aria-hidden="true"
       >
-        {group.icon}
+        <Icon name={group.icon} size={19} />
       </span>
       <div className="min-w-0 flex-1">
         <p className={`truncate text-[14.5px] font-semibold ${isZero ? "text-fg-soft" : "text-fg"}`}>{group.label}</p>
