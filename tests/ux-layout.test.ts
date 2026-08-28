@@ -30,6 +30,11 @@ test("bottom navigation is a floating glass panel, not a flush bar", () => {
   assert.match(css, /--bottom-nav-bottom-inset:\s*8px/);
   assert.match(
     css,
+    /@media \(max-width: 639px\) and \(pointer: coarse\)[\s\S]*--bottom-nav-bottom-inset:\s*4px/,
+    "touch phones keep only a subtle 4px lift above the safe area",
+  );
+  assert.match(
+    css,
     /--bottom-nav-height:\s*calc\(var\(--bottom-nav-panel-height\) \+ var\(--bottom-nav-bottom-inset\)\)/,
   );
   assert.match(css, /\.app-bottom-nav\s*\{[^}]*left:\s*var\(--bottom-nav-inset\)/);

@@ -333,7 +333,7 @@ body {
   :root {
     --bottom-nav-panel-height: 66px;
     --bottom-nav-inset: 16px;
-    --bottom-nav-bottom-inset: 8px;
+    --bottom-nav-bottom-inset: 4px;
     --fab-size: 60px;
     --fab-gap: 16px;
     --content-bottom-gap: 18px;
