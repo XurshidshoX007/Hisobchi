@@ -405,6 +405,7 @@ export function Ring({
       <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
         <circle cx="60" cy="60" r={r} fill="none" stroke="var(--surface-3)" strokeWidth={strokeWidth} />
         <circle
+          key={`${pct}-${color}`}
           cx="60"
           cy="60"
           r={r}
@@ -413,7 +414,8 @@ export function Ring({
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={`${c * pct} ${c}`}
-          className="transition-[stroke-dasharray] duration-1000 ease-out"
+          style={{ "--ring-dash": `${c * pct} ${c}` } as CSSProperties}
+          className="ring-progress transition-[stroke-dasharray] duration-1000 ease-out"
         />
       </svg>
       <div className="absolute text-center">

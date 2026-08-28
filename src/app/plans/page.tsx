@@ -1130,6 +1130,7 @@ function CashflowTab({
       </Card>
 
       <Card
+        className={risks.length ? "animate-alert-once" : ""}
         style={
           risks.length
             ? {

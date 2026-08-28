@@ -92,6 +92,7 @@ export default function BudgetsPage() {
           {budgets.map((b) => (
             <Card
               key={b.id}
+              className={b.status === "exceeded" ? "animate-alert-once" : ""}
               style={
                 b.status === "exceeded"
                   ? {

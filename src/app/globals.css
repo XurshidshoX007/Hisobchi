@@ -795,6 +795,46 @@ body[data-sheet-open] .global-fab {
     width: 0%;
   }
 }
+
+@keyframes ring-fill {
+  from { stroke-dasharray: 0 999; }
+  to { stroke-dasharray: var(--ring-dash); }
+}
+
+@keyframes page-enter-forward {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes page-enter-back {
+  from { opacity: 0; transform: translateX(-18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes row-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-14px); }
+}
+
+@keyframes alert-once {
+  0%, 100% { transform: scale(1); box-shadow: var(--shadow-card); }
+  42% { transform: scale(1.012); box-shadow: 0 0 0 5px rgba(255, 122, 122, 0.12), var(--shadow-card); }
+}
+
+@keyframes money-in {
+  from { opacity: 0; transform: translateY(-0.72em); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes money-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(0.72em); }
+}
 @keyframes shimmer {
   0%,
   100% {
@@ -814,6 +854,23 @@ body[data-sheet-open] .global-fab {
 .dashboard-value-transition {
   animation: dashboard-value-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+.page-transition-forward { animation: page-enter-forward 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.page-transition-back { animation: page-enter-back 240ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-row-in { animation: row-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-row-out { animation: row-out 220ms cubic-bezier(0.4, 0, 1, 1) both; }
+.animate-alert-once { animation: alert-once 720ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.progress-fill { animation: progress-fill 720ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.ring-progress { animation: ring-fill 900ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+.money-roll {
+  display: inline-grid;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.money-roll > span { grid-area: 1 / 1; }
+.money-roll-in { animation: money-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.money-roll-out { animation: money-out 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-shimmer {
   animation: shimmer 1.6s ease-in-out infinite;
 }
@@ -892,6 +949,18 @@ body[data-sheet-open] .global-fab {
   .animate-pulse-subtle,
   .animate-hero-in,
   .animate-category-in {
+    animation: none !important;
+  }
+
+  .page-transition-forward,
+  .page-transition-back,
+  .animate-row-in,
+  .animate-row-out,
+  .animate-alert-once,
+  .progress-fill,
+  .ring-progress,
+  .money-roll-in,
+  .money-roll-out {
     animation: none !important;
   }
 

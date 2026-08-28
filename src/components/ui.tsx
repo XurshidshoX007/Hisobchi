@@ -195,6 +195,7 @@ export function Money({
   zeroSign,
   currency,
   compactSuffix,
+  animate = false,
 }: {
   value: number;
   size?: "xs" | "sm" | "md" | "lg" | "xl" | "hero";
@@ -206,6 +207,8 @@ export function Money({
   zeroSign?: "+" | "−";
   currency?: string;
   compactSuffix?: string;
+  /** Slides the previous balance out and the new balance in after a change. */
+  animate?: boolean;
 }) {
   const hidden = useBalanceHidden();
   const sizes: Record<string, string> = {
@@ -243,12 +246,42 @@ export function Money({
     );
   }
 
-  return (
-    <span className={`num ${sizes[size]} ${tones[tone]} break-words`}>
+  const content = (
+    <>
       {sign}
       {formatAmount(magnitude)}
       {compactSuffix ? <span className="ml-1 text-xs font-normal text-muted">{compactSuffix}</span> : null}
       {currency ? <span className="ml-1 text-[0.62em] font-normal text-muted">{currency}</span> : null}
+    </>
+  );
+
+  return (
+    <span className={`num ${sizes[size]} ${tones[tone]} break-words`}>
+      {animate ? <AnimatedMoneyText valueKey={`${value}:${sign}:${compactSuffix ?? ""}:${currency ?? ""}`}>{content}</AnimatedMoneyText> : content}
+    </span>
+  );
+}
+
+function AnimatedMoneyText({ children, valueKey }: { children: ReactNode; valueKey: string }) {
+  const previousKey = useRef(valueKey);
+  const currentRef = useRef(children);
+  const [leaving, setLeaving] = useState<ReactNode | null>(null);
+  const [current, setCurrent] = useState<ReactNode>(children);
+
+  useEffect(() => {
+    if (previousKey.current === valueKey) return;
+    previousKey.current = valueKey;
+    setLeaving(currentRef.current);
+    currentRef.current = children;
+    setCurrent(children);
+    const timer = window.setTimeout(() => setLeaving(null), 280);
+    return () => window.clearTimeout(timer);
+  }, [children, valueKey]);
+
+  return (
+    <span className="money-roll" aria-live="polite">
+      {leaving ? <span className="money-roll-out" aria-hidden="true">{leaving}</span> : null}
+      <span key={valueKey} className={leaving ? "money-roll-in" : undefined}>{current}</span>
     </span>
   );
 }
@@ -387,7 +420,11 @@ export function Progress({
         className="w-full overflow-hidden rounded-full bg-surface-3"
         style={{ height }}
       >
-        <div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
+        <div
+          key={`${pct}-${color}`}
+          className="progress-fill h-full rounded-full transition-[width] duration-700 ease-out"
+          style={{ width: `${Math.min(100, pct)}%`, background: color }}
+        />
       </div>
       {label ? <p className="mt-1 text-[11px] text-muted">{label}</p> : null}
     </div>

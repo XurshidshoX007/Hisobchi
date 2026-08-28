@@ -29,6 +29,7 @@ const RESET_DURATION = 280;
  * page-width bugs.
  */
 const SWIPE_ATTR = "data-swipe-back";
+const PAGE_MOTION_KEY = "hisobchi:page-motion";
 
 export function SwipeBack({ children, enabled }: { children: ReactNode; enabled: boolean }) {
   const router = useRouter();
@@ -62,6 +63,7 @@ export function SwipeBack({ children, enabled }: { children: ReactNode; enabled:
           // transform and makes the Menu cards appear shifted on return.
           // The attribute stays on until the route-change cleanup below runs,
           // so the translated frame never widens the document.
+          sessionStorage.setItem(PAGE_MOTION_KEY, "back");
           router.back();
         } else {
           document.body.removeAttribute(SWIPE_ATTR);

@@ -35,7 +35,6 @@ export function DashboardHero({
   const unit = currencyLabel(currency);
   const hidden = useBalanceHidden();
   const { setBalanceHidden } = useFinance();
-  const valueKey = `${facts.monthLabel}-${facts.balance}`;
 
   const positive = facts.balanceGroups.filter((group) => group.amount > 0);
   const positiveTotal = positive.reduce((sum, group) => sum + group.amount, 0);
@@ -62,7 +61,7 @@ export function DashboardHero({
         aria-hidden="true"
       />
 
-      <div key={valueKey} className="dashboard-value-transition relative min-w-0 px-5 pb-4.5 pt-5">
+      <div className="dashboard-value-transition relative min-w-0 px-5 pb-4.5 pt-5">
         <div className="flex items-center justify-between gap-3">
           <Label>Umumiy balans</Label>
           <button
@@ -77,7 +76,7 @@ export function DashboardHero({
         </div>
 
         <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} />
+          <Money whole animate value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} />
           <span className={`text-[13px] font-semibold ${facts.balance < 0 ? "text-negative-text" : "text-faint"}`}>
             {unit}
           </span>

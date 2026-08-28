@@ -248,7 +248,7 @@ test("Dashboard presentation contains only the approved hierarchy and preserves 
   // ONE primary number, then one primary action set, then context. The month
   // appears once, in the header, and never again beside an amount.
   assert.match(components, />Umumiy balans</);
-  assert.match(components, /<Money whole value=\{facts\.balance\} size="hero"/);
+  assert.match(components, /<Money whole animate value=\{facts\.balance\} size="hero"/);
   assert.doesNotMatch(page, /Dashboard oyi|<time\b/);
   assert.equal((components.match(/<Money whole/g) ?? []).length, 2, "every dashboard amount must hide fractional tiyin");
 
