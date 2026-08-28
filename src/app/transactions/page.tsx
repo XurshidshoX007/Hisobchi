@@ -55,7 +55,6 @@ function TransactionsView() {
   const [filterState, setFilterState] = useState<TransactionFilterState>({ ...DEFAULT_TRANSACTION_FILTER_STATE });
   const [editing, setEditing] = useState<TxView | null>(null);
   const [deleting, setDeleting] = useState<TxView | null>(null);
-  const [removingRowId, setRemovingRowId] = useState<number | null>(null);
   // Row actions are swipe-revealed (never permanently visible); at most one
   // row stays open at a time.
   const [openRowId, setOpenRowId] = useState<number | null>(null);
@@ -262,7 +261,7 @@ function TransactionsView() {
                   </span>
                 </div>
                 <div className="divide-y divide-line px-1">
-                  {items.map((transaction, index) => (
+                  {items.map((transaction) => (
                     // Row actions hide in the swipe underlay at rest; the row
                     // body itself keeps its exact resting layout.
                     <SwipeActions
@@ -298,8 +297,7 @@ function TransactionsView() {
                       }
                     >
                       <div
-                        className={`${removingRowId === transaction.id ? "animate-row-out" : "animate-row-in"} flex min-w-0 items-center gap-2.5 py-3 sm:gap-3`}
-                        style={{ animationDelay: `${Math.min(index, 6) * 35}ms` }}
+                        className="flex min-w-0 items-center gap-2.5 py-3 sm:gap-3"
                       >
                         {/* Tinted by direction so the eye can sort the column
                             without reading it: income green, transfer blue,
@@ -354,27 +352,12 @@ function TransactionsView() {
       )}
 
       <QuickAddSheet open={Boolean(editing)} onClose={() => setEditing(null)} editing={editing} />
-      <DeleteConfirm
-        tx={deleting}
-        onBeforeDelete={setRemovingRowId}
-        onClose={() => {
-          setDeleting(null);
-          setRemovingRowId(null);
-        }}
-      />
+      <DeleteConfirm tx={deleting} onClose={() => setDeleting(null)} />
     </div>
   );
 }
 
-function DeleteConfirm({
-  tx,
-  onClose,
-  onBeforeDelete,
-}: {
-  tx: TxView | null;
-  onClose: () => void;
-  onBeforeDelete: (id: number) => void;
-}) {
+function DeleteConfirm({ tx, onClose }: { tx: TxView | null; onClose: () => void }) {
   const { state, mutate } = useFinance();
   const [saving, setSaving] = useState(false);
   const linkedPlan = tx?.recurringId
@@ -389,8 +372,6 @@ function DeleteConfirm({
     if (!tx || saving) return;
     setSaving(true);
     try {
-      onBeforeDelete(tx.id);
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 220));
       await mutate("transaction", "delete", { id: tx.id });
     } finally {
       setSaving(false);

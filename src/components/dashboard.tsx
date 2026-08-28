@@ -76,7 +76,7 @@ export function DashboardHero({
         </div>
 
         <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <Money whole animate value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} />
+          <Money whole value={facts.balance} size="hero" tone={facts.balance < 0 ? "negative" : "default"} />
           <span className={`text-[13px] font-semibold ${facts.balance < 0 ? "text-negative-text" : "text-faint"}`}>
             {unit}
           </span>
