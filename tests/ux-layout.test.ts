@@ -40,6 +40,11 @@ test("bottom navigation is a floating glass panel, not a flush bar", () => {
   assert.match(css, /\.app-bottom-nav\s*\{[^}]*left:\s*var\(--bottom-nav-inset\)/);
   assert.match(css, /\.app-bottom-nav\s*\{[^}]*bottom:\s*max\(0px, calc\(var\(--app-safe-area-bottom\) \+ var\(--bottom-nav-bottom-inset\)\)\)/);
   assert.match(css, /\.app-bottom-nav\s*\{[^}]*border-radius:\s*var\(--radius-nav\)/);
+  assert.match(
+    css,
+    /\.app-bottom-nav::after\s*\{[^}]*height:\s*max\(0px, calc\(var\(--app-safe-area-bottom\) \+ var\(--bottom-nav-bottom-inset\)\)\)[^}]*backdrop-filter:/,
+    "the safe-area strip below the floating panel should blur scrolling content",
+  );
 
   // Utilities that would pin it back to the screen edge must not return.
   assert.doesNotMatch(shell, /app-bottom-nav[^"]*inset-x-0/);

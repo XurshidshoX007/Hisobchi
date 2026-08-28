@@ -527,6 +527,24 @@ input::placeholder {
   backdrop-filter: saturate(180%) blur(26px);
 }
 
+/* Continue the glass treatment through the device safe area. The floating
+   panel keeps its rounded silhouette while content scrolling underneath the
+   remaining bottom strip becomes softly unreadable instead of visually
+   competing with the navigation. */
+.app-bottom-nav::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: max(0px, calc(var(--app-safe-area-bottom) + var(--bottom-nav-bottom-inset)));
+  z-index: -1;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  -webkit-backdrop-filter: saturate(150%) blur(22px);
+  backdrop-filter: saturate(150%) blur(22px);
+}
+
 /*
  * backdrop-filter is what makes the floating panel read as glass rather than as
  * a translucent grey box. Where it is unsupported, fall back to an opaque panel
@@ -534,7 +552,8 @@ input::placeholder {
  */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-nav,
-  .glass-bar {
+  .glass-bar,
+  .app-bottom-nav::after {
     background: var(--bg);
   }
 }
