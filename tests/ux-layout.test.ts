@@ -30,15 +30,15 @@ test("bottom navigation is a floating glass panel, not a flush bar", () => {
   assert.match(css, /--bottom-nav-bottom-inset:\s*8px/);
   assert.match(
     css,
-    /@media \(max-width: 639px\) and \(pointer: coarse\)[\s\S]*--bottom-nav-bottom-inset:\s*4px/,
-    "touch phones keep only a subtle 4px lift above the safe area",
+    /@media \(max-width: 639px\) and \(pointer: coarse\)[\s\S]*--bottom-nav-bottom-inset:\s*-4px/,
+    "touch phones place the panel 4px into the safe-area allowance",
   );
   assert.match(
     css,
     /--bottom-nav-height:\s*calc\(var\(--bottom-nav-panel-height\) \+ var\(--bottom-nav-bottom-inset\)\)/,
   );
   assert.match(css, /\.app-bottom-nav\s*\{[^}]*left:\s*var\(--bottom-nav-inset\)/);
-  assert.match(css, /\.app-bottom-nav\s*\{[^}]*bottom:\s*calc\(var\(--app-safe-area-bottom\) \+ var\(--bottom-nav-bottom-inset\)\)/);
+  assert.match(css, /\.app-bottom-nav\s*\{[^}]*bottom:\s*max\(0px, calc\(var\(--app-safe-area-bottom\) \+ var\(--bottom-nav-bottom-inset\)\)\)/);
   assert.match(css, /\.app-bottom-nav\s*\{[^}]*border-radius:\s*var\(--radius-nav\)/);
 
   // Utilities that would pin it back to the screen edge must not return.

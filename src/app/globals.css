@@ -333,7 +333,7 @@ body {
   :root {
     --bottom-nav-panel-height: 66px;
     --bottom-nav-inset: 16px;
-    --bottom-nav-bottom-inset: 4px;
+    --bottom-nav-bottom-inset: -4px;
     --fab-size: 60px;
     --fab-gap: 16px;
     --content-bottom-gap: 18px;
@@ -585,7 +585,7 @@ input::placeholder {
   position: fixed;
   left: var(--bottom-nav-inset);
   right: var(--bottom-nav-inset);
-  bottom: calc(var(--app-safe-area-bottom) + var(--bottom-nav-bottom-inset));
+  bottom: max(0px, calc(var(--app-safe-area-bottom) + var(--bottom-nav-bottom-inset)));
   z-index: var(--z-bottom-nav);
   isolation: isolate;
   border: 1px solid var(--border-strong);
