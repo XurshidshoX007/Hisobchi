@@ -36,6 +36,7 @@ import {
 } from "@/lib/form-kit";
 import { compact, formatAmount, humanDate } from "@/lib/money";
 import type { DebtView } from "@/lib/finance";
+import { filterDebtsByTab, isSettledDebt, type DebtListFilter } from "@/lib/debt-lifecycle";
 import { RowActionsButton, RowActionsSheet } from "@/components/row-actions";
 
 export default function DebtsPage() {
@@ -44,7 +45,7 @@ export default function DebtsPage() {
   const [editing, setEditing] = useState<DebtView | null>(null);
   const [menuDebt, setMenuDebt] = useState<DebtView | null>(null);
   const [payFor, setPayFor] = useState<DebtView | null>(null);
-  const [filter, setFilter] = useState<"all" | "i_owe" | "owed_to_me">("all");
+  const [filter, setFilter] = useState<DebtListFilter>("active");
 
   function openCreate() {
     setEditing(null);
@@ -69,10 +70,12 @@ export default function DebtsPage() {
   if (loading && !state) return <Skeleton className="h-72 w-full" />;
   if (!state) return null;
 
-  const iOwe = state.debts.filter((d) => d.direction === "i_owe");
-  const toMe = state.debts.filter((d) => d.direction === "owed_to_me");
+  const activeDebts = state.debts.filter((d) => !isSettledDebt(d));
+  const iOwe = activeDebts.filter((d) => d.direction === "i_owe");
+  const toMe = activeDebts.filter((d) => d.direction === "owed_to_me");
   const iOweTotal = iOwe.reduce((s, d) => s + d.remainingAmount, 0);
   const toMeTotal = toMe.reduce((s, d) => s + d.remainingAmount, 0);
+  const visibleDebts = filterDebtsByTab(state.debts, filter);
 
   return (
     <div className="animate-fade-up space-y-4 sm:space-y-5">
@@ -97,27 +100,33 @@ export default function DebtsPage() {
             </Card>
           </div>
 
-          {/* §17: direction filter instead of two stacked card sections. */}
+          {/* Active debts stay primary; settled records remain available as history. */}
           <div className="max-w-md">
             <Segmented
               value={filter}
               onChange={setFilter}
               options={[
-                { value: "all", label: "Hammasi" },
+                { value: "active", label: "Faol" },
                 { value: "i_owe", label: "Men qarzdorman" },
                 { value: "owed_to_me", label: "Menga qarzdor" },
+                { value: "settled", label: "Yopilgan" },
               ]}
             />
           </div>
 
           <div className="space-y-2">
-            {state.debts
-              .filter((d) => filter === "all" || d.direction === filter)
-              .map((d) => (
+            {visibleDebts.map((d) => {
+              const settled = isSettledDebt(d);
+              return (
                 <div key={d.id} className="flat-card overflow-hidden px-4 py-3.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14.5px] font-medium">{d.personName}</p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <p className="truncate text-[14.5px] font-medium">{d.personName}</p>
+                        {settled ? (
+                          <span className="tag shrink-0 bg-positive-soft text-positive-text">✓ To‘liq to‘langan</span>
+                        ) : null}
+                      </div>
                       {/* §16: direction is stated in TEXT, never color alone. */}
                       <p
                         className={`lb mt-0.5 ${
@@ -127,8 +136,8 @@ export default function DebtsPage() {
                         {d.direction === "i_owe" ? "Men qarzdorman" : "Menga qarzdor"}
                       </p>
                       <p className="mt-0.5 text-[11.5px] text-muted">
-                        {d.dueDate ? `${humanDate(d.dueDate)} gacha` : "muddat yo‘q"}
-                        {d.daysLeft !== null && d.daysLeft < 0 ? " · kechikkan" : ""}
+                        {settled ? "Qarz yopilgan" : d.dueDate ? `${humanDate(d.dueDate)} gacha` : "muddat yo‘q"}
+                        {!settled && d.daysLeft !== null && d.daysLeft < 0 ? " · kechikkan" : ""}
                       </p>
                       {d.note ? <p className="mt-1 truncate text-[11.5px] text-muted">{d.note}</p> : null}
                     </div>
@@ -138,21 +147,28 @@ export default function DebtsPage() {
                     </div>
                   </div>
                   <div className="mt-3">
-                    <Progress value={d.progress} height={6} ariaLabel={`${d.personName} qarz to‘lovi progressi`} />
+                    <Progress
+                      value={d.progress}
+                      tone={settled ? "positive" : "auto"}
+                      height={6}
+                      ariaLabel={`${d.personName} qarz to‘lovi progressi`}
+                    />
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-[11.5px] text-muted">to‘langan {compact(d.paidAmount)}</span>
                       {/* Recording a payment is what this row is FOR; editing,
                           cancelling and archiving are housekeeping. */}
                       <div className="flex shrink-0 items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setPayFor(d)}
-                          aria-label={`${d.personName} uchun to‘lov kiritish`}
-                          className="min-h-9 rounded-xl px-3.5 text-[12px] font-bold transition-[filter] hover:brightness-105 active:scale-[0.98] touch-manipulation"
-                          style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
-                        >
-                          To‘lov
-                        </button>
+                        {!settled ? (
+                          <button
+                            type="button"
+                            onClick={() => setPayFor(d)}
+                            aria-label={`${d.personName} uchun to‘lov kiritish`}
+                            className="min-h-9 rounded-xl px-3.5 text-[12px] font-bold transition-[filter] hover:brightness-105 active:scale-[0.98] touch-manipulation"
+                            style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
+                          >
+                            To‘lov
+                          </button>
+                        ) : null}
                         <RowActionsButton label={d.personName} onClick={() => setMenuDebt(d)} />
                       </div>
                     </div>
@@ -167,10 +183,17 @@ export default function DebtsPage() {
                     </div>
                   ) : null}
                 </div>
-              ))}
-            {state.debts.filter((d) => filter === "all" || d.direction === filter).length === 0 ? (
+              );
+            })}
+            {visibleDebts.length === 0 ? (
               <p className="flat-card px-4 py-4 text-[13px] text-muted">
-                {filter === "i_owe" ? "Qarz yo‘q." : "Qarzdorlar yo‘q."}
+                {filter === "active"
+                  ? "Faol qarzlar yo‘q."
+                  : filter === "i_owe"
+                    ? "Qarz yo‘q."
+                    : filter === "owed_to_me"
+                      ? "Qarzdorlar yo‘q."
+                      : "Yopilgan qarzlar yo‘q."}
               </p>
             ) : null}
           </div>
