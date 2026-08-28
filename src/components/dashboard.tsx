@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import type { DashboardFacts } from "@/lib/dashboard";
 import { compact, currencyLabel } from "@/lib/money";
 import { CategoryDonut } from "./charts";
@@ -265,6 +267,8 @@ const DONUT_COLORS = [
  * "where did it go?" and the readable legend preserves the complete breakdown.
  */
 export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts; monthLabel: string }) {
+  const router = useRouter();
+  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
   const items = facts.expenseCategories.map((category, index) => ({
     id: category.id,
     name: category.name,
@@ -280,6 +284,9 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
   const hasDetailedBreakdown = items.length > 4;
   const donutSize = hasDetailedBreakdown ? 140 : 124;
   const summary = items.map((i) => `${i.name} ${Math.round(i.share * 100)}%`).join(", ");
+  const activeItem = items.find((item) => item.id === activeCategoryId) ?? null;
+  const categoryHref = (categoryId: number) =>
+    `/transactions?type=expense&category=${categoryId}&month=${encodeURIComponent(facts.month)}`;
 
   return (
     <Card className="mt-3.5">
@@ -291,8 +298,25 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
             : ""
         }`}
       >
-        <div className="flex justify-center">
-          <CategoryDonut items={items} size={donutSize} />
+        <div className="relative flex justify-center">
+          <CategoryDonut
+            items={items}
+            size={donutSize}
+            activeId={activeCategoryId}
+            onActiveChange={setActiveCategoryId}
+            onSelect={(categoryId) => router.push(categoryHref(categoryId))}
+          />
+          <div
+            className="pointer-events-none absolute inset-0 grid place-content-center text-center"
+            aria-hidden="true"
+          >
+            <span className="num text-[15px] font-bold leading-none text-fg">
+              {activeItem ? `${Math.round(activeItem.share * 100)}%` : items.length}
+            </span>
+            <span className="mt-1 max-w-16 truncate text-[8px] font-semibold uppercase tracking-wide text-faint">
+              {activeItem?.name ?? "kategoriya"}
+            </span>
+          </div>
         </div>
         <figcaption
           className={`min-w-0 ${
@@ -301,8 +325,9 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
               : "space-y-2.5"
           }`}
         >
-          {items.map((item) => (
-            <span key={item.id ?? item.name} className="flex min-w-0 items-center gap-2.5">
+          {items.map((item) => {
+            const content = (
+              <>
               <span
                 className="h-2 w-2 shrink-0 rounded-[2px]"
                 style={{ background: item.color }}
@@ -312,8 +337,30 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
               <span className="num shrink-0 text-[12.5px] font-bold text-faint">
                 {Math.round(item.share * 100)}%
               </span>
-            </span>
-          ))}
+              </>
+            );
+
+            return item.id !== null ? (
+              <Link
+                key={item.id}
+                href={categoryHref(item.id)}
+                aria-label={`${item.name} xarajatlarini Tarixda ko‘rish`}
+                onPointerEnter={() => setActiveCategoryId(item.id)}
+                onPointerLeave={() => setActiveCategoryId(null)}
+                onFocus={() => setActiveCategoryId(item.id)}
+                onBlur={() => setActiveCategoryId(null)}
+                className={`flex min-h-8 min-w-0 items-center gap-2.5 rounded-lg px-1.5 -mx-1.5 transition-[background-color,opacity,transform] touch-manipulation hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 active:scale-[0.98] ${
+                  activeCategoryId !== null && activeCategoryId !== item.id ? "opacity-45" : "opacity-100"
+                }`}
+              >
+                {content}
+              </Link>
+            ) : (
+              <span key={item.name} className="flex min-h-8 min-w-0 items-center gap-2.5 px-1.5 -mx-1.5">
+                {content}
+              </span>
+            );
+          })}
           <span className="sr-only">{summary}</span>
         </figcaption>
       </figure>

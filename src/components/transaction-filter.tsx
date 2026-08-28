@@ -16,10 +16,11 @@ import { Icon } from "@/components/icon";
 type FlatCategory = Omit<CategoryView, "children">;
 
 export type TransactionFilterContext = {
-  key: "plan" | "income";
-  label: "Reja" | "Daromad";
+  key: "plan" | "income" | "month" | "category";
+  label: "Reja" | "Daromad" | "Oy" | "Kategoriya";
   name: string;
   clearHref: string;
+  onClear?: () => void;
 };
 
 const TYPE_OPTIONS: ReadonlyArray<{ value: TransactionFilterState["type"]; label: string }> = [

@@ -43,6 +43,8 @@ export type BalanceGroup = {
 };
 
 export type DashboardFacts = {
+  /** YYYY-MM key used when dashboard cards deep-link into month-scoped history. */
+  month: string;
   monthLabel: string;
   balance: number;
   income: number;
@@ -173,6 +175,7 @@ export function selectDashboardFacts(
   const balanceGroups = buildBalanceGroups(source.accounts);
 
   return {
+    month: source.analytics.month,
     monthLabel: fullMonthLabel(source.analytics.month),
     balance: source.currentBalance,
     income: source.analytics.monthTotals.income,

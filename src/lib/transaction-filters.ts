@@ -13,6 +13,8 @@ export type TransactionFilters = TransactionFilterState & {
 export type TransactionRouteContext = {
   planId: number | null;
   incomeId: number | null;
+  /** Optional YYYY-MM scope used by dashboard deep links. */
+  month?: string | null;
 };
 
 export const DEFAULT_TRANSACTION_FILTER_STATE: TransactionFilterState = {
@@ -36,7 +38,7 @@ export function composeTransactionFilters(
 type FilterableTransaction = Pick<
   TxView,
   "type" | "categoryId" | "note" | "categoryName" | "accountName" | "amount" | "recurringId" | "expectedIncomeId"
->;
+> & { date?: string };
 
 type FilterableCategory = {
   id: number;
@@ -58,6 +60,7 @@ export function filterTransactions<T extends FilterableTransaction>(
   return transactions.filter((transaction) => {
     if (context.planId && transaction.recurringId !== context.planId) return false;
     if (context.incomeId && transaction.expectedIncomeId !== context.incomeId) return false;
+    if (context.month && !transaction.date?.startsWith(`${context.month}-`)) return false;
     if (filters.type !== "all" && transaction.type !== filters.type) return false;
     if (filters.categoryId && String(transaction.categoryId ?? "") !== filters.categoryId) return false;
     if (filters.query) {

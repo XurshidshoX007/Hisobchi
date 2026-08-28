@@ -318,19 +318,25 @@ export function CategoryBars({
 export function CategoryDonut({
   items,
   size = 112,
+  activeId = null,
+  onActiveChange,
+  onSelect,
 }: {
-  items: Array<{ name: string; share: number; color: string }>;
+  items: Array<{ id: number | null; name: string; share: number; color: string }>;
   size?: number;
+  activeId?: number | null;
+  onActiveChange?: (id: number | null) => void;
+  onSelect?: (id: number) => void;
 }) {
   const R = 15.9155;
   // Each slice starts where the previous one ended, so the offsets are a
   // running total computed up front — no mutation during render.
-  const slices = items.reduce<Array<{ name: string; color: string; pct: number; start: number }>>(
+  const slices = items.reduce<Array<{ id: number | null; name: string; color: string; pct: number; start: number }>>(
     (acc, item) => {
       const pct = Math.max(0, Math.min(100, item.share * 100));
       const previous = acc[acc.length - 1];
       const start = previous ? previous.start + previous.pct : 0;
-      return pct > 0 ? [...acc, { name: item.name, color: item.color, pct, start }] : acc;
+      return pct > 0 ? [...acc, { id: item.id, name: item.name, color: item.color, pct, start }] : acc;
     },
     [],
   );
@@ -341,13 +347,12 @@ export function CategoryDonut({
       height={size}
       viewBox="0 0 42 42"
       className="shrink-0 -rotate-90"
-      aria-hidden="true"
-      focusable="false"
+      aria-label="Xarajat kategoriyalari diagrammasi"
     >
       <circle cx="21" cy="21" r={R} fill="none" stroke="var(--surface-3)" strokeWidth="7" />
       {slices.map((slice, index) => (
         <circle
-          key={slice.name}
+          key={slice.id ?? slice.name}
           cx="21"
           cy="21"
           r={R}
@@ -362,7 +367,25 @@ export function CategoryDonut({
             "--donut-offset": `${-slice.start}`,
             animationDelay: `${index * 70}ms`,
           } as CSSProperties}
-          className="donut-segment transition-[stroke-dasharray,stroke-dashoffset] duration-700 ease-out"
+          className={`donut-segment origin-center transition-[stroke-dasharray,stroke-dashoffset,opacity,filter,transform] duration-300 ease-out ${
+            slice.id !== null ? "cursor-pointer focus:outline-none" : ""
+          } ${activeId !== null && activeId !== slice.id ? "opacity-35" : "opacity-100"} ${
+            activeId !== null && activeId === slice.id ? "scale-[1.035] drop-shadow-[0_0_3px_currentColor]" : ""
+          }`}
+          role={slice.id !== null ? "button" : undefined}
+          tabIndex={slice.id !== null ? 0 : undefined}
+          aria-label={slice.id !== null ? `${slice.name}, ${Math.round(slice.pct)}%. Tarixni ochish` : undefined}
+          onPointerEnter={() => onActiveChange?.(slice.id)}
+          onPointerLeave={() => onActiveChange?.(null)}
+          onFocus={() => onActiveChange?.(slice.id)}
+          onBlur={() => onActiveChange?.(null)}
+          onClick={() => slice.id !== null && onSelect?.(slice.id)}
+          onKeyDown={(event) => {
+            if (slice.id !== null && (event.key === "Enter" || event.key === " ")) {
+              event.preventDefault();
+              onSelect?.(slice.id);
+            }
+          }}
         />
       ))}
     </svg>

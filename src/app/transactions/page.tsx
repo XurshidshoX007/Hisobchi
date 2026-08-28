@@ -9,7 +9,7 @@ import { SwipeActions } from "@/components/swipe-actions";
 import { TransactionFilter, type TransactionFilterContext } from "@/components/transaction-filter";
 import { Badge, Button, EmptyState, Label, Money, Sheet, Skeleton, TextInput } from "@/components/ui";
 import { Icon } from "@/components/icon";
-import { compact, humanDate } from "@/lib/money";
+import { compact, humanDate, monthLabel } from "@/lib/money";
 import { LOADING } from "@/lib/copy";
 import type { TxView } from "@/lib/finance";
 import {
@@ -51,8 +51,20 @@ function TransactionsView() {
   const params = useSearchParams();
   const planFilter = Number(params.get("plan")) || null;
   const incomeFilter = Number(params.get("income")) || null;
+  const requestedType = params.get("type");
+  const typeFilter: TransactionFilterState["type"] =
+    requestedType === "income" || requestedType === "expense" || requestedType === "transfer"
+      ? requestedType
+      : "all";
+  const requestedCategory = params.get("category") ?? "";
+  const categoryFilter = /^\d+$/.test(requestedCategory) ? requestedCategory : "";
+  const requestedMonth = params.get("month") ?? "";
+  const monthFilter = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth) ? requestedMonth : null;
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterState, setFilterState] = useState<TransactionFilterState>({ ...DEFAULT_TRANSACTION_FILTER_STATE });
+  const [filterState, setFilterState] = useState<TransactionFilterState>(() => ({
+    type: typeFilter,
+    categoryId: categoryFilter,
+  }));
   const [editing, setEditing] = useState<TxView | null>(null);
   const [deleting, setDeleting] = useState<TxView | null>(null);
   // Row actions are swipe-revealed (never permanently visible); at most one
@@ -66,13 +78,14 @@ function TransactionsView() {
     const list = filterTransactions(state?.transactions ?? [], composeTransactionFilters(filterState, searchQuery), {
       planId: planFilter,
       incomeId: incomeFilter,
+      month: monthFilter,
     });
     const map = new Map<string, typeof list>();
     for (const transaction of list) {
       map.set(transaction.date, [...(map.get(transaction.date) ?? []), transaction]);
     }
     return [...map.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [state?.transactions, filterState, searchQuery, planFilter, incomeFilter]);
+  }, [state?.transactions, filterState, searchQuery, planFilter, incomeFilter, monthFilter]);
 
   const totals = useMemo(() => {
     const list = grouped.flatMap(([, transactions]) => transactions);
@@ -89,8 +102,11 @@ function TransactionsView() {
   const accountById = new Map(state.accounts.map((account) => [account.id, account]));
   const linkedPlan = planFilter ? state.recurring.find((plan) => plan.id === planFilter) ?? null : null;
   const linkedIncome = incomeFilter ? state.expectedIncomes.find((income) => income.id === incomeFilter) ?? null : null;
+  const linkedCategory = categoryFilter
+    ? state.flatCategories.find((category) => String(category.id) === categoryFilter) ?? null
+    : null;
 
-  function clearContextHref(key: "plan" | "income") {
+  function clearContextHref(key: "plan" | "income" | "month" | "category") {
     const next = new URLSearchParams(params.toString());
     next.delete(key);
     const query = next.toString();
@@ -112,6 +128,23 @@ function TransactionsView() {
       label: "Daromad",
       name: linkedIncome?.sourceName ?? `Daromad #${incomeFilter}`,
       clearHref: clearContextHref("income"),
+    });
+  }
+  if (monthFilter) {
+    contexts.push({
+      key: "month",
+      label: "Oy",
+      name: monthLabel(monthFilter),
+      clearHref: clearContextHref("month"),
+    });
+  }
+  if (categoryFilter && filterState.categoryId === categoryFilter) {
+    contexts.push({
+      key: "category",
+      label: "Kategoriya",
+      name: linkedCategory?.name ?? `Kategoriya #${categoryFilter}`,
+      clearHref: clearContextHref("category"),
+      onClear: () => setFilterState((previous) => ({ ...previous, categoryId: "" })),
     });
   }
 
@@ -201,6 +234,7 @@ function TransactionsView() {
               <span className="min-w-0 truncate font-semibold">{context.name}</span>
               <Link
                 href={context.clearHref}
+                onClick={context.onClear}
                 aria-label={`${context.label} kontekstini olib tashlash`}
                 className="grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors hover:bg-surface/70 touch-manipulation"
               >

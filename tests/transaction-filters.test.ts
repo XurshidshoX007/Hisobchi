@@ -79,6 +79,20 @@ test("route context combines with type and category using AND semantics", () => 
   assert.deepEqual(wrongType, []);
 });
 
+test("dashboard month scope keeps only transactions from the requested month", () => {
+  const dated = [
+    { ...transactions[0], id: 101, date: "2026-08-12" },
+    { ...transactions[0], id: 102, date: "2026-07-31" },
+  ];
+  const result = filterTransactions(
+    dated,
+    { type: "expense", categoryId: "10", query: "" },
+    { planId: null, incomeId: null, month: "2026-08" },
+  );
+
+  assert.deepEqual(result.map((transaction) => transaction.id), [101]);
+});
+
 test("income route context remains independent from local reset", () => {
   const result = filterTransactions(transactions, defaults(), { planId: null, incomeId: 8 });
   assert.deepEqual(result.map((transaction) => transaction.id), [2]);

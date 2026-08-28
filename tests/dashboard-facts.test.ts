@@ -131,6 +131,7 @@ test("future income/payment are excluded; previous-month operations affect balan
   assert.deepEqual(facts.incomeCategories, []);
   assert.deepEqual(facts.expenseCategories, []);
   assert.equal(facts.monthLabel, "Avgust 2026");
+  assert.equal(facts.month, "2026-08");
 });
 
 test("category identity is based on id, positive rows are sorted and every current-month expense category is kept", () => {
