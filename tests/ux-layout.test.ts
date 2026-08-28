@@ -10,6 +10,7 @@ const planFilter = readFileSync(new URL("../src/components/plan-status-filter.ts
 const filterControls = readFileSync(new URL("../src/components/filter-controls.tsx", import.meta.url), "utf8");
 const transactionFilter = readFileSync(new URL("../src/components/transaction-filter.tsx", import.meta.url), "utf8");
 const history = readFileSync(new URL("../src/app/transactions/page.tsx", import.meta.url), "utf8");
+const debts = readFileSync(new URL("../src/app/debts/page.tsx", import.meta.url), "utf8");
 
 test("mobile chrome uses shared geometry instead of magic FAB offsets", () => {
   for (const variable of ["--bottom-nav-height", "--bottom-nav-bottom-inset", "--fab-size", "--fab-gap", "--content-bottom-gap"]) {
@@ -210,6 +211,15 @@ test("income tab renders no expected-income summary block", () => {
 test("both lists keep their reusable status filter next to the heading", () => {
   assert.match(plans, /To‘lovlar<\/h2>\s*<PlanStatusFilter value=\{planTab\} onChange=\{setPlanTab\} kind="payments" \/>/);
   assert.match(plans, /Daromad rejalari<\/h2>\s*<PlanStatusFilter value=\{incomeTab\} onChange=\{setIncomeTab\} kind="income" \/>/);
+});
+
+test("payment, income and debt records render as separate flat cards", () => {
+  assert.match(plans, /function PlanRowList[\s\S]{0,180}?className="space-y-2"/);
+  assert.equal((plans.match(/className="flat-card overflow-hidden px-4 py-3"/g) ?? []).length, 2);
+  assert.match(debts, /<div className="space-y-2">[\s\S]{0,220}?className="flat-card overflow-hidden px-4 py-3\.5"/);
+
+  assert.doesNotMatch(plans, /divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface/);
+  assert.doesNotMatch(debts, /divide-y divide-line rounded-2xl border border-line bg-surface/);
 });
 
 test("spacing collapses after the removed summaries — no stale gap under the tabs", () => {

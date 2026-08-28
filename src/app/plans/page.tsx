@@ -534,9 +534,9 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 /* ============================ Payment plan rows ============================ */
 
-/** ONE bordered container per list — rows inside carry no frame of their own (§17/§24). */
+/** Keep records visually independent so long lists remain easy to scan and tap. */
 function PlanRowList({ children }: { children: React.ReactNode }) {
-  return <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">{children}</div>;
+  return <div className="space-y-2">{children}</div>;
 }
 
 /**
@@ -573,7 +573,7 @@ function PaymentPlanRow({
   if (r.certainty === "estimated") metaBits.push("taxminiy");
 
   return (
-    <div className="px-4 py-3">
+    <div className="flat-card overflow-hidden px-4 py-3">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
@@ -685,7 +685,7 @@ function IncomePlanRow({
   metaBits.push(i.certainty === "estimated" ? "taxminiy" : "aniq");
 
   return (
-    <div className="px-4 py-3">
+    <div className="flat-card overflow-hidden px-4 py-3">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">

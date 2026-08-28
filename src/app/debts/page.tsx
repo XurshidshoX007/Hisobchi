@@ -110,11 +110,11 @@ export default function DebtsPage() {
             />
           </div>
 
-          <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
+          <div className="space-y-2">
             {state.debts
               .filter((d) => filter === "all" || d.direction === filter)
               .map((d) => (
-                <div key={d.id} className="px-4 py-3.5">
+                <div key={d.id} className="flat-card overflow-hidden px-4 py-3.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[14.5px] font-medium">{d.personName}</p>
@@ -169,7 +169,7 @@ export default function DebtsPage() {
                 </div>
               ))}
             {state.debts.filter((d) => filter === "all" || d.direction === filter).length === 0 ? (
-              <p className="px-4 py-4 text-[13px] text-muted">
+              <p className="flat-card px-4 py-4 text-[13px] text-muted">
                 {filter === "i_owe" ? "Qarz yo‘q." : "Qarzdorlar yo‘q."}
               </p>
             ) : null}
