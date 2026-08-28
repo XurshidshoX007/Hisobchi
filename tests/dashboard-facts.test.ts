@@ -258,6 +258,8 @@ test("Dashboard presentation contains only the approved hierarchy and preserves 
   assert.doesNotMatch(visibleSource, /Daromad kategoriyalari|Xarajat kategoriyalari/);
   assert.match(components, /<CategoryDonut/);
   assert.match(components, /Xarajat taqsimoti/);
+  assert.match(components, /grid w-full grid-cols-2/, "long legends should stay compact below the chart");
+  assert.match(components, /compact\(facts\.expense\)/, "the donut center should state the total, not a category count");
 
   // Ownership boundary: forecast/insight vocabulary still belongs to Reja.
   assert.doesNotMatch(visibleSource, /sof natija|safe.?to.?spend|prognoz|kutilayotgan daromad|majburiy to['‘’]?lov|cash.?flow|insight/i);

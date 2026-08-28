@@ -278,13 +278,12 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
 
   if (!items.length) return null;
 
-  // Keep the donut and its legend visually connected at every width. Detailed
-  // lists gain a little chart presence, while the legend only becomes two
-  // columns once each column still has room for a readable category name.
+  // A long legend must not dwarf the chart. Once the breakdown has more than
+  // four rows, the chart gets its own full-width stage and the legend becomes
+  // a compact two-column grid below it.
   const hasDetailedBreakdown = items.length > 4;
-  const donutSize = hasDetailedBreakdown ? 140 : 124;
+  const donutSize = hasDetailedBreakdown ? 168 : 132;
   const summary = items.map((i) => `${i.name} ${Math.round(i.share * 100)}%`).join(", ");
-  const activeItem = items.find((item) => item.id === activeCategoryId) ?? null;
   const categoryHref = (categoryId: number) =>
     `/transactions?type=expense&category=${categoryId}&month=${encodeURIComponent(facts.month)}`;
 
@@ -292,10 +291,10 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
     <Card className="mt-3.5">
       <Label>Xarajat taqsimoti · {monthLabel.split(" ")[0].toUpperCase()}</Label>
       <figure
-        className={`mt-3.5 grid min-w-0 grid-cols-[7.75rem_minmax(0,1fr)] items-center gap-x-4 ${
+        className={`mt-4 min-w-0 ${
           hasDetailedBreakdown
-            ? "min-[520px]:grid-cols-[9rem_minmax(0,1fr)] min-[520px]:gap-x-5"
-            : ""
+            ? "flex flex-col items-center gap-4"
+            : "grid grid-cols-[8.25rem_minmax(0,1fr)] items-center gap-x-4"
         }`}
       >
         <div className="relative flex justify-center">
@@ -310,18 +309,18 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
             className="pointer-events-none absolute inset-0 grid place-content-center text-center"
             aria-hidden="true"
           >
-            <span className="num text-[15px] font-bold leading-none text-fg">
-              {activeItem ? `${Math.round(activeItem.share * 100)}%` : items.length}
+            <span className={`num font-bold leading-none text-fg ${hasDetailedBreakdown ? "text-[14px]" : "text-[12.5px]"}`}>
+              {compact(facts.expense)}
             </span>
-            <span className="mt-1 max-w-16 truncate text-[8px] font-semibold uppercase tracking-wide text-faint">
-              {activeItem?.name ?? "kategoriya"}
+            <span className="mt-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-faint">
+              jami
             </span>
           </div>
         </div>
         <figcaption
           className={`min-w-0 ${
             hasDetailedBreakdown
-              ? "space-y-2.5 min-[520px]:grid min-[520px]:grid-cols-2 min-[520px]:gap-x-4 min-[520px]:gap-y-2.5 min-[520px]:space-y-0"
+              ? "grid w-full grid-cols-2 gap-x-2 gap-y-1"
               : "space-y-2.5"
           }`}
         >
@@ -333,8 +332,8 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
                 style={{ background: item.color }}
                 aria-hidden="true"
               />
-              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{item.name}</span>
-              <span className="num shrink-0 text-[12.5px] font-bold text-faint">
+              <span className={`min-w-0 flex-1 truncate font-semibold ${hasDetailedBreakdown ? "text-[11.5px]" : "text-[12.5px]"}`}>{item.name}</span>
+              <span className={`num shrink-0 font-bold text-faint ${hasDetailedBreakdown ? "text-[11.5px]" : "text-[12.5px]"}`}>
                 {Math.round(item.share * 100)}%
               </span>
               </>
@@ -345,18 +344,23 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
                 key={item.id}
                 href={categoryHref(item.id)}
                 aria-label={`${item.name} xarajatlarini Tarixda ko‘rish`}
-                onPointerEnter={() => setActiveCategoryId(item.id)}
-                onPointerLeave={() => setActiveCategoryId(null)}
+                title={item.name}
+                onPointerEnter={(event) => {
+                  if (event.pointerType === "mouse") setActiveCategoryId(item.id);
+                }}
+                onPointerLeave={(event) => {
+                  if (event.pointerType === "mouse") setActiveCategoryId(null);
+                }}
                 onFocus={() => setActiveCategoryId(item.id)}
                 onBlur={() => setActiveCategoryId(null)}
-                className={`flex min-h-8 min-w-0 items-center gap-2.5 rounded-lg px-1.5 -mx-1.5 transition-[background-color,opacity,transform] touch-manipulation hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 active:scale-[0.98] ${
+                className={`flex min-h-9 min-w-0 items-center gap-2 rounded-[10px] px-2 transition-[background-color,opacity,transform] touch-manipulation hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 active:scale-[0.98] ${
                   activeCategoryId !== null && activeCategoryId !== item.id ? "opacity-45" : "opacity-100"
                 }`}
               >
                 {content}
               </Link>
             ) : (
-              <span key={item.name} className="flex min-h-8 min-w-0 items-center gap-2.5 px-1.5 -mx-1.5">
+              <span key={item.name} className="flex min-h-9 min-w-0 items-center gap-2 rounded-[10px] px-2">
                 {content}
               </span>
             );

@@ -375,8 +375,12 @@ export function CategoryDonut({
           role={slice.id !== null ? "button" : undefined}
           tabIndex={slice.id !== null ? 0 : undefined}
           aria-label={slice.id !== null ? `${slice.name}, ${Math.round(slice.pct)}%. Tarixni ochish` : undefined}
-          onPointerEnter={() => onActiveChange?.(slice.id)}
-          onPointerLeave={() => onActiveChange?.(null)}
+          onPointerEnter={(event) => {
+            if (event.pointerType === "mouse") onActiveChange?.(slice.id);
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType === "mouse") onActiveChange?.(null);
+          }}
           onFocus={() => onActiveChange?.(slice.id)}
           onBlur={() => onActiveChange?.(null)}
           onClick={() => slice.id !== null && onSelect?.(slice.id)}
