@@ -188,7 +188,6 @@ export function QuickAddSheet({
       open={open}
       onClose={onClose}
       title={editing ? "Operatsiyani tahrirlash" : TX_LABEL[type]}
-      eyebrow={editing ? undefined : "Yangi yozuv"}
       icon={TYPE_HEADER[type].icon}
       iconTone={TYPE_HEADER[type].tone}
       submitLabel="Saqlash"
@@ -242,9 +241,8 @@ export function QuickAddSheet({
         </>
       )}
 
-      {/* Account and date share one strip: both already carry a smart default,
-          so they are corrections, not questions. Transfer picks its accounts
-          above, so the strip carries the date alone there. */}
+      {/* Account and date carry smart defaults, but each expands across the
+          full sheet width so their choices never collide on a phone. */}
       <MetaRow
         account={
           type !== "transfer" ? (

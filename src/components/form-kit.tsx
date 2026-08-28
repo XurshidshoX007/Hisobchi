@@ -717,7 +717,10 @@ export function AmountField({
               className={`num min-w-0 max-w-full bg-transparent text-center font-bold leading-[0.9] outline-none placeholder:font-bold placeholder:text-faint ${
                 digits > 12 ? "text-[28px]" : digits > 9 ? "text-[36px]" : "text-[46px]"
               }`}
-              style={{ width: `${Math.max(1, value.length || 1)}ch` }}
+              // The global keyboard-focus ring is useful for buttons, but on
+              // this auto-focused numeric input it became a narrow gold pill
+              // around the placeholder. The slab itself remains the field.
+              style={{ width: `${Math.max(1, value.length || 1)}ch`, outline: "none" }}
             />
             {currency ? <span className="shrink-0 text-[13px] font-semibold text-faint">{currency}</span> : null}
           </div>
@@ -964,9 +967,15 @@ export function DateField({
           type="button"
           onClick={() => setExpanded((current) => !current)}
           aria-expanded={expanded}
-          className="flex min-h-11 w-full min-w-0 items-center justify-end gap-1.5 text-right touch-manipulation"
+          className="flex min-h-12 w-full min-w-0 items-center gap-3 text-left touch-manipulation"
         >
-          <span className="min-w-0 truncate text-[13.5px] font-semibold">{summary}</span>
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-accent-soft text-accent-text" aria-hidden="true">
+            <Icon name="calendar" size={15} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[9.5px] font-semibold uppercase tracking-[0.09em] text-faint">Sana</span>
+            <span className="mt-0.5 block truncate text-[13.5px] font-semibold">{summary}</span>
+          </span>
           <Icon
             name="chevron-down"
             size={13}
@@ -1200,7 +1209,7 @@ function InlineAccountPicker({
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
         disabled={options.length <= 1}
-        className="flex min-h-11 w-full min-w-0 items-center gap-2.5 text-left disabled:cursor-default touch-manipulation"
+        className="flex min-h-12 w-full min-w-0 items-center gap-2.5 text-left disabled:cursor-default touch-manipulation"
       >
         {/* A 40×28 stand-in for the card itself — the same metal gradient and
             gold chip used on the Accounts screen, so the two read as one object. */}
@@ -1212,7 +1221,8 @@ function InlineAccountPicker({
           <span className="h-1.5 w-2 rounded-[1.5px]" style={{ background: "var(--chip-gold)" }} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13.5px] font-semibold leading-tight">{account.name}</span>
+          <span className="block text-[9.5px] font-semibold uppercase tracking-[0.09em] text-faint">Hisob</span>
+          <span className="mt-0.5 block truncate text-[13.5px] font-semibold leading-tight">{account.name}</span>
           <span className="num block truncate text-[11px] font-semibold leading-tight text-faint">
             {formatAmount(account.currentBalance)}
           </span>
@@ -1251,20 +1261,15 @@ function InlineAccountPicker({
 }
 
 /**
- * §11/§13 — account and date on ONE strip instead of two full-width blocks.
- * Both are smart-defaulted (last used account, today), so they are corrections
- * rather than decisions and do not deserve a section each. This is the single
- * biggest height saving in the add sheet.
+ * Account and date remain one compact metadata group, but their expandable
+ * controls get separate full-width rows. On narrow screens this prevents two
+ * independent option lists from fighting for half of the sheet.
  */
 export function MetaRow({ account, date }: { account: ReactNode; date: ReactNode }) {
   return (
-    <div
-      className="flex min-w-0 items-center gap-3 rounded-[18px] px-3.5 py-1.5"
-      style={{ background: "var(--tint-neutral)" }}
-    >
-      <div className="min-w-0 flex-[3]">{account}</div>
-      <div className="h-6 w-px shrink-0" style={{ background: "var(--border)" }} aria-hidden="true" />
-      <div className="min-w-0 flex-[2]">{date}</div>
+    <div className="grid min-w-0 gap-2 rounded-[20px] bg-surface-2 p-2">
+      <div className="min-w-0 rounded-[14px] border border-line bg-surface px-3.5 py-0.5">{account}</div>
+      <div className="min-w-0 rounded-[14px] border border-line bg-surface px-3.5 py-0.5">{date}</div>
     </div>
   );
 }

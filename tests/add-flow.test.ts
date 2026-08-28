@@ -143,7 +143,7 @@ test("the daily transaction form reuses every shared control", () => {
 
 /*
  * The daily add sheet is the most-used surface in the product, so its shape is
- * pinned: the amount is the hero, account+date share one strip, and everything
+ * pinned: the amount is the hero, account+date share one compact group, and everything
  * optional is collapsed. These guard the density won back in the redesign.
  */
 test("the add sheet leads with the amount and keeps optional fields collapsed", () => {
@@ -154,10 +154,11 @@ test("the add sheet leads with the amount and keeps optional fields collapsed", 
   assert.equal((formKit.match(/variant\?: "field" \| "slab"/g) ?? []).length, 1);
   assert.equal((Object.values(CREATE_PAGES).join("\n").match(/variant="slab"/g) ?? []).length, 0);
 
-  // Account + date are corrections, not questions: one row, not two blocks.
+  // Account + date are corrections, not questions: one compact metadata group.
   assert.match(quickAdd, /<MetaRow/);
   assert.match(quickAdd, /<AccountPicker variant="inline"/);
   assert.match(quickAdd, /<DateField variant="inline"/);
+  assert.match(formKit, /grid min-w-0 gap-2 rounded-\[20px\]/, "expanded pickers must stack at full width");
 
   // The note and the natural-language helper live behind the collapsed section
   // — present in the tree, absent from the default view.
@@ -167,8 +168,8 @@ test("the add sheet leads with the amount and keeps optional fields collapsed", 
   assert.doesNotMatch(quickAdd.slice(0, quickAdd.indexOf("<AdvancedSection")), /<NoteField/);
 });
 
-test("the sheet header states the direction with an icon, not a + prefix", () => {
-  assert.match(quickAdd, /eyebrow=\{editing \? undefined : "Yangi yozuv"\}/);
+test("the sheet header states the direction once with an icon", () => {
+  assert.doesNotMatch(quickAdd, /Yangi yozuv/i);
   assert.match(quickAdd, /icon=\{TYPE_HEADER\[type\]\.icon\}/);
   assert.doesNotMatch(quickAdd, /"\+ Daromad"|"\+ Xarajat"|"\+ Transfer"/);
   // The header props are threaded through the shared primitive, not re-invented.
@@ -182,6 +183,7 @@ test("amount is entered through the shared money input everywhere", () => {
   }
   assert.match(formKit, /inputMode="decimal"/);
   assert.match(formKit, /formatAmountInput\(e\.target\.value\)/);
+  assert.match(formKit, /outline: "none"/, "auto-focused amount must not render a gold input capsule");
 });
 
 test("optional details are collapsed, never ten fields by default", () => {
