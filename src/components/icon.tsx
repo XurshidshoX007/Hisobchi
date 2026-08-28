@@ -1,19 +1,26 @@
+import {
+  ArrowDown, ArrowLeftRight, ArrowUp, Bell, BriefcaseBusiness, CalendarDays, Camera, CarFront,
+  ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck,
+  CircleHelp, CircleSlash, Clapperboard, Clock3, CreditCard, Cross, Ellipsis, Eye, FileText,
+  Flag, Flame, Gem, Gift, GraduationCap, House, KeyRound, Landmark, Lightbulb, ListFilter,
+  Medal, Minus, Monitor, Moon, NotebookText, Pause, Pencil, Pin, Plus, ReceiptText, RotateCcw,
+  Search, Send, Settings2, Shield, Shirt, ShoppingBag, Smartphone, Sparkles, Store, Sun, Tag,
+  Target, TrendingDown, TrendingUp, TriangleAlert, Trophy, UsersRound, WalletCards, Wrench, X,
+  type LucideIcon,
+} from "lucide-react";
+
 /**
  * One line-icon system, replacing the emoji strings the product shipped with.
  *
- * Geometry (from the design handoff): 16×16 viewBox, `fill: none`,
- * `stroke: currentColor`, stroke-width 1.7, round caps and joins. Arrows,
- * marks and close buttons are heavier (1.9–2.8); navigation icons use a 24×24
- * box. Colour is never baked in — the icon inherits `currentColor`, so the
- * caller's text colour drives it.
+ * All non-navigation icons are provided by Lucide: they share one 24×24 grid,
+ * rounded geometry and an optically consistent 1.9px stroke. The approved
+ * bottom-navigation artwork stays custom and untouched.
  *
  * MIGRATION NOTE — icons are user data, not just markup. `categories.icon` and
  * `goals.icon` are text columns in Postgres, written by the seed, by the
- * per-user bootstrap AND by the user (Accounts and Goals both expose a free
- * text field where anyone can type an emoji). Migration 0010 rewrites the
- * known emoji to semantic keys, but a database can still hold an arbitrary
- * glyph, so <Icon> falls back to rendering the raw character rather than
- * showing nothing. See resolveIconName below.
+ * per-user bootstrap. Migration 0010 rewrites known emoji to semantic keys.
+ * An unknown legacy value falls back to a stable outline rather than a
+ * platform-dependent emoji. See resolveIconName below.
  */
 
 type El =
@@ -252,6 +259,80 @@ const ICONS = {
 
 export type IconName = keyof typeof ICONS;
 
+/*
+ * All product icons other than the approved bottom navigation use one mature
+ * icon family. It fixes the former mix of hand-drawn 16px and 24px glyphs:
+ * every symbol now shares the same corner language, optical weight and canvas.
+ * `nav-*` deliberately stays on the original artwork requested by the user.
+ */
+const STANDARD_ICONS: Record<Exclude<IconName, `nav-${string}`>, LucideIcon> = {
+  food: ShoppingBag,
+  transport: CarFront,
+  home: House,
+  key: KeyRound,
+  utilities: Lightbulb,
+  repair: Wrench,
+  bank: Landmark,
+  wallet: WalletCards,
+  card: CreditCard,
+  salary: BriefcaseBusiness,
+  business: Store,
+  entertainment: Clapperboard,
+  phone: Smartphone,
+  family: UsersRound,
+  health: Cross,
+  education: GraduationCap,
+  clothing: Shirt,
+  gift: Gift,
+  sparkle: Sparkles,
+  return: RotateCcw,
+  goal: Trophy,
+  target: Target,
+  shield: Shield,
+  doc: FileText,
+  settings: Settings2,
+  telegram: Send,
+  tag: Tag,
+  chart: ChartNoAxesCombined,
+  dot: Circle,
+  more: Ellipsis,
+  bell: Bell,
+  eye: Eye,
+  calendar: CalendarDays,
+  camera: Camera,
+  ledger: NotebookText,
+  filter: ListFilter,
+  edit: Pencil,
+  moon: Moon,
+  sun: Sun,
+  info: CircleHelp,
+  monitor: Monitor,
+  receipt: ReceiptText,
+  clock: Clock3,
+  pause: Pause,
+  ban: CircleSlash,
+  flag: Flag,
+  pin: Pin,
+  "trend-up": TrendingUp,
+  "trend-down": TrendingDown,
+  "check-circle": CircleCheck,
+  flame: Flame,
+  medal: Medal,
+  gem: Gem,
+  "arrow-up": ArrowUp,
+  "arrow-down": ArrowDown,
+  transfer: ArrowLeftRight,
+  "chevron-right": ChevronRight,
+  "chevron-down": ChevronDown,
+  "chevron-left": ChevronLeft,
+  close: X,
+  check: Check,
+  plus: Plus,
+  minus: Minus,
+  warning: TriangleAlert,
+  search: Search,
+};
+
 /**
  * Every emoji this product has ever written into the database or hard-coded in
  * a component, mapped to its replacement. Migration 0010 applies the same table
@@ -331,8 +412,7 @@ const LEGACY_EMOJI: Record<string, IconName> = {
 
 /**
  * Map a stored icon value to a registry key. Returns null when the value is
- * neither a known key nor a known emoji — the caller then decides whether to
- * show the raw glyph (user data) or a fallback.
+ * neither a known key nor a known emoji.
  */
 export function resolveIconName(raw: string | null | undefined): IconName | null {
   if (!raw) return null;
@@ -406,7 +486,7 @@ export function IconPicker({
 export function Icon({
   name,
   size = 17,
-  fallback = "dot",
+  fallback = "tag",
   className,
   strokeWidth,
 }: {
@@ -414,9 +494,9 @@ export function Icon({
   name: IconName | (string & {}) | null | undefined;
   size?: number;
   /**
-   * Used when `name` is empty. An UNRECOGNISED but non-empty value is rendered
-   * as-is instead: users can type their own emoji into the Account and Goal
-   * forms, and silently swallowing that would look like data loss.
+   * Used when a stored value is empty or no longer part of the curated system.
+   * Unknown legacy glyphs resolve to this stable outline instead of rendering
+   * platform-dependent emoji alongside the new icon family.
    */
   fallback?: IconName | null;
   className?: string;
@@ -425,20 +505,24 @@ export function Icon({
   const resolved = resolveIconName(name);
 
   if (!resolved) {
-    const raw = typeof name === "string" ? name.trim() : "";
-    if (raw) {
-      return (
-        <span
-          aria-hidden="true"
-          className={className}
-          style={{ fontSize: size, lineHeight: 1 }}
-        >
-          {raw}
-        </span>
-      );
-    }
     if (!fallback) return null;
     return <Icon name={fallback} size={size} className={className} strokeWidth={strokeWidth} fallback={null} />;
+  }
+
+  const standardIcon = STANDARD_ICONS[resolved as keyof typeof STANDARD_ICONS];
+  if (standardIcon) {
+    const LucideIcon = standardIcon;
+    return (
+      <LucideIcon
+        width={size}
+        height={size}
+        strokeWidth={strokeWidth ?? 1.9}
+        absoluteStrokeWidth
+        className={className}
+        aria-hidden="true"
+        focusable="false"
+      />
+    );
   }
 
   const icon: IconDef = ICONS[resolved];

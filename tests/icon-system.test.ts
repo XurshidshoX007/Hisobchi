@@ -80,9 +80,11 @@ test("migration 0010 agrees with the runtime legacy-emoji map", () => {
 });
 
 test("the Mini App renders icons as SVG, not as emoji text", () => {
-  // A stored icon is user data (Accounts and Goals let anyone type one), so the
-  // component must degrade to the raw glyph instead of rendering nothing.
-  assert.match(icon, /if \(raw\) \{/);
+  // A stored legacy value must resolve to an SVG fallback, never a platform
+  // emoji that would break the visual language on a different device.
+  assert.match(icon, /const STANDARD_ICONS/);
+  assert.match(icon, /absoluteStrokeWidth/);
+  assert.match(icon, /fallback = "tag"/);
   assert.match(icon, /export function resolveIconName/);
 
   // The account-type table drives the account chips in every sheet.
