@@ -140,9 +140,11 @@
      --bottom-nav-height stays that total, which is what the FAB offset and the
      page clearance below actually care about. */
   --bottom-nav-panel-height: 62px;
-  /* Keep the glass bar close to the edge without fighting iOS/Telegram safe areas. */
+  /* Horizontal breathing room and vertical lift are separate: wider mobile
+     side margins must not push the bar unnecessarily high above iOS safe area. */
   --bottom-nav-inset: 8px;
-  --bottom-nav-height: calc(var(--bottom-nav-panel-height) + var(--bottom-nav-inset));
+  --bottom-nav-bottom-inset: 8px;
+  --bottom-nav-height: calc(var(--bottom-nav-panel-height) + var(--bottom-nav-bottom-inset));
   --fab-size: 56px;
   --fab-gap: 14px;
   /* Clearance left after the final row has scrolled completely above a FAB. */
@@ -331,6 +333,7 @@ body {
   :root {
     --bottom-nav-panel-height: 66px;
     --bottom-nav-inset: 16px;
+    --bottom-nav-bottom-inset: 8px;
     --fab-size: 60px;
     --fab-gap: 16px;
     --content-bottom-gap: 18px;
@@ -574,16 +577,15 @@ input::placeholder {
 }
 
 /*
- * Floating glass navigation. It hovers `--bottom-nav-inset` above the device
- * safe area on all four sides instead of sitting flush against the bottom
- * edge, so the page content visibly continues underneath it — the blur is the
- * separator, which is why there is no top border any more.
+ * Floating glass navigation. Side inset and bottom lift are deliberately
+ * independent: the panel can stay comfortably narrow without sitting too high
+ * above the device safe area.
  */
 .app-bottom-nav {
   position: fixed;
   left: var(--bottom-nav-inset);
   right: var(--bottom-nav-inset);
-  bottom: calc(var(--app-safe-area-bottom) + var(--bottom-nav-inset));
+  bottom: calc(var(--app-safe-area-bottom) + var(--bottom-nav-bottom-inset));
   z-index: var(--z-bottom-nav);
   isolation: isolate;
   border: 1px solid var(--border-strong);

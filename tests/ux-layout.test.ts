@@ -12,7 +12,7 @@ const transactionFilter = readFileSync(new URL("../src/components/transaction-fi
 const history = readFileSync(new URL("../src/app/transactions/page.tsx", import.meta.url), "utf8");
 
 test("mobile chrome uses shared geometry instead of magic FAB offsets", () => {
-  for (const variable of ["--bottom-nav-height", "--fab-size", "--fab-gap", "--content-bottom-gap"]) {
+  for (const variable of ["--bottom-nav-height", "--bottom-nav-bottom-inset", "--fab-size", "--fab-gap", "--content-bottom-gap"]) {
     assert.match(css, new RegExp(variable));
   }
   assert.match(css, /--app-safe-area-bottom:[\s\S]*env\(safe-area-inset-bottom, 0px\)/);
@@ -27,11 +27,13 @@ test("bottom navigation is a floating glass panel, not a flush bar", () => {
   // TOTAL occupied space (panel + inset), not just the panel height.
   assert.match(css, /--bottom-nav-panel-height:\s*62px/);
   assert.match(css, /--bottom-nav-inset:\s*8px/);
+  assert.match(css, /--bottom-nav-bottom-inset:\s*8px/);
   assert.match(
     css,
-    /--bottom-nav-height:\s*calc\(var\(--bottom-nav-panel-height\) \+ var\(--bottom-nav-inset\)\)/,
+    /--bottom-nav-height:\s*calc\(var\(--bottom-nav-panel-height\) \+ var\(--bottom-nav-bottom-inset\)\)/,
   );
   assert.match(css, /\.app-bottom-nav\s*\{[^}]*left:\s*var\(--bottom-nav-inset\)/);
+  assert.match(css, /\.app-bottom-nav\s*\{[^}]*bottom:\s*calc\(var\(--app-safe-area-bottom\) \+ var\(--bottom-nav-bottom-inset\)\)/);
   assert.match(css, /\.app-bottom-nav\s*\{[^}]*border-radius:\s*var\(--radius-nav\)/);
 
   // Utilities that would pin it back to the screen edge must not return.
