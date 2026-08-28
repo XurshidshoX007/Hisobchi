@@ -293,7 +293,7 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
       <figure
         className={`mt-4 min-w-0 ${
           hasDetailedBreakdown
-            ? "flex flex-col items-center gap-4"
+            ? "flex flex-col items-center gap-3"
             : "grid grid-cols-[8.25rem_minmax(0,1fr)] items-center gap-x-4"
         }`}
       >
@@ -320,7 +320,7 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
         <figcaption
           className={`min-w-0 ${
             hasDetailedBreakdown
-              ? "grid w-full grid-cols-2 gap-x-2 gap-y-1"
+              ? "grid w-full grid-cols-2 gap-x-2 gap-y-0.5"
               : "space-y-2.5"
           }`}
         >
@@ -332,8 +332,8 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
                 style={{ background: item.color }}
                 aria-hidden="true"
               />
-              <span className={`min-w-0 flex-1 truncate font-semibold ${hasDetailedBreakdown ? "text-[11.5px]" : "text-[12.5px]"}`}>{item.name}</span>
-              <span className={`num shrink-0 font-bold text-faint ${hasDetailedBreakdown ? "text-[11.5px]" : "text-[12.5px]"}`}>
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{item.name}</span>
+              <span className={`num shrink-0 font-bold text-faint ${hasDetailedBreakdown ? "text-[12px]" : "text-[12.5px]"}`}>
                 {Math.round(item.share * 100)}%
               </span>
               </>
@@ -353,14 +353,14 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
                 }}
                 onFocus={() => setActiveCategoryId(item.id)}
                 onBlur={() => setActiveCategoryId(null)}
-                className={`flex min-h-9 min-w-0 items-center gap-2 rounded-[10px] px-2 transition-[background-color,opacity,transform] touch-manipulation hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 active:scale-[0.98] ${
+                className={`flex min-h-8 min-w-0 items-center gap-2 rounded-[10px] px-2 transition-[background-color,opacity,transform] touch-manipulation hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 active:scale-[0.98] ${
                   activeCategoryId !== null && activeCategoryId !== item.id ? "opacity-45" : "opacity-100"
                 }`}
               >
                 {content}
               </Link>
             ) : (
-              <span key={item.name} className="flex min-h-9 min-w-0 items-center gap-2 rounded-[10px] px-2">
+              <span key={item.name} className="flex min-h-8 min-w-0 items-center gap-2 rounded-[10px] px-2">
                 {content}
               </span>
             );
