@@ -64,23 +64,27 @@ export function OnboardingTour({ onStepChange }: { onStepChange: (href: string |
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end bg-black/45 px-3 pb-[calc(var(--bottom-nav-height)+var(--app-safe-area-bottom)+16px)] pt-10 backdrop-blur-[1px] sm:items-center sm:justify-center sm:pb-10" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
-      <section className="animate-fade-up w-full max-w-sm rounded-[24px] border border-line-strong bg-surface p-5 shadow-2xl">
+    <div className="fixed inset-0 z-[70] flex items-end bg-black/30 px-3 pb-[calc(var(--bottom-nav-height)+var(--app-safe-area-bottom)+16px)] pt-10 backdrop-blur-[2px] sm:items-center sm:justify-center sm:pb-10" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+      <section className="onboarding-sheet animate-fade-up w-full max-w-sm overflow-hidden rounded-[var(--radius-sheet)] border border-line-strong p-5 shadow-2xl">
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-faint/50" aria-hidden="true" />
         <div className="flex items-start justify-between gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent-text animate-pulse-subtle" aria-hidden="true">
-            <Icon name={current.icon} size={21} />
+          <div className="tour-icon-orbit grid h-12 w-12 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-text" aria-hidden="true">
+            <Icon name={current.icon} size={22} />
           </div>
-          <button type="button" onClick={finish} className="min-h-9 shrink-0 px-1 text-[12px] font-semibold text-muted transition-colors hover:text-fg touch-manipulation">O‘tkazib yuborish</button>
+          <button type="button" onClick={finish} className="min-h-9 shrink-0 rounded-full px-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation">O‘tkazib yuborish</button>
         </div>
-        <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.16em] text-accent-text">{currentIndex + 1} / {ONBOARDING_STEPS.length} · {current.navLabel}</p>
-        <h2 id="onboarding-title" className="mt-1 text-[19px] font-bold tracking-tight">{current.title}</h2>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-accent-text">{current.navLabel}</p>
+          <span className="rounded-full border border-warning/35 bg-warning-soft px-2 py-1 text-[10px] font-bold text-warning-text">{currentIndex + 1} / {ONBOARDING_STEPS.length}</span>
+        </div>
+        <h2 id="onboarding-title" className="mt-1.5 text-[20px] font-bold tracking-tight">{current.title}</h2>
         <p className="mt-2 text-[13px] leading-relaxed text-muted">{current.body}</p>
         <div className="mt-5 flex gap-1.5" aria-label={`${currentIndex + 1}-qadam`}>
-          {ONBOARDING_STEPS.map((item, index) => <span key={item.href} className={`h-1.5 flex-1 rounded-full transition-colors ${index <= currentIndex ? "bg-primary" : "bg-surface-3"}`} />)}
+          {ONBOARDING_STEPS.map((item, index) => <span key={item.href} className={`h-1 flex-1 rounded-full transition-colors ${index <= currentIndex ? "bg-primary" : "bg-surface-3"}`} />)}
         </div>
-        <div className="mt-5 flex items-center justify-between gap-3">
+        <div className="mt-4 flex items-center justify-between gap-3">
           <Button variant="ghost" onClick={finish}>Keyinroq</Button>
-          <Button onClick={next}>{currentIndex === ONBOARDING_STEPS.length - 1 ? "Boshlash" : "Keyingi"}</Button>
+          <Button className="min-w-[116px]" onClick={next}>{currentIndex === ONBOARDING_STEPS.length - 1 ? "Boshlash" : "Keyingi"}</Button>
         </div>
       </section>
     </div>

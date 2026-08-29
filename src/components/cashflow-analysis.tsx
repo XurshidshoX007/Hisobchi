@@ -186,11 +186,13 @@ function AnalyticsPreview({ transactionCount }: { transactionCount: number }) {
             <CategoryBars items={SAMPLE_CATEGORIES} />
           </Card>
         </div>
-        <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 rounded-2xl border border-line-strong bg-surface/95 p-4 text-center shadow-xl backdrop-blur-sm">
-          <div className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent-text" aria-hidden="true"><Icon name="chart" size={19} /></div>
-          <p className="mt-2 text-[15px] font-semibold">Sizning tahlilingiz shu yerda bo‘ladi</p>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-muted">Bu namunaviy ko‘rinish. Haqiqiy grafiklar uchun yana {needed || 1} ta daromad yoki xarajat kiriting.</p>
-          <Link href="/" className="mt-3 inline-flex min-h-9 items-center rounded-full bg-primary px-3.5 text-[12px] font-semibold text-primary-fg touch-manipulation">Birinchi operatsiyani qo‘shish</Link>
+        <div className="analytics-preview-sheet absolute inset-x-4 top-1/2 -translate-y-1/2 rounded-[22px] border border-line-strong p-4 text-center shadow-xl backdrop-blur-md">
+          <span className="inline-flex rounded-full border border-warning/35 bg-warning-soft px-2 py-1 text-[10px] font-bold tracking-[0.12em] text-warning-text">NAMUNA</span>
+          <div className="analytics-preview-icon mx-auto mt-3 grid h-11 w-11 place-items-center rounded-full bg-accent-soft text-accent-text" aria-hidden="true"><Icon name="chart" size={20} /></div>
+          <p className="mt-3 text-[16px] font-semibold tracking-tight">Sizning tahlilingiz shu yerda bo‘ladi</p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-muted">Bu faqat ko‘rinish namunasi. Haqiqiy grafiklarni ochish uchun yana {needed || 1} ta operatsiya kiriting.</p>
+          <div className="mx-auto mt-3 flex max-w-[210px] gap-1.5" aria-label="Tahlil ochilish jarayoni"><span className="h-1.5 flex-1 rounded-full bg-primary" /><span className={`h-1.5 flex-1 rounded-full ${transactionCount > 0 ? "bg-primary" : "bg-surface-3"}`} /></div>
+          <Link href="/" className="mt-4 inline-flex min-h-10 items-center rounded-full bg-primary px-4 text-[12px] font-semibold text-primary-fg shadow-sm touch-manipulation">Operatsiya qo‘shish</Link>
         </div>
       </div>
       <p className="px-1 text-center text-[11px] text-muted">Namuna ma’lumotlari — balansingiz yoki haqiqiy xarajatlaringiz emas.</p>

@@ -295,7 +295,7 @@ function NavItem({
       href={href}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} o‘qilmagan eslatma` : undefined}
-      className={`nav-item flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-0.5 py-1 transition-colors duration-[180ms] ease-out touch-manipulation ${tourActive ? "animate-pulse-subtle ring-1 ring-accent/60" : ""} ${
+      className={`nav-item flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-0.5 py-1 transition-colors duration-[180ms] ease-out touch-manipulation ${tourActive ? "tour-nav-focus" : ""} ${
         active ? "text-gold" : "text-faint"
       }`}
     >
