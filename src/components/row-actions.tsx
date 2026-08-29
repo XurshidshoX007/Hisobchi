@@ -164,7 +164,7 @@ export function RowActionsButton({
 }: {
   label: string;
   onClick: () => void;
-  /** Opt-in 44px touch target for rows whose primary action uses that height. */
+  /** Opt-in 40px target for compact rows whose primary action uses that height. */
   comfortable?: boolean;
 }) {
   return (
@@ -172,7 +172,7 @@ export function RowActionsButton({
       type="button"
       onClick={onClick}
       aria-label={`${label} — boshqa amallar`}
-      className={`grid shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation ${comfortable ? "h-11 w-11" : "h-9 w-9"}`}
+      className={`grid shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation ${comfortable ? "h-10 w-10" : "h-9 w-9"}`}
     >
       <Icon name="more" size={16} />
     </button>
