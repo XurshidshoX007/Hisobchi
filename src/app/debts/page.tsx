@@ -148,12 +148,12 @@ export default function DebtsPage() {
                           type="button"
                           onClick={() => setPayFor(d)}
                           aria-label={`${d.personName} uchun to‘lov kiritish`}
-                          className="min-h-10 min-w-[92px] rounded-xl px-4 text-[12.5px] font-bold transition-[filter] hover:brightness-105 active:scale-[0.98] touch-manipulation"
+                          className="min-h-9 min-w-[84px] rounded-xl px-3.5 text-[12px] font-bold transition-[filter] hover:brightness-105 active:scale-[0.98] touch-manipulation"
                           style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
                         >
                           To‘lov
                         </button>
-                        <RowActionsButton label={d.personName} onClick={() => setMenuDebt(d)} comfortable />
+                        <RowActionsButton label={d.personName} onClick={() => setMenuDebt(d)} />
                       </div>
                     </div>
                   </div>

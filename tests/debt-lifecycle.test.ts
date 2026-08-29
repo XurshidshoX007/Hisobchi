@@ -29,8 +29,8 @@ test("debt UI exposes only the two open-balance directions", () => {
   assert.match(debtPage, /\{activeDebts\.length \? \(/);
 });
 
-test("debt payment action is comfortable without becoming full width", () => {
-  assert.match(debtPage, /min-h-10 min-w-\[92px\]/);
+test("debt payment action stays compact and never becomes full width", () => {
+  assert.match(debtPage, /min-h-9 min-w-\[84px\]/);
   assert.doesNotMatch(debtPage, /To‘lov[\s\S]{0,100}?flex-1/);
-  assert.match(debtPage, /<RowActionsButton[\s\S]{0,160}?comfortable/);
+  assert.doesNotMatch(debtPage, /<RowActionsButton[\s\S]{0,160}?comfortable/);
 });
