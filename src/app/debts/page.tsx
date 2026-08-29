@@ -6,6 +6,7 @@ import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
 import {
   AccountPicker,
+  AdvancedSection,
   AmountField,
   Chip,
   ChoiceGrid,
@@ -15,6 +16,7 @@ import {
   NoteField,
   PreviewCard,
 } from "@/components/form-kit";
+import { Icon } from "@/components/icon";
 import {
   Card,
   EmptyState,
@@ -313,8 +315,10 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Qarzni tahrirlash" : "+ Qarz"}
+      title={editing ? "Qarzni tahrirlash" : "Qarz"}
       subtitle={editing ? undefined : "Kim kimga qarzdor?"}
+      icon="doc"
+      iconTone={direction === "i_owe" ? "negative" : "positive"}
       submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
@@ -338,12 +342,6 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
 
       <AmountField value={amount} onChange={setAmount} error={showError("amount")} currency="UZS" autoFocus={!editing} />
 
-      {!editing ? <AccountPicker value={accountId} onChange={setAccountId} /> : null}
-
-      <DateField value={dueDate} onChange={setDueDate} label="Muddat (ixtiyoriy)" chips={false} />
-
-      <NoteField value={note} onChange={setNote} />
-
       {parsed > 0 && personName.trim() ? (
         <PreviewCard>
           <p className="min-w-0 break-words text-[13px]">
@@ -356,6 +354,12 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
           </p>
         </PreviewCard>
       ) : null}
+
+      <AdvancedSection>
+        {!editing ? <AccountPicker value={accountId} onChange={setAccountId} /> : null}
+        <DateField value={dueDate} onChange={setDueDate} label="Muddat" chips={false} />
+        <NoteField value={note} onChange={setNote} />
+      </AdvancedSection>
     </FormSheet>
   );
 }
@@ -414,6 +418,8 @@ function PaySheet({ debt, onClose }: { debt: DebtView | null; onClose: () => voi
       onClose={onClose}
       title={`To‘lov: ${record.personName}`}
       subtitle={`Qoldi ${formatAmount(record.remainingAmount)} so‘m`}
+      icon="receipt"
+      iconTone={record.direction === "i_owe" ? "negative" : "positive"}
       submitLabel="Saqlash"
       canSubmit={valid}
       dirty={Boolean(amount)}

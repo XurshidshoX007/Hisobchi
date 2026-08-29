@@ -1321,8 +1321,10 @@ function RecurringSheet({
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "To‘lovni tahrirlash" : "+ To‘lov"}
+      title={editing ? "To‘lovni tahrirlash" : "To‘lov"}
       subtitle={editing ? undefined : "Nima uchun va qancha?"}
+      icon="nav-plans"
+      iconTone="gold"
       submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
@@ -1705,8 +1707,10 @@ function IncomeSheet({
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Daromadni tahrirlash" : "+ Daromad"}
+      title={editing ? "Daromadni tahrirlash" : "Daromad"}
       subtitle={editing ? undefined : "Qaysi manbadan va qachon?"}
+      icon="arrow-up"
+      iconTone="positive"
       submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}

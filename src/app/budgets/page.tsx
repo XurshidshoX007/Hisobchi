@@ -4,8 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useFinance } from "@/components/providers";
 import { useFab, useFabPage } from "@/components/fab";
-import { AmountField, Chip, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
-import { Badge, Card, EmptyState, Field, Label, Money, Progress, Select, Skeleton } from "@/components/ui";
+import { AmountField, CategoryPicker, Chip, ChoiceGrid, FormActions, FormSheet, PreviewCard } from "@/components/form-kit";
+import { Badge, Card, EmptyState, Field, Label, Money, Progress, Skeleton } from "@/components/ui";
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { addMonths, compact, formatAmount, monthKey, monthLabel, monthStart, todayISO } from "@/lib/money";
 import type { BudgetView } from "@/lib/finance";
@@ -186,6 +186,7 @@ export default function BudgetsPage() {
 function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: BudgetView | null }) {
   const { state, mutate, toast } = useFinance();
   const [categoryId, setCategoryId] = useState("");
+  const [categoryScope, setCategoryScope] = useState<"all" | "category">("all");
   const [amount, setAmount] = useState("");
   const [month, setMonth] = useState("");
   const [touched, setTouched] = useState(false);
@@ -198,10 +199,12 @@ function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () =>
     if (!open) return;
     const draft = {
       categoryId: editing?.categoryId ? String(editing.categoryId) : "",
+      categoryScope: (editing?.categoryId ? "category" : "all") as "all" | "category",
       amount: editing ? formatAmountInput(String(editing.amount)) : "",
       month: editing?.month ?? thisMonth,
     };
     setCategoryId(draft.categoryId);
+    setCategoryScope(draft.categoryScope);
     setAmount(draft.amount);
     setMonth(draft.month);
     setTouched(false);
@@ -209,23 +212,24 @@ function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () =>
   }, [open, editing, thisMonth]);
 
   const categories = (state?.flatCategories ?? []).filter((c) => c.type === "expense" && c.isActive);
-  const categoryName = categoryId
+  const categoryName = categoryScope === "category" && categoryId
     ? categories.find((c) => String(c.id) === categoryId)?.name ?? "Kategoriya"
     : "Umumiy oylik";
 
   const errorMsg = amountError(amount, "Limitni kiriting");
-  const valid = !errorMsg;
+  const categoryError = categoryScope === "category" && !categoryId ? "Kategoriyani tanlang" : null;
+  const valid = !errorMsg && !categoryError;
   const parsed = parseAmountInput(amount) ?? 0;
-  const dirty = isDirtyDraft({ categoryId, amount, month }, initialDraft);
+  const dirty = isDirtyDraft({ categoryId, categoryScope, amount, month }, initialDraft);
 
   async function submit() {
     setTouched(true);
-    if (!valid) return { ok: false, message: errorMsg ?? "" };
+    if (!valid) return { ok: false, message: errorMsg ?? categoryError ?? "" };
     const res = await mutate(
       "budget",
       "upsert",
       {
-        categoryId: categoryId ? Number(categoryId) : null,
+        categoryId: categoryScope === "category" && categoryId ? Number(categoryId) : null,
         month: month || thisMonth,
         amount: parsed,
       },
@@ -239,23 +243,38 @@ function BudgetSheet({ open, onClose, editing }: { open: boolean; onClose: () =>
     <FormSheet
       open={open}
       onClose={onClose}
-      title={editing ? "Budjetni tahrirlash" : "+ Budjet"}
+      title={editing ? "Budjetni tahrirlash" : "Budjet"}
       subtitle={editing ? undefined : "Qaysi kategoriyaga oylik limit?"}
+      icon="target"
+      iconTone="gold"
       submitLabel="Saqlash"
       canSubmit={valid}
       dirty={dirty}
       onSubmit={submit}
     >
-      <Field label="Kategoriya" hint="Bo‘sh qoldirilsa — umumiy oylik limit">
-        <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={Boolean(editing)}>
-          <option value="">Umumiy oylik</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
+      {editing ? (
+        <Field label="Kategoriya">
+          <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] font-medium">{categoryName}</p>
+        </Field>
+      ) : (
+        <>
+          <ChoiceGrid
+            value={categoryScope}
+            ariaLabel="Budjet qamrovi"
+            onChange={(scope) => {
+              setCategoryScope(scope);
+              if (scope === "all") setCategoryId("");
+            }}
+            options={[
+              { value: "all", label: "Umumiy limit", description: "Barcha xarajatlar" },
+              { value: "category", label: "Kategoriya", description: "Bitta yo‘nalish" },
+            ]}
+          />
+          {categoryScope === "category" ? (
+            <CategoryPicker type="expense" value={categoryId} onChange={setCategoryId} error={touched ? categoryError : null} />
+          ) : null}
+        </>
+      )}
 
       <AmountField
         value={amount}
