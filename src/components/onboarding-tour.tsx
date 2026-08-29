@@ -6,9 +6,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { useFinance } from "@/components/providers";
 import { Button } from "@/components/ui";
-import { shouldStartOnboarding } from "@/lib/onboarding";
-
-const STORAGE_KEY = "hisobchi:onboarding:v1";
+import { onboardingStorageKey, shouldStartOnboarding } from "@/lib/onboarding";
 
 export const ONBOARDING_STEPS = [
   { href: "/", navLabel: "Asosiy", icon: "nav-home", title: "Moliyangiz bir joyda", body: "Balans, shu oyning natijasi va tezkor daromad yoki xarajat qo‘shish shu yerda." },
@@ -24,15 +22,16 @@ export function OnboardingTour({ onStepChange }: { onStepChange: (href: string |
   const [step, setStep] = useState<number | null>(null);
 
   const isEmptyAccount = state ? shouldStartOnboarding(state) : false;
+  const storageKey = state ? onboardingStorageKey(state.user.id) : null;
 
   useEffect(() => {
-    if (loading || !state || !isEmptyAccount) return;
+    if (loading || !state || !isEmptyAccount || !storageKey) return;
     try {
-      if (localStorage.getItem(STORAGE_KEY) !== "done") setStep(0);
+      if (localStorage.getItem(storageKey) !== "done") setStep(0);
     } catch {
       setStep(0);
     }
-  }, [isEmptyAccount, loading, state]);
+  }, [isEmptyAccount, loading, state, storageKey]);
 
   useEffect(() => {
     onStepChange(step === null ? null : ONBOARDING_STEPS[step].href);
@@ -45,7 +44,7 @@ export function OnboardingTour({ onStepChange }: { onStepChange: (href: string |
 
   function finish() {
     try {
-      localStorage.setItem(STORAGE_KEY, "done");
+      if (storageKey) localStorage.setItem(storageKey, "done");
     } catch {
       // Storage can be unavailable in private mode; closing still works now.
     }

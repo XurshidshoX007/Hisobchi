@@ -1,6 +1,12 @@
 export const MIN_ANALYTICS_TRANSACTIONS = 2;
+const ONBOARDING_STORAGE_PREFIX = "hisobchi:onboarding:v1";
 
 type TransactionLike = { isDeleted: boolean };
+
+/** Keeps first-use progress separate when an account is deleted and recreated. */
+export function onboardingStorageKey(userId: number): string {
+  return `${ONBOARDING_STORAGE_PREFIX}:user-${userId}`;
+}
 
 /** Real analytics starts only when there is enough completed ledger activity. */
 export function hasEnoughAnalyticsData(transactions: readonly TransactionLike[]): boolean {
