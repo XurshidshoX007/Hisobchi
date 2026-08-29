@@ -25,13 +25,15 @@ export function OnboardingTour({ onStepChange }: { onStepChange: (href: string |
   const storageKey = state ? onboardingStorageKey(state.user.id) : null;
 
   useEffect(() => {
-    if (loading || !state || !isEmptyAccount || !storageKey) return;
+    // A background state refresh can happen while the guide switches routes.
+    // Never re-initialize an already visible step back to 1/4.
+    if (step !== null || loading || !state || !isEmptyAccount || !storageKey) return;
     try {
       if (localStorage.getItem(storageKey) !== "done") setStep(0);
     } catch {
       setStep(0);
     }
-  }, [isEmptyAccount, loading, state, storageKey]);
+  }, [isEmptyAccount, loading, state, step, storageKey]);
 
   useEffect(() => {
     onStepChange(step === null ? null : ONBOARDING_STEPS[step].href);
