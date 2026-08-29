@@ -35,8 +35,11 @@ export function OnboardingTour({ onStepChange }: { onStepChange: (href: string |
 
   useEffect(() => {
     onStepChange(step === null ? null : ONBOARDING_STEPS[step].href);
-    return () => onStepChange(null);
   }, [onStepChange, step]);
+
+  useEffect(() => {
+    return () => onStepChange(null);
+  }, [onStepChange]);
 
   if (step === null) return null;
   const currentIndex = step;
@@ -54,16 +57,18 @@ export function OnboardingTour({ onStepChange }: { onStepChange: (href: string |
   function next() {
     if (currentIndex === ONBOARDING_STEPS.length - 1) {
       finish();
-      router.push("/");
+      router.replace("/");
       return;
     }
     const nextStep = currentIndex + 1;
     setStep(nextStep);
-    router.push(ONBOARDING_STEPS[nextStep].href);
+    // The guide owns a single temporary route. Replacing avoids creating a
+    // back-stack of explanatory pages or racing two quick Next taps.
+    router.replace(ONBOARDING_STEPS[nextStep].href);
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end bg-black/30 px-3 pb-[calc(var(--bottom-nav-height)+var(--app-safe-area-bottom)+16px)] pt-10 backdrop-blur-[2px] sm:items-center sm:justify-center sm:pb-10" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <div className="fixed inset-0 z-[70] flex items-end bg-black/30 px-3 pb-[calc(var(--bottom-nav-height)+var(--app-safe-area-bottom)+16px)] pt-10 sm:items-center sm:justify-center sm:pb-10" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
       <section className="onboarding-sheet animate-fade-up w-full max-w-sm overflow-hidden rounded-[var(--radius-sheet)] border border-line-strong p-5 shadow-2xl">
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-faint/50" aria-hidden="true" />
         <div className="flex items-start justify-between gap-4">
