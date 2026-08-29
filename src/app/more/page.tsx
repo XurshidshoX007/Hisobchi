@@ -77,28 +77,8 @@ export default function MorePage() {
         </p>
       </Card>
 
-      <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-hairline rounded-2xl border border-line bg-surface">
-        {LINKS.map((l) => {
-          const trailing = status(l.href);
-          return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="flex min-h-13 items-center gap-3 px-4 py-2.5 transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-surface-2 active:bg-surface-2 touch-manipulation"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-neutral-soft text-fg-soft" aria-hidden="true">
-                <Icon name={l.icon} size={17} />
-              </span>
-              <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{l.title}</span>
-              {trailing ? <span className="shrink-0">{trailing.node}</span> : null}
-              <Icon name="chevron-right" size={13} className="shrink-0 text-text-4" />
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Two controls that belong to the person rather than to a section, so
-          they sit here instead of costing a whole row in the list. */}
+      {/* Personal controls belong directly below the profile, before the
+          navigation hub's first destination (Hisoblar). */}
       <div className="grid grid-cols-2 gap-2.5">
         <button
           type="button"
@@ -134,6 +114,26 @@ export default function MorePage() {
           </span>
         </button>
       </div>
+
+      <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-hairline rounded-2xl border border-line bg-surface">
+        {LINKS.map((l) => {
+          const trailing = status(l.href);
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="flex min-h-13 items-center gap-3 px-4 py-2.5 transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-surface-2 active:bg-surface-2 touch-manipulation"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-neutral-soft text-fg-soft" aria-hidden="true">
+                <Icon name={l.icon} size={17} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{l.title}</span>
+              {trailing ? <span className="shrink-0">{trailing.node}</span> : null}
+              <Icon name="chevron-right" size={13} className="shrink-0 text-text-4" />
+            </Link>
+          );
+        })}
+      </nav>
 
       <AlertsSheet open={alertsOpen} onClose={() => setAlertsOpen(false)} />
     </div>
