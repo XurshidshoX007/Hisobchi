@@ -8,6 +8,7 @@ import { useFinance } from "@/components/providers";
 import { Badge, Card, Label, Skeleton } from "@/components/ui";
 import { addMonths, compact, formatAmount, monthKey, monthStart, shortDate, todayISO } from "@/lib/money";
 import { monthCashflow, monthPlanned } from "@/lib/finance";
+import { hasEnoughAnalyticsData } from "@/lib/onboarding";
 
 const NAV_BTN =
   "grid h-[34px] w-[34px] shrink-0 place-items-center rounded-xl border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation disabled:pointer-events-none disabled:opacity-40";
@@ -39,6 +40,11 @@ export function CashflowAnalysis() {
   const isCurrent = cashMonth === current;
   const trend = state.analytics.monthly;
   const categories = state.analytics.categories.filter((category) => category.amount > 0).slice(0, 5);
+  const completedTransactionCount = state.transactions.filter((transaction) => !transaction.isDeleted).length;
+
+  if (!hasEnoughAnalyticsData(state.transactions)) {
+    return <AnalyticsPreview transactionCount={completedTransactionCount} />;
+  }
 
   return (
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
@@ -139,6 +145,64 @@ export function CashflowAnalysis() {
       </Card>
     </div>
   );
+}
+
+const SAMPLE_TREND = [
+  { month: "2026-03", income: 3_800_000, expense: 2_150_000 },
+  { month: "2026-04", income: 4_200_000, expense: 2_650_000 },
+  { month: "2026-05", income: 3_900_000, expense: 2_400_000 },
+  { month: "2026-06", income: 4_700_000, expense: 2_850_000 },
+  { month: "2026-07", income: 4_300_000, expense: 2_700_000 },
+  { month: "2026-08", income: 4_900_000, expense: 3_100_000 },
+];
+
+const SAMPLE_CATEGORIES = [
+  { name: "Oziq-ovqat", icon: "cart", amount: 1_180_000, share: 0.38 },
+  { name: "Transport", icon: "car", amount: 640_000, share: 0.21 },
+  { name: "Uy", icon: "home", amount: 520_000, share: 0.17 },
+];
+
+/** Clearly labelled, non-financial preview shown until the user has real data. */
+function AnalyticsPreview({ transactionCount }: { transactionCount: number }) {
+  const needed = Math.max(0, 2 - transactionCount);
+  return (
+    <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
+      <div className="relative overflow-hidden rounded-[20px]">
+        <div className="pointer-events-none select-none space-y-3.5 blur-[2.5px] opacity-55" aria-hidden="true">
+          <Card>
+            <p className="text-[15px] font-semibold">Pul oqimi · avgust</p>
+            <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[14px]" style={{ background: "var(--border)" }}>
+              <Metric label="Balans" value="3 800 000" />
+              <Metric label="Yopilish" value="5 600 000" tone="positive" />
+            </div>
+            <div className="mt-4"><ForecastArea data={sampleCashflow()} height={132} /></div>
+          </Card>
+          <Card>
+            <p className="mb-3 text-[15px] font-semibold">Daromad va xarajatlar</p>
+            <IncomeExpenseBars data={SAMPLE_TREND} />
+          </Card>
+          <Card>
+            <p className="mb-3 text-[15px] font-semibold">Xarajat kategoriyalari</p>
+            <CategoryBars items={SAMPLE_CATEGORIES} />
+          </Card>
+        </div>
+        <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 rounded-2xl border border-line-strong bg-surface/95 p-4 text-center shadow-xl backdrop-blur-sm">
+          <div className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent-text" aria-hidden="true"><Icon name="chart" size={19} /></div>
+          <p className="mt-2 text-[15px] font-semibold">Sizning tahlilingiz shu yerda bo‘ladi</p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-muted">Bu namunaviy ko‘rinish. Haqiqiy grafiklar uchun yana {needed || 1} ta daromad yoki xarajat kiriting.</p>
+          <Link href="/" className="mt-3 inline-flex min-h-9 items-center rounded-full bg-primary px-3.5 text-[12px] font-semibold text-primary-fg touch-manipulation">Birinchi operatsiyani qo‘shish</Link>
+        </div>
+      </div>
+      <p className="px-1 text-center text-[11px] text-muted">Namuna ma’lumotlari — balansingiz yoki haqiqiy xarajatlaringiz emas.</p>
+    </div>
+  );
+}
+
+function sampleCashflow() {
+  return Array.from({ length: 8 }, (_, index) => {
+    const base = 3_200_000 + index * 310_000;
+    return { date: `2026-08-${String(index + 1).padStart(2, "0")}`, projectedMin: base - 280_000, projectedBase: base, projectedMax: base + 240_000 };
+  });
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "positive" | "negative" | "warning" }) {

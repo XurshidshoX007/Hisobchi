@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { formatAmount, humanDate } from "@/lib/money";
 import { getFabActions, supportsFab } from "@/lib/fab";
 import { MENU_ROUTE, isMenuSubroute } from "@/lib/navigation";
@@ -11,6 +11,7 @@ import { FabProvider, GlobalAddFab, useFab } from "./fab";
 import { Badge, Button, Divider, Money, Sheet } from "./ui";
 import { SwipeBack } from "./swipe-back";
 import { Icon } from "@/components/icon";
+import { OnboardingTour } from "@/components/onboarding-tour";
 
 const NAV = [
   { href: "/", label: "Asosiy", short: "Asosiy", icon: "nav-home" },
@@ -33,6 +34,8 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const { state, error, theme, setTheme, mutate } = useFinance();
   const { currentContext } = useFab();
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [tourRoute, setTourRoute] = useState<string | null>(null);
+  const setTourRouteStable = useCallback((route: string | null) => setTourRoute(route), []);
   const hasGlobalFab = supportsFab(pathname) && getFabActions({ pathname, ...currentContext }).length > 0;
   // History owns a contextual filter FAB in the same shared geometry slot. It
   // replaces (rather than stacks with) the global add action on that route.
@@ -159,6 +162,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 // tab — keep it highlighted so the user knows where they are.
                 (item.href === MENU_ROUTE && isMenuSubroute(pathname))
               }
+              tourActive={tourRoute === item.href}
               // The bell now lives in the Menu header only, so the Menu tab
               // carries the unread indicator — notifications stay discoverable
               // from every screen without a global header.
@@ -171,6 +175,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
       <AlertsSheet open={alertsOpen} onClose={() => setAlertsOpen(false)} />
     </div>
     <GlobalAddFab />
+    <OnboardingTour onStepChange={setTourRouteStable} />
     </>
   );
 }
@@ -261,12 +266,14 @@ function NavItem({
   label,
   icon,
   active,
+  tourActive = false,
   badge = 0,
 }: {
   href: string;
   label: string;
   icon: string;
   active: boolean;
+  tourActive?: boolean;
   badge?: number;
 }) {
   /*
@@ -288,7 +295,7 @@ function NavItem({
       href={href}
       aria-current={active ? "page" : undefined}
       aria-label={badge > 0 ? `${label}, ${badge} o‘qilmagan eslatma` : undefined}
-      className={`nav-item flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-0.5 py-1 transition-colors duration-[180ms] ease-out touch-manipulation ${
+      className={`nav-item flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-0.5 py-1 transition-colors duration-[180ms] ease-out touch-manipulation ${tourActive ? "animate-pulse-subtle ring-1 ring-accent/60" : ""} ${
         active ? "text-gold" : "text-faint"
       }`}
     >
