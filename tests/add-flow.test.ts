@@ -184,6 +184,7 @@ test("amount is entered through the shared money input everywhere", () => {
   assert.match(formKit, /inputMode="decimal"/);
   assert.match(formKit, /formatAmountInput\(e\.target\.value\)/);
   assert.match(formKit, /outline: "none"/, "auto-focused amount must not render a gold input capsule");
+  assert.match(formKit, /focus-visible:outline-none focus-visible:ring-0/, "the input delegates focus styling to its single outer field shell");
 });
 
 test("optional details are collapsed, never ten fields by default", () => {
@@ -224,8 +225,13 @@ test("plan forms only show the fields their type needs and preview the result", 
   assert.match(plans, /<PreviewCard>/);
   // Term preview: 1 880 000 × 12 = 22 560 000
   assert.match(plans, /\{formatAmount\(baseAmount\)\} × \{termCount \|\| 0\} = \{formatAmount\(termCount \* baseAmount\)\}/);
-  // Recurring preview: cadence + day + annual load.
-  assert.match(plans, /\{frequencyLabel\(frequency\)\} · \{nextDueDate \? `\$\{Number\(nextDueDate\.slice\(8, 10\)\)\}-sana`/);
+  // Recurring preview: annual load + concrete next date. Cadence is already
+  // selected above, so it must not be repeated in the preview.
+  assert.match(plans, /Yillik: \{formatAmount\(baseAmount \* annualFactor\)\} so‘m/);
+  assert.match(plans, /Keyingi to‘lov: \{nextDueDate \? humanDate\(nextDueDate\) : "—"\}/);
+  // Empty forms must not show a misleading zero-value preview.
+  assert.match(plans, /\{baseAmount > 0 \|\| hasSchedule \? <PreviewCard>/);
+  assert.match(plans, /\{baseAmount > 0 \? <PreviewCard>/);
 });
 
 /* ==================== §28 ERROR UX ==================== */

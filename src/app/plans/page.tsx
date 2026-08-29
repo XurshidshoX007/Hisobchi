@@ -1469,7 +1469,7 @@ function RecurringSheet({
       ) : null}
 
       {/* 5 · LIVE PREVIEW — what this plan actually costs (§15/§16) */}
-      <PreviewCard>
+      {baseAmount > 0 || hasSchedule ? <PreviewCard>
         {planType === "term" && hasSchedule && editing ? (
           <div className="space-y-1 text-[13px]">
             <p className="num font-semibold">
@@ -1487,16 +1487,14 @@ function RecurringSheet({
               {formatAmount(baseAmount)} × {termCount || 0} = {formatAmount(termCount * baseAmount)} so‘m
             </p>
             <p className="text-muted">
-              {frequencyLabel(frequency)} · boshlanish {nextDueDate ? dayMonth(nextDueDate) : "—"} · qolgan{" "}
+              Boshlanish {nextDueDate ? dayMonth(nextDueDate) : "—"} · qolgan{" "}
               {Math.max(0, termCount - paidCount)} ta
             </p>
           </div>
         ) : planType === "recurring" ? (
           <div className="space-y-1 text-[13px]">
-            <p className="font-semibold">
-              {frequencyLabel(frequency)} · {nextDueDate ? `${Number(nextDueDate.slice(8, 10))}-sana` : "—"}
-            </p>
-            <p className="num text-muted">Yillik: {formatAmount(baseAmount * annualFactor)} so‘m</p>
+            <p className="num font-semibold">Yillik: {formatAmount(baseAmount * annualFactor)} so‘m</p>
+            <p className="text-muted">Keyingi to‘lov: {nextDueDate ? humanDate(nextDueDate) : "—"}</p>
           </div>
         ) : (
           <div className="space-y-1 text-[13px]">
@@ -1504,7 +1502,7 @@ function RecurringSheet({
             <p className="num text-muted">{formatAmount(baseAmount)} so‘m · to‘langach yakunlanadi</p>
           </div>
         )}
-      </PreviewCard>
+      </PreviewCard> : null}
 
       {/* 6 · OPTIONAL DETAILS */}
       <AdvancedSection>
@@ -1786,7 +1784,7 @@ function IncomeSheet({
         </Field>
       ) : null}
 
-      <PreviewCard>
+      {baseAmount > 0 ? <PreviewCard>
         <p className="text-[13px] font-semibold">
           {expectedDate ? dayMonth(expectedDate) : "—"} · <span className="num text-positive-text">+{formatAmount(baseAmount)}</span> so‘m
         </p>
@@ -1794,12 +1792,9 @@ function IncomeSheet({
           {sourceName.trim() || "Manba"} ·{" "}
           {planType === "term"
             ? `${termCount || 0} × ${formatAmount(baseAmount)} = ${formatAmount(termCount * baseAmount)}`
-            : planType === "recurring"
-              ? frequencyLabel(frequency)
-              : "Bir martalik"}{" "}
-          · {certainty === "exact" ? "Aniq" : "Taxminiy"}
+            : certainty === "exact" ? "Aniq" : "Taxminiy"}
         </p>
-      </PreviewCard>
+      </PreviewCard> : null}
 
       <AdvancedSection>
         <FormRow>

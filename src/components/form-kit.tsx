@@ -714,7 +714,7 @@ export function AmountField({
               placeholder={placeholder}
               autoFocus={autoFocus}
               size={1}
-              className={`num min-w-0 max-w-full bg-transparent text-center font-bold leading-[0.9] outline-none placeholder:font-bold placeholder:text-faint ${
+              className={`num min-w-0 max-w-full bg-transparent text-center font-bold leading-[0.9] outline-none focus-visible:outline-none focus-visible:ring-0 placeholder:font-bold placeholder:text-faint ${
                 digits > 12 ? "text-[28px]" : digits > 9 ? "text-[36px]" : "text-[46px]"
               }`}
               // The global keyboard-focus ring is useful for buttons, but on
@@ -779,7 +779,7 @@ export function AmountField({
             aria-describedby={error ? errorId : undefined}
             placeholder={placeholder}
             autoFocus={autoFocus}
-            className={`num w-full min-w-0 max-w-full bg-transparent font-bold leading-none tracking-[-0.01em] outline-none placeholder:font-semibold placeholder:text-faint ${sizeClass}`}
+            className={`num w-full min-w-0 max-w-full bg-transparent font-bold leading-none tracking-[-0.01em] outline-none focus-visible:outline-none focus-visible:ring-0 placeholder:font-semibold placeholder:text-faint ${sizeClass}`}
           />
           {hasValue ? (
             <button
