@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CashFlowStrip, ForecastArea } from "@/components/charts";
+import { CashFlowStrip, CategoryBars, ForecastArea, IncomeExpenseBars } from "@/components/charts";
 import { Icon } from "@/components/icon";
 import { useFinance } from "@/components/providers";
 import { Badge, Card, Label, Skeleton } from "@/components/ui";
@@ -37,6 +37,8 @@ export function CashflowAnalysis() {
   const expectedIncome = items.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.base, 0);
   const chartData = days.map((day) => ({ ...day, actual: day.date <= today }));
   const isCurrent = cashMonth === current;
+  const trend = state.analytics.monthly;
+  const categories = state.analytics.categories.filter((category) => category.amount > 0).slice(0, 5);
 
   return (
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
@@ -92,6 +94,41 @@ export function CashflowAnalysis() {
             <Badge tone={item.mandatory ? "negative" : item.kind === "income" ? "positive" : "neutral"}>{item.mandatory ? "Majburiy" : item.kind === "income" ? (item.certainty === "estimated" ? "Taxminiy" : "Aniq") : "Ixtiyoriy"}</Badge>
           </div>
         ))}</div> : <p className="text-[13px] leading-relaxed text-muted">Rejalashtirilgan to‘lovlar yo‘q.</p>}
+      </Card>
+
+      <Card>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[15px] font-semibold">Daromad va xarajatlar</p>
+            <p className="mt-0.5 text-[11.5px] text-muted">Oxirgi 6 oy</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted">
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: "var(--positive)" }} /> Daromad</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm opacity-75" style={{ background: "var(--fg)" }} /> Xarajat</span>
+          </div>
+        </div>
+        {trend.some((month) => month.income > 0 || month.expense > 0) ? (
+          <IncomeExpenseBars data={trend} />
+        ) : (
+          <p className="text-[13px] leading-relaxed text-muted">Trend uchun hali operatsiyalar yetarli emas.</p>
+        )}
+      </Card>
+
+      <Card>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[15px] font-semibold">Xarajat kategoriyalari</p>
+            <p className="mt-0.5 text-[11.5px] text-muted">Joriy oy · eng kattalari</p>
+          </div>
+          <Link href={`/transactions?type=expense&month=${current}`} className="shrink-0 text-[12px] font-semibold text-accent-text">
+            Tarix →
+          </Link>
+        </div>
+        {categories.length ? (
+          <CategoryBars items={categories} />
+        ) : (
+          <p className="text-[13px] leading-relaxed text-muted">Bu oy xarajat kategoriyalari hali shakllanmadi.</p>
+        )}
       </Card>
 
       <Card className={risks.length ? "animate-alert-once" : ""} style={risks.length ? { borderColor: "rgba(255,122,122,.28)", background: "linear-gradient(180deg, rgba(255,122,122,.09), rgba(255,122,122,.03))" } : undefined}>
