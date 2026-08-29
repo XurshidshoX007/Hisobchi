@@ -36,10 +36,6 @@ test("Plans tab decides the plan action", () => {
   assert.deepEqual(ids({ pathname: "/plans", tab: "income" }), ["expected_income"]);
 });
 
-test("Plans cash-flow offers no misleading create action", () => {
-  assert.deepEqual(getFabActions({ pathname: "/plans", tab: "cashflow" }), []);
-});
-
 test("Analytics has no create action", () => {
   assert.deepEqual(ids({ pathname: "/analytics" }), []);
   assert.equal(supportsFab("/analytics"), false);

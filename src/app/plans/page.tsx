@@ -52,9 +52,9 @@ import { filterPlansByTab, monthCashflow, monthPlanned, nextCreditInstallment } 
 import type { ExpectedIncomeView, Forecast, PlanLifecycle, PlanListTab, RecurringView } from "@/lib/finance";
 import { Icon } from "@/components/icon";
 
-type Tab = "payments" | "income" | "cashflow";
+type Tab = "payments" | "income";
 
-export const TAB_ORDER: readonly Tab[] = ["payments", "income", "cashflow"] as const;
+export const TAB_ORDER: readonly Tab[] = ["payments", "income"] as const;
 
 /** Actions a payment-plan row can emit, keyed by lifecycle status. */
 type PlanRowAction = "pay" | "toggle" | "restore" | "edit" | "cancel" | "history";
@@ -80,7 +80,7 @@ const STATUS_META: Record<PlanLifecycle, { label: string; tone: Tone; icon: stri
 const ICON_BTN =
   "grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation disabled:pointer-events-none disabled:opacity-40";
 
-/** The month stepper: smaller than ICON_BTN so the month name stays the focus. */
+/** Legacy implementation retained temporarily during the route migration. */
 const NAV_BTN =
   "grid h-[34px] w-[34px] shrink-0 place-items-center rounded-xl border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation disabled:pointer-events-none disabled:opacity-40";
 
@@ -142,7 +142,6 @@ export default function PlansPage() {
   const [sheet, setSheet] = useState<"recurring" | "income" | null>(null);
   const [editing, setEditing] = useState<RecurringView | null>(null);
   const [editingIncome, setEditingIncome] = useState<ExpectedIncomeView | null>(null);
-  const [cashMonth, setCashMonth] = useState<string>(monthKey(todayISO()));
   const [deletingPlan, setDeletingPlan] = useState<RecurringView | null>(null);
   const [deletingIncome, setDeletingIncome] = useState<ExpectedIncomeView | null>(null);
   const [restoringPlan, setRestoringPlan] = useState<RecurringView | null>(null);
@@ -150,8 +149,7 @@ export default function PlansPage() {
   const [menuPlan, setMenuPlan] = useState<RecurringView | null>(null);
   const [menuIncome, setMenuIncome] = useState<ExpectedIncomeView | null>(null);
 
-  // Global FAB: the active tab decides the action — To'lovlar → payment plan,
-  // Daromad → expected income, Cash-flow → no create action (§7/§8).
+  // Global FAB: To‘lovlar opens a payment plan and Daromad opens expected income.
   useFabPage(
     { tab },
     {
@@ -191,8 +189,6 @@ export default function PlansPage() {
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
 
-  const f = state.forecast;
-
   // Lifecycle buckets (§3/§11): the default "Faol" tab shows ACTIVE plans plus
   // PAUSED ones in a clearly separated section; cancelled/completed live in
   // their own tabs and NEVER appear in the default list — and no plan can ever
@@ -210,7 +206,7 @@ export default function PlansPage() {
    * "eng yaqin to‘lov" pick used to be derived HERE only to feed the removed
    * summary cards. The source data (`state.currentMonthPlan`, `state.forecast`,
    * `isActivePlanLoad`, `monthPlanned`, `monthCashflow`) is untouched and stays
-   * available to the Dashboard, Pul oqimi tab and the bot.
+   * available to the Dashboard, Tahlil → Pul oqimi and the bot.
    */
 
   function handlePlanAction(action: PlanRowAction, plan: RecurringView) {
@@ -269,7 +265,6 @@ export default function PlansPage() {
           options={[
             { value: "payments", label: "To‘lovlar" },
             { value: "income", label: "Daromad" },
-            { value: "cashflow", label: "Pul oqimi" },
           ]}
         />
       </div>
@@ -428,14 +423,6 @@ export default function PlansPage() {
               </div>
             ) : null}
 
-            {tab === "cashflow" ? (
-              <CashflowTab
-                forecast={f}
-                monthLabel={state.monthly?.find((m) => m.monthKey === cashMonth)?.label ?? cashMonth}
-                cashMonth={cashMonth}
-                setCashMonth={setCashMonth}
-              />
-            ) : null}
           </>
         )}
       />

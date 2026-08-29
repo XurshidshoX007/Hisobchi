@@ -24,7 +24,7 @@ export type FabTransactionType = "income" | "expense" | "transfer";
 export type FabContext = {
   pathname: string;
   /** `/plans` active tab. */
-  tab?: "payments" | "income" | "cashflow";
+  tab?: "payments" | "income";
   /** `/accounts` active sub-tab. */
   accountsTab?: "accounts" | "categories";
 };
@@ -51,7 +51,7 @@ export function normalizePath(pathname: string): string {
 /**
  * Resolve the contextual actions for a route. At most a couple of items —
  * never a second "giant menu". Returns an empty array for every context that
- * must NOT offer a create action: Cash-flow and Analytics are read-only, the
+ * must NOT offer a create action: Analytics is read-only, the
  * Dashboard has its own quick-action tiles, and the Menu only navigates.
  */
 export function getFabActions(ctx: FabContext): FabActionDef[] {
@@ -71,10 +71,6 @@ export function getFabActions(ctx: FabContext): FabActionDef[] {
     case "/plans":
       if (ctx.tab === "income") {
         return [{ id: "expected_income", label: "Kutilayotgan daromad", icon: "wallet" }];
-      }
-      if (ctx.tab === "cashflow") {
-        // Cash-flow is analysis: no direct create action, no misleading entry.
-        return [];
       }
       return [{ id: "payment_plan", label: "To‘lov rejasi", icon: "pin" }];
 

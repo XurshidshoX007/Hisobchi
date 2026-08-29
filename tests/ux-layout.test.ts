@@ -201,7 +201,7 @@ test("payments tab renders no monthly summary block", () => {
 });
 
 test("income tab renders no expected-income summary block", () => {
-  const incomeTab = plans.slice(plans.indexOf('{tab === "income" ?'), plans.indexOf('{tab === "cashflow" ?'));
+  const incomeTab = plans.slice(plans.indexOf('{tab === "income" ?'));
   for (const removed of ["Kutilayotgan daromad", "90 kunlik prognoz", "taxminiy ", 'label="Aniq"']) {
     assert.equal(incomeTab.includes(removed), false, `income summary leftover: ${removed}`);
   }
@@ -272,9 +272,8 @@ test("every section page starts with content — no section-name headline at the
     assert.doesNotMatch(src, new RegExp(`<h1\\b[^>]*>${name}`), `${page} renders its name in an <h1> headline`);
     assert.doesNotMatch(src, /<h1\b/, `${page} renders a top-level <h1> headline`);
   }
-  // The Tahlil section is a "coming soon" placeholder: it keeps its own content
-  // message but never renders the section name ("Tahlil") as a headline.
+  // Tahlil owns the cash-flow analysis and never renders its section name as a headline.
   const analytics = readFileSync(new URL("../src/app/analytics/page.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(analytics, /<h1\b[^>]*>Tahlil/);
-  assert.match(analytics, /<h1\b[^>]*>Tez kunda/);
+  assert.match(analytics, /CashflowAnalysis/);
 });

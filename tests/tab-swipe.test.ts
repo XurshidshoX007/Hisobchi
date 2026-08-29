@@ -26,8 +26,8 @@ const tabSwipeLib = read("lib/tab-swipe.ts");
 
 /* ============================ Pure helper tests ============================ */
 
-test("TAB_ORDER defines the exact 3 sections in sequential order", () => {
-  assert.deepEqual(TAB_ORDER, ["payments", "income", "cashflow"]);
+test("TAB_ORDER defines the two planning sections in sequential order", () => {
+  assert.deepEqual(TAB_ORDER, ["payments", "income"]);
 });
 
 test("swipeTarget correctly maps horizontal displacement to adjacent sections", () => {
@@ -36,12 +36,8 @@ test("swipeTarget correctly maps horizontal displacement to adjacent sections", 
   assert.equal(swipeTarget("payments", TAB_ORDER, 50), null, "swipe right from payments is boundary (rubber-band)");
 
   // From income
-  assert.equal(swipeTarget("income", TAB_ORDER, -50), "cashflow", "swipe left from income moves to cashflow");
+  assert.equal(swipeTarget("income", TAB_ORDER, -50), null, "swipe left from income is boundary (rubber-band)");
   assert.equal(swipeTarget("income", TAB_ORDER, 50), "payments", "swipe right from income moves to payments");
-
-  // From cashflow
-  assert.equal(swipeTarget("cashflow", TAB_ORDER, -50), null, "swipe left from cashflow is boundary (rubber-band)");
-  assert.equal(swipeTarget("cashflow", TAB_ORDER, 50), "income", "swipe right from cashflow moves to income");
 
   // Zero displacement / unknown
   assert.equal(swipeTarget("payments", TAB_ORDER, 0), null, "zero displacement has no target");
@@ -139,15 +135,8 @@ test("canScrollHorizontally honours explicit ignore markers and invalid elements
 
 test("Plans page integrates TabSwipe with TAB_ORDER and render prop", () => {
   assert.match(plansPage, /import\s*\{\s*TabSwipe\s*\}\s*from\s*["']@\/components\/tab-swipe["']/);
-  assert.match(plansPage, /export const TAB_ORDER: readonly Tab\[\] = \["payments", "income", "cashflow"\] as const;/);
+  assert.match(plansPage, /export const TAB_ORDER: readonly Tab\[\] = \["payments", "income"\] as const;/);
   assert.match(plansPage, /<TabSwipe\s+value=\{tab\}\s+order=\{TAB_ORDER\}\s+onChange=\{setTab\}\s+render=\{/);
-});
-
-test("CashFlowStrip wrapper carries data-tab-swipe-ignore attribute", () => {
-  assert.match(
-    plansPage,
-    /<div[^>]*data-tab-swipe-ignore[^>]*className="overflow-x-auto[^"]*"\s*>\s*<CashFlowStrip/,
-  );
 });
 
 test("globals.css scopes overflow-x clip to body[data-tab-swipe]", () => {
