@@ -157,13 +157,22 @@ export function RowActionsSheet({
 }
 
 /** The trailing "•••" control every list row uses to reach the sheet above. */
-export function RowActionsButton({ label, onClick }: { label: string; onClick: () => void }) {
+export function RowActionsButton({
+  label,
+  onClick,
+  comfortable = false,
+}: {
+  label: string;
+  onClick: () => void;
+  /** Opt-in 44px touch target for rows whose primary action uses that height. */
+  comfortable?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`${label} — boshqa amallar`}
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation"
+      className={`grid shrink-0 place-items-center rounded-full border border-line bg-surface text-fg-soft transition-colors hover:border-line-strong hover:text-fg active:bg-surface-3 touch-manipulation ${comfortable ? "h-11 w-11" : "h-9 w-9"}`}
     >
       <Icon name="more" size={16} />
     </button>
