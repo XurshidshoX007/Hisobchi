@@ -16,20 +16,15 @@ test("zero remaining debt is settled even if a legacy status field drifted", () 
   assert.equal(isSettledDebt({ remainingAmount: 0.01 }), false);
 });
 
-test("the default active tab hides settled debts", () => {
-  assert.deepEqual(filterDebtsByTab(debts, "active").map((debt) => debt.id), [1, 2]);
-});
-
-test("direction tabs include active debts only and settled has its own tab", () => {
+test("direction tabs include active debts only", () => {
   assert.deepEqual(filterDebtsByTab(debts, "i_owe").map((debt) => debt.id), [1]);
   assert.deepEqual(filterDebtsByTab(debts, "owed_to_me").map((debt) => debt.id), [2]);
-  assert.deepEqual(filterDebtsByTab(debts, "settled").map((debt) => debt.id), [3]);
 });
 
-test("settled debt UI is historical and cannot accept another payment", () => {
-  assert.match(debtPage, /useState<DebtListFilter>\("active"\)/);
-  assert.match(debtPage, /\{ value: "settled", label: "Yopilgan" \}/);
-  assert.match(debtPage, /\{!settled \? \([\s\S]{0,500}?setPayFor\(d\)/);
-  assert.match(debtPage, /✓ To‘liq to‘langan/);
-  assert.match(debtPage, /tone=\{settled \? "positive" : "auto"\}/);
+test("debt UI exposes only the two open-balance directions", () => {
+  assert.match(debtPage, /useState<DebtListFilter>\("i_owe"\)/);
+  assert.match(debtPage, /\{ value: "i_owe", label: "Men qarzdorman" \}/);
+  assert.match(debtPage, /\{ value: "owed_to_me", label: "Menga qarzdor" \}/);
+  assert.doesNotMatch(debtPage, /label: "Faol"|label: "Yopilgan"|label: "Hammasi"/);
+  assert.match(debtPage, /\{activeDebts\.length \? \(/);
 });

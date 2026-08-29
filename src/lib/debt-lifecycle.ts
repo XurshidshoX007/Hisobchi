@@ -1,4 +1,4 @@
-export type DebtListFilter = "active" | "i_owe" | "owed_to_me" | "settled";
+export type DebtListFilter = "i_owe" | "owed_to_me";
 
 type FilterableDebt = {
   direction: "i_owe" | "owed_to_me";
@@ -11,10 +11,5 @@ export function isSettledDebt(debt: Pick<FilterableDebt, "remainingAmount">): bo
 }
 
 export function filterDebtsByTab<T extends FilterableDebt>(debts: T[], filter: DebtListFilter): T[] {
-  return debts.filter((debt) => {
-    const settled = isSettledDebt(debt);
-    if (filter === "settled") return settled;
-    if (settled) return false;
-    return filter === "active" || debt.direction === filter;
-  });
+  return debts.filter((debt) => !isSettledDebt(debt) && debt.direction === filter);
 }

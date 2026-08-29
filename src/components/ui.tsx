@@ -367,7 +367,7 @@ export function Progress({
   ariaLabel,
 }: {
   value: number;
-  tone?: "auto" | "accent" | "positive";
+  tone?: "auto" | "accent";
   height?: number;
   label?: string;
   /** Names the progressbar for assistive tech — value is never color-only. */
@@ -375,15 +375,7 @@ export function Progress({
 }) {
   const pct = Math.max(0, Math.min(1.4, value)) * 100;
   const color =
-    tone === "accent"
-      ? "var(--accent)"
-      : tone === "positive"
-        ? "var(--positive)"
-        : pct >= 100
-          ? "var(--negative)"
-          : pct >= 80
-            ? "var(--warning)"
-            : "var(--positive)";
+    tone === "accent" ? "var(--accent)" : pct >= 100 ? "var(--negative)" : pct >= 80 ? "var(--warning)" : "var(--positive)";
   return (
     <div className="w-full">
       <div

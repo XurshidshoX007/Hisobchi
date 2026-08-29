@@ -45,7 +45,7 @@ export default function DebtsPage() {
   const [editing, setEditing] = useState<DebtView | null>(null);
   const [menuDebt, setMenuDebt] = useState<DebtView | null>(null);
   const [payFor, setPayFor] = useState<DebtView | null>(null);
-  const [filter, setFilter] = useState<DebtListFilter>("active");
+  const [filter, setFilter] = useState<DebtListFilter>("i_owe");
 
   function openCreate() {
     setEditing(null);
@@ -81,7 +81,7 @@ export default function DebtsPage() {
     <div className="animate-fade-up space-y-4 sm:space-y-5">
       {/* §22: swipe-back replaces the old ‹ Menyu back link. */}
 
-      {state.debts.length ? (
+      {activeDebts.length ? (
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             <Card className="p-4" style={{ borderColor: "rgba(255,122,122,.3)" }}>
@@ -100,33 +100,24 @@ export default function DebtsPage() {
             </Card>
           </div>
 
-          {/* Active debts stay primary; settled records remain available as history. */}
+          {/* The debt page manages open balances; settled movements remain in History. */}
           <div className="max-w-md">
             <Segmented
               value={filter}
               onChange={setFilter}
               options={[
-                { value: "active", label: "Faol" },
                 { value: "i_owe", label: "Men qarzdorman" },
                 { value: "owed_to_me", label: "Menga qarzdor" },
-                { value: "settled", label: "Yopilgan" },
               ]}
             />
           </div>
 
           <div className="space-y-2">
-            {visibleDebts.map((d) => {
-              const settled = isSettledDebt(d);
-              return (
+            {visibleDebts.map((d) => (
                 <div key={d.id} className="flat-card overflow-hidden px-4 py-3.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <p className="truncate text-[14.5px] font-medium">{d.personName}</p>
-                        {settled ? (
-                          <span className="tag shrink-0 bg-positive-soft text-positive-text">✓ To‘liq to‘langan</span>
-                        ) : null}
-                      </div>
+                      <p className="truncate text-[14.5px] font-medium">{d.personName}</p>
                       {/* §16: direction is stated in TEXT, never color alone. */}
                       <p
                         className={`lb mt-0.5 ${
@@ -136,8 +127,8 @@ export default function DebtsPage() {
                         {d.direction === "i_owe" ? "Men qarzdorman" : "Menga qarzdor"}
                       </p>
                       <p className="mt-0.5 text-[11.5px] text-muted">
-                        {settled ? "Qarz yopilgan" : d.dueDate ? `${humanDate(d.dueDate)} gacha` : "muddat yo‘q"}
-                        {!settled && d.daysLeft !== null && d.daysLeft < 0 ? " · kechikkan" : ""}
+                        {d.dueDate ? `${humanDate(d.dueDate)} gacha` : "muddat yo‘q"}
+                        {d.daysLeft !== null && d.daysLeft < 0 ? " · kechikkan" : ""}
                       </p>
                       {d.note ? <p className="mt-1 truncate text-[11.5px] text-muted">{d.note}</p> : null}
                     </div>
@@ -147,28 +138,21 @@ export default function DebtsPage() {
                     </div>
                   </div>
                   <div className="mt-3">
-                    <Progress
-                      value={d.progress}
-                      tone={settled ? "positive" : "auto"}
-                      height={6}
-                      ariaLabel={`${d.personName} qarz to‘lovi progressi`}
-                    />
+                    <Progress value={d.progress} height={6} ariaLabel={`${d.personName} qarz to‘lovi progressi`} />
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-[11.5px] text-muted">to‘langan {compact(d.paidAmount)}</span>
                       {/* Recording a payment is what this row is FOR; editing,
                           cancelling and archiving are housekeeping. */}
                       <div className="flex shrink-0 items-center gap-2">
-                        {!settled ? (
-                          <button
-                            type="button"
-                            onClick={() => setPayFor(d)}
-                            aria-label={`${d.personName} uchun to‘lov kiritish`}
-                            className="min-h-9 rounded-xl px-3.5 text-[12px] font-bold transition-[filter] hover:brightness-105 active:scale-[0.98] touch-manipulation"
-                            style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
-                          >
-                            To‘lov
-                          </button>
-                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => setPayFor(d)}
+                          aria-label={`${d.personName} uchun to‘lov kiritish`}
+                          className="min-h-9 rounded-xl px-3.5 text-[12px] font-bold transition-[filter] hover:brightness-105 active:scale-[0.98] touch-manipulation"
+                          style={{ background: "var(--gold-gradient)", color: "var(--gold-on)" }}
+                        >
+                          To‘lov
+                        </button>
                         <RowActionsButton label={d.personName} onClick={() => setMenuDebt(d)} />
                       </div>
                     </div>
@@ -183,23 +167,16 @@ export default function DebtsPage() {
                     </div>
                   ) : null}
                 </div>
-              );
-            })}
+              ))}
             {visibleDebts.length === 0 ? (
               <p className="flat-card px-4 py-4 text-[13px] text-muted">
-                {filter === "active"
-                  ? "Faol qarzlar yo‘q."
-                  : filter === "i_owe"
-                    ? "Qarz yo‘q."
-                    : filter === "owed_to_me"
-                      ? "Qarzdorlar yo‘q."
-                      : "Yopilgan qarzlar yo‘q."}
+                {filter === "i_owe" ? "Qarz yo‘q." : "Qarzdorlar yo‘q."}
               </p>
             ) : null}
           </div>
         </>
       ) : (
-        <EmptyState icon="doc" title="Qarzlar yo‘q." description="Pastdagi + tugmasi orqali qarz qo‘shing." />
+        <EmptyState icon="doc" title="Faol qarzlar yo‘q." description="Yopilgan qarz operatsiyalari Tarixda saqlanadi." />
       )}
 
       <RowActionsSheet
