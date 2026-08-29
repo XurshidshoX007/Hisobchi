@@ -263,10 +263,14 @@ const DONUT_COLORS = [
 ];
 
 const SAMPLE_EXPENSE_ITEMS = [
-  { id: null, name: "Oziq-ovqat", share: 0.46, color: "var(--gold)" },
-  { id: null, name: "Transport", share: 0.28, color: "var(--blue)" },
-  { id: null, name: "Uy", share: 0.17, color: "var(--green)" },
-  { id: null, name: "Boshqa", share: 0.09, color: "var(--red)" },
+  { id: null, name: "Oziq-ovqat", share: 0.31, color: "var(--gold)" },
+  { id: null, name: "Ijara", share: 0.22, color: "var(--blue)" },
+  { id: null, name: "Transport", share: 0.14, color: "var(--green)" },
+  { id: null, name: "Kommunal", share: 0.1, color: "var(--red)" },
+  { id: null, name: "Sog‘liq", share: 0.08, color: "#c084fc" },
+  { id: null, name: "Ta’lim", share: 0.06, color: "#22c5b6" },
+  { id: null, name: "Ko‘ngilochar", share: 0.05, color: "#f973a5" },
+  { id: null, name: "Boshqa", share: 0.04, color: "#fb923c" },
 ];
 
 /** A light, non-financial preview makes the dashboard's next useful surface discoverable. */
@@ -274,14 +278,10 @@ function ExpenseBreakdownPreview({ monthLabel }: { monthLabel: string }) {
   return (
     <Card className="mt-3.5">
       <Label>Xarajat taqsimoti · {monthLabel.split(" ")[0].toUpperCase()}</Label>
-      <div className="pointer-events-none mt-4 grid select-none grid-cols-[8.25rem_minmax(0,1fr)] items-center gap-x-4 blur-[1.25px] opacity-60" aria-hidden="true">
-        <div className="relative flex justify-center">
-          <CategoryDonut items={SAMPLE_EXPENSE_ITEMS} size={132} />
-          <div className="absolute inset-0 grid place-content-center text-center">
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-fg">Namuna</span>
-          </div>
-        </div>
-        <div className="space-y-2.5">
+      <div className="relative mt-4">
+        <div className="pointer-events-none flex select-none flex-col items-center gap-3 blur-[1.25px] opacity-60" aria-hidden="true">
+          <CategoryDonut items={SAMPLE_EXPENSE_ITEMS} size={168} />
+          <div className="grid w-full grid-cols-2 gap-x-2 gap-y-0.5">
           {SAMPLE_EXPENSE_ITEMS.map((item) => (
             <div key={item.name} className="flex min-h-8 min-w-0 items-center gap-2 rounded-[10px] px-2">
               <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: item.color }} />
@@ -289,9 +289,15 @@ function ExpenseBreakdownPreview({ monthLabel }: { monthLabel: string }) {
               <span className="num shrink-0 text-[12.5px] font-bold text-faint">{Math.round(item.share * 100)}%</span>
             </div>
           ))}
+          </div>
+        </div>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+          <span className="rounded-xl border border-line-strong bg-bg/90 px-3 py-2 shadow-lg">
+            <span className="block text-[9px] font-bold uppercase tracking-[0.12em] text-warning-text">Namuna</span>
+            <span className="mt-0.5 block text-[11px] font-semibold text-fg">Xarajat qo‘shing</span>
+          </span>
         </div>
       </div>
-      <p className="mt-3 text-center text-[11.5px] text-muted">Xarajat qo‘shilgach, taqsimot shu yerda ko‘rinadi.</p>
     </Card>
   );
 }

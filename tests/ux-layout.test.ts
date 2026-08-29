@@ -201,7 +201,10 @@ test("payments tab renders no monthly summary block", () => {
 });
 
 test("income tab renders no expected-income summary block", () => {
-  const incomeTab = plans.slice(plans.indexOf('{tab === "income" ?'));
+  const incomeStart = plans.indexOf('{tab === "income" ?');
+  const afterIncomeStart = plans.slice(incomeStart);
+  const incomeEnd = afterIncomeStart.indexOf("          </>");
+  const incomeTab = afterIncomeStart.slice(0, incomeEnd);
   for (const removed of ["Kutilayotgan daromad", "90 kunlik prognoz", "taxminiy ", 'label="Aniq"']) {
     assert.equal(incomeTab.includes(removed), false, `income summary leftover: ${removed}`);
   }

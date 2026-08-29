@@ -157,9 +157,14 @@ const SAMPLE_TREND = [
 ];
 
 const SAMPLE_CATEGORIES = [
-  { name: "Oziq-ovqat", icon: "cart", amount: 1_180_000, share: 0.38 },
-  { name: "Transport", icon: "car", amount: 640_000, share: 0.21 },
-  { name: "Uy", icon: "home", amount: 520_000, share: 0.17 },
+  { name: "Oziq-ovqat", icon: "cart", amount: 1_180_000, share: 0.31 },
+  { name: "Ijara", icon: "home", amount: 830_000, share: 0.22 },
+  { name: "Transport", icon: "car", amount: 530_000, share: 0.14 },
+  { name: "Kommunal", icon: "receipt", amount: 380_000, share: 0.1 },
+  { name: "Sog‘liq", icon: "heart", amount: 300_000, share: 0.08 },
+  { name: "Ta’lim", icon: "book", amount: 230_000, share: 0.06 },
+  { name: "Ko‘ngilochar", icon: "sparkles", amount: 190_000, share: 0.05 },
+  { name: "Boshqa", icon: "dot", amount: 150_000, share: 0.04 },
 ];
 
 /** Clearly labelled, non-financial preview shown until the user has real data. */
@@ -167,37 +172,41 @@ function AnalyticsPreview({ transactionCount }: { transactionCount: number }) {
   const needed = Math.max(0, 2 - transactionCount);
   return (
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
-      <div className="relative overflow-hidden rounded-[20px]">
-        <div className="pointer-events-none select-none space-y-3.5 blur-[2.5px] opacity-55" aria-hidden="true">
-          <Card>
-            <p className="text-[15px] font-semibold">Pul oqimi · avgust</p>
-            <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[14px]" style={{ background: "var(--border)" }}>
-              <Metric label="Balans" value="3 800 000" />
-              <Metric label="Yopilish" value="5 600 000" tone="positive" />
-            </div>
-            <div className="mt-4"><ForecastArea data={sampleCashflow()} height={132} /></div>
-          </Card>
-          <Card>
-            <p className="mb-3 text-[15px] font-semibold">Daromad va xarajatlar</p>
-            <IncomeExpenseBars data={SAMPLE_TREND} />
-          </Card>
-          <Card>
-            <p className="mb-3 text-[15px] font-semibold">Xarajat kategoriyalari</p>
-            <CategoryBars items={SAMPLE_CATEGORIES} />
-          </Card>
-        </div>
-        <div className="analytics-preview-sheet absolute inset-x-4 top-1/2 -translate-y-1/2 rounded-[22px] border border-line-strong p-4 text-center shadow-xl backdrop-blur-md">
-          <span className="inline-flex rounded-full border border-warning/35 bg-warning-soft px-2 py-1 text-[10px] font-bold tracking-[0.12em] text-warning-text">NAMUNA</span>
-          <div className="analytics-preview-icon mx-auto mt-3 grid h-11 w-11 place-items-center rounded-full bg-accent-soft text-accent-text" aria-hidden="true"><Icon name="chart" size={20} /></div>
-          <p className="mt-3 text-[16px] font-semibold tracking-tight">Sizning tahlilingiz shu yerda bo‘ladi</p>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-muted">Bu faqat ko‘rinish namunasi. Haqiqiy grafiklarni ochish uchun yana {needed || 1} ta operatsiya kiriting.</p>
-          <div className="mx-auto mt-3 flex max-w-[210px] gap-1.5" aria-label="Tahlil ochilish jarayoni"><span className="h-1.5 flex-1 rounded-full bg-primary" /><span className={`h-1.5 flex-1 rounded-full ${transactionCount > 0 ? "bg-primary" : "bg-surface-3"}`} /></div>
-          <Link href="/" className="mt-4 inline-flex min-h-10 items-center rounded-full bg-primary px-4 text-[12px] font-semibold text-primary-fg shadow-sm touch-manipulation">Operatsiya qo‘shish</Link>
-        </div>
-      </div>
-      <p className="px-1 text-center text-[11px] text-muted">Namuna ma’lumotlari — balansingiz yoki haqiqiy xarajatlaringiz emas.</p>
+      <p className="px-1 text-center text-[11.5px] text-muted">Namuna tahlil — haqiqiy ko‘rinish uchun yana {needed || 1} ta operatsiya kiriting.</p>
+
+      <AnalysisPreviewCard>
+        <Card className="space-y-4">
+          <div className="flex items-center justify-between gap-2"><span className={NAV_BTN}><Icon name="chevron-left" size={15} /></span><div className="text-center"><p className="text-[15px] font-semibold">Pul oqimi · avgust</p><p className="mt-0.5 text-[11px] text-muted">Joriy oy</p></div><span className={NAV_BTN}><Icon name="chevron-right" size={15} /></span></div>
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[14px] sm:grid-cols-4" style={{ background: "var(--border)" }}><Metric label="Bugungi balans" value="3 800 000" /><Metric label="Daromad" value="+4 900 000" tone="positive" /><Metric label="Xarajat" value="−3 810 000" /><Metric label="Yopilish" value="4 890 000" tone="warning" /></div>
+          <div><ForecastArea data={sampleCashflow()} height={132} /><div className="mt-2 flex gap-4 text-[11px] text-muted"><span>real</span><span>prognoz</span><span>xavf</span></div></div>
+        </Card>
+      </AnalysisPreviewCard>
+
+      <AnalysisPreviewCard>
+        <Card><p className="mb-3 text-[15px] font-semibold">Muhim sanalar · avgust</p><div className="divide-y divide-line">{[
+          ["5 avg", "−850 ming", "Ijara"], ["12 avg", "−180 ming", "Internet"], ["20 avg", "+3 mln", "Avans"], ["28 avg", "−420 ming", "Kredit"],
+        ].map(([date, amount, label]) => <div key={label} className="flex items-center gap-2.5 py-2.5"><span className="num w-14 shrink-0 text-[11.5px] text-muted">{date}</span><span className={`shrink-0 text-sm font-medium ${amount.startsWith("+") ? "text-positive-text" : "text-fg"}`}>{amount}</span><span className="min-w-0 flex-1 truncate text-[13px]">{label}</span><Badge tone="neutral">Reja</Badge></div>)}</div></Card>
+      </AnalysisPreviewCard>
+
+      <AnalysisPreviewCard>
+        <Card><div className="mb-3 flex items-start justify-between gap-3"><div><p className="text-[15px] font-semibold">Daromad va xarajatlar</p><p className="mt-0.5 text-[11.5px] text-muted">Oxirgi 6 oy</p></div><span className="text-[11px] text-muted">Daromad · Xarajat</span></div><IncomeExpenseBars data={SAMPLE_TREND} /></Card>
+      </AnalysisPreviewCard>
+
+      <AnalysisPreviewCard>
+        <Card><div className="mb-3 flex items-start justify-between gap-3"><div><p className="text-[15px] font-semibold">Xarajat kategoriyalari</p><p className="mt-0.5 text-[11.5px] text-muted">Joriy oy · barcha kategoriyalar</p></div><span className="text-[12px] font-semibold text-accent-text">Tarix →</span></div><CategoryBars items={SAMPLE_CATEGORIES} /></Card>
+      </AnalysisPreviewCard>
+
+      <AnalysisPreviewCard>
+        <Card><p className="mb-2 flex items-center gap-2 text-[15px] font-semibold"><Icon name="warning" size={16} className="shrink-0 text-negative-text" />Xavf kunlari · avgust</p><div className="divide-y divide-line">{[["16 avg", "Kutilgan to‘lov", "−240 ming"], ["28 avg", "Kredit to‘lovi", "−420 ming"]].map(([date, cause, amount]) => <div key={date} className="flex items-center justify-between gap-3 py-2"><div className="min-w-0"><span className="num text-[12.5px] font-semibold text-negative-text">{date}</span><span className="ml-2 truncate text-[11.5px] text-muted">{cause}</span></div><span className="num shrink-0 text-[12.5px] font-semibold text-negative-text">{amount}</span></div>)}</div></Card>
+      </AnalysisPreviewCard>
+
+      <div className="flex justify-center"><Link href="/" className="inline-flex min-h-10 items-center rounded-full bg-primary px-4 text-[12px] font-semibold text-primary-fg shadow-sm touch-manipulation">Operatsiya qo‘shish</Link></div>
     </div>
   );
+}
+
+function AnalysisPreviewCard({ children }: { children: React.ReactNode }) {
+  return <div className="pointer-events-none select-none blur-[1.25px] opacity-60" aria-hidden="true">{children}</div>;
 }
 
 function sampleCashflow() {
