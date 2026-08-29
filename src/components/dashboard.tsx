@@ -262,6 +262,40 @@ const DONUT_COLORS = [
   "#fb923c",
 ];
 
+const SAMPLE_EXPENSE_ITEMS = [
+  { id: null, name: "Oziq-ovqat", share: 0.46, color: "var(--gold)" },
+  { id: null, name: "Transport", share: 0.28, color: "var(--blue)" },
+  { id: null, name: "Uy", share: 0.17, color: "var(--green)" },
+  { id: null, name: "Boshqa", share: 0.09, color: "var(--red)" },
+];
+
+/** A light, non-financial preview makes the dashboard's next useful surface discoverable. */
+function ExpenseBreakdownPreview({ monthLabel }: { monthLabel: string }) {
+  return (
+    <Card className="mt-3.5">
+      <Label>Xarajat taqsimoti · {monthLabel.split(" ")[0].toUpperCase()}</Label>
+      <div className="pointer-events-none mt-4 grid select-none grid-cols-[8.25rem_minmax(0,1fr)] items-center gap-x-4 blur-[1.25px] opacity-60" aria-hidden="true">
+        <div className="relative flex justify-center">
+          <CategoryDonut items={SAMPLE_EXPENSE_ITEMS} size={132} />
+          <div className="absolute inset-0 grid place-content-center text-center">
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-fg">Namuna</span>
+          </div>
+        </div>
+        <div className="space-y-2.5">
+          {SAMPLE_EXPENSE_ITEMS.map((item) => (
+            <div key={item.name} className="flex min-h-8 min-w-0 items-center gap-2 rounded-[10px] px-2">
+              <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: item.color }} />
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{item.name}</span>
+              <span className="num shrink-0 text-[12.5px] font-bold text-faint">{Math.round(item.share * 100)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="mt-3 text-center text-[11.5px] text-muted">Xarajat qo‘shilgach, taqsimot shu yerda ko‘rinadi.</p>
+    </Card>
+  );
+}
+
 /**
  * Shows every category that has spending in the current month. One chart answers
  * "where did it go?" and the readable legend preserves the complete breakdown.
@@ -276,7 +310,7 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
     color: DONUT_COLORS[index % DONUT_COLORS.length],
   }));
 
-  if (!items.length) return null;
+  if (!items.length) return <ExpenseBreakdownPreview monthLabel={monthLabel} />;
 
   // A long legend must not dwarf the chart. Once the breakdown has more than
   // four rows, the chart gets its own full-width stage and the legend becomes
