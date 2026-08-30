@@ -168,9 +168,11 @@ test("controls and previews may always shrink instead of widening the sheet", ()
   assert.match(formKit, /export function FormRow/);
   assert.match(formKit, /export function FormActions/);
   assert.match(formKit, /export const FormSection/);
-  // A 1fr grid track defaults to min-width:auto — always spell out minmax(0,1fr).
+  // The goal icon picker is a multi-column control; a fixed 88px side track
+  // squeezes it on mobile. It must remain full-width within the sheet.
   assert.doesNotMatch(FORM_SOURCES.goals, /grid-cols-\[1fr_/);
-  assert.match(FORM_SOURCES.goals, /grid-cols-\[minmax\(0,1fr\)_88px\]/);
+  assert.doesNotMatch(FORM_SOURCES.goals, /grid-cols-\[minmax\(0,1fr\)_88px\]/);
+  assert.match(FORM_SOURCES.goals, /<Field label="Ikona">/);
 });
 
 test("single-column page grids declare grid-cols-1 instead of an auto track", () => {

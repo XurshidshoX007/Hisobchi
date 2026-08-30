@@ -202,6 +202,14 @@ test("optional details are collapsed, never ten fields by default", () => {
   assert.match(formKit, /label = "Izoh"/);
 });
 
+test("goal add flow keeps its mobile controls uncompressed", () => {
+  const goals = CREATE_PAGES.goals;
+  assert.match(goals, /placeholder="Mashina \/ iPhone \/ Zaxira"\s+autoFocus=\{!editing\}/);
+  assert.doesNotMatch(goals, /grid-cols-\[minmax\(0,1fr\)_88px\]/);
+  assert.equal((goals.match(/quick=\{false\}/g) ?? []).length, 2, "secondary goal amounts stay compact without a duplicate quick ladder");
+  assert.match(goals, /new Set\(/, "matching monthly quick amounts are offered once");
+});
+
 test("category picker starts from recent categories and hides the full list", () => {
   assert.match(formKit, /rankCategoryIds\(/);
   assert.match(formKit, /Barchasi →/);

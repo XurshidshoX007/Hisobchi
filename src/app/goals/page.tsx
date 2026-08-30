@@ -237,7 +237,12 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
       onSubmit={submit}
     >
       <Field label="Maqsad nomi" error={showError("name")}>
-        <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Mashina / iPhone / Zaxira" />
+        <TextInput
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Mashina / iPhone / Zaxira"
+          autoFocus={!editing}
+        />
       </Field>
 
       <AmountField
@@ -246,7 +251,6 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
         label="Kerakli summa"
         currency="UZS"
         error={showError("targetAmount")}
-        autoFocus={!editing}
       />
 
       {target > 0 ? (
@@ -266,35 +270,32 @@ function GoalSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
       ) : null}
 
       <AdvancedSection>
-        <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-3 [&>*]:min-w-0">
-          {!editing ? (
-            <Field label="Hozirgi summa">
-              <TextInput
-                value={savedAmount}
-                onChange={(e) => setSavedAmount(formatAmountInput(e.target.value))}
-                inputMode="decimal"
-                placeholder="0"
-              />
-            </Field>
-          ) : (
-            <div className="flat-card flex items-center justify-between p-3 text-sm">
-              <span className="text-muted">Yig‘ilgan</span>
-              <Money value={editing.savedAmount} size="sm" tone="positive" />
-            </div>
-          )}
-          <Field label="Ikona">
-            <IconPicker value={icon} onChange={setIcon} />
-          </Field>
-        </div>
-        <DateField value={targetDate} onChange={setTargetDate} label="Muddat (ixtiyoriy)" chips={false} />
-        <Field label="Oylik jamg‘arma" hint="Rejalashtirilgan oylik summa">
-          <TextInput
-            value={monthlyContribution}
-            onChange={(e) => setMonthlyContribution(formatAmountInput(e.target.value))}
-            inputMode="decimal"
-            placeholder="3 000 000"
+        {!editing ? (
+          <AmountField
+            value={savedAmount}
+            onChange={setSavedAmount}
+            label="Hozirgi summa"
+            currency="UZS"
+            quick={false}
           />
+        ) : (
+          <div className="flat-card flex items-center justify-between gap-3 p-3 text-sm">
+            <span className="text-muted">Yig‘ilgan</span>
+            <Money value={editing.savedAmount} size="sm" tone="positive" />
+          </div>
+        )}
+        <Field label="Ikona">
+          <IconPicker value={icon} onChange={setIcon} />
         </Field>
+        <DateField value={targetDate} onChange={setTargetDate} label="Muddat (ixtiyoriy)" chips={false} />
+        <AmountField
+          value={monthlyContribution}
+          onChange={setMonthlyContribution}
+          label="Oylik jamg‘arma"
+          currency="UZS"
+          quick={false}
+          placeholder="3 000 000"
+        />
       </AdvancedSection>
     </FormSheet>
   );
@@ -321,6 +322,13 @@ function ContributeSheet({ goal, onClose }: { goal: GoalView | null; onClose: ()
   const parsed = parseAmountInput(amount);
   const errorMsg = amountError(amount, "Jamg‘arma summasini kiriting");
   const valid = !errorMsg;
+  const quickAmounts = [
+    ...new Set(
+      [record?.monthlyContribution, record?.requiredMonthly].filter(
+        (value): value is number => typeof value === "number" && value > 0,
+      ),
+    ),
+  ];
 
   async function submit() {
     setTouched(true);
@@ -351,15 +359,15 @@ function ContributeSheet({ goal, onClose }: { goal: GoalView | null; onClose: ()
         error={touched ? errorMsg : null}
         autoFocus
       />
-      <FormActions>
-        {[record.monthlyContribution, record.requiredMonthly]
-          .filter((v) => v > 0)
-          .map((v, i) => (
-            <Chip key={i} onClick={() => setAmount(formatAmountInput(String(Math.round(v))))}>
-              {compact(v)}
+      {quickAmounts.length > 0 ? (
+        <FormActions>
+          {quickAmounts.map((value) => (
+            <Chip key={value} onClick={() => setAmount(formatAmountInput(String(Math.round(value))))}>
+              {compact(value)}
             </Chip>
           ))}
-      </FormActions>
+        </FormActions>
+      ) : null}
     </FormSheet>
   );
 }
