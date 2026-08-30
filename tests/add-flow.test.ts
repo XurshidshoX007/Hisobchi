@@ -187,6 +187,11 @@ test("amount is entered through the shared money input everywhere", () => {
   assert.match(formKit, /focus-visible:outline-none focus-visible:ring-0/, "the input delegates focus styling to its single outer field shell");
 });
 
+test("text controls retain one component focus state instead of a second gold outline", () => {
+  assert.match(css, /:where\(button, a, \[tabindex\]:not\(input, select, textarea\)\):focus-visible/);
+  assert.doesNotMatch(css, /button, a, input, select, textarea, \[tabindex\]\):focus-visible/);
+});
+
 test("optional details are collapsed, never ten fields by default", () => {
   assert.match(formKit, /export function AdvancedSection/);
   assert.match(formKit, /label = "Qo‘shimcha"/);

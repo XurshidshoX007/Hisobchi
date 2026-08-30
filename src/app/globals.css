@@ -434,8 +434,12 @@ body[data-tab-swipe] {
   border-radius: 16px;
 }
 
-/* Keyboard / switch-accessibility focus ring */
-:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+/*
+ * Keyboard / switch-accessibility focus ring. Form controls own their focused
+ * state (blue border/background) in the shared input primitive, so applying
+ * this gold outline to them as well creates a distracting double border.
+ */
+:where(button, a, [tabindex]:not(input, select, textarea)):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: 12px;
