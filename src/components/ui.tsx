@@ -237,7 +237,7 @@ export function Money({
   if (hidden) {
     return (
       <span className={`num ${sizes[size]} ${tones[tone]} break-words`} aria-label="Summa yashirilgan">
-        <span aria-hidden="true">•••••</span>
+        <span aria-hidden="true">*****</span>
         {currency ? <span className="ml-1 text-[0.62em] font-normal text-muted">{currency}</span> : null}
       </span>
     );
