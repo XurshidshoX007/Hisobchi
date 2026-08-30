@@ -780,6 +780,7 @@ export function AmountField({
             placeholder={placeholder}
             autoFocus={autoFocus}
             className={`num w-full min-w-0 max-w-full bg-transparent font-bold leading-none tracking-[-0.01em] outline-none focus-visible:outline-none focus-visible:ring-0 placeholder:font-semibold placeholder:text-faint ${sizeClass}`}
+            style={{ outline: "none" }}
           />
           {hasValue ? (
             <button

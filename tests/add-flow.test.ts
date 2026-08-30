@@ -222,16 +222,14 @@ test("plan forms only show the fields their type needs and preview the result", 
   const plans = CREATE_PAGES.plans;
   assert.match(plans, /planType === "term" \? \(/);
   assert.match(plans, /planType !== "one_time" \? \(/);
+  // Date controls have a large intrinsic width in mobile WebViews. Keep them
+  // stacked in the sheet and use two columns only from the tablet breakpoint.
+  assert.equal((plans.match(/grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2/g) ?? []).length, 3);
   assert.match(plans, /<PreviewCard>/);
   // Term preview: 1 880 000 × 12 = 22 560 000
   assert.match(plans, /\{formatAmount\(baseAmount\)\} × \{termCount \|\| 0\} = \{formatAmount\(termCount \* baseAmount\)\}/);
-  // Recurring preview: annual load + concrete next date. Cadence is already
-  // selected above, so it must not be repeated in the preview.
-  assert.match(plans, /Yillik: \{formatAmount\(baseAmount \* annualFactor\)\} so‘m/);
-  assert.match(plans, /Keyingi to‘lov: \{nextDueDate \? humanDate\(nextDueDate\) : "—"\}/);
-  // Empty forms must not show a misleading zero-value preview.
-  assert.match(plans, /\{baseAmount > 0 \|\| hasSchedule \? <PreviewCard>/);
-  assert.match(plans, /\{baseAmount > 0 \? <PreviewCard>/);
+  // Recurring preview: cadence + day + annual load.
+  assert.match(plans, /\{frequencyLabel\(frequency\)\} · \{nextDueDate \? `\$\{Number\(nextDueDate\.slice\(8, 10\)\)\}-sana`/);
 });
 
 /* ==================== §28 ERROR UX ==================== */
