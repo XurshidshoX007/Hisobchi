@@ -36,7 +36,7 @@ type FinanceContextValue = {
   setTheme: (mode: ThemeMode) => void;
   isDark: boolean;
   telegram: boolean;
-  /** Every amount in the product renders as ••••• while this is on. */
+  /** Every amount in the product renders as ***** while this is on. */
   balanceHidden: boolean;
   setBalanceHidden: (hidden: boolean) => void;
 };

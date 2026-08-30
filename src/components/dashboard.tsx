@@ -110,7 +110,7 @@ export function DashboardHero({
               <p className="num mt-1 truncate text-[13px] font-bold">
                 {/* Compact form: three full amounts side by side do not fit at
                     320px, and this row is a reference, not the primary figure. */}
-                {hidden ? "•••••" : compact(group.amount)}
+                {hidden ? "*****" : compact(group.amount)}
               </p>
             </div>
           ))}

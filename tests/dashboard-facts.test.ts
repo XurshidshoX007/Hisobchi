@@ -293,6 +293,8 @@ test("the balance panel is one object, not a card inside a card", () => {
   assert.match(ui, /const hidden = useBalanceHidden\(\)/);
   assert.match(ui, />\*\*\*\*\*</, "hidden balances use asterisks instead of dot glyphs");
   assert.doesNotMatch(ui, />•••••</);
+  assert.match(hero, /hidden \? "\*\*\*\*\*" : compact\(group\.amount\)/);
+  assert.doesNotMatch(hero, /•••••/);
   assert.match(ui, /if \(hidden\) \{/);
 });
 
