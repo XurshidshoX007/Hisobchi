@@ -739,10 +739,11 @@ export async function POST(request: Request) {
     const photo = update.message?.photo;
     const document = update.message?.document;
     const isImageDocument = Boolean(document?.mime_type?.toLowerCase().startsWith("image/"));
+    const documentMime = document?.mime_type?.toLowerCase() ?? "";
     const isCreditDocument = Boolean(
       document &&
         !isImageDocument &&
-        (document.mime_type?.toLowerCase() === "application/pdf" || /\.(pdf|csv|xlsx?|docx?|txt)$/i.test(document.file_name ?? "")),
+        (documentMime === "application/pdf" || documentMime.startsWith("text/") || documentMime.includes("spreadsheetml") || documentMime.includes("wordprocessingml") || /\.(pdf|csv|xlsx?|docx?|txt)$/i.test(document.file_name ?? "")),
     );
     // A document name or an external signed URL can contain long numbers that
     // look like money. It is never safe to feed those identifiers into the
@@ -776,7 +777,7 @@ export async function POST(request: Request) {
       }
       await callTelegram("sendMessage", {
         chat_id: chatId,
-        text: "📎 Fayl o‘qildi, lekin kredit jadvalidagi sana, jami, asosiy qism va foizlar aniq ajratilmadi. Hech narsa saqlanmadi. Jadval matnli PDF/Excel/CSV/Word bo‘lishi va kamida 2 ta to‘lov tarkibi to‘liq ko‘rinishi kerak.",
+        text: "📎 Fayl o‘qildi, lekin kredit jadvalidagi sana, jami, asosiy qism va foizlar aniq ajratilmadi. Hech narsa saqlanmadi. Jadval matnli PDF, CSV, Excel (.xlsx) yoki Word (.docx) bo‘lishi va kamida 2 ta to‘lov tarkibi to‘liq ko‘rinishi kerak.",
         reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
       });
       return NextResponse.json({ ok: true });
