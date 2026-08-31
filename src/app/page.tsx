@@ -63,8 +63,8 @@ export default function DashboardPage() {
       <QuickActions onAdd={openAdd} />
 
       <div key={facts.monthLabel} className="dashboard-value-transition animate-category-in min-w-0">
-        <MonthResult facts={facts} currency={state.user.currency} expenseDock={<QuickExpenses />} />
-        <ExpenseBreakdown facts={facts} monthLabel={facts.monthLabel} />
+        <MonthResult facts={facts} currency={state.user.currency} />
+        <ExpenseBreakdown facts={facts} monthLabel={facts.monthLabel} quickDock={<QuickExpenses />} />
       </div>
 
       <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} defaultType={defaultType} />

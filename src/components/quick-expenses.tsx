@@ -30,11 +30,11 @@ export function QuickExpenses() {
         type="button"
         onClick={() => setDrawerOpen(true)}
         aria-label={`Tezkor xarajatlarni ochish${presets.length ? `, ${presets.length} ta` : ""}`}
-        className="group mt-3 flex min-h-9 w-full items-center gap-2 rounded-xl border border-line bg-surface-2/70 px-2.5 text-left transition-[background-color,transform] hover:bg-surface-3 active:scale-[0.98] touch-manipulation"
+        className="group inline-flex min-h-8 max-w-[7.75rem] shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface-2/70 px-2.5 text-left transition-[background-color,transform] hover:bg-surface-3 active:scale-[0.98] touch-manipulation"
       >
-        <span className="min-w-0 flex-1 truncate text-[10.5px] font-bold text-fg-soft">Tezkor xarajatlar</span>
-        {presets.length ? <span className="num text-[10px] font-bold text-muted">{presets.length} ta</span> : <span className="text-[10px] font-semibold text-muted">Sozlang</span>}
-        <Icon name="chevron-right" size={13} className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
+        <span className="min-w-0 truncate text-[10.5px] font-bold text-fg-soft">Tezkor</span>
+        {presets.length ? <span className="num shrink-0 text-[10px] font-bold text-muted">{presets.length} ta</span> : <span className="shrink-0 text-[10px] font-semibold text-muted">Sozlang</span>}
+        <Icon name="chevron-right" size={12} className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
       </button>
 
       <ContextualBottomSheet

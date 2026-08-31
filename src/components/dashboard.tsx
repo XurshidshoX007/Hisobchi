@@ -219,7 +219,7 @@ export function QuickActions({ onAdd }: { onAdd: (id: QuickActionId) => void }) 
 
 /* =========================== MONTH RESULT =========================== */
 
-export function MonthResult({ facts, currency, expenseDock }: { facts: DashboardFacts; currency: string; expenseDock?: ReactNode }) {
+export function MonthResult({ facts, currency }: { facts: DashboardFacts; currency: string }) {
   const unit = currencyLabel(currency);
   const cells = [
     { label: "Daromad", value: facts.income, icon: "arrow-up", color: "var(--green)", tint: "var(--tint-green)", tone: "positive" as const },
@@ -243,7 +243,6 @@ export function MonthResult({ facts, currency, expenseDock }: { facts: Dashboard
           <div className="mt-2 min-w-0 leading-tight">
             <Money whole value={cell.value} size="lg" tone={cell.tone} currency={unit} />
           </div>
-          {cell.label === "Xarajat" ? expenseDock : null}
         </Card>
       ))}
     </div>
@@ -275,10 +274,10 @@ const SAMPLE_EXPENSE_ITEMS = [
 ];
 
 /** A light, non-financial preview makes the dashboard's next useful surface discoverable. */
-function ExpenseBreakdownPreview({ monthLabel }: { monthLabel: string }) {
+function ExpenseBreakdownPreview({ monthLabel, quickDock }: { monthLabel: string; quickDock?: ReactNode }) {
   return (
     <Card className="mt-3.5">
-      <Label>Xarajat taqsimoti · {monthLabel.split(" ")[0].toUpperCase()}</Label>
+      <ExpenseBreakdownHeader monthLabel={monthLabel} quickDock={quickDock} />
       <div className="relative mt-4">
         <div className="pointer-events-none flex select-none flex-col items-center gap-3 blur-[1.25px] opacity-60" aria-hidden="true">
           <CategoryDonut items={SAMPLE_EXPENSE_ITEMS} size={168} />
@@ -307,7 +306,18 @@ function ExpenseBreakdownPreview({ monthLabel }: { monthLabel: string }) {
  * Shows every category that has spending in the current month. One chart answers
  * "where did it go?" and the readable legend preserves the complete breakdown.
  */
-export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts; monthLabel: string }) {
+function ExpenseBreakdownHeader({ monthLabel, quickDock }: { monthLabel: string; quickDock?: ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-2">
+      <Label className="min-w-0 truncate">
+        Xarajat taqsimoti<span className="hidden min-[380px]:inline"> · {monthLabel.split(" ")[0].toUpperCase()}</span>
+      </Label>
+      {quickDock}
+    </div>
+  );
+}
+
+export function ExpenseBreakdown({ facts, monthLabel, quickDock }: { facts: DashboardFacts; monthLabel: string; quickDock?: ReactNode }) {
   const router = useRouter();
   const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
   const items = facts.expenseCategories.map((category, index) => ({
@@ -317,7 +327,7 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
     color: DONUT_COLORS[index % DONUT_COLORS.length],
   }));
 
-  if (!items.length) return <ExpenseBreakdownPreview monthLabel={monthLabel} />;
+  if (!items.length) return <ExpenseBreakdownPreview monthLabel={monthLabel} quickDock={quickDock} />;
 
   // A long legend must not dwarf the chart. Once the breakdown has more than
   // four rows, the chart gets its own full-width stage and the legend becomes
@@ -330,7 +340,7 @@ export function ExpenseBreakdown({ facts, monthLabel }: { facts: DashboardFacts;
 
   return (
     <Card className="mt-3.5">
-      <Label>Xarajat taqsimoti · {monthLabel.split(" ")[0].toUpperCase()}</Label>
+      <ExpenseBreakdownHeader monthLabel={monthLabel} quickDock={quickDock} />
       <figure
         className={`mt-4 min-w-0 ${
           hasDetailedBreakdown
