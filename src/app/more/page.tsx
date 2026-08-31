@@ -24,8 +24,9 @@ const LINKS: Array<{ href: string; icon: string; title: string }> = [
 ];
 
 export default function MorePage() {
-  const { state, loading, theme, setTheme, telegram } = useFinance();
+  const { state, loading, theme, setTheme, telegram, exportXlsx } = useFinance();
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
@@ -58,6 +59,13 @@ export default function MorePage() {
   };
 
   const themeLabel = theme === "dark" ? "Tungi" : theme === "light" ? "Kunduzgi" : "Tizim";
+
+  async function downloadExcel() {
+    if (exporting) return;
+    setExporting(true);
+    await exportXlsx();
+    setExporting(false);
+  }
 
   return (
     <div className="animate-fade-up space-y-3.5">
@@ -118,6 +126,34 @@ export default function MorePage() {
       <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-hairline rounded-2xl border border-line bg-surface">
         {LINKS.map((l) => {
           const trailing = status(l.href);
+          if (l.href === "/settings") {
+            return (
+              <div key={l.href}>
+                <button
+                  type="button"
+                  onClick={() => void downloadExcel()}
+                  disabled={exporting}
+                  className="flex min-h-13 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-2 active:bg-surface-2 disabled:opacity-55 touch-manipulation"
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-text" aria-hidden="true">
+                    <Icon name="doc" size={17} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">Excel eksport</span>
+                  <span className="shrink-0 text-[11.5px] font-semibold text-accent-text">{exporting ? "Tayyorlanmoqda…" : "Yuklash"}</span>
+                </button>
+                <Link
+                  href={l.href}
+                  className="flex min-h-13 items-center gap-3 border-t border-hairline px-4 py-2.5 transition-colors last:rounded-b-2xl hover:bg-surface-2 active:bg-surface-2 touch-manipulation"
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-neutral-soft text-fg-soft" aria-hidden="true">
+                    <Icon name={l.icon} size={17} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{l.title}</span>
+                  <Icon name="chevron-right" size={13} className="shrink-0 text-text-4" />
+                </Link>
+              </div>
+            );
+          }
           return (
             <Link
               key={l.href}

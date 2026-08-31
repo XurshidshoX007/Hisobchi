@@ -30,6 +30,7 @@ type FinanceContextValue = {
     data?: Record<string, unknown>,
     options?: { silent?: boolean; settings?: Record<string, unknown> },
   ) => Promise<{ ok: boolean; message: string }>;
+  exportXlsx: () => Promise<{ ok: boolean; message: string }>;
   mutating: boolean;
   toast: (text: string, tone?: Toast["tone"]) => void;
   theme: ThemeMode;
@@ -300,12 +301,48 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     [toast],
   );
 
+  const exportInFlightRef = useRef(false);
+  const exportXlsx = useCallback<FinanceContextValue["exportXlsx"]>(async () => {
+    if (exportInFlightRef.current) return { ok: false, message: "Excel fayli tayyorlanmoqda" };
+    exportInFlightRef.current = true;
+    try {
+      const headers: Record<string, string> = {};
+      if (initDataRef.current) headers["x-telegram-init-data"] = initDataRef.current;
+      const response = await fetch("/api/export/xlsx", { headers, cache: "no-store" });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        const message = body?.error ?? "Excel faylini tayyorlab bo‘lmadi";
+        toast(message, "error");
+        return { ok: false, message };
+      }
+      const blob = await response.blob();
+      const filename = response.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/i)?.[1] ?? "hisobchi-eksport.xlsx";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.style.display = "none";
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      const message = "Excel fayli yuklandi";
+      toast(message, "success");
+      return { ok: true, message };
+    } catch {
+      toast(ERRORS.connection, "error");
+      return { ok: false, message: ERRORS.connection };
+    } finally {
+      exportInFlightRef.current = false;
+    }
+  }, [toast]);
+
   const value = useMemo<FinanceContextValue>(
     () => ({
-      state, loading, error, refresh, mutate, mutating, toast, theme, setTheme, isDark, telegram,
+      state, loading, error, refresh, mutate, exportXlsx, mutating, toast, theme, setTheme, isDark, telegram,
       balanceHidden, setBalanceHidden,
     }),
-    [state, loading, error, refresh, mutate, mutating, toast, theme, setTheme, isDark, telegram, balanceHidden, setBalanceHidden],
+    [state, loading, error, refresh, mutate, exportXlsx, mutating, toast, theme, setTheme, isDark, telegram, balanceHidden, setBalanceHidden],
   );
 
   return (
