@@ -47,7 +47,7 @@ export function QuickExpenses() {
               onClick={() => void record(preset)}
               disabled={mutating}
               aria-label={`${preset.name}: ${formatAmount(preset.amount)} so‘mlik xarajat qo‘shish`}
-              className="group flex min-h-15 w-[calc((100%-0.5rem)/2)] shrink-0 snap-start items-center gap-2.5 rounded-[17px] border border-line-strong bg-surface-raised px-3 text-left transition-[background-color,transform] active:scale-[0.98] disabled:opacity-55 touch-manipulation"
+              className="flex min-h-15 w-[calc((100%-0.5rem)/2)] shrink-0 snap-start items-center gap-2.5 rounded-[17px] border border-line-strong bg-surface-raised px-3 text-left transition-[background-color,transform] active:scale-[0.98] disabled:opacity-55 touch-manipulation"
               style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,.07)" }}
             >
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-negative-soft text-negative-text" aria-hidden="true">
@@ -57,7 +57,6 @@ export function QuickExpenses() {
                 <span className="block truncate text-[12px] font-semibold text-fg">{preset.name}</span>
                 <span className="num mt-0.5 block truncate text-[11px] font-bold text-negative-text">{formatAmount(preset.amount)}</span>
               </span>
-              <Icon name="plus" size={14} className="shrink-0 text-faint group-active:text-negative-text" aria-hidden="true" />
             </button>
           ))}
         </div>
