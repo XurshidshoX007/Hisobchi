@@ -210,3 +210,11 @@ test("this is a presentation fix: mutations and finance calls are unchanged", ()
   assert.match(FORM_SOURCES.accounts, /mutate\(\s*"account",/);
   assert.match(FORM_SOURCES.accounts, /mutate\(\s*"category",/);
 });
+
+test("debt opening date is explicit and reaches its linked History movement", () => {
+  const mutations = read("lib/mutations.ts");
+  assert.match(FORM_SOURCES.debts, /useState\(todayISO\(\)\)/);
+  assert.match(FORM_SOURCES.debts, /label="Qarz olingan sana"/);
+  assert.match(FORM_SOURCES.debts, /\.\.\.\(!editing \? \{ date \} : \{\}\)/);
+  assert.match(mutations, /amount, date: isoDate\(d\.date, today\) \?\? today,/);
+});

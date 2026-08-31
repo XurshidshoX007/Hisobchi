@@ -36,7 +36,7 @@ import {
   parseAmountInput,
   rememberAccountId,
 } from "@/lib/form-kit";
-import { compact, formatAmount, humanDate } from "@/lib/money";
+import { compact, formatAmount, humanDate, todayISO } from "@/lib/money";
 import type { DebtView } from "@/lib/finance";
 import { filterDebtsByTab, isSettledDebt, type DebtListFilter } from "@/lib/debt-lifecycle";
 import { RowActionsButton, RowActionsSheet } from "@/components/row-actions";
@@ -251,6 +251,7 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
   const [personName, setPersonName] = useState("");
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [date, setDate] = useState(todayISO());
   const [dueDate, setDueDate] = useState("");
   const [note, setNote] = useState("");
   const [touched, setTouched] = useState(false);
@@ -263,6 +264,7 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
       personName: editing?.personName ?? "",
       amount: editing ? formatAmountInput(String(editing.amount)) : "",
       accountId: editing ? "" : String(lastAccountId() ?? ""),
+      date: todayISO(),
       dueDate: editing?.dueDate ?? "",
       note: editing?.note ?? "",
     };
@@ -270,6 +272,7 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
     setPersonName(draft.personName);
     setAmount(draft.amount);
     setAccountId(draft.accountId);
+    setDate(draft.date);
     setDueDate(draft.dueDate);
     setNote(draft.note);
     setTouched(false);
@@ -284,7 +287,7 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
   const showError = (key: string) => (touched ? errors[key] ?? null : null);
   const parsed = parseAmountInput(amount) ?? 0;
 
-  const dirty = isDirtyDraft({ direction, personName, amount, accountId, dueDate, note }, initialDraft);
+  const dirty = isDirtyDraft({ direction, personName, amount, accountId, date, dueDate, note }, initialDraft);
 
   async function submit() {
     setTouched(true);
@@ -299,6 +302,7 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
         amount: parsed,
         remainingAmount: parsed,
         accountId: accountId ? Number(accountId) : null,
+        ...(!editing ? { date } : {}),
         dueDate: dueDate || null,
         note: note.trim() || null,
       },
@@ -342,6 +346,8 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
 
       <AmountField value={amount} onChange={setAmount} error={showError("amount")} currency="UZS" autoFocus={!editing} />
 
+      {!editing ? <DateField value={date} onChange={setDate} label="Qarz olingan sana" /> : null}
+
       {parsed > 0 && personName.trim() ? (
         <PreviewCard>
           <p className="min-w-0 break-words text-[13px]">
@@ -357,7 +363,7 @@ function DebtSheet({ open, onClose, editing }: { open: boolean; onClose: () => v
 
       <AdvancedSection>
         {!editing ? <AccountPicker value={accountId} onChange={setAccountId} /> : null}
-        <DateField value={dueDate} onChange={setDueDate} label="Muddat" chips={false} />
+        <DateField value={dueDate} onChange={setDueDate} label="Qaytarish muddati" chips={false} />
         <NoteField value={note} onChange={setNote} />
       </AdvancedSection>
     </FormSheet>
