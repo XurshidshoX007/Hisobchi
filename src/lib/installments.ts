@@ -23,6 +23,9 @@ export type CreditInstallmentLike = {
 export type CreditInstallmentInput = {
   date: string;
   amount: number;
+  principalAmount?: number | null;
+  interestAmount?: number | null;
+  feeAmount?: number | null;
 };
 
 /**

@@ -468,7 +468,7 @@ export async function POST(request: Request) {
             if (!claimed[0]) {
               ack = ACK.alreadySaved;
             } else {
-              const payload = scheduleRow.payload as unknown as { name: string; items: Array<{ date: string; amount: number }>; totalAmount: number };
+              const payload = scheduleRow.payload as unknown as { name: string; items: Array<{ date: string; amount: number; principalAmount?: number; interestAmount?: number; feeAmount?: number }>; totalAmount: number };
               // Idempotency fingerprint
               const fingerprint = createHash("sha256")
                 .update(JSON.stringify({ name: payload.name, items: payload.items.map((i) => ({ date: i.date, amount: i.amount })) }))
@@ -536,6 +536,7 @@ export async function POST(request: Request) {
                     name: payload.name,
                     installments: payload.items,
                     isMandatory: true,
+                    creditMode: payload.items.every((item) => item.principalAmount !== undefined && item.interestAmount !== undefined && item.feeAmount !== undefined),
                   });
                 } catch (error) {
                   await db

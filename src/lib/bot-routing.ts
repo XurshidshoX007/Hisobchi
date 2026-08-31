@@ -15,6 +15,7 @@ export type BotIntent =
   | "add-income"
   | "add-expense"
   | "add-transfer"
+  | "credit"
   | "more-menu"
   | "main-menu"
   | "natural";
@@ -37,6 +38,7 @@ export function botIntent(message: string): BotIntent {
   if (command === "report" || lower === "📊 hisobot" || lower === "hisobot") return "report";
   if (command === "forecast" || lower === "📅 reja" || lower === "📅 reja va prognoz" || lower === "reja va prognoz") return "forecast";
   if (command === "help" || lower === "yordam") return "help";
+  if (command === "kredit") return "credit";
 
   // Both vocabularies are accepted: the CURRENT keyboard says Daromad/Xarajat,
   // while older pinned keyboards in existing chats still say Kirim/Chiqim.

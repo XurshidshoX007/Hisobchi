@@ -247,6 +247,9 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (existing[0].debtId) {
           return { ok: false, message: "Qarzga bog'langan operatsiyani Qarzdorlik bo'limidan boshqaring" };
         }
+        if (existing[0].creditPrincipalAmount !== null) {
+          return { ok: false, message: "Kreditga bog'langan operatsiyani Kredit rejasidan boshqaring" };
+        }
 
         const type = allowed(str(d.type, existing[0].type), ["income", "expense", "transfer"], existing[0].type) as
           | "income"
@@ -774,6 +777,9 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
                 plannedDate: installmentDate,
                 occurrenceNumber: next.occurrenceNumber,
                 currency: user.currency,
+                creditPrincipalAmount: next.principalAmount,
+                creditInterestAmount: next.interestAmount,
+                creditFeeAmount: next.feeAmount,
               });
               return true;
             });
@@ -1757,6 +1763,8 @@ export async function createCreditTermPlan(
     isMandatory?: boolean;
     categoryId?: number | null;
     accountId?: number | null;
+    /** New imports supply this breakdown; legacy free-text schedules do not. */
+    creditMode?: boolean;
   },
 ): Promise<{ ok: boolean; message: string; id?: number }> {
   const userId = user.id;
@@ -1773,14 +1781,26 @@ export async function createCreditTermPlan(
   if (accountId && !(await ownsAccount(userId, accountId, user.currency))) return { ok: false, message: "Hisob topilmadi" };
 
   // Validate and normalize every installment: valid ISO date, positive amount.
-  const items: Array<{ date: string; amount: number }> = [];
+  const creditMode = input.creditMode === true;
+  const items: Array<{ date: string; amount: number; principalAmount: number | null; interestAmount: number | null; feeAmount: number | null }> = [];
   for (let i = 0; i < rawItems.length; i++) {
     const it = rawItems[i];
     const date = isoDate(it?.date);
     const amount = num(it?.amount);
     if (!date) return { ok: false, message: `${i + 1}-to'lov sanasi topilmadi. Sanani tuzatib qayta yuboring.` };
     if (!amount || amount <= 0) return { ok: false, message: `${i + 1}-to'lov summasi topilmadi. Summani tuzatib qayta yuboring.` };
-    items.push({ date, amount });
+    const principalAmount = it?.principalAmount === undefined ? null : num(it.principalAmount);
+    const interestAmount = it?.interestAmount === undefined ? null : num(it.interestAmount);
+    const feeAmount = it?.feeAmount === undefined ? 0 : num(it.feeAmount);
+    if (creditMode) {
+      if (principalAmount === null || interestAmount === null || feeAmount === null || principalAmount < 0 || interestAmount < 0 || feeAmount < 0) {
+        return { ok: false, message: `${i + 1}-to'lovning asosiy qismi, foizi va komissiyasini kiriting.` };
+      }
+      if (roundMoney(principalAmount + interestAmount + feeAmount) !== amount) {
+        return { ok: false, message: `${i + 1}-to'lov tarkibi umumiy summaga teng emas.` };
+      }
+    }
+    items.push({ date, amount, principalAmount, interestAmount, feeAmount });
   }
   items.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   for (let i = 1; i < items.length; i++) {
@@ -1818,6 +1838,7 @@ export async function createCreditTermPlan(
         status: "active",
         isActive: true,
         reminderDaysBefore: 1,
+        creditMode,
       })
       .returning();
     await tx.insert(creditInstallments).values(
@@ -1827,6 +1848,9 @@ export async function createCreditTermPlan(
         occurrenceNumber: i + 1,
         date: it.date,
         amount: it.amount,
+        principalAmount: it.principalAmount,
+        interestAmount: it.interestAmount,
+        feeAmount: it.feeAmount,
       })),
     );
     return plan;

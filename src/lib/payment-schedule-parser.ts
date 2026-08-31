@@ -11,6 +11,10 @@ export type ScheduleItem = {
   date: string; // YYYY-MM-DD
   amount: number;
   rawSegment: string;
+  /** Present only for the explicit /kredit import format. */
+  principalAmount?: number;
+  interestAmount?: number;
+  feeAmount?: number;
 };
 
 export type PaymentSchedule = {

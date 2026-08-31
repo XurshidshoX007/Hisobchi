@@ -23,6 +23,9 @@ export type TxView = {
   expectedIncomeId: number | null;
   debtId: number | null;
   debtPaymentId: number | null;
+  creditPrincipalAmount: number | null;
+  creditInterestAmount: number | null;
+  creditFeeAmount: number | null;
   /** Scheduled occurrence date this transaction fulfils (occurrence identity). */
   plannedDate: string | null;
   occurrenceNumber: number | null;

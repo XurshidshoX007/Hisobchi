@@ -236,6 +236,8 @@ export const recurringExpenses = pgTable(
      * payment can reactivate a completed plan but never a cancelled one.
      */
     status: text("status").notNull().default("active"),
+    /** Explicitly imported credit schedule. Legacy term plans stay false. */
+    creditMode: boolean("credit_mode").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -278,6 +280,10 @@ export const creditInstallments = pgTable(
     date: date("date", { mode: "string" }).notNull(),
     /** The original installment amount (amounts may differ per installment). */
     amount: money("amount").notNull(),
+    /** Allocation is optional for legacy schedules, mandatory for new credit imports. */
+    principalAmount: money("principal_amount"),
+    interestAmount: money("interest_amount"),
+    feeAmount: money("fee_amount"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -385,6 +391,10 @@ export const transactions = pgTable(
     expectedIncomeId: integer("expected_income_id").references(() => expectedIncomes.id, { onDelete: "set null" }),
     debtId: integer("debt_id").references(() => debts.id, { onDelete: "set null" }),
     debtPaymentId: integer("debt_payment_id").references(() => debtPayments.id, { onDelete: "set null" }),
+    /** Credit-payment allocation. Principal changes cash but is not an expense metric. */
+    creditPrincipalAmount: money("credit_principal_amount"),
+    creditInterestAmount: money("credit_interest_amount"),
+    creditFeeAmount: money("credit_fee_amount"),
     /**
      * Occurrence identity for plan ↔ transaction reconciliation.
      * `plannedDate` is the *scheduled* date of the occurrence this real

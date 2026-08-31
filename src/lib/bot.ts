@@ -4,6 +4,7 @@ import { quickAdd } from "./mutations";
 import { parseDrafts } from "./nlp";
 import { isPaymentScheduleCandidate, parsePaymentSchedule, type PaymentSchedule } from "./payment-schedule-parser";
 import { creditSchedulesMatch } from "./installments";
+import { CREDIT_COMMAND_HELP, parseCreditCommand } from "./credit-import";
 import { compact, formatAmount, parseISO, shortDate, UZ_MONTHS } from "./money";
 import type { AppState } from "./types";
 import { botIntent } from "./bot-routing";
@@ -182,6 +183,23 @@ export async function respondToBotMessage(
   }
   if (intent === "help") {
     return { text: HELP, keyboard: MAIN_MENU };
+  }
+  if (intent === "credit") {
+    const parsedCredit = parseCreditCommand(text);
+    if (parsedCredit.error) return { text: `⚠️ ${parsedCredit.error}\n\n${CREDIT_COMMAND_HELP}`, keyboard: MAIN_MENU };
+    if (!parsedCredit.schedule) return { text: CREDIT_COMMAND_HELP, keyboard: MAIN_MENU };
+    const schedule = parsedCredit.schedule;
+    const principal = schedule.items.reduce((sum, item) => sum + (item.principalAmount ?? 0), 0);
+    const interest = schedule.items.reduce((sum, item) => sum + (item.interestAmount ?? 0) + (item.feeAmount ?? 0), 0);
+    const itemLines = schedule.items.map((item, index) => {
+      const fees = (item.interestAmount ?? 0) + (item.feeAmount ?? 0);
+      return `${index + 1}. ${shortDate(item.date)} — ${formatAmount(item.amount)} so‘m\n   asosiy ${formatAmount(item.principalAmount ?? 0)} · foiz/komissiya ${formatAmount(fees)}`;
+    });
+    return {
+      text: [SCHEDULE.title, "", schedule.name, "", ...itemLines, "", `Asosiy qism: ${formatAmount(principal)} so‘m`, `Foiz va komissiya: ${formatAmount(interest)} so‘m`, "", SCHEDULE.confirmHint].join("\n"),
+      keyboard: [[BUTTON.confirmAll, BUTTON.cancel], ...MAIN_MENU],
+      schedule,
+    };
   }
   if (intent === "settings") {
     return {

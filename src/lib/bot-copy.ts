@@ -239,6 +239,7 @@ export const HELP = [
   "Buyruqlar:",
   "/report — bugun va bu oy",
   "/forecast — kelayotgan to‘lovlar va prognoz",
+  "/kredit — kredit jadvalini preview bilan kiritish",
   "/start — boshidan",
   "",
   MINI_APP_INTRO,

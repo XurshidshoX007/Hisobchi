@@ -210,6 +210,9 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       expectedIncomeId: t.expectedIncomeId,
       debtId: t.debtId,
       debtPaymentId: t.debtPaymentId,
+      creditPrincipalAmount: t.creditPrincipalAmount,
+      creditInterestAmount: t.creditInterestAmount,
+      creditFeeAmount: t.creditFeeAmount,
       plannedDate: t.plannedDate,
       occurrenceNumber: t.occurrenceNumber,
       isDeleted: false,
@@ -219,8 +222,21 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   // reporting surfaces receive the filtered set below.
   const cashTxViews = txViews.filter((t) => t.currency === user.currency);
   const cashTxRows = txRows.filter((t) => t.currency === user.currency);
+  // Principal is a balance movement, not earned/spent money. For an imported
+  // credit payment only interest and fees reach reports; legacy credit plans
+  // have no allocation and deliberately keep their historic behaviour.
+  const reportAmount = (t: { amount: number; creditPrincipalAmount: number | null }) =>
+    t.creditPrincipalAmount === null || t.creditPrincipalAmount === undefined
+      ? t.amount
+      : Math.max(0, t.amount - t.creditPrincipalAmount);
   const reportingTxViews = cashTxViews.filter((t) => t.debtId === null);
   const reportingTxRows = cashTxRows.filter((t) => t.debtId === null);
+  const adjustedReportingTxViews = reportingTxViews
+    .map((t) => ({ ...t, amount: reportAmount(t) }))
+    .filter((t) => t.type === "transfer" || t.amount > 0);
+  const adjustedReportingTxRows = reportingTxRows
+    .map((t) => ({ ...t, amount: reportAmount(t) }))
+    .filter((t) => t.type === "transfer" || t.amount > 0);
 
   /* ---- recurring / payment plans ---- */
   const recurringViews: RecurringView[] = recurringRows.map((r) => {
@@ -239,7 +255,9 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     // occurrence (plannedDate) of THIS plan inside the current month — so
     // deleting that transaction makes the tick disappear, and an income or a
     // foreign transaction can never produce one.
-    const planPayments = reportingTxViews.filter((t) => t.type === "expense" && t.recurringId === r.id);
+    // Reconciliation follows the actual cash transaction, including a
+    // principal-only credit installment whose reporting amount is zero.
+    const planPayments = cashTxViews.filter((t) => t.type === "expense" && t.recurringId === r.id);
     const paidDates = new Set(planPayments.map((t) => t.plannedDate ?? t.date));
 
     // Credit schedule: a term plan whose installments are stored explicitly
@@ -407,7 +425,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   /* ---- budgets ---- */
   const monthSpendByCat = new Map<number, number>();
   let monthExpenseTotal = 0;
-  for (const t of reportingTxViews) {
+  for (const t of adjustedReportingTxViews) {
     if (t.type !== "expense" || !t.date.startsWith(thisMonth)) continue;
     monthExpenseTotal += t.amount;
     if (t.categoryId) monthSpendByCat.set(t.categoryId, (monthSpendByCat.get(t.categoryId) ?? 0) + t.amount);
@@ -516,7 +534,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   });
 
   const analytics = buildAnalytics({
-    transactions: reportingTxRows.map((t) => ({
+    transactions: adjustedReportingTxRows.map((t) => ({
       id: t.id,
       type: t.type,
       amount: t.amount,
@@ -538,7 +556,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     const cashTxForMonthly = cashTxRows
       .filter((t) => !t.isDeleted)
       .map((t) => ({ date: t.date, type: t.type, amount: t.amount }));
-    const reportingTxForMonthly = reportingTxRows
+    const reportingTxForMonthly = adjustedReportingTxRows
       .filter((t) => !t.isDeleted)
       .map((t) => ({ date: t.date, type: t.type, amount: t.amount }));
     monthly = buildMonthlySeries({
@@ -784,7 +802,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const currentMonthIncome = buildCurrentMonthIncome(forecast.planned, today);
   const currentMonthPlan: MonthPlanSummary = buildCurrentMonthPlan(
     forecast.planned,
-    reportingTxRows.map((t) => ({
+    adjustedReportingTxRows.map((t) => ({
       type: t.type,
       amount: t.amount,
       date: t.date,
