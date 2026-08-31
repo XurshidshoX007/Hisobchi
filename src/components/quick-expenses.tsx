@@ -32,15 +32,7 @@ export function QuickExpenses() {
         aria-label={`Tezkor xarajatlarni ochish${presets.length ? `, ${presets.length} ta` : ""}`}
         className="group mt-3 flex min-h-9 w-full items-center gap-2 rounded-xl border border-line bg-surface-2/70 px-2.5 text-left transition-[background-color,transform] hover:bg-surface-3 active:scale-[0.98] touch-manipulation"
       >
-        <span className="flex -space-x-1.5" aria-hidden="true">
-          {presets.slice(0, 3).map((preset, index) => (
-            <span key={preset.id} className="grid h-6 w-6 place-items-center rounded-lg border border-surface bg-negative-soft text-negative-text" style={{ zIndex: 3 - index }}>
-              <Icon name={preset.icon || "transport"} size={12} />
-            </span>
-          ))}
-          {!presets.length ? <span className="grid h-6 w-6 place-items-center rounded-lg bg-negative-soft text-negative-text"><Icon name="transport" size={12} /></span> : null}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[10.5px] font-bold text-fg-soft">Tezkorlar</span>
+        <span className="min-w-0 flex-1 truncate text-[10.5px] font-bold text-fg-soft">Tezkor xarajatlar</span>
         {presets.length ? <span className="num text-[10px] font-bold text-muted">{presets.length} ta</span> : <span className="text-[10px] font-semibold text-muted">Sozlang</span>}
         <Icon name="chevron-right" size={13} className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
       </button>
