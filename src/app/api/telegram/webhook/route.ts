@@ -25,6 +25,8 @@ import { appUrl, demoModeEnabled, isProduction, telegramWebhookSecret } from "@/
 import { writeAudit, writeSecurityEvent } from "@/lib/audit";
 import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from "@/lib/security";
 import { shortDate } from "@/lib/money";
+import { formatAmount } from "@/lib/money";
+import { downloadCreditDocument, extractCreditDocumentText, parseCreditDocumentText } from "@/lib/credit-document";
 import { classifyWebhookFailure } from "@/lib/webhook-failure";
 import { PayloadTooLargeError, readJsonBody } from "@/lib/request-body";
 
@@ -740,16 +742,41 @@ export async function POST(request: Request) {
     const isCreditDocument = Boolean(
       document &&
         !isImageDocument &&
-        (document.mime_type?.toLowerCase() === "application/pdf" || /\.(pdf|csv|xlsx?|txt)$/i.test(document.file_name ?? "")),
+        (document.mime_type?.toLowerCase() === "application/pdf" || /\.(pdf|csv|xlsx?|docx?|txt)$/i.test(document.file_name ?? "")),
     );
     // A document name or an external signed URL can contain long numbers that
     // look like money. It is never safe to feed those identifiers into the
-    // natural-language transaction parser. Until the local document readers
-    // are enabled, acknowledge the file explicitly and create nothing.
+    // natural-language transaction parser. Files are parsed locally, and only
+    // a fully reconciled schedule is allowed to reach the preview step.
     if (isCreditDocument) {
+      const raw = await downloadCreditDocument(
+        { fileId: document!.file_id, fileName: document!.file_name, mimeType: document!.mime_type },
+        { requestId: sec.requestId, userId: user.id },
+      );
+      const extracted = raw ? await extractCreditDocumentText(raw, document!.file_name, document!.mime_type) : null;
+      const schedule = extracted ? parseCreditDocumentText(extracted, document!.file_name ?? "Kredit") : null;
+      if (schedule) {
+        const batchId = randomBytes(8).toString("hex");
+        await db.insert(pendingDrafts).values({
+          userId: user.id,
+          chatId,
+          kind: "payment_schedule",
+          batchId,
+          payload: schedule as unknown as Record<string, unknown>,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        });
+        const principal = schedule.items.reduce((sum, item) => sum + (item.principalAmount ?? 0), 0);
+        const fees = schedule.items.reduce((sum, item) => sum + (item.interestAmount ?? 0) + (item.feeAmount ?? 0), 0);
+        await callTelegram("sendMessage", {
+          chat_id: chatId,
+          text: ["📋 Kredit jadvali topildi", "", schedule.name, `${schedule.items.length} ta to‘lov · jami ${formatAmount(schedule.totalAmount)} so‘m`, `Asosiy qism: ${formatAmount(principal)} so‘m`, `Foiz va komissiya: ${formatAmount(fees)} so‘m`, "", "Saqlashdan oldin hammasini tekshiring."].join("\n"),
+          reply_markup: { inline_keyboard: [[{ text: BUTTON.confirmAll, callback_data: `schedule:${batchId}:confirm` }, { text: BUTTON.cancel, callback_data: `schedule:${batchId}:cancel` }]] },
+        });
+        return NextResponse.json({ ok: true });
+      }
       await callTelegram("sendMessage", {
         chat_id: chatId,
-        text: "📎 Kredit fayli qabul qilindi. Hozir uni o‘qib, aniq jadvalga ajratish funksiyasi yoqilmagan — hech qanday xarajat yoki kredit saqlanmadi. /kredit buyrug‘idagi jadval formatidan foydalansangiz, avval preview chiqadi.",
+        text: "📎 Fayl o‘qildi, lekin kredit jadvalidagi sana, jami, asosiy qism va foizlar aniq ajratilmadi. Hech narsa saqlanmadi. Jadval matnli PDF/Excel/CSV/Word bo‘lishi va kamida 2 ta to‘lov tarkibi to‘liq ko‘rinishi kerak.",
         reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
       });
       return NextResponse.json({ ok: true });
