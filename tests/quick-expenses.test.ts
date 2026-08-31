@@ -15,7 +15,7 @@ test("quick expenses are user-triggered shortcuts, not recurring payments", () =
   assert.match(mutations, /if \(input\.action === "record"\)/);
   assert.match(mutations, /date: today, note: preset\[0\]\.name/);
   assert.match(dashboard, /<QuickExpenses \/>/);
-  assert.match(component, /Faqat bosilganda kiritiladi/);
+  assert.match(component, /Tezkor xarajat qo‘shish va sozlash/);
   assert.doesNotMatch(component, /setInterval|recurring\.pay|nextDueDate/);
 });
 
