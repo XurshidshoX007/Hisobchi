@@ -198,8 +198,13 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       occurrenceNumber: t.occurrenceNumber,
       isDeleted: false,
     }));
-  const reportingTxViews = txViews.filter((t) => t.currency === user.currency);
-  const reportingTxRows = txRows.filter((t) => t.currency === user.currency);
+  // Keep the complete same-currency ledger for cash balance and forecasting.
+  // Debt principal changes available money, but it is not income or spending;
+  // reporting surfaces receive the filtered set below.
+  const cashTxViews = txViews.filter((t) => t.currency === user.currency);
+  const cashTxRows = txRows.filter((t) => t.currency === user.currency);
+  const reportingTxViews = cashTxViews.filter((t) => t.debtId === null);
+  const reportingTxRows = cashTxRows.filter((t) => t.debtId === null);
 
   /* ---- recurring / payment plans ---- */
   const recurringViews: RecurringView[] = recurringRows.map((r) => {
@@ -474,7 +479,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const recurringBase = recurringViews.filter((r) => r.isActive).reduce((s, r) => s + r.baseAmount, 0);
   const forecast = buildForecast({
     currentBalance,
-    transactions: reportingTxRows.map((t) => ({ id: t.id, date: t.date, type: t.type, amount: t.amount, note: t.note, recurringId: t.recurringId, expectedIncomeId: t.expectedIncomeId, plannedDate: t.plannedDate, occurrenceNumber: t.occurrenceNumber, isDeleted: t.isDeleted })),
+    transactions: cashTxRows.map((t) => ({ id: t.id, date: t.date, type: t.type, amount: t.amount, note: t.note, recurringId: t.recurringId, expectedIncomeId: t.expectedIncomeId, plannedDate: t.plannedDate, occurrenceNumber: t.occurrenceNumber, isDeleted: t.isDeleted })),
     recurring: recurringRows.map((r) => ({
       ...r,
       installments:
@@ -501,6 +506,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       amount: t.amount,
       date: t.date,
       categoryId: t.categoryId,
+      debtId: t.debtId,
       note: t.note,
       isDeleted: t.isDeleted,
     })),
@@ -513,13 +519,17 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   /* ---- monthly finance series (6 months: prev + current + next 4) ---- */
   let monthly: MonthlyView[] = [];
   try {
-    const realTxForMonthly = reportingTxRows
+    const cashTxForMonthly = cashTxRows
+      .filter((t) => !t.isDeleted)
+      .map((t) => ({ date: t.date, type: t.type, amount: t.amount }));
+    const reportingTxForMonthly = reportingTxRows
       .filter((t) => !t.isDeleted)
       .map((t) => ({ date: t.date, type: t.type, amount: t.amount }));
     monthly = buildMonthlySeries({
       today,
       currentBalance,
-      transactions: realTxForMonthly,
+      transactions: cashTxForMonthly,
+      reportingTransactions: reportingTxForMonthly,
       planned: forecast.planned,
       cashflow: forecast.cashflow,
       analytics,

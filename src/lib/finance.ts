@@ -1236,6 +1236,12 @@ export function buildMonthlyView(params: {
   today: string;
   currentBalance: number;
   transactions: Array<{ date: string; type: string; amount: number }>; // ledger rows; engine enforces date semantics
+  /**
+   * Rows that are eligible for income/expense reporting.  Debt principal is a
+   * real cash movement, but not earned income or consumption spending, so it
+   * stays in `transactions` for balance reconciliation and is omitted here.
+   */
+  reportingTransactions?: Array<{ date: string; type: string; amount: number }>;
   planned: PlannedItem[];
   cashflow: Forecast["cashflow"];
   analytics: Analytics;
@@ -1243,6 +1249,7 @@ export function buildMonthlyView(params: {
 }): MonthlyView {
   const { monthKey: mk, today, currentBalance, planned, cashflow, analytics, forecast } = params;
   const transactions = params.transactions.filter((t) => t.date <= today);
+  const reportingTransactions = (params.reportingTransactions ?? params.transactions).filter((t) => t.date <= today);
   const mStart = monthStart(mk + "-01");
   const mEnd = monthEnd(mStart);
   const { full, short } = monthLabelFull(mk);
@@ -1253,8 +1260,12 @@ export function buildMonthlyView(params: {
   // Opening balance
   let openingBalance: number;
   if (isCurrent) {
-    // current month opening = currentBalance - real net so far this month
-    const monthNet = analytics.monthTotals.net;
+    // Opening cash must include every confirmed movement, including debt
+    // principal. Analytics intentionally excludes debt principal, so using
+    // its net here would make the liquid-balance timeline start incorrectly.
+    const monthNet = transactions
+      .filter((t) => t.date.startsWith(mk))
+      .reduce((sum, t) => sum + (t.type === "income" ? t.amount : t.type === "expense" ? -t.amount : 0), 0);
     openingBalance = currentBalance - monthNet;
   } else if (isPast) {
     // For past months, opening = balance at day before month start
@@ -1309,7 +1320,7 @@ export function buildMonthlyView(params: {
       realExpense = found.expense;
     } else {
       // fallback from transactions
-      for (const t of transactions) {
+      for (const t of reportingTransactions) {
         if (t.date.startsWith(mk + "-")) {
           if (t.type === "income") realIncome += t.amount;
           else if (t.type === "expense") realExpense += t.amount;
@@ -1476,6 +1487,7 @@ export function buildMonthlySeries(params: {
   today: string;
   currentBalance: number;
   transactions: Array<{ date: string; type: string; amount: number }>;
+  reportingTransactions?: Array<{ date: string; type: string; amount: number }>;
   planned: PlannedItem[];
   cashflow: Forecast["cashflow"];
   analytics: Analytics;
@@ -1495,6 +1507,7 @@ export function buildMonthlySeries(params: {
         today,
         currentBalance: params.currentBalance,
         transactions: params.transactions,
+        reportingTransactions: params.reportingTransactions,
         planned: params.planned,
         cashflow: params.cashflow,
         analytics: params.analytics,
@@ -1739,6 +1752,8 @@ export function buildAnalytics(params: {
     amount: number;
     date: string;
     categoryId: number | null;
+    /** Debt principal remains in the cash ledger but is never revenue/cost. */
+    debtId?: number | null;
     note: string | null;
     isDeleted?: boolean;
   }>;
@@ -1749,7 +1764,10 @@ export function buildAnalytics(params: {
 }): Analytics {
   const today = params.today ?? todayISO();
   const mk = monthKey(today);
-  const active = params.transactions.filter((t) => !t.isDeleted && t.date <= today);
+  // Debt opening and repayment transactions move available cash and therefore
+  // must remain in History/ledger. They are deliberately excluded from every
+  // income/expense metric below: principal is neither earned nor spent.
+  const active = params.transactions.filter((t) => !t.isDeleted && t.date <= today && t.debtId == null);
   const catById = new Map(params.categories.map((c) => [c.id, c]));
 
   const inMonth = (key: string, type: string) =>

@@ -97,7 +97,8 @@ test("ledger currency cannot be relabelled or mixed without an FX model", () => 
     "USD and archived UZS accounts are never dimensionlessly added",
   );
   assert.match(state, /totalBalanceInCurrency\(accountViews, user\.currency\)/);
-  assert.match(state, /const reportingTxRows = txRows\.filter\(\(t\) => t\.currency === user\.currency\)/);
+  assert.match(state, /const cashTxRows = txRows\.filter\(\(t\) => t\.currency === user\.currency\)/);
+  assert.match(state, /const reportingTxRows = cashTxRows\.filter\(\(t\) => t\.debtId === null\)/);
   assert.match(state, /ledger-currency-mismatch/);
   assert.match(settings, /setCurrency\(e\.target\.value\)\} disabled>/);
 });
