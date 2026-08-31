@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildFinanceXlsx } from "../src/lib/xlsx-export";
 import type { AppState } from "../src/lib/types";
+import { readFileSync } from "node:fs";
 
 function centralNames(zip: Buffer): string[] {
   const names: string[] = [];
@@ -31,4 +32,14 @@ test("Excel export is a real xlsx package with ledger and account sheets", () =>
     "[Content_Types].xml", "_rels/.rels", "xl/_rels/workbook.xml.rels", "xl/styles.xml", "xl/workbook.xml",
     "xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml", "xl/worksheets/sheet3.xml",
   ].sort());
+});
+
+test("Telegram export waits for the user to press the download link", () => {
+  const provider = readFileSync("src/components/providers.tsx", "utf8");
+  const morePage = readFileSync("src/app/more/page.tsx", "utf8");
+
+  assert.doesNotMatch(provider, /anchor\.click\(\)/, "an async programmatic click is blocked by iOS WebView");
+  assert.match(provider, /return \{ ok: true, message, url, filename \}/, "provider returns the ready file to UI");
+  assert.match(morePage, /Excel faylini yuklash/, "Menu shows a user-initiated download control");
+  assert.match(morePage, /download=\{exportReady\.filename\}/, "the file name survives to the download control");
 });

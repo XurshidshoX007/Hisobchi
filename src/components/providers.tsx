@@ -30,7 +30,13 @@ type FinanceContextValue = {
     data?: Record<string, unknown>,
     options?: { silent?: boolean; settings?: Record<string, unknown> },
   ) => Promise<{ ok: boolean; message: string }>;
-  exportXlsx: () => Promise<{ ok: boolean; message: string }>;
+  /**
+   * The URL is intentionally returned to the calling screen instead of being
+   * clicked programmatically here. Telegram's iOS WebView blocks downloads
+   * triggered after an async fetch; the visible button on the screen keeps the
+   * final download inside the user's gesture.
+   */
+  exportXlsx: () => Promise<{ ok: boolean; message: string; url?: string; filename?: string }>;
   mutating: boolean;
   toast: (text: string, tone?: Toast["tone"]) => void;
   theme: ThemeMode;
@@ -318,17 +324,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const blob = await response.blob();
       const filename = response.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/i)?.[1] ?? "hisobchi-eksport.xlsx";
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.style.display = "none";
-      document.body.append(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      const message = "Excel fayli yuklandi";
+      const message = "Excel fayli tayyor";
       toast(message, "success");
-      return { ok: true, message };
+      return { ok: true, message, url, filename };
     } catch {
       toast(ERRORS.connection, "error");
       return { ok: false, message: ERRORS.connection };

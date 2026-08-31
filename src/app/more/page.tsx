@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { AlertsSheet } from "@/components/app-shell";
 import { useFinance } from "@/components/providers";
-import { Badge, Card, Label, Skeleton } from "@/components/ui";
+import { Badge, Card, ContextualBottomSheet, Label, Skeleton } from "@/components/ui";
 import { Icon } from "@/components/icon";
 
 /**
@@ -27,6 +27,7 @@ export default function MorePage() {
   const { state, loading, theme, setTheme, telegram, exportXlsx } = useFinance();
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportReady, setExportReady] = useState<{ url: string; filename: string } | null>(null);
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
@@ -63,8 +64,19 @@ export default function MorePage() {
   async function downloadExcel() {
     if (exporting) return;
     setExporting(true);
-    await exportXlsx();
-    setExporting(false);
+    try {
+      const result = await exportXlsx();
+      if (result.ok && result.url) {
+        setExportReady({ url: result.url, filename: result.filename ?? "hisobchi-eksport.xlsx" });
+      }
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function closeExportReady() {
+    if (exportReady) URL.revokeObjectURL(exportReady.url);
+    setExportReady(null);
   }
 
   return (
@@ -172,6 +184,30 @@ export default function MorePage() {
       </nav>
 
       <AlertsSheet open={alertsOpen} onClose={() => setAlertsOpen(false)} />
+      <ContextualBottomSheet
+        open={Boolean(exportReady)}
+        onClose={closeExportReady}
+        title="Excel fayli tayyor"
+        subtitle="Faylni telefoningizga saqlash uchun yuklang"
+        icon="doc"
+        iconTone="accent"
+        footer={
+          exportReady ? (
+            <a
+              href={exportReady.url}
+              download={exportReady.filename}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[15px] font-bold text-white shadow-lg shadow-accent/20 transition-transform active:scale-[0.98] touch-manipulation"
+            >
+              <Icon name="doc" size={17} />
+              Excel faylini yuklash
+            </a>
+          ) : null
+        }
+      >
+        <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3.5 text-[13px] leading-relaxed text-muted">
+          Operatsiyalar, hisoblar va umumiy ma’lumotlar alohida Excel varaqlarida tayyorlandi.
+        </div>
+      </ContextualBottomSheet>
     </div>
   );
 }
