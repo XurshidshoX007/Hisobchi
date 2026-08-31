@@ -39,7 +39,7 @@ export function QuickExpenses() {
       </div>
 
       {presets.length ? (
-        <div className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1" aria-label="Tezkor xarajatlar ro‘yxati">
+        <div className="no-scrollbar -mx-0.5 flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-0.5 pb-1" aria-label="Tezkor xarajatlar ro‘yxati">
           {presets.map((preset) => (
             <button
               key={preset.id}
@@ -47,15 +47,15 @@ export function QuickExpenses() {
               onClick={() => void record(preset)}
               disabled={mutating}
               aria-label={`${preset.name}: ${formatAmount(preset.amount)} so‘mlik xarajat qo‘shish`}
-              className="flex min-h-15 w-[calc((100%-0.5rem)/2)] shrink-0 snap-start items-center gap-2.5 rounded-[17px] border border-line-strong bg-surface-raised px-3 text-left transition-[background-color,transform] active:scale-[0.98] disabled:opacity-55 touch-manipulation"
+              className="grid h-[68px] w-[calc((100%-0.625rem)/2)] shrink-0 snap-start grid-cols-[32px_minmax(0,1fr)] items-center gap-2.5 rounded-[16px] border border-line bg-surface px-3 text-left transition-[background-color,transform] active:scale-[0.98] disabled:opacity-55 touch-manipulation"
               style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,.07)" }}
             >
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-negative-soft text-negative-text" aria-hidden="true">
-                <Icon name={preset.icon || "transport"} size={16} />
+              <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-negative-soft text-negative-text" aria-hidden="true">
+                <Icon name={preset.icon || "transport"} size={15} />
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[12px] font-semibold text-fg">{preset.name}</span>
-                <span className="num mt-0.5 block truncate text-[11px] font-bold text-negative-text">{formatAmount(preset.amount)}</span>
+              <span className="min-w-0 self-center">
+                <span className="block truncate text-[12px] font-semibold leading-tight text-fg">{preset.name}</span>
+                <span className="num mt-1 block truncate text-[11px] font-bold leading-none text-negative-text">{formatAmount(preset.amount)}</span>
               </span>
             </button>
           ))}
