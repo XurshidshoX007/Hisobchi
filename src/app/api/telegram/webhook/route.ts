@@ -737,6 +737,23 @@ export async function POST(request: Request) {
     const photo = update.message?.photo;
     const document = update.message?.document;
     const isImageDocument = Boolean(document?.mime_type?.toLowerCase().startsWith("image/"));
+    const isCreditDocument = Boolean(
+      document &&
+        !isImageDocument &&
+        (document.mime_type?.toLowerCase() === "application/pdf" || /\.(pdf|csv|xlsx?|txt)$/i.test(document.file_name ?? "")),
+    );
+    // A document name or an external signed URL can contain long numbers that
+    // look like money. It is never safe to feed those identifiers into the
+    // natural-language transaction parser. Until the local document readers
+    // are enabled, acknowledge the file explicitly and create nothing.
+    if (isCreditDocument) {
+      await callTelegram("sendMessage", {
+        chat_id: chatId,
+        text: "📎 Kredit fayli qabul qilindi. Hozir uni o‘qib, aniq jadvalga ajratish funksiyasi yoqilmagan — hech qanday xarajat yoki kredit saqlanmadi. /kredit buyrug‘idagi jadval formatidan foydalansangiz, avval preview chiqadi.",
+        reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
+      });
+      return NextResponse.json({ ok: true });
+    }
     if ((photo && photo.length) || isImageDocument) {
       // §12/§33: one gate decides. The flag covers ONLY image handling —
       // text messages below are untouched — and a missing provider is
@@ -820,6 +837,14 @@ export async function POST(request: Request) {
     /* ---------------- MESSAGES ---------------- */
     const text = update.message?.text ?? "";
     if (text.length > 4_096) return NextResponse.json({ ok: true });
+    if (/^https?:\/\/\S+$/i.test(text.trim())) {
+      await callTelegram("sendMessage", {
+        chat_id: chatId,
+        text: "🔗 Havola operatsiya sifatida qabul qilinmadi. Kredit PDF’ini fayl qilib yuboring yoki /kredit formatidagi jadvalni jo‘nating — tasdiqlanmaguncha hech narsa saqlanmaydi.",
+        reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
+      });
+      return NextResponse.json({ ok: true });
+    }
     const reply = await respondToBotMessage(user, text);
 
     // Payment schedule drafts (single batch)
