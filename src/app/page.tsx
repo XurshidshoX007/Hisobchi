@@ -61,10 +61,9 @@ export default function DashboardPage() {
       </div>
 
       <QuickActions onAdd={openAdd} />
-      <QuickExpenses />
 
       <div key={facts.monthLabel} className="dashboard-value-transition animate-category-in min-w-0">
-        <MonthResult facts={facts} currency={state.user.currency} />
+        <MonthResult facts={facts} currency={state.user.currency} expenseDock={<QuickExpenses />} />
         <ExpenseBreakdown facts={facts} monthLabel={facts.monthLabel} />
       </div>
 

@@ -6,7 +6,7 @@ import type { QuickExpenseView } from "@/lib/types";
 import { AccountPicker, AmountField, CategoryPicker, FormSheet } from "@/components/form-kit";
 import { Icon } from "@/components/icon";
 import { useFinance } from "@/components/providers";
-import { Button, Label } from "@/components/ui";
+import { Button, ContextualBottomSheet } from "@/components/ui";
 
 type Editor = QuickExpenseView | "new" | null;
 
@@ -17,6 +17,7 @@ type Editor = QuickExpenseView | "new" | null;
 export function QuickExpenses() {
   const { state, mutate, mutating } = useFinance();
   const [editor, setEditor] = useState<Editor>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const presets = state?.quickExpenses ?? [];
 
   async function record(preset: QuickExpenseView) {
@@ -24,48 +25,70 @@ export function QuickExpenses() {
   }
 
   return (
-    <section className="mt-4.5 min-w-0" aria-labelledby="quick-expenses-title">
-      <div className="mb-2.5 flex items-center justify-between gap-3">
-        <Label>Tezkor xarajatlar</Label>
+    <>
+      <button
+        type="button"
+        onClick={() => setDrawerOpen(true)}
+        aria-label={`Tezkor xarajatlarni ochish${presets.length ? `, ${presets.length} ta` : ""}`}
+        className="group mt-3 flex min-h-9 w-full items-center gap-2 rounded-xl border border-line bg-surface-2/70 px-2.5 text-left transition-[background-color,transform] hover:bg-surface-3 active:scale-[0.98] touch-manipulation"
+      >
+        <span className="flex -space-x-1.5" aria-hidden="true">
+          {presets.slice(0, 3).map((preset, index) => (
+            <span key={preset.id} className="grid h-6 w-6 place-items-center rounded-lg border border-surface bg-negative-soft text-negative-text" style={{ zIndex: 3 - index }}>
+              <Icon name={preset.icon || "transport"} size={12} />
+            </span>
+          ))}
+          {!presets.length ? <span className="grid h-6 w-6 place-items-center rounded-lg bg-negative-soft text-negative-text"><Icon name="transport" size={12} /></span> : null}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[10.5px] font-bold text-fg-soft">Tezkorlar</span>
+        {presets.length ? <span className="num text-[10px] font-bold text-muted">{presets.length} ta</span> : <span className="text-[10px] font-semibold text-muted">Sozlang</span>}
+        <Icon name="chevron-right" size={13} className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
+      </button>
+
+      <ContextualBottomSheet
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Tezkor xarajatlar"
+        subtitle="Bir bosishda xarajatni kiritish"
+        icon="transport"
+        iconTone="negative"
+      >
+        <div className="space-y-2.5">
+          {presets.map((preset) => (
+            <div key={preset.id} className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface-2 px-3">
+              <button
+                type="button"
+                onClick={() => void record(preset)}
+                disabled={mutating}
+                aria-label={`${preset.name}: ${formatAmount(preset.amount)} so‘mlik xarajat qo‘shish`}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left active:opacity-70 disabled:opacity-55 touch-manipulation"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-negative-soft text-negative-text" aria-hidden="true">
+                  <Icon name={preset.icon || "transport"} size={17} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-semibold text-fg">{preset.name}</span>
+                  <span className="num mt-0.5 block text-[12px] font-bold text-negative-text">{formatAmount(preset.amount)} so‘m</span>
+                </span>
+              </button>
+              <button type="button" onClick={() => setEditor(preset)} aria-label={`${preset.name}ni tahrirlash`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-3 hover:text-fg-soft active:scale-[0.94] touch-manipulation">
+                <Icon name="more" size={16} />
+              </button>
+            </div>
+          ))}
+          {presets.length ? null : <p className="rounded-2xl border border-dashed border-line bg-surface-2 px-4 py-5 text-center text-[12px] leading-relaxed text-muted">Metro, avtobus yoki boshqa tez-tez yoziladigan xarajatni qo‘shing.</p>}
+        </div>
         <button
           type="button"
           onClick={() => setEditor("new")}
-          aria-label="Tezkor xarajat qo‘shish va sozlash"
-          title="Tezkor xarajat qo‘shish"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg active:scale-[0.94] touch-manipulation"
+          className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-[13px] font-semibold text-fg-soft transition-colors hover:bg-surface-2 active:scale-[0.98] touch-manipulation"
         >
-          <Icon name="plus" size={16} />
+          <Icon name="plus" size={16} /> Tezkor xarajat qo‘shish
         </button>
-      </div>
-
-      {presets.length ? (
-        <div className="no-scrollbar -mx-0.5 flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-0.5 pb-1" aria-label="Tezkor xarajatlar ro‘yxati">
-          {presets.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => void record(preset)}
-              disabled={mutating}
-              aria-label={`${preset.name}: ${formatAmount(preset.amount)} so‘mlik xarajat qo‘shish`}
-              className="grid h-[68px] w-[calc((100%-0.625rem)/2)] shrink-0 snap-start grid-cols-[32px_minmax(0,1fr)] items-center gap-2.5 rounded-[16px] border border-line bg-surface px-3 text-left transition-[background-color,transform] active:scale-[0.98] disabled:opacity-55 touch-manipulation"
-              style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,.07)" }}
-            >
-              <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-negative-soft text-negative-text" aria-hidden="true">
-                <Icon name={preset.icon || "transport"} size={15} />
-              </span>
-              <span className="min-w-0 self-center">
-                <span className="block truncate text-[12px] font-semibold leading-tight text-fg">{preset.name}</span>
-                <span className="num mt-1 block truncate text-[11px] font-bold leading-none text-negative-text">{formatAmount(preset.amount)}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <p className="py-1 text-[12px] text-muted">Metro, avtobus va boshqa kundalik xarajatlarni yuqoridagi + orqali qo‘shing.</p>
-      )}
+      </ContextualBottomSheet>
 
       <QuickExpenseEditor editor={editor} presets={presets} onClose={() => setEditor(null)} onEdit={setEditor} />
-    </section>
+    </>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { DashboardFacts } from "@/lib/dashboard";
 import { compact, currencyLabel } from "@/lib/money";
 import { CategoryDonut } from "./charts";
@@ -219,7 +219,7 @@ export function QuickActions({ onAdd }: { onAdd: (id: QuickActionId) => void }) 
 
 /* =========================== MONTH RESULT =========================== */
 
-export function MonthResult({ facts, currency }: { facts: DashboardFacts; currency: string }) {
+export function MonthResult({ facts, currency, expenseDock }: { facts: DashboardFacts; currency: string; expenseDock?: ReactNode }) {
   const unit = currencyLabel(currency);
   const cells = [
     { label: "Daromad", value: facts.income, icon: "arrow-up", color: "var(--green)", tint: "var(--tint-green)", tone: "positive" as const },
@@ -243,6 +243,7 @@ export function MonthResult({ facts, currency }: { facts: DashboardFacts; curren
           <div className="mt-2 min-w-0 leading-tight">
             <Money whole value={cell.value} size="lg" tone={cell.tone} currency={unit} />
           </div>
+          {cell.label === "Xarajat" ? expenseDock : null}
         </Card>
       ))}
     </div>
