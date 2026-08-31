@@ -31,6 +31,7 @@ const IDEMPOTENT_ENTITIES = new Set([
   "goal",
   "recurring",
   "expectedIncome",
+  "quickExpense",
 ]);
 
 export async function POST(request: Request) {

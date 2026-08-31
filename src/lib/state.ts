@@ -11,6 +11,7 @@ import {
   goalContributions,
   goals,
   notifications,
+  quickExpenses,
   recurringExpenses,
   transactions,
   type SessionUserLike,
@@ -41,7 +42,7 @@ import {
 } from "./finance";
 import { addDays, dayDiff, monthKey, monthStart, round2, todayISO } from "./money";
 import { nextScheduleDate } from "./reconciliation";
-import type { AppState, LiveAlert, UserView } from "./types";
+import type { AppState, LiveAlert, QuickExpenseView, UserView } from "./types";
 
 const FORECAST_HORIZON_DAYS = 180;
 
@@ -59,6 +60,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     debtRows,
     goalRows,
     notificationRows,
+    quickExpenseRows,
     creditRows,
   ] = await Promise.all([
     db.select().from(accounts).where(eq(accounts.userId, user.id)).orderBy(accounts.sortOrder, accounts.id),
@@ -87,6 +89,12 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       .limit(30),
     db
       .select()
+      .from(quickExpenses)
+      .where(and(eq(quickExpenses.userId, user.id), eq(quickExpenses.isActive, true)))
+      .orderBy(quickExpenses.sortOrder, quickExpenses.id)
+      .limit(6),
+    db
+      .select()
       .from(creditInstallments)
       .where(eq(creditInstallments.userId, user.id))
       .orderBy(creditInstallments.occurrenceNumber),
@@ -102,6 +110,14 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const accountNames = new Map(accountRows.map((a) => [a.id, a.name]));
   const accountCurrencies = new Map(accountRows.map((a) => [a.id, a.currency]));
   const catById = new Map(categoryRows.map((c) => [c.id, c]));
+  const quickExpenseViews: QuickExpenseView[] = quickExpenseRows.map((preset) => ({
+    id: preset.id,
+    name: preset.name,
+    amount: preset.amount,
+    categoryId: preset.categoryId,
+    accountId: preset.accountId,
+    icon: preset.icon,
+  }));
 
   /* ---- balances ----
    * ONE authoritative calculation (`computeLedgerBalances`) shared with the
@@ -825,6 +841,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       isRead: Boolean(n.readAt),
       createdAt: n.createdAt.toISOString(),
     })),
+    quickExpenses: quickExpenseViews,
     alerts: alerts.slice(0, 10),
     forecast,
     analytics,

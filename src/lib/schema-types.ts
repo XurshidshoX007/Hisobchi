@@ -10,6 +10,7 @@ export type {
   Debt,
   Goal,
   NotificationRow,
+  QuickExpense,
 } from "@/db/schema";
 
 import type { User } from "@/db/schema";
@@ -29,6 +30,7 @@ export {
   goalContributions,
   goals,
   notifications,
+  quickExpenses,
   recurringExpenses,
   transactions,
   users,

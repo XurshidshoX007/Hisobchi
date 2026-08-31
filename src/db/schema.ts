@@ -172,6 +172,27 @@ export const categories = pgTable(
   ],
 );
 
+/** User-defined shortcuts; tapping one is the only way it creates a ledger row. */
+export const quickExpenses = pgTable(
+  "quick_expenses",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    amount: money("amount").notNull(),
+    categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),
+    accountId: integer("account_id").references(() => accounts.id, { onDelete: "set null" }),
+    icon: text("icon").notNull().default("transport"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("quick_expenses_user_idx").on(t.userId, t.isActive, t.sortOrder),
+    check("quick_expenses_amount_check", sql`${t.amount} > 0`),
+  ],
+);
+
 export const recurringExpenses = pgTable(
   "recurring_expenses",
   {
@@ -560,6 +581,7 @@ export const idempotencyKeys = pgTable(
 export type User = typeof users.$inferSelect;
 export type Account = typeof accounts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
+export type QuickExpense = typeof quickExpenses.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type RecurringExpense = typeof recurringExpenses.$inferSelect;
 export type CreditInstallment = typeof creditInstallments.$inferSelect;

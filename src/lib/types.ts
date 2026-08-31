@@ -42,6 +42,15 @@ export type LiveAlert = {
   amount: number | null;
 };
 
+export type QuickExpenseView = {
+  id: number;
+  name: string;
+  amount: number;
+  categoryId: number | null;
+  accountId: number | null;
+  icon: string;
+};
+
 export type AppState = {
   user: UserView;
   generatedAt: string;
@@ -57,6 +66,7 @@ export type AppState = {
   debts: DebtView[];
   goals: GoalView[];
   notifications: NotificationView[];
+  quickExpenses: QuickExpenseView[];
   alerts: LiveAlert[];
   forecast: Forecast;
   analytics: Analytics;

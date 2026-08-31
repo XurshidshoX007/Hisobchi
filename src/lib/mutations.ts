@@ -11,6 +11,7 @@ import {
   goalContributions,
   goals,
   notifications,
+  quickExpenses,
   recurringExpenses,
   transactions,
 } from "@/db/schema";
@@ -98,12 +99,64 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
     debt: ["create", "update", "pay", "delete", "cancel"],
     goal: ["create", "contribute", "update", "delete"],
     notification: ["read", "readAll"],
+    quickExpense: ["create", "update", "delete", "record"],
   };
   if (!contracts[input.entity]?.includes(input.action)) {
     return { ok: false, message: "Bu amalni bajarib bo'lmadi" };
   }
 
   switch (input.entity) {
+    /* ----------------------- quick expenses ------------------------ */
+    case "quickExpense": {
+      if (input.action === "record") {
+        const id = int(d.id);
+        if (!id) return { ok: false, message: "Tezkor xarajat tanlanmadi" };
+        const preset = await db.select().from(quickExpenses).where(and(eq(quickExpenses.id, id), eq(quickExpenses.userId, userId), eq(quickExpenses.isActive, true))).limit(1);
+        if (!preset[0]) return { ok: false, message: "Tezkor xarajat topilmadi" };
+        const accountId = preset[0].accountId ?? (await defaultAccount(userId, user.currency));
+        if (!accountId) return { ok: false, message: "Faol hisob yo‘q. Avval hisob qo‘shing." };
+        const account = await accountForPosting(userId, accountId, user.currency, "source");
+        if (!account.ok) return { ok: false, message: account.message };
+        if (!preset[0].categoryId) return { ok: false, message: "Tezkor xarajat kategoriyasini qayta tanlang" };
+        const category = await db.select({ id: categories.id }).from(categories).where(and(eq(categories.id, preset[0].categoryId), eq(categories.userId, userId), eq(categories.type, "expense"), eq(categories.isActive, true))).limit(1);
+        if (!category[0]) return { ok: false, message: "Tezkor xarajat kategoriyasi faol emas" };
+        const [created] = await db.insert(transactions).values({
+          userId, accountId, categoryId: preset[0].categoryId, type: "expense", amount: preset[0].amount,
+          date: today, note: preset[0].name, source: "miniapp", currency: user.currency,
+        }).returning({ id: transactions.id });
+        return { ok: true, id: created.id, message: `“${preset[0].name}” xarajati qo‘shildi` };
+      }
+
+      if (input.action === "create" || input.action === "update") {
+        const name = str(d.name);
+        const amount = num(d.amount);
+        const categoryId = int(d.categoryId);
+        const accountId = int(d.accountId) ?? (await defaultAccount(userId, user.currency));
+        if (!name) return { ok: false, message: "Nomini kiriting" };
+        if (!amount || amount <= 0) return { ok: false, message: "Summani kiriting" };
+        if (!categoryId) return { ok: false, message: "Kategoriyani tanlang" };
+        if (!accountId) return { ok: false, message: "Faol hisob yo‘q" };
+        const account = await accountForPosting(userId, accountId, user.currency, "source");
+        if (!account.ok) return { ok: false, message: account.message };
+        const category = await db.select({ id: categories.id }).from(categories).where(and(eq(categories.id, categoryId), eq(categories.userId, userId), eq(categories.type, "expense"), eq(categories.isActive, true))).limit(1);
+        if (!category[0]) return { ok: false, message: "Kategoriya topilmadi" };
+        if (input.action === "create") {
+          const [{ maxOrder }] = await db.select({ maxOrder: sql<number>`coalesce(max(${quickExpenses.sortOrder}), -1)` }).from(quickExpenses).where(eq(quickExpenses.userId, userId));
+          const [created] = await db.insert(quickExpenses).values({ userId, name, amount, categoryId, accountId, sortOrder: maxOrder + 1 }).returning({ id: quickExpenses.id });
+          return { ok: true, id: created.id, message: "Tezkor xarajat saqlandi" };
+        }
+        const id = int(d.id);
+        if (!id) return { ok: false, message: "Tezkor xarajat tanlanmadi" };
+        const [updated] = await db.update(quickExpenses).set({ name, amount, categoryId, accountId }).where(and(eq(quickExpenses.id, id), eq(quickExpenses.userId, userId))).returning({ id: quickExpenses.id });
+        return updated ? { ok: true, id: updated.id, message: "Tezkor xarajat yangilandi" } : { ok: false, message: "Tezkor xarajat topilmadi" };
+      }
+
+      const id = int(d.id);
+      if (!id) return { ok: false, message: "Tezkor xarajat tanlanmadi" };
+      const [removed] = await db.update(quickExpenses).set({ isActive: false }).where(and(eq(quickExpenses.id, id), eq(quickExpenses.userId, userId), eq(quickExpenses.isActive, true))).returning({ id: quickExpenses.id });
+      return removed ? { ok: true, id: removed.id, message: "Tezkor xarajat olib tashlandi" } : { ok: false, message: "Tezkor xarajat topilmadi" };
+    }
+
     /* ------------------------- transactions ------------------------- */
     case "transaction": {
       if (input.action === "create") {

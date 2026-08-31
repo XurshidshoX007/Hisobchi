@@ -12,6 +12,7 @@ import {
 } from "@/components/dashboard";
 import { useFinance } from "@/components/providers";
 import { QuickAddSheet } from "@/components/quick-add";
+import { QuickExpenses } from "@/components/quick-expenses";
 import { Button, EmptyState } from "@/components/ui";
 import { selectDashboardFacts } from "@/lib/dashboard";
 
@@ -60,6 +61,7 @@ export default function DashboardPage() {
       </div>
 
       <QuickActions onAdd={openAdd} />
+      <QuickExpenses />
 
       <div key={facts.monthLabel} className="dashboard-value-transition animate-category-in min-w-0">
         <MonthResult facts={facts} currency={state.user.currency} />
