@@ -183,8 +183,8 @@ export function CashflowAnalysis() {
           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-semibold ${isPast ? "bg-surface-2 text-muted" : safeAvailable < 0 ? "bg-negative-soft text-negative-text" : "bg-positive-soft text-positive-text"}`}>{isPast ? "Yakunlangan" : safeAvailable < 0 ? "Ehtiyot bo‘ling" : "Xavfsiz"}</span>
         </div>
         <div className={`grid gap-2 ${isPast ? "grid-cols-1" : "grid-cols-2"}`}>
-          <BalanceSnapshot label="Shu paytgacha" value={balanceMovementNet} hint="faqat bajarilgan harakatlar" />
-          {!isPast ? <BalanceSnapshot label="Oy yakuni" value={forecastBalanceNet} hint="qolgan reja bilan prognoz" tone="forecast" /> : null}
+          <BalanceSnapshot label={isPast ? "Oy yakuniy balansi" : "Hozirgi balans"} value={isPast ? closing : state.currentBalance} hint={isPast ? "oy tugagan paytdagi holat" : "barcha hisoblarda hozir"} />
+          {!isPast ? <BalanceSnapshot label="Kutilgan oy yakuni" value={closing} hint="barcha reja bajarilsa" tone="forecast" /> : null}
         </div>
         {!isPast && essentialObservedDays === 0 ? <p className="mt-3 rounded-xl bg-surface-2 px-3 py-2 text-[11px] leading-relaxed text-muted">Kundalik xarajat tarixi hali yetarli emas; xavfsiz limit hozircha rejalangan to‘lovlarga tayangan.</p> : null}
         {!isPast && activeCredits.length ? <Link href="/plans" className="mt-3 flex min-h-10 items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 text-[12px] transition-colors hover:bg-surface-3 active:scale-[0.99] touch-manipulation"><span className="min-w-0 truncate text-muted">Kredit qarzi qoldig‘i</span><span className="num shrink-0 font-bold text-fg">{formatAmount(creditPrincipalRemaining)} <span className="font-medium text-warning-text">· foiz {formatAmount(creditInterestRemaining)}</span> →</span></Link> : null}
@@ -194,11 +194,22 @@ export function CashflowAnalysis() {
           aria-expanded={movementDetailsOpen}
           className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-xl px-2 text-[12px] font-semibold text-accent-text transition-colors hover:bg-accent-soft active:scale-[0.98] touch-manipulation"
         >
-          {movementDetailsOpen ? "Hisobni yopish" : "Hisob qanday chiqdi?"}
+          {movementDetailsOpen ? "Hisobni yopish" : "Balans hisobini ko‘rish"}
           <Icon name="chevron-down" size={14} className={movementDetailsOpen ? "rotate-180 transition-transform" : "transition-transform"} />
         </button>
         {movementDetailsOpen ? (
           <div className="mt-2 border-t border-line pt-1">
+            {!isPast ? <>
+              <p className="px-0 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Erkin pul hisobi</p>
+              <div className="divide-y divide-line">
+                <DecisionRow label="Hozirgi balans" value={state.currentBalance} />
+                {confirmedExpectedIncome > 0 ? <DecisionRow label="Aniq kutilgan daromad" value={confirmedExpectedIncome} /> : null}
+                {mandatory > 0 ? <DecisionRow label="Majburiy to‘lovlar" value={-mandatory} /> : null}
+                {essentialRemaining > 0 ? <DecisionRow label={`Kundalik zaruriy xarajatlar · ${daysRemaining} kun`} value={-essentialRemaining} hint={`${formatAmount(dailyEssentialAverage)} / kun`} /> : null}
+                {emergencyReserve > 0 ? <DecisionRow label="Fors-major zaxirasi" value={-emergencyReserve} hint={state.user.minReserve > dailyEssentialAverage * 3 ? "siz belgilagan zaxira" : "kamida 3 kunlik ehtiyoj"} /> : null}
+                <DecisionRow label="Erkin foydalanish mumkin" value={safeAvailable} strong />
+              </div>
+            </> : null}
             <p className="px-0 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Bajarilgan harakatlar</p>
             <div className="divide-y divide-line">
               {completedOperational.income > 0 ? <MovementRow label="Daromad" value={completedOperational.income} /> : null}
@@ -394,7 +405,7 @@ function BalanceSnapshot({ label, value, hint, tone }: { label: string; value: n
   return (
     <div className={`min-w-0 rounded-xl border px-3 py-3 ${tone === "forecast" ? "border-accent/20 bg-accent-soft/30" : "border-line bg-surface-2"}`}>
       <Label>{label}</Label>
-      <p className={`num mt-1 text-[15px] font-bold ${color}`}>{value > 0 ? "+" : value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</p>
+      <p className={`num mt-1 text-[15px] font-bold ${color}`}>{value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</p>
       <p className="mt-1 text-[10.5px] text-muted">{hint}</p>
     </div>
   );
@@ -435,6 +446,16 @@ function MovementRow({ label, value, hint, strong, final }: { label: string; val
   const color = value > 0 ? "text-positive-text" : value < 0 ? "text-negative-text" : "text-fg-soft";
   return (
     <div className={`flex items-center justify-between gap-3 py-2.5 ${final ? "pt-3" : ""}`}>
+      <div className="min-w-0"><p className={`truncate text-[13px] ${strong ? "font-semibold" : ""}`}>{label}</p>{hint ? <p className="mt-0.5 text-[10.5px] text-muted">{hint}</p> : null}</div>
+      <span className={`num shrink-0 text-[13px] ${strong ? "font-bold" : "font-semibold"} ${color}`}>{value > 0 ? "+" : value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</span>
+    </div>
+  );
+}
+
+function DecisionRow({ label, value, hint, strong }: { label: string; value: number; hint?: string; strong?: boolean }) {
+  const color = value > 0 ? "text-positive-text" : value < 0 ? "text-negative-text" : "text-fg-soft";
+  return (
+    <div className={`flex items-center justify-between gap-3 py-2.5 ${strong ? "pt-3" : ""}`}>
       <div className="min-w-0"><p className={`truncate text-[13px] ${strong ? "font-semibold" : ""}`}>{label}</p>{hint ? <p className="mt-0.5 text-[10.5px] text-muted">{hint}</p> : null}</div>
       <span className={`num shrink-0 text-[13px] ${strong ? "font-bold" : "font-semibold"} ${color}`}>{value > 0 ? "+" : value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</span>
     </div>
