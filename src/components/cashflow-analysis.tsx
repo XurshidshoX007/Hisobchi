@@ -6,7 +6,7 @@ import { CashFlowStrip, CategoryBars, ForecastArea, IncomeExpenseBars } from "@/
 import { Icon } from "@/components/icon";
 import { useFinance } from "@/components/providers";
 import { Badge, Card, Label, Skeleton } from "@/components/ui";
-import { addDays, addMonths, compact, formatAmount, monthEnd, monthKey, monthStart, shortDate, todayISO } from "@/lib/money";
+import { addDays, addMonths, compact, dayDiff, formatAmount, monthEnd, monthKey, monthStart, shortDate, todayISO } from "@/lib/money";
 import { buildBalanceMovements, monthCashflow, monthPlanned } from "@/lib/finance";
 import { hasEnoughAnalyticsData } from "@/lib/onboarding";
 
@@ -66,6 +66,7 @@ export function CashflowAnalysis() {
   const mandatory = isPast ? 0 : items.filter((item) => item.kind === "expense" && item.mandatory).reduce((sum, item) => sum + item.base, 0);
   const expectedIncome = isPast ? 0 : items.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.base, 0);
   const plannedPayments = isPast ? 0 : items.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.base, 0);
+  const confirmedExpectedIncome = isPast ? 0 : items.filter((item) => item.kind === "income" && item.certainty === "exact").reduce((sum, item) => sum + item.base, 0);
   const chartData = days.map((day) => ({ ...day, actual: isPast || day.date <= today }));
   const isCurrent = cashMonth === current;
   const previousMonth = monthKey(addMonths(monthStart(cashMonth), -1));
@@ -89,6 +90,31 @@ export function CashflowAnalysis() {
   const balanceMovementNet = completedOperational.income - everydayExpense - movements.creditInterestAndFees + debtNet - movements.creditPrincipalPaid;
   const forecastBalanceNet = closing - opening;
   const completedTransactionCount = state.transactions.filter((transaction) => !transaction.isDeleted).length;
+  const essentialCategoryIds = new Set(state.categories.filter((category) => category.isEssential).map((category) => category.id));
+  const essentialHistory = state.transactions.filter((transaction) =>
+    !transaction.isDeleted &&
+    transaction.type === "expense" &&
+    transaction.date <= today &&
+    transaction.date >= addDays(today, -27) &&
+    transaction.debtId == null &&
+    transaction.creditPrincipalAmount == null &&
+    transaction.categoryId != null &&
+    essentialCategoryIds.has(transaction.categoryId),
+  );
+  const essentialSpent = essentialHistory.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const firstEssentialDate = essentialHistory.map((transaction) => transaction.date).sort()[0];
+  const essentialObservedDays = firstEssentialDate ? Math.min(28, Math.max(7, dayDiff(firstEssentialDate, today) + 1)) : 0;
+  const dailyEssentialAverage = essentialObservedDays ? essentialSpent / essentialObservedDays : 0;
+  const daysRemaining = isCurrent ? Math.max(0, dayDiff(today, monthEnd(today))) : 0;
+  const essentialRemaining = dailyEssentialAverage * daysRemaining;
+  const emergencyReserve = Math.max(state.user.minReserve, dailyEssentialAverage * 3);
+  const safeAvailable = state.currentBalance + confirmedExpectedIncome - mandatory - essentialRemaining - emergencyReserve;
+  const activeCredits = state.recurring.filter((plan) => plan.status === "active" && plan.creditSummary);
+  const creditPrincipalRemaining = activeCredits.reduce((sum, plan) => sum + (plan.creditSummary?.principalRemaining ?? 0), 0);
+  const creditInterestRemaining = activeCredits.reduce((sum, plan) => sum + (plan.creditSummary?.interestRemaining ?? 0) + (plan.creditSummary?.feeRemaining ?? 0), 0);
+  const nextCredit = activeCredits
+    .flatMap((plan) => plan.installments?.filter((installment) => !installment.paid && installment.date >= today).map((installment) => ({ ...installment, name: plan.name })) ?? [])
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
 
   if (!hasEnoughAnalyticsData(state.transactions)) {
     return <AnalyticsPreview transactionCount={completedTransactionCount} />;
@@ -173,6 +199,47 @@ export function CashflowAnalysis() {
           </div>
         ) : null}
       </Card>
+
+      {isCurrent ? (
+        <Card style={safeAvailable < 0 ? { borderColor: "rgba(255,122,122,.28)" } : undefined}>
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[15px] font-semibold">Qaror uchun balans</p>
+              <p className="mt-0.5 text-[11.5px] text-muted">Qolgan oy uchun ehtiyotkor hisob</p>
+            </div>
+            <span className={`num shrink-0 text-[15px] font-bold ${safeAvailable > 0 ? "text-positive-text" : safeAvailable < 0 ? "text-negative-text" : "text-fg-soft"}`}>{safeAvailable > 0 ? "+" : safeAvailable < 0 ? "−" : ""}{formatAmount(Math.abs(safeAvailable))}</span>
+          </div>
+          <div className="divide-y divide-line">
+            <DecisionRow label="Hozirgi balans" value={state.currentBalance} />
+            {confirmedExpectedIncome > 0 ? <DecisionRow label="Aniq kutilgan daromad" value={confirmedExpectedIncome} /> : null}
+            {mandatory > 0 ? <DecisionRow label="Majburiy to‘lovlar" value={-mandatory} /> : null}
+            {essentialRemaining > 0 ? <DecisionRow label={`Kundalik zaruriy xarajatlar · ${daysRemaining} kun`} value={-essentialRemaining} hint={`${formatAmount(dailyEssentialAverage)} / kun`} /> : null}
+            {emergencyReserve > 0 ? <DecisionRow label="Fors-major zaxirasi" value={-emergencyReserve} hint={state.user.minReserve > dailyEssentialAverage * 3 ? "siz belgilagan zaxira" : "kamida 3 kunlik ehtiyoj"} /> : null}
+          </div>
+          <p className={`mt-3 text-[11px] leading-relaxed ${safeAvailable < 0 ? "text-negative-text" : "text-muted"}`}>
+            {essentialObservedDays === 0
+              ? "Kundalik xarajat tarixi hali yetarli emas; limit hozircha rejalangan to‘lovlarga tayangan."
+              : safeAvailable < 0
+                ? `Xavf: reja va zaxiradan keyin ${formatAmount(Math.abs(safeAvailable))} so‘m yetishmaydi. Qo‘shimcha xarajatni kechiktirish ma’qul.`
+                : `${formatAmount(safeAvailable)} so‘mgacha qo‘shimcha xarajat reja va zaxirani buzmaydi.`}
+          </p>
+        </Card>
+      ) : null}
+
+      {isCurrent && activeCredits.length ? (
+        <Card>
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div><p className="text-[15px] font-semibold">Kredit bo‘yicha qaror</p><p className="mt-0.5 text-[11.5px] text-muted">Faol kreditlar · reja asosida</p></div>
+            <Link href="/plans" className="shrink-0 text-[12px] font-semibold text-accent-text">Kreditlar →</Link>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-surface-2 px-3 py-2.5"><Label>ASOSIY QARZ QOLDI</Label><p className="num mt-1 text-[14px] font-bold text-fg">{formatAmount(creditPrincipalRemaining)}</p></div>
+            <div className="rounded-xl bg-surface-2 px-3 py-2.5"><Label>REJA BO‘YICHA QOLGAN FOIZ</Label><p className="num mt-1 text-[14px] font-bold text-warning-text">{formatAmount(creditInterestRemaining)}</p></div>
+          </div>
+          {nextCredit ? <p className="mt-3 text-[12px] text-muted">Keyingi kredit to‘lovi: <span className="font-semibold text-fg">{shortDate(nextCredit.date)} · {nextCredit.name} · {formatAmount(nextCredit.amount)}</span></p> : null}
+          <p className="mt-2 text-[11px] leading-relaxed text-muted">Muddatidan oldin yopishdagi aniq tejash bankning qayta hisoblash qoidasiga bog‘liq; hozir reja bo‘yicha qoladigan foiz ko‘rsatilgan.</p>
+        </Card>
+      ) : null}
 
       <Card>
         <p className="mb-3 text-[15px] font-semibold">Muhim sanalar · {monthLabel}</p>
@@ -379,6 +446,16 @@ function MovementRow({ label, value, hint, strong, final }: { label: string; val
     <div className={`flex items-center justify-between gap-3 py-2.5 ${final ? "pt-3" : ""}`}>
       <div className="min-w-0"><p className={`truncate text-[13px] ${strong ? "font-semibold" : ""}`}>{label}</p>{hint ? <p className="mt-0.5 text-[10.5px] text-muted">{hint}</p> : null}</div>
       <span className={`num shrink-0 text-[13px] ${strong ? "font-bold" : "font-semibold"} ${color}`}>{value > 0 ? "+" : value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</span>
+    </div>
+  );
+}
+
+function DecisionRow({ label, value, hint }: { label: string; value: number; hint?: string }) {
+  const color = value > 0 ? "text-positive-text" : value < 0 ? "text-negative-text" : "text-fg-soft";
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <div className="min-w-0"><p className="truncate text-[13px]">{label}</p>{hint ? <p className="mt-0.5 text-[10.5px] text-muted">{hint}</p> : null}</div>
+      <span className={`num shrink-0 text-[13px] font-semibold ${color}`}>{value > 0 ? "+" : value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</span>
     </div>
   );
 }
