@@ -6,7 +6,7 @@ import { CashFlowStrip, CategoryBars, ForecastArea, IncomeExpenseBars } from "@/
 import { Icon } from "@/components/icon";
 import { useFinance } from "@/components/providers";
 import { Badge, Card, Label, Skeleton } from "@/components/ui";
-import { addMonths, compact, formatAmount, monthKey, monthStart, shortDate, todayISO } from "@/lib/money";
+import { addDays, addMonths, compact, formatAmount, monthEnd, monthKey, monthStart, shortDate, todayISO } from "@/lib/money";
 import { buildBalanceMovements, monthCashflow, monthPlanned } from "@/lib/finance";
 import { hasEnoughAnalyticsData } from "@/lib/onboarding";
 
@@ -30,8 +30,15 @@ export function CashflowAnalysis() {
   const forecastDays = monthCashflow(forecast.cashflow, cashMonth);
   // Historical months use the real ledger only. Forecast rows only exist from
   // today forward, so reusing them here would make a past balance look empty.
-  const days = isPast && monthlyView
-    ? monthlyView.daily.map((day) => ({
+  const historicalDays = isPast ? buildHistoricalDays({
+    transactions: state.transactions,
+    month: cashMonth,
+    today,
+    currentBalance: state.currentBalance,
+  }) : [];
+  const days = isPast
+    ? monthlyView
+      ? monthlyView.daily.map((day) => ({
         date: day.date,
         inflow: day.realIncome,
         outflow: day.realExpense,
@@ -41,6 +48,7 @@ export function CashflowAnalysis() {
         projectedMax: day.projectedMax,
         events: day.events,
       }))
+      : historicalDays
     : forecastDays;
   const items = monthPlanned(forecast.planned, cashMonth);
   const risks = isPast ? [] : forecast.riskDates.filter((risk) => monthKey(risk.date) === cashMonth);
@@ -50,17 +58,24 @@ export function CashflowAnalysis() {
   const closing = last ? last.projectedBase : opening;
   // Income/expense reporting remains clean: loan and debt principal affect the
   // cash line above, but are intentionally excluded from these two metrics.
-  const inflow = isPast && monthlyView ? monthlyView.realIncome : days.reduce((sum, day) => sum + day.inflow, 0);
-  const outflow = isPast && monthlyView ? monthlyView.realExpense : days.reduce((sum, day) => sum + day.outflow, 0);
+  const historicalOperational = isPast ? historicalOperationalTotals(state.transactions, cashMonth, today) : null;
+  const inflow = isPast && monthlyView ? monthlyView.realIncome : historicalOperational?.income ?? days.reduce((sum, day) => sum + day.inflow, 0);
+  const outflow = isPast && monthlyView ? monthlyView.realExpense : historicalOperational?.expense ?? days.reduce((sum, day) => sum + day.outflow, 0);
   const mandatory = isPast ? 0 : items.filter((item) => item.kind === "expense" && item.mandatory).reduce((sum, item) => sum + item.base, 0);
   const expectedIncome = isPast ? 0 : items.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.base, 0);
   const chartData = days.map((day) => ({ ...day, actual: isPast || day.date <= today }));
   const isCurrent = cashMonth === current;
-  const monthKeys = state.monthly?.map((month) => month.monthKey) ?? [];
   const previousMonth = monthKey(addMonths(monthStart(cashMonth), -1));
   const nextMonth = monthKey(addMonths(monthStart(cashMonth), 1));
-  const canGoPrevious = monthKeys.includes(previousMonth);
-  const canGoNext = monthKeys.includes(nextMonth);
+  const earliestTransactionMonth = state.transactions
+    .filter((transaction) => !transaction.isDeleted && transaction.date <= today)
+    .map((transaction) => monthKey(transaction.date))
+    .sort()[0] ?? current;
+  // Historical navigation must not depend on an optional precomputed series.
+  // A ledger row is the authoritative lower bound; the component has its own
+  // safe fallback calculator when a monthly view is unavailable.
+  const canGoPrevious = cashMonth > earliestTransactionMonth;
+  const canGoNext = isPast || (state.monthly?.some((month) => month.monthKey === nextMonth) ?? false);
   const trend = state.analytics.monthly;
   const categories = state.analytics.categories.filter((category) => category.amount > 0).slice(0, 5);
   const movements = buildBalanceMovements({ transactions: state.transactions, month: cashMonth, today });
@@ -266,6 +281,74 @@ function sampleCashflow() {
     const base = 3_200_000 + index * 310_000;
     return { date: `2026-08-${String(index + 1).padStart(2, "0")}`, projectedMin: base - 280_000, projectedBase: base, projectedMax: base + 240_000 };
   });
+}
+
+type LedgerMovement = {
+  date: string;
+  type: "income" | "expense" | "transfer";
+  amount: number;
+  debtId: number | null;
+  creditPrincipalAmount: number | null;
+  isDeleted: boolean;
+};
+
+/**
+ * A resilient audit fallback for a historical month. The server normally
+ * supplies `monthly`, but this keeps month navigation usable while that
+ * optional derived series is unavailable or still refreshing in Telegram.
+ */
+function buildHistoricalDays({
+  transactions,
+  month,
+  today,
+  currentBalance,
+}: {
+  transactions: LedgerMovement[];
+  month: string;
+  today: string;
+  currentBalance: number;
+}) {
+  const start = monthStart(month);
+  const end = monthEnd(start);
+  const active = transactions.filter((transaction) => !transaction.isDeleted && transaction.date <= today);
+  const cashDelta = (transaction: LedgerMovement) =>
+    transaction.type === "income" ? transaction.amount : transaction.type === "expense" ? -transaction.amount : 0;
+  const opening = currentBalance - active
+    .filter((transaction) => transaction.date >= start)
+    .reduce((sum, transaction) => sum + cashDelta(transaction), 0);
+  const byDate = new Map<string, { inflow: number; outflow: number }>();
+  for (const transaction of active) {
+    if (!transaction.date.startsWith(month)) continue;
+    const row = byDate.get(transaction.date) ?? { inflow: 0, outflow: 0 };
+    if (transaction.type === "income") row.inflow += transaction.amount;
+    if (transaction.type === "expense") row.outflow += transaction.amount;
+    byDate.set(transaction.date, row);
+  }
+
+  let balance = opening;
+  const days: Array<{ date: string; inflow: number; outflow: number; net: number; projectedBase: number; projectedMin: number; projectedMax: number; events: [] }> = [];
+  for (let date = start; date <= end; date = addDays(date, 1)) {
+    const row = byDate.get(date) ?? { inflow: 0, outflow: 0 };
+    const net = row.inflow - row.outflow;
+    balance += net;
+    days.push({ date, ...row, net, projectedBase: balance, projectedMin: balance, projectedMax: balance, events: [] });
+  }
+  return days;
+}
+
+/** Principal is cash movement, not operational revenue or consumption. */
+function historicalOperationalTotals(transactions: LedgerMovement[], month: string, today: string) {
+  let income = 0;
+  let expense = 0;
+  for (const transaction of transactions) {
+    if (transaction.isDeleted || transaction.date > today || !transaction.date.startsWith(month) || transaction.debtId) continue;
+    if (transaction.type === "income") income += transaction.amount;
+    if (transaction.type === "expense") {
+      const principal = transaction.creditPrincipalAmount ?? 0;
+      expense += Math.max(0, transaction.amount - principal);
+    }
+  }
+  return { income, expense };
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "positive" | "negative" | "warning" }) {
