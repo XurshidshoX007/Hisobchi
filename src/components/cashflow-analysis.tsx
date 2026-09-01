@@ -58,9 +58,11 @@ export function CashflowAnalysis() {
   const closing = last ? last.projectedBase : opening;
   // Income/expense reporting remains clean: loan and debt principal affect the
   // cash line above, but are intentionally excluded from these two metrics.
-  const historicalOperational = isPast ? historicalOperationalTotals(state.transactions, cashMonth, today) : null;
-  const inflow = isPast && monthlyView ? monthlyView.realIncome : historicalOperational?.income ?? days.reduce((sum, day) => sum + day.inflow, 0);
-  const outflow = isPast && monthlyView ? monthlyView.realExpense : historicalOperational?.expense ?? days.reduce((sum, day) => sum + day.outflow, 0);
+  const completedOperational = historicalOperationalTotals(state.transactions, cashMonth, today);
+  // The upper chart is deliberately a forecast for the current/future period.
+  // The balance-movement card below always uses completed ledger rows only.
+  const inflow = isPast && monthlyView ? monthlyView.realIncome : isPast ? completedOperational.income : days.reduce((sum, day) => sum + day.inflow, 0);
+  const outflow = isPast && monthlyView ? monthlyView.realExpense : isPast ? completedOperational.expense : days.reduce((sum, day) => sum + day.outflow, 0);
   const mandatory = isPast ? 0 : items.filter((item) => item.kind === "expense" && item.mandatory).reduce((sum, item) => sum + item.base, 0);
   const expectedIncome = isPast ? 0 : items.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.base, 0);
   const chartData = days.map((day) => ({ ...day, actual: isPast || day.date <= today }));
@@ -80,8 +82,9 @@ export function CashflowAnalysis() {
   const categories = state.analytics.categories.filter((category) => category.amount > 0).slice(0, 5);
   const movements = buildBalanceMovements({ transactions: state.transactions, month: cashMonth, today });
   const debtNet = movements.debtBorrowed - movements.debtLent + movements.debtRecovered - movements.debtRepaid;
-  const operationalNet = inflow - outflow;
-  const balanceMovementNet = operationalNet + debtNet - movements.creditPrincipalPaid;
+  const actualOperationalNet = completedOperational.income - completedOperational.expense;
+  const balanceMovementNet = actualOperationalNet + debtNet - movements.creditPrincipalPaid;
+  const forecastBalanceNet = closing - opening;
   const completedTransactionCount = state.transactions.filter((transaction) => !transaction.isDeleted).length;
 
   if (!hasEnoughAnalyticsData(state.transactions)) {
@@ -108,8 +111,8 @@ export function CashflowAnalysis() {
           <>
             <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[14px] sm:grid-cols-4" style={{ background: "var(--border)" }}>
               <Metric label={isCurrent ? "Bugungi balans" : "Ochilish"} value={formatAmount(opening)} />
-              <Metric label="Daromad" value={`+${formatAmount(inflow)}`} tone="positive" />
-              <Metric label="Xarajat" value={`−${formatAmount(outflow)}`} />
+              <Metric label={isPast ? "Daromad" : "Kutilgan kirim"} value={`+${formatAmount(inflow)}`} tone="positive" />
+              <Metric label={isPast ? "Xarajat" : "Kutilgan chiqim"} value={`−${formatAmount(outflow)}`} />
               <Metric label="Yopilish" value={formatAmount(closing)} tone={closing < 0 ? "negative" : "warning"} />
             </div>
             {isPast ? (
@@ -139,21 +142,22 @@ export function CashflowAnalysis() {
       <Card>
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
-            <p className="text-[15px] font-semibold">Balans harakati</p>
-            <p className="mt-0.5 text-[11.5px] text-muted">{monthLabel} · daromad va xarajatdan alohida</p>
+            <p className="text-[15px] font-semibold">Haqiqiy balans harakati</p>
+            <p className="mt-0.5 text-[11.5px] text-muted">{monthLabel} · faqat bajarilgan tranzaksiyalar</p>
           </div>
           <Link href="/plans" className="shrink-0 text-[12px] font-semibold text-accent-text">Kreditlar →</Link>
         </div>
         <div className="divide-y divide-line">
-          <MovementRow label="Operatsion natija" value={operationalNet} strong />
+          <MovementRow label="Haqiqiy operatsion natija" value={actualOperationalNet} strong />
           {movements.debtBorrowed > 0 ? <MovementRow label="Qarz olindi" value={movements.debtBorrowed} /> : null}
           {movements.debtLent > 0 ? <MovementRow label="Qarz berildi" value={-movements.debtLent} /> : null}
           {movements.debtRecovered > 0 ? <MovementRow label="Qarz qaytdi" value={movements.debtRecovered} /> : null}
           {movements.debtRepaid > 0 ? <MovementRow label="Qarz to‘landi" value={-movements.debtRepaid} /> : null}
           {movements.creditPrincipalPaid > 0 ? <MovementRow label="Kredit asosiy qismi" value={-movements.creditPrincipalPaid} /> : null}
           {movements.creditInterestAndFees > 0 ? <MovementRow label="Foiz va komissiya" value={-movements.creditInterestAndFees} hint="xarajatga kiritilgan" /> : null}
-          <MovementRow label="Balansdagi sof o‘zgarish" value={balanceMovementNet} strong final />
+          <MovementRow label="Haqiqiy sof o‘zgarish" value={balanceMovementNet} strong final />
         </div>
+        {!isPast ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2.5"><div className="min-w-0"><p className="text-[12px] font-semibold">Oy yakuni prognozi</p><p className="mt-0.5 text-[10.5px] text-muted">Kutilgan kirim va chiqimlar bilan</p></div><span className={`num shrink-0 text-[13px] font-bold ${forecastBalanceNet > 0 ? "text-positive-text" : forecastBalanceNet < 0 ? "text-negative-text" : "text-fg-soft"}`}>{forecastBalanceNet > 0 ? "+" : forecastBalanceNet < 0 ? "−" : ""}{formatAmount(Math.abs(forecastBalanceNet))}</span></div> : null}
         <p className="mt-3 text-[11px] leading-relaxed text-muted">Asosiy qarz to‘lovi pulni kamaytiradi, ammo xarajatlar diagrammasiga kirmaydi.</p>
       </Card>
 
