@@ -18,6 +18,7 @@ export function CashflowAnalysis() {
   const { state, loading } = useFinance();
   const [cashMonth, setCashMonth] = useState(() => monthKey(todayISO()));
   const [movementDetailsOpen, setMovementDetailsOpen] = useState(false);
+  const [insightView, setInsightView] = useState<"categories" | "trend">("categories");
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
@@ -116,6 +117,7 @@ export function CashflowAnalysis() {
   const nextCredit = activeCredits
     .flatMap((plan) => plan.installments?.filter((installment) => !installment.paid && installment.date >= today).map((installment) => ({ ...installment, name: plan.name })) ?? [])
     .sort((a, b) => a.date.localeCompare(b.date))[0];
+  const upcomingItems = isPast ? [] : items.filter((item) => item.date >= today).slice(0, 6);
 
   if (!hasEnoughAnalyticsData(state.transactions)) {
     return <AnalyticsPreview transactionCount={completedTransactionCount} />;
@@ -170,17 +172,22 @@ export function CashflowAnalysis() {
       </Card>
 
       <Card>
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[15px] font-semibold">Oy holati</p>
-            <p className="mt-0.5 text-[11.5px] text-muted">{monthLabel} · real va reja alohida</p>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Label>{isPast ? "OY YAKUNI" : "QO‘SHIMCHA XARAJAT UCHUN"}</Label>
+            <p className={`num mt-1 text-[24px] font-bold tracking-tight ${isPast ? (balanceMovementNet > 0 ? "text-positive-text" : balanceMovementNet < 0 ? "text-negative-text" : "text-fg") : safeAvailable > 0 ? "text-positive-text" : safeAvailable < 0 ? "text-negative-text" : "text-fg"}`}>
+              {isPast ? (balanceMovementNet > 0 ? "+" : balanceMovementNet < 0 ? "−" : "") + formatAmount(Math.abs(balanceMovementNet)) : (safeAvailable > 0 ? "+" : safeAvailable < 0 ? "−" : "") + formatAmount(Math.abs(safeAvailable))}
+            </p>
+            <p className="mt-1 text-[11.5px] text-muted">{isPast ? "oy davomida haqiqiy balans o‘zgarishi" : "reja, zaruriy xarajat va zaxiradan keyin"}</p>
           </div>
-          <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[10.5px] font-semibold text-muted">{isPast ? "Yakunlangan" : "Joriy"}</span>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-semibold ${isPast ? "bg-surface-2 text-muted" : safeAvailable < 0 ? "bg-negative-soft text-negative-text" : "bg-positive-soft text-positive-text"}`}>{isPast ? "Yakunlangan" : safeAvailable < 0 ? "Ehtiyot bo‘ling" : "Xavfsiz"}</span>
         </div>
         <div className={`grid gap-2 ${isPast ? "grid-cols-1" : "grid-cols-2"}`}>
           <BalanceSnapshot label="Shu paytgacha" value={balanceMovementNet} hint="faqat bajarilgan harakatlar" />
           {!isPast ? <BalanceSnapshot label="Oy yakuni" value={forecastBalanceNet} hint="qolgan reja bilan prognoz" tone="forecast" /> : null}
         </div>
+        {!isPast && essentialObservedDays === 0 ? <p className="mt-3 rounded-xl bg-surface-2 px-3 py-2 text-[11px] leading-relaxed text-muted">Kundalik xarajat tarixi hali yetarli emas; xavfsiz limit hozircha rejalangan to‘lovlarga tayangan.</p> : null}
+        {!isPast && activeCredits.length ? <Link href="/plans" className="mt-3 flex min-h-10 items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 text-[12px] transition-colors hover:bg-surface-3 active:scale-[0.99] touch-manipulation"><span className="min-w-0 truncate text-muted">Kredit qarzi qoldig‘i</span><span className="num shrink-0 font-bold text-fg">{formatAmount(creditPrincipalRemaining)} <span className="font-medium text-warning-text">· foiz {formatAmount(creditInterestRemaining)}</span> →</span></Link> : null}
         <button
           type="button"
           onClick={() => setMovementDetailsOpen((open) => !open)}
@@ -218,94 +225,22 @@ export function CashflowAnalysis() {
         ) : null}
       </Card>
 
-      {isCurrent ? (
-        <Card style={safeAvailable < 0 ? { borderColor: "rgba(255,122,122,.28)" } : undefined}>
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[15px] font-semibold">Qaror uchun balans</p>
-              <p className="mt-0.5 text-[11.5px] text-muted">Qolgan oy uchun ehtiyotkor hisob</p>
-            </div>
-            <span className={`num shrink-0 text-[15px] font-bold ${safeAvailable > 0 ? "text-positive-text" : safeAvailable < 0 ? "text-negative-text" : "text-fg-soft"}`}>{safeAvailable > 0 ? "+" : safeAvailable < 0 ? "−" : ""}{formatAmount(Math.abs(safeAvailable))}</span>
-          </div>
-          <div className="divide-y divide-line">
-            <DecisionRow label="Hozirgi balans" value={state.currentBalance} />
-            {confirmedExpectedIncome > 0 ? <DecisionRow label="Aniq kutilgan daromad" value={confirmedExpectedIncome} /> : null}
-            {mandatory > 0 ? <DecisionRow label="Majburiy to‘lovlar" value={-mandatory} /> : null}
-            {essentialRemaining > 0 ? <DecisionRow label={`Kundalik zaruriy xarajatlar · ${daysRemaining} kun`} value={-essentialRemaining} hint={`${formatAmount(dailyEssentialAverage)} / kun`} /> : null}
-            {emergencyReserve > 0 ? <DecisionRow label="Fors-major zaxirasi" value={-emergencyReserve} hint={state.user.minReserve > dailyEssentialAverage * 3 ? "siz belgilagan zaxira" : "kamida 3 kunlik ehtiyoj"} /> : null}
-          </div>
-          <p className={`mt-3 text-[11px] leading-relaxed ${safeAvailable < 0 ? "text-negative-text" : "text-muted"}`}>
-            {essentialObservedDays === 0
-              ? "Kundalik xarajat tarixi hali yetarli emas; limit hozircha rejalangan to‘lovlarga tayangan."
-              : safeAvailable < 0
-                ? `Xavf: reja va zaxiradan keyin ${formatAmount(Math.abs(safeAvailable))} so‘m yetishmaydi. Qo‘shimcha xarajatni kechiktirish ma’qul.`
-                : `${formatAmount(safeAvailable)} so‘mgacha qo‘shimcha xarajat reja va zaxirani buzmaydi.`}
-          </p>
-        </Card>
-      ) : null}
-
-      {!isPast ? <RiskCard risks={risks} monthLabel={monthLabel} /> : null}
-
-      {isCurrent && activeCredits.length ? (
-        <Card>
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div><p className="text-[15px] font-semibold">Kredit bo‘yicha qaror</p><p className="mt-0.5 text-[11.5px] text-muted">Faol kreditlar · reja asosida</p></div>
-            <Link href="/plans" className="shrink-0 text-[12px] font-semibold text-accent-text">Kreditlar →</Link>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-surface-2 px-3 py-2.5"><Label>ASOSIY QARZ QOLDI</Label><p className="num mt-1 text-[14px] font-bold text-fg">{formatAmount(creditPrincipalRemaining)}</p></div>
-            <div className="rounded-xl bg-surface-2 px-3 py-2.5"><Label>REJA BO‘YICHA QOLGAN FOIZ</Label><p className="num mt-1 text-[14px] font-bold text-warning-text">{formatAmount(creditInterestRemaining)}</p></div>
-          </div>
-          {nextCredit ? <p className="mt-3 text-[12px] text-muted">Keyingi kredit to‘lovi: <span className="font-semibold text-fg">{shortDate(nextCredit.date)} · {nextCredit.name} · {formatAmount(nextCredit.amount)}</span></p> : null}
-          <p className="mt-2 text-[11px] leading-relaxed text-muted">Muddatidan oldin yopishdagi aniq tejash bankning qayta hisoblash qoidasiga bog‘liq; hozir reja bo‘yicha qoladigan foiz ko‘rsatilgan.</p>
-        </Card>
-      ) : null}
-
-      <Card>
-        <p className="mb-3 text-[15px] font-semibold">Muhim sanalar · {monthLabel}</p>
-        {items.length ? <div className="divide-y divide-line">{items.map((item) => (
-          <div key={item.key} className="flex items-center gap-2.5 py-2.5">
-            <span className="num w-14 shrink-0 text-[11.5px] text-muted sm:w-16 sm:text-[12px]">{shortDate(item.date)}</span>
-            <span className={`shrink-0 text-sm font-medium ${item.kind === "income" ? "text-positive-text" : "text-fg"}`}>{item.kind === "income" ? "+" : "−"}{compact(item.base)}</span>
-            <span className="min-w-0 flex-1 truncate text-[13px] sm:text-[13.5px]">{item.label}</span>
-            <Badge tone={item.mandatory ? "negative" : item.kind === "income" ? "positive" : "neutral"}>{item.mandatory ? "Majburiy" : item.kind === "income" ? (item.certainty === "estimated" ? "Taxminiy" : "Aniq") : "Ixtiyoriy"}</Badge>
-          </div>
-        ))}</div> : <p className="text-[13px] leading-relaxed text-muted">{isPast ? "Bu oy uchun rejalashtirilgan to‘lovlar arxivi yo‘q." : "Rejalashtirilgan to‘lovlar yo‘q."}</p>}
-      </Card>
+      {!isPast ? <UpcomingCard items={upcomingItems} risks={risks} monthLabel={monthLabel} /> : null}
 
       <Card>
         <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[15px] font-semibold">Daromad va xarajatlar</p>
-            <p className="mt-0.5 text-[11.5px] text-muted">Oxirgi 6 oy</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted">
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: "var(--positive)" }} /> Daromad</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm opacity-75" style={{ background: "var(--fg)" }} /> Xarajat</span>
-          </div>
+          <div><p className="text-[15px] font-semibold">Chuqur tahlil</p><p className="mt-0.5 text-[11.5px] text-muted">Odatlar va xarajat tuzilmasi</p></div>
+          {insightView === "categories" ? <Link href={`/transactions?type=expense&month=${current}`} className="shrink-0 text-[12px] font-semibold text-accent-text">Tarix →</Link> : null}
         </div>
-        {trend.some((month) => month.income > 0 || month.expense > 0) ? (
-          <IncomeExpenseBars data={trend} />
-        ) : (
-          <p className="text-[13px] leading-relaxed text-muted">Trend uchun hali operatsiyalar yetarli emas.</p>
-        )}
-      </Card>
-
-      <Card>
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[15px] font-semibold">Xarajat kategoriyalari</p>
-            <p className="mt-0.5 text-[11.5px] text-muted">Joriy oy · eng kattalari</p>
-          </div>
-          <Link href={`/transactions?type=expense&month=${current}`} className="shrink-0 text-[12px] font-semibold text-accent-text">
-            Tarix →
-          </Link>
+        <div className="mb-4 grid grid-cols-2 rounded-xl bg-surface-2 p-1">
+          <button type="button" onClick={() => setInsightView("categories")} className={`min-h-8 rounded-[9px] px-2 text-[11.5px] font-semibold transition-colors ${insightView === "categories" ? "bg-surface text-fg shadow-sm" : "text-muted"}`}>Xarajatlar</button>
+          <button type="button" onClick={() => setInsightView("trend")} className={`min-h-8 rounded-[9px] px-2 text-[11.5px] font-semibold transition-colors ${insightView === "trend" ? "bg-surface text-fg shadow-sm" : "text-muted"}`}>6 oylik trend</button>
         </div>
-        {categories.length ? (
-          <CategoryBars items={categories} />
-        ) : (
-          <p className="text-[13px] leading-relaxed text-muted">Bu oy xarajat kategoriyalari hali shakllanmadi.</p>
-        )}
+        {insightView === "categories" ? (
+          categories.length ? <CategoryBars items={categories} /> : <p className="text-[13px] leading-relaxed text-muted">Bu oy xarajat kategoriyalari hali shakllanmadi.</p>
+        ) : trend.some((month) => month.income > 0 || month.expense > 0) ? (
+          <><div className="mb-3 flex items-center gap-3 text-[11px] text-muted"><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: "var(--positive)" }} /> Daromad</span><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm opacity-75" style={{ background: "var(--fg)" }} /> Xarajat</span></div><IncomeExpenseBars data={trend} /></>
+        ) : <p className="text-[13px] leading-relaxed text-muted">Trend uchun hali operatsiyalar yetarli emas.</p>}
       </Card>
 
     </div>
@@ -465,25 +400,33 @@ function BalanceSnapshot({ label, value, hint, tone }: { label: string; value: n
   );
 }
 
-function RiskCard({ risks, monthLabel }: { risks: Array<{ date: string; cause: string; deficit: number }>; monthLabel: string }) {
+function UpcomingCard({
+  items,
+  risks,
+  monthLabel,
+}: {
+  items: Array<{ key: string; date: string; kind: "income" | "expense"; base: number; label: string; mandatory: boolean; certainty?: "exact" | "estimated" }>;
+  risks: Array<{ date: string; cause: string; deficit: number }>;
+  monthLabel: string;
+}) {
+  const visibleDates = new Set(items.map((item) => item.date));
+  const standaloneRisks = risks.filter((risk) => !visibleDates.has(risk.date)).slice(0, 2);
   return (
     <Card
       className={risks.length ? "animate-alert-once" : ""}
       style={risks.length ? { borderColor: "rgba(255,122,122,.28)", background: "linear-gradient(180deg, rgba(255,122,122,.09), rgba(255,122,122,.03))" } : undefined}
     >
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-[15px] font-semibold"><Icon name="warning" size={16} className={risks.length ? "shrink-0 text-negative-text" : "shrink-0 text-faint"} />Xavf kunlari</p>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div><p className="flex items-center gap-2 text-[15px] font-semibold"><Icon name="calendar" size={16} className="shrink-0 text-accent-text" />Yaqin kunlar</p><p className="mt-0.5 text-[11px] text-muted">To‘lovlar, kirimlar va xavf nuqtalari</p></div>
         <span className="text-[11px] text-muted">{monthLabel}</span>
       </div>
-      {risks.length ? (
-        <>
-          <p className="mb-2 text-[11px] text-muted">Balans zaxiradan pastga tushishi mumkin bo‘lgan sanalar.</p>
-          <div className="divide-y divide-line">{risks.slice(0, 5).map((risk) => (
-            <div key={risk.date} className="flex items-center justify-between gap-3 py-2.5"><div className="min-w-0"><span className="num text-[12.5px] font-semibold text-negative-text">{shortDate(risk.date)}</span><span className="ml-2 truncate text-[11.5px] text-muted">{risk.cause}</span></div><span className="num shrink-0 text-[12.5px] font-semibold text-negative-text">−{compact(risk.deficit)}</span></div>
-          ))}</div>
-          <Link href="/" className="mt-2 inline-block min-h-8 py-1 text-[12px] font-semibold text-accent-text">Asosiyda tekshirish →</Link>
-        </>
-      ) : <p className="text-[13px] leading-relaxed text-muted">Yaqin kunlar uchun balans xavfi aniqlanmadi.</p>}
+      {items.length || standaloneRisks.length ? <div className="divide-y divide-line">
+        {items.map((item) => {
+          const risk = risks.find((entry) => entry.date === item.date);
+          return <div key={item.key} className="flex items-center gap-2.5 py-2.5"><span className="num w-12 shrink-0 text-[11.5px] text-muted">{shortDate(item.date)}</span><span className={`num shrink-0 text-[12.5px] font-semibold ${item.kind === "income" ? "text-positive-text" : "text-fg"}`}>{item.kind === "income" ? "+" : "−"}{compact(item.base)}</span><span className="min-w-0 flex-1 truncate text-[12.5px]">{item.label}</span><Badge tone={risk || item.mandatory ? "negative" : item.kind === "income" ? "positive" : "neutral"}>{risk ? "Xavf" : item.mandatory ? "Majburiy" : item.kind === "income" ? (item.certainty === "estimated" ? "Taxminiy" : "Aniq") : "Reja"}</Badge></div>;
+        })}
+        {standaloneRisks.map((risk) => <div key={`risk-${risk.date}`} className="flex items-center gap-2.5 py-2.5"><span className="num w-12 shrink-0 text-[11.5px] text-negative-text">{shortDate(risk.date)}</span><span className="min-w-0 flex-1 truncate text-[12.5px] text-muted">{risk.cause}</span><span className="num shrink-0 text-[12.5px] font-semibold text-negative-text">−{compact(risk.deficit)}</span></div>)}
+      </div> : <p className="text-[13px] leading-relaxed text-muted">Yaqin kunlar uchun rejalashtirilgan harakat yoki xavf aniqlanmadi.</p>}
     </Card>
   );
 }
@@ -494,16 +437,6 @@ function MovementRow({ label, value, hint, strong, final }: { label: string; val
     <div className={`flex items-center justify-between gap-3 py-2.5 ${final ? "pt-3" : ""}`}>
       <div className="min-w-0"><p className={`truncate text-[13px] ${strong ? "font-semibold" : ""}`}>{label}</p>{hint ? <p className="mt-0.5 text-[10.5px] text-muted">{hint}</p> : null}</div>
       <span className={`num shrink-0 text-[13px] ${strong ? "font-bold" : "font-semibold"} ${color}`}>{value > 0 ? "+" : value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</span>
-    </div>
-  );
-}
-
-function DecisionRow({ label, value, hint }: { label: string; value: number; hint?: string }) {
-  const color = value > 0 ? "text-positive-text" : value < 0 ? "text-negative-text" : "text-fg-soft";
-  return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <div className="min-w-0"><p className="truncate text-[13px]">{label}</p>{hint ? <p className="mt-0.5 text-[10.5px] text-muted">{hint}</p> : null}</div>
-      <span className={`num shrink-0 text-[13px] font-semibold ${color}`}>{value > 0 ? "+" : value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</span>
     </div>
   );
 }
