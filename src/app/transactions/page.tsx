@@ -306,11 +306,11 @@ function TransactionsView() {
                         <>
                           <button
                             type="button"
-                            onClick={() => (transaction.debtId ? null : setEditing(transaction))}
-                            disabled={Boolean(transaction.debtId)}
-                            title={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : undefined}
+                            onClick={() => (transaction.debtId || transaction.creditPrincipalAmount !== null ? null : setEditing(transaction))}
+                            disabled={Boolean(transaction.debtId || transaction.creditPrincipalAmount !== null)}
+                            title={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : transaction.creditPrincipalAmount !== null ? "Kredit to‘lovi Kredit rejasidan boshqariladi" : undefined}
                             className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface-3 hover:text-fg active:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
-                            aria-label={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : "Tahrirlash"}
+                            aria-label={transaction.debtId ? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : transaction.creditPrincipalAmount !== null ? "Kredit to‘lovi Kredit rejasidan boshqariladi" : "Tahrirlash"}
                           >
                             {/* Registry icon, not a text glyph: the Unicode pencil
                                 (✎ U+270E) points to the LOWER right, so it reads
@@ -351,9 +351,12 @@ function TransactionsView() {
                             <span className="truncate">
                               {transaction.type === "transfer"
                                 ? `${transaction.accountName} → ${transaction.toAccountName ?? ""}`
-                                : transaction.categoryName ?? "Boshqa"}
+                                : transaction.creditPrincipalAmount !== null
+                                  ? "Kredit qarzi to‘lovi"
+                                  : transaction.categoryName ?? "Boshqa"}
                             </span>
                             {transaction.recurringId ? <Badge tone="accent">To‘lov</Badge> : null}
+                            {transaction.creditPrincipalAmount !== null ? <Badge tone="neutral">Kredit</Badge> : null}
                             {transaction.expectedIncomeId ? <Badge tone="positive">Reja</Badge> : null}
                             {transaction.debtId ? <Badge tone={transaction.debtPaymentId ? "accent" : "neutral"}>Qarz</Badge> : null}
                             {transaction.date > state.forecast.today ? <Badge tone="warning">Kelajak</Badge> : null}
@@ -373,7 +376,7 @@ function TransactionsView() {
                           value={transaction.type === "expense" ? -transaction.amount : transaction.amount}
                           size="sm"
                           signed
-                          tone={transaction.type === "income" ? "positive" : transaction.type === "expense" ? "default" : "muted"}
+                          tone={transaction.type === "income" ? "positive" : transaction.creditPrincipalAmount !== null ? "muted" : transaction.type === "expense" ? "default" : "muted"}
                         />
                       </div>
                     </SwipeActions>

@@ -20,6 +20,7 @@ import {
   buildAnalytics,
   buildCurrentMonthIncome,
   buildCurrentMonthPlan,
+  buildBalanceMovements,
   buildForecast,
   buildHealth,
   buildMonthlySeries,
@@ -271,8 +272,46 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
             amount: c.amount,
             occurrenceNumber: c.occurrenceNumber,
             paid: paidDates.has(c.date) || c.settledOnImport,
+            principalAmount: c.principalAmount,
+            interestAmount: c.interestAmount,
+            feeAmount: c.feeAmount,
           }))
         : null;
+
+    const hasCreditAllocation = Boolean(r.creditMode) && creditRows.some((c) => c.principalAmount !== null && c.interestAmount !== null && c.feeAmount !== null);
+    const creditSummary = hasCreditAllocation
+      ? creditRows.reduce(
+          (summary, row) => {
+            const paid = paidDates.has(row.date) || row.settledOnImport;
+            const principal = row.principalAmount ?? 0;
+            const interest = row.interestAmount ?? 0;
+            const fee = row.feeAmount ?? 0;
+            summary.principalTotal += principal;
+            summary.interestTotal += interest;
+            summary.feeTotal += fee;
+            if (paid) {
+              summary.principalPaid += principal;
+              summary.interestPaid += interest;
+              summary.feePaid += fee;
+            }
+            return summary;
+          },
+          { principalTotal: 0, principalPaid: 0, interestTotal: 0, interestPaid: 0, feeTotal: 0, feePaid: 0 },
+        )
+      : null;
+    const normalizedCreditSummary = creditSummary
+      ? {
+          principalTotal: round2(creditSummary.principalTotal),
+          principalPaid: round2(creditSummary.principalPaid),
+          principalRemaining: round2(Math.max(0, creditSummary.principalTotal - creditSummary.principalPaid)),
+          interestTotal: round2(creditSummary.interestTotal),
+          interestPaid: round2(creditSummary.interestPaid),
+          interestRemaining: round2(Math.max(0, creditSummary.interestTotal - creditSummary.interestPaid)),
+          feeTotal: round2(creditSummary.feeTotal),
+          feePaid: round2(creditSummary.feePaid),
+          feeRemaining: round2(Math.max(0, creditSummary.feeTotal - creditSummary.feePaid)),
+        }
+      : null;
 
     const installmentsPaid = installments ? installments.filter((i) => i.paid).length : r.installmentsPaid;
     const totalCount = installments ? installments.length : (r.installmentCount ?? 0);
@@ -356,6 +395,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       nextOccurrenceDate,
       isOverdue: status === "active" && daysLeft < 0,
       installments,
+      creditSummary: normalizedCreditSummary,
     };
   });
 
@@ -549,6 +589,11 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     categories: categoryRows.map((c) => ({ id: c.id, name: c.name, icon: c.icon, isEssential: c.isEssential })),
     recurringBase,
     currentBalance,
+    today,
+  });
+  analytics.balanceMovements = buildBalanceMovements({
+    transactions: cashTxRows,
+    month: thisMonth,
     today,
   });
 

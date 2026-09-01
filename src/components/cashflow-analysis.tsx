@@ -40,6 +40,9 @@ export function CashflowAnalysis() {
   const isCurrent = cashMonth === current;
   const trend = state.analytics.monthly;
   const categories = state.analytics.categories.filter((category) => category.amount > 0).slice(0, 5);
+  const movements = state.analytics.balanceMovements;
+  const debtNet = movements.debtBorrowed - movements.debtLent + movements.debtRecovered - movements.debtRepaid;
+  const balanceMovementNet = state.analytics.monthTotals.net + debtNet - movements.creditPrincipalPaid;
   const completedTransactionCount = state.transactions.filter((transaction) => !transaction.isDeleted).length;
 
   if (!hasEnoughAnalyticsData(state.transactions)) {
@@ -88,6 +91,27 @@ export function CashflowAnalysis() {
         ) : (
           <p className="text-[13px] leading-relaxed text-muted">Bu oy prognoz davridan tashqarida. Joriy oyga qayting.</p>
         )}
+      </Card>
+
+      <Card>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[15px] font-semibold">Balans harakati</p>
+            <p className="mt-0.5 text-[11.5px] text-muted">{monthLabel} · daromad va xarajatdan alohida</p>
+          </div>
+          <Link href="/plans" className="shrink-0 text-[12px] font-semibold text-accent-text">Kreditlar →</Link>
+        </div>
+        <div className="divide-y divide-line">
+          <MovementRow label="Operatsion natija" value={state.analytics.monthTotals.net} strong />
+          {movements.debtBorrowed > 0 ? <MovementRow label="Qarz olindi" value={movements.debtBorrowed} /> : null}
+          {movements.debtLent > 0 ? <MovementRow label="Qarz berildi" value={-movements.debtLent} /> : null}
+          {movements.debtRecovered > 0 ? <MovementRow label="Qarz qaytdi" value={movements.debtRecovered} /> : null}
+          {movements.debtRepaid > 0 ? <MovementRow label="Qarz to‘landi" value={-movements.debtRepaid} /> : null}
+          {movements.creditPrincipalPaid > 0 ? <MovementRow label="Kredit asosiy qismi" value={-movements.creditPrincipalPaid} /> : null}
+          {movements.creditInterestAndFees > 0 ? <MovementRow label="Foiz va komissiya" value={-movements.creditInterestAndFees} hint="xarajatga kiritilgan" /> : null}
+          <MovementRow label="Balansdagi sof o‘zgarish" value={balanceMovementNet} strong final />
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-muted">Asosiy qarz to‘lovi pulni kamaytiradi, ammo xarajatlar diagrammasiga kirmaydi.</p>
       </Card>
 
       <Card>
@@ -219,4 +243,14 @@ function sampleCashflow() {
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "positive" | "negative" | "warning" }) {
   const color = tone === "positive" ? "text-positive-text" : tone === "negative" ? "text-negative-text" : tone === "warning" ? "text-warning-text" : "";
   return <div className="min-w-0 bg-surface-2 px-3.5 py-3"><Label className="block truncate">{label}</Label><p className={`num mt-1 break-words text-[13.5px] font-bold ${color}`}>{value}</p></div>;
+}
+
+function MovementRow({ label, value, hint, strong, final }: { label: string; value: number; hint?: string; strong?: boolean; final?: boolean }) {
+  const color = value > 0 ? "text-positive-text" : value < 0 ? "text-negative-text" : "text-fg-soft";
+  return (
+    <div className={`flex items-center justify-between gap-3 py-2.5 ${final ? "pt-3" : ""}`}>
+      <div className="min-w-0"><p className={`truncate text-[13px] ${strong ? "font-semibold" : ""}`}>{label}</p>{hint ? <p className="mt-0.5 text-[10.5px] text-muted">{hint}</p> : null}</div>
+      <span className={`num shrink-0 text-[13px] ${strong ? "font-bold" : "font-semibold"} ${color}`}>{value > 0 ? "+" : value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</span>
+    </div>
+  );
 }

@@ -549,6 +549,7 @@ function PaymentPlanRow({
   // the parent plan's nominal average (jami / soni) — see nextCreditInstallment.
   const nextInstallment = nextCreditInstallment(r);
   const headlineAmount = nextInstallment ? nextInstallment.amount : r.baseAmount;
+  const credit = r.creditSummary;
   const total = r.installmentCount ?? 0;
   const progress = isTerm && total > 0 ? r.installmentsPaid / total : 0;
 
@@ -605,6 +606,21 @@ function PaymentPlanRow({
                 : `Qolgan: ${formatAmount(r.remainingTotal ?? 0)} so‘m · ${r.remainingInstallments ?? 0} ta`
             }
           />
+        </div>
+      ) : null}
+
+      {credit ? (
+        <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-line pt-2.5 text-[11.5px]">
+          <div className="min-w-0">
+            <p className="lb">ASOSIY QARZ</p>
+            <p className="num mt-0.5 truncate font-semibold text-fg">{compact(credit.principalRemaining)} qoldi</p>
+            <p className="mt-0.5 truncate text-muted">{compact(credit.principalPaid)} qaytarilgan</p>
+          </div>
+          <div className="min-w-0 text-right">
+            <p className="lb">FOIZ VA KOMISSIYA</p>
+            <p className="num mt-0.5 truncate font-semibold text-negative-text">{compact(credit.interestRemaining + credit.feeRemaining)} qoldi</p>
+            <p className="mt-0.5 truncate text-muted">jami {compact(credit.interestTotal + credit.feeTotal)}</p>
+          </div>
         </div>
       ) : null}
 

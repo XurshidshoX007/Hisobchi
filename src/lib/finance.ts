@@ -373,7 +373,27 @@ export type RecurringView = {
    * term plans created from a bot-parsed credit schedule; `paid` is derived
    * from the real transactions fulfilling each occurrence.
    */
-  installments: Array<{ date: string; amount: number; occurrenceNumber: number; paid: boolean }> | null;
+  installments: Array<{
+    date: string;
+    amount: number;
+    occurrenceNumber: number;
+    paid: boolean;
+    principalAmount: number | null;
+    interestAmount: number | null;
+    feeAmount: number | null;
+  }> | null;
+  /** Present only when a credit schedule contains audited principal/fee splits. */
+  creditSummary: {
+    principalTotal: number;
+    principalPaid: number;
+    principalRemaining: number;
+    interestTotal: number;
+    interestPaid: number;
+    interestRemaining: number;
+    feeTotal: number;
+    feePaid: number;
+    feeRemaining: number;
+  } | null;
 };
 
 export type ExpectedIncomeView = {
@@ -1751,9 +1771,74 @@ export type Analytics = {
   topCategory: { name: string; amount: number; share: number } | null;
   fastestGrowing: { name: string; changePct: number; change: number } | null;
   recurringTotal: number;
+  /** Cash-only movements that are deliberately outside income/expense. */
+  balanceMovements: BalanceMovements;
   anomalies: Array<{ id: number; name: string; amount: number; date: string; ratio: number }>;
   insights: Insight[];
 };
+
+export type BalanceMovements = {
+  debtBorrowed: number;
+  debtLent: number;
+  debtRepaid: number;
+  debtRecovered: number;
+  /** Principal repayment changes balance, but is not consumption spending. */
+  creditPrincipalPaid: number;
+  /** Kept explicit so the balance-movement card can disclose true cost. */
+  creditInterestAndFees: number;
+};
+
+const EMPTY_BALANCE_MOVEMENTS: BalanceMovements = {
+  debtBorrowed: 0,
+  debtLent: 0,
+  debtRepaid: 0,
+  debtRecovered: 0,
+  creditPrincipalPaid: 0,
+  creditInterestAndFees: 0,
+};
+
+/**
+ * Classify completed ledger rows without ever relabelling principal as revenue
+ * or consumption. The output is intentionally a separate reporting axis: it
+ * explains why balance changed while preserving clean income/expense metrics.
+ */
+export function buildBalanceMovements(params: {
+  transactions: Array<{
+    date: string;
+    type: string;
+    amount: number;
+    debtId?: number | null;
+    debtPaymentId?: number | null;
+    creditPrincipalAmount?: number | null;
+    creditInterestAmount?: number | null;
+    creditFeeAmount?: number | null;
+    isDeleted?: boolean;
+  }>;
+  month: string;
+  today?: string;
+}): BalanceMovements {
+  const today = params.today ?? todayISO();
+  const result = { ...EMPTY_BALANCE_MOVEMENTS };
+  for (const tx of params.transactions) {
+    if (tx.isDeleted || tx.date > today || !tx.date.startsWith(params.month)) continue;
+    if (tx.debtId) {
+      if (tx.debtPaymentId) {
+        if (tx.type === "expense") result.debtRepaid += tx.amount;
+        else if (tx.type === "income") result.debtRecovered += tx.amount;
+      } else if (tx.type === "income") result.debtBorrowed += tx.amount;
+      else if (tx.type === "expense") result.debtLent += tx.amount;
+      continue;
+    }
+    if (tx.type === "expense" && tx.creditPrincipalAmount !== null && tx.creditPrincipalAmount !== undefined) {
+      const principal = Math.max(0, Math.min(tx.amount, tx.creditPrincipalAmount));
+      result.creditPrincipalPaid += principal;
+      // Imported allocations are authoritative. For an older repaired row
+      // where only principal is known, the remainder correctly stays zero.
+      result.creditInterestAndFees += Math.max(0, tx.amount - principal);
+    }
+  }
+  return Object.fromEntries(Object.entries(result).map(([key, value]) => [key, round2(value)])) as BalanceMovements;
+}
 
 export type Insight = {
   icon: string;
@@ -2014,6 +2099,7 @@ export function buildAnalytics(params: {
     topCategory,
     fastestGrowing: fastest ? { name: fastest.name, changePct: fastest.changePct, change: fastest.change } : null,
     recurringTotal: round2(params.recurringBase),
+    balanceMovements: { ...EMPTY_BALANCE_MOVEMENTS },
     anomalies: anomalies.slice(0, 5),
     insights,
   };

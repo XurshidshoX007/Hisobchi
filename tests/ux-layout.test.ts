@@ -167,7 +167,8 @@ test("History edit action renders a standard-oriented SVG pencil, not a text gly
   assert.match(icons, /strokeLinecap="round"/);
   assert.match(icons, /strokeLinejoin="round"/);
   assert.match(icons, /aria-hidden="true"/);
-  assert.match(history, /aria-label=\{transaction\.debtId \? "Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi" : "Tahrirlash"\}/);
+  assert.match(history, /Qarz operatsiyasi Qarzdorlik bo‘limidan boshqariladi/);
+  assert.match(history, /Kredit to‘lovi Kredit rejasidan boshqariladi/);
   // No mirroring tricks anywhere around it — orientation is drawn, not flipped.
   assert.doesNotMatch(history, /scaleX\(|-scale-x-|rotate-180|direction:\s*rtl/);
 });

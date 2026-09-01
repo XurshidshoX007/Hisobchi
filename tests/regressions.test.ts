@@ -790,6 +790,6 @@ test("debt ledger rows are linked and managed from the debt module", () => {
   assert.match(mutations, /Qarzga bog'langan operatsiyani Qarzdorlik bo'limidan boshqaring/);
   assert.match(mutations, /Qarz va uning boshlang'ich operatsiyasi bekor qilindi/);
   assert.match(history, /transaction\.debtId \? <Badge/);
-  assert.match(history, /disabled=\{Boolean\(transaction\.debtId\)\}/);
+  assert.match(history, /disabled=\{Boolean\(transaction\.debtId \|\| transaction\.creditPrincipalAmount !== null\)\}/);
   assert.match(debtsPage, /mutate\("debt", "cancel"/);
 });
