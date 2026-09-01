@@ -522,6 +522,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
           date: c.date,
           amount: c.amount,
           occurrenceNumber: c.occurrenceNumber,
+          settledOnImport: c.settledOnImport,
         })) ?? undefined,
     })),
     incomes: incomeRows.map((i) => ({

@@ -717,7 +717,17 @@ type RecurringLike = {
    * `term` plan, the forecast uses these exact occurrences instead of a
    * generated monthly cadence.
    */
-  installments?: Array<{ date: string; amount: number; occurrenceNumber: number }> | null;
+  installments?: Array<{
+    date: string;
+    amount: number;
+    occurrenceNumber: number;
+    /**
+     * Historical rows explicitly confirmed as paid while importing a credit.
+     * They have no ledger transaction by design, so the forecast must exclude
+     * them independently of transaction reconciliation.
+     */
+    settledOnImport?: boolean;
+  }> | null;
 };
 
 type ReconciliationTx = {
@@ -813,6 +823,10 @@ export function buildPlanned(
     // nor annualize it (§21/§22/§23). Each unpaid installment is counted once.
     if (r.planType === "term" && r.installments && r.installments.length) {
       for (const inst of r.installments) {
+        // Imported historical installments are opening state, not a future
+        // obligation. Without this guard they were re-added on day 0 and
+        // inflated cash-flow/risk figures despite showing as paid in Plans.
+        if (inst.settledOnImport) continue;
         if (inst.date > horizonEnd) continue;
         const fulfilled = transactions.some(
           (t) => !t.isDeleted && t.type === "expense" && t.recurringId === r.id && (t.plannedDate ?? t.date) === inst.date,

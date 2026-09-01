@@ -76,6 +76,21 @@ test("forecast counts each installment exactly once; a paid one is removed", () 
   assert.equal(planned.reduce((s, p) => s + p.base, 0), 660931);
 });
 
+test("historical installments settled during import never re-enter the forecast", () => {
+  const imported = {
+    ...creditPlan,
+    installmentsPaid: 2,
+    nextDueDate: "2026-10-05",
+    installments: creditPlan.installments.map((item, index) => ({
+      ...item,
+      settledOnImport: index < 2,
+    })),
+  };
+  const planned = buildPlanned([imported], [], "2026-09-01", 120, []);
+  assert.deepEqual(planned.map((item) => item.date), ["2026-10-05", "2026-12-07"]);
+  assert.equal(planned.reduce((sum, item) => sum + item.base, 0), 433736);
+});
+
 test("fully-paid credit plan contributes nothing to the forecast", () => {
   const done = { ...creditPlan, installmentsPaid: 4 };
   assert.deepEqual(buildPlanned([done], [], "2026-08-17", 180, []), []);
