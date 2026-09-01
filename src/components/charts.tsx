@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type CSSProperties } from "react";
+import { useId, useRef, useState, type CSSProperties } from "react";
 import { compact, formatAmount, monthLabel, shortDate } from "@/lib/money";
 import { Icon } from "@/components/icon";
 
@@ -329,6 +329,7 @@ export function CategoryDonut({
   onSelect?: (id: number) => void;
 }) {
   const R = 15.9155;
+  const glowId = `donut-glow-${useId().replaceAll(":", "")}`;
   // Each slice starts where the previous one ended, so the offsets are a
   // running total computed up front — no mutation during render.
   const slices = items.reduce<Array<{ id: number | null; name: string; color: string; pct: number; start: number }>>(
@@ -349,6 +350,13 @@ export function CategoryDonut({
       className="shrink-0 -rotate-90"
       aria-label="Xarajat kategoriyalari diagrammasi"
     >
+      <defs>
+        {slices.map((slice, index) => (
+          <filter key={`${slice.id ?? slice.name}-glow`} id={`${glowId}-${index}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="0.65" floodColor={slice.color} floodOpacity="0.55" />
+          </filter>
+        ))}
+      </defs>
       <circle cx="21" cy="21" r={R} fill="none" stroke="var(--surface-3)" strokeWidth="7" />
       {slices.map((slice, index) => (
         <circle
@@ -358,7 +366,7 @@ export function CategoryDonut({
           r={R}
           fill="none"
           stroke={slice.color}
-          strokeWidth="7"
+          strokeWidth={activeId === slice.id ? "7.35" : "7"}
           strokeDasharray={`${slice.pct} ${100 - slice.pct}`}
           /* dashoffset runs backwards along the path, hence the negation. */
           strokeDashoffset={-slice.start}
@@ -367,10 +375,10 @@ export function CategoryDonut({
             "--donut-offset": `${-slice.start}`,
             animationDelay: `${index * 70}ms`,
           } as CSSProperties}
-          /* Active state uses contrast only. SVG drop-shadows can become a
-             bright white halo in Telegram WebView and hide the category color
-             on compact cards. */
-          className={`donut-segment transition-[stroke-dasharray,stroke-dashoffset,opacity] duration-300 ease-out ${
+          /* The filter has an explicit flood color, unlike `currentColor`.
+             That keeps the active accent vivid without a white WebView halo. */
+          filter={activeId === slice.id ? `url(#${glowId}-${index})` : undefined}
+          className={`donut-segment transition-[stroke-dasharray,stroke-dashoffset,stroke-width,opacity] duration-300 ease-out ${
             slice.id !== null ? "cursor-pointer focus:outline-none" : ""
           } ${activeId !== null && activeId !== slice.id ? "opacity-35" : "opacity-100"}`}
           role={slice.id !== null ? "button" : undefined}
