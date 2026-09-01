@@ -124,10 +124,10 @@ export function parseCategoryPickCallback(data: string): { draftId: number; cate
   return { draftId, categoryId };
 }
 
-/** Payment schedule callbacks: `schedule:<batchId>:confirm` or `schedule:<batchId>:cancel`. */
-export function parseScheduleCallback(data: string): { batchId: string; action: "confirm" | "cancel" } | null {
+/** Payment schedule callbacks; `confirm-past` records only the imported opening state. */
+export function parseScheduleCallback(data: string): { batchId: string; action: "confirm" | "confirm-past" | "cancel" } | null {
   if (data.length > 64) return null;
-  const match = data.match(/^schedule:([a-zA-Z0-9_-]{4,64}):(confirm|cancel)$/);
+  const match = data.match(/^schedule:([a-zA-Z0-9_-]{4,64}):(confirm|confirm-past|cancel)$/);
   if (!match) return null;
-  return { batchId: match[1], action: match[2] as "confirm" | "cancel" };
+  return { batchId: match[1], action: match[2] as "confirm" | "confirm-past" | "cancel" };
 }

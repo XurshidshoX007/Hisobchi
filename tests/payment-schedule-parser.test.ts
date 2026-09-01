@@ -311,6 +311,7 @@ test("single installment is not schedule ok", () => {
 
 test("schedule callback parse", () => {
   assert.deepEqual(parseScheduleCallback("schedule:abc123:confirm"), { batchId: "abc123", action: "confirm" });
+  assert.deepEqual(parseScheduleCallback("schedule:abc123:confirm-past"), { batchId: "abc123", action: "confirm-past" });
   assert.deepEqual(parseScheduleCallback("schedule:abc123:cancel"), { batchId: "abc123", action: "cancel" });
   assert.equal(parseScheduleCallback("schedule:ab:confirm"), null);
   assert.equal(parseScheduleCallback("schedule:" + "x".repeat(70) + ":confirm"), null);

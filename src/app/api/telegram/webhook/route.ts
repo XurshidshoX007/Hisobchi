@@ -24,8 +24,7 @@ import type { ImageDraft } from "@/lib/image/types";
 import { appUrl, demoModeEnabled, isProduction, telegramWebhookSecret } from "@/lib/env";
 import { writeAudit, writeSecurityEvent } from "@/lib/audit";
 import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from "@/lib/security";
-import { shortDate } from "@/lib/money";
-import { formatAmount } from "@/lib/money";
+import { formatAmount, shortDate, todayISO } from "@/lib/money";
 import { downloadCreditDocument, extractCreditDocumentText, parseCreditDocumentText } from "@/lib/credit-document";
 import { classifyWebhookFailure } from "@/lib/webhook-failure";
 import { PayloadTooLargeError, readJsonBody } from "@/lib/request-body";
@@ -37,6 +36,13 @@ function secretMatches(supplied: string | null, expected: string): boolean {
   const left = Buffer.from(supplied);
   const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function scheduleImportKeyboard(batchId: string, items: Array<{ date: string }>): Array<Array<{ text: string; callback_data: string }>> {
+  const pastCount = items.filter((item) => item.date < todayISO()).length;
+  const rows: Array<Array<{ text: string; callback_data: string }>> = [[{ text: BUTTON.confirmAll, callback_data: `schedule:${batchId}:confirm` }, { text: BUTTON.cancel, callback_data: `schedule:${batchId}:cancel` }]];
+  if (pastCount) rows.unshift([{ text: `O‘tgan ${pastCount} ta to‘lov to‘langan`, callback_data: `schedule:${batchId}:confirm-past` }]);
+  return rows;
 }
 
 async function writeSampledPreAuthEvent(params: {
@@ -539,6 +545,7 @@ export async function POST(request: Request) {
                     installments: payload.items,
                     isMandatory: true,
                     creditMode: payload.items.every((item) => item.principalAmount !== undefined && item.interestAmount !== undefined && item.feeAmount !== undefined),
+                    settlePastInstallments: action === "confirm-past",
                   });
                 } catch (error) {
                   await db
@@ -565,7 +572,7 @@ export async function POST(request: Request) {
                     .set({ status: "confirmed", resolvedAt: new Date() })
                     .where(and(eq(pendingDrafts.id, scheduleRow.id), eq(pendingDrafts.userId, user.id), eq(pendingDrafts.status, "processing")));
                   const total = payload.totalAmount ?? payload.items.reduce((s, i) => s + i.amount, 0);
-                  const nearest = [...payload.items].sort((a, b) => a.date.localeCompare(b.date))[0];
+                  const nearest = [...payload.items].sort((a, b) => a.date.localeCompare(b.date)).find((item) => action !== "confirm-past" || item.date >= todayISO()) ?? payload.items[payload.items.length - 1];
                   ack = SCHEDULE.savedShort;
                   // Send success details as follow-up message (ack is callback answer, details via sendMessage later)
                   // Store details for later send
@@ -578,7 +585,7 @@ export async function POST(request: Request) {
                     outcome: "success",
                     requestId: sec.requestId,
                     ipHash: sec.ipKey,
-                    metadata: { batchId, count: payload.items.length, planId: created.id ?? null },
+                    metadata: { batchId, count: payload.items.length, planId: created.id ?? null, settledPastCount: action === "confirm-past" ? payload.items.filter((item) => item.date < todayISO()).length : 0 },
                   });
                 }
               }
@@ -787,7 +794,7 @@ export async function POST(request: Request) {
         await callTelegram("sendMessage", {
           chat_id: chatId,
           text: ["📋 Kredit jadvali topildi", "", schedule.name, `${schedule.items.length} ta to‘lov · jami ${formatAmount(schedule.totalAmount)} so‘m`, `Asosiy qism: ${formatAmount(principal)} so‘m`, `Foiz va komissiya: ${formatAmount(fees)} so‘m`, "", "Saqlashdan oldin hammasini tekshiring."].join("\n"),
-          reply_markup: { inline_keyboard: [[{ text: BUTTON.confirmAll, callback_data: `schedule:${batchId}:confirm` }, { text: BUTTON.cancel, callback_data: `schedule:${batchId}:cancel` }]] },
+          reply_markup: { inline_keyboard: scheduleImportKeyboard(batchId, schedule.items) },
         });
         return NextResponse.json({ ok: true });
       }
@@ -907,14 +914,7 @@ export async function POST(request: Request) {
       await callTelegram("sendMessage", {
         chat_id: chatId,
         text: reply.text,
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: BUTTON.confirmAll, callback_data: `schedule:${batchId}:confirm` },
-              { text: BUTTON.cancel, callback_data: `schedule:${batchId}:cancel` },
-            ],
-          ],
-        },
+        reply_markup: { inline_keyboard: scheduleImportKeyboard(batchId, schedule.items) },
       });
       return NextResponse.json({ ok: true });
     }

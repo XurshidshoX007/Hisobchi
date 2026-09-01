@@ -359,7 +359,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
                         eq(transactions.isDeleted, false),
                       ),
                     );
-                  const paidDates = new Set(paidRows.map((t) => t.plannedDate ?? t.date));
+                  const paidDates = new Set([...creditRows.filter((row) => row.settledOnImport).map((row) => row.date), ...paidRows.map((t) => t.plannedDate ?? t.date)]);
                   paidDates.delete(plannedDate);
                   await tx
                     .update(recurringExpenses)
@@ -743,7 +743,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
               .select({ plannedDate: transactions.plannedDate, date: transactions.date })
               .from(transactions)
               .where(and(eq(transactions.recurringId, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)));
-            const paidDates = new Set(paidRows.map((t) => t.plannedDate ?? t.date));
+            const paidDates = new Set([...creditRows.filter((row) => row.settledOnImport).map((row) => row.date), ...paidRows.map((t) => t.plannedDate ?? t.date)]);
             const next = creditRows.find((i) => !paidDates.has(i.date));
             if (!next) return { ok: false, message: "Bu to'lov muddati allaqachon tugagan" };
             const installmentAmount = next.amount;
@@ -911,7 +911,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
                 .select({ plannedDate: transactions.plannedDate, date: transactions.date })
                 .from(transactions)
                 .where(and(eq(transactions.recurringId, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)));
-              const paidDates = new Set(paidRows.map((t) => t.plannedDate ?? t.date));
+              const paidDates = new Set([...creditRows.filter((row) => row.settledOnImport).map((row) => row.date), ...paidRows.map((t) => t.plannedDate ?? t.date)]);
               const next = creditRows.find((i) => !paidDates.has(i.date));
               schedule = { isActive: true, status: "active", nextDueDate: next?.date ?? creditRows[creditRows.length - 1].date };
             } else {
@@ -1765,6 +1765,8 @@ export async function createCreditTermPlan(
     accountId?: number | null;
     /** New imports supply this breakdown; legacy free-text schedules do not. */
     creditMode?: boolean;
+    /** Explicit user choice: past scheduled rows were settled before import. */
+    settlePastInstallments?: boolean;
   },
 ): Promise<{ ok: boolean; message: string; id?: number }> {
   const userId = user.id;
@@ -1812,6 +1814,10 @@ export async function createCreditTermPlan(
   const total = items.reduce((sum, it) => sum + it.amount, 0);
   const average = roundMoney(total / items.length);
   const first = items[0];
+  const settledBeforeImport = input.settlePastInstallments === true ? new Set(items.filter((item) => item.date < todayISO()).map((item) => item.date)) : new Set<string>();
+  const firstOpen = items.find((item) => !settledBeforeImport.has(item.date));
+  const importedPaidCount = settledBeforeImport.size;
+  const completedOnImport = importedPaidCount >= items.length;
   const dueDay = Math.min(28, Math.max(1, Number(first.date.slice(8, 10)) || 1));
   const isMandatory = input.isMandatory !== false;
 
@@ -1830,13 +1836,13 @@ export async function createCreditTermPlan(
         frequency: "monthly",
         isMandatory,
         certainty: "exact",
-        nextDueDate: first.date,
+        nextDueDate: firstOpen?.date ?? items[items.length - 1].date,
         startDate: first.date,
         planType: "term",
         installmentCount: items.length,
-        installmentsPaid: 0,
-        status: "active",
-        isActive: true,
+        installmentsPaid: importedPaidCount,
+        status: completedOnImport ? "completed" : "active",
+        isActive: !completedOnImport,
         reminderDaysBefore: 1,
         creditMode,
       })
@@ -1851,6 +1857,7 @@ export async function createCreditTermPlan(
         principalAmount: it.principalAmount,
         interestAmount: it.interestAmount,
         feeAmount: it.feeAmount,
+        settledOnImport: settledBeforeImport.has(it.date),
       })),
     );
     return plan;

@@ -1,0 +1,1 @@
+ALTER TABLE "credit_installments" ADD COLUMN "settled_on_import" boolean DEFAULT false NOT NULL;

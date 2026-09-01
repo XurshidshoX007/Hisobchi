@@ -261,7 +261,8 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     const paidDates = new Set(planPayments.map((t) => t.plannedDate ?? t.date));
 
     // Credit schedule: a term plan whose installments are stored explicitly
-    // (irregular dates + amounts). `paid` is derived from the real payments.
+    // (irregular dates + amounts). A historical opening state from an import
+    // is allowed, but it never creates a fictitious ledger transaction.
     const creditRows = creditByPlan.get(r.id) ?? [];
     const installments =
       planType === "term" && creditRows.length
@@ -269,7 +270,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
             date: c.date,
             amount: c.amount,
             occurrenceNumber: c.occurrenceNumber,
-            paid: paidDates.has(c.date),
+            paid: paidDates.has(c.date) || c.settledOnImport,
           }))
         : null;
 

@@ -262,11 +262,12 @@ export const recurringExpenses = pgTable(
  * 5 okt …). Rows are schedule occurrences, NOT plans: the Mini App renders a
  * single card with a progress bar, never one card per installment.
  *
- * The `paid` state is deliberately NOT stored here — it is derived from the
- * real transactions that fulfil each occurrence (`transactions.recurring_id`
- * + `planned_date`), the same reconciliation rule the whole product already
- * uses. Deleting a payment from History therefore un-pays exactly that
- * installment without a second source of truth to keep in sync.
+ * The `paid` state normally comes from real transactions that fulfil each
+ * occurrence (`transactions.recurring_id` + `planned_date`). A bank schedule
+ * may be imported after several historical installments were already paid
+ * outside Hisobchi; `settledOnImport` records that opening state without
+ * fabricating historical cash movements. Later payments always use the real
+ * transaction reconciliation path.
  */
 export const creditInstallments = pgTable(
   "credit_installments",
@@ -284,6 +285,7 @@ export const creditInstallments = pgTable(
     principalAmount: money("principal_amount"),
     interestAmount: money("interest_amount"),
     feeAmount: money("fee_amount"),
+    settledOnImport: boolean("settled_on_import").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
