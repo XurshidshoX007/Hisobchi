@@ -65,6 +65,7 @@ export function CashflowAnalysis() {
   const outflow = isPast && monthlyView ? monthlyView.realExpense : isPast ? completedOperational.expense : days.reduce((sum, day) => sum + day.outflow, 0);
   const mandatory = isPast ? 0 : items.filter((item) => item.kind === "expense" && item.mandatory).reduce((sum, item) => sum + item.base, 0);
   const expectedIncome = isPast ? 0 : items.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.base, 0);
+  const plannedPayments = isPast ? 0 : items.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.base, 0);
   const chartData = days.map((day) => ({ ...day, actual: isPast || day.date <= today }));
   const isCurrent = cashMonth === current;
   const previousMonth = monthKey(addMonths(monthStart(cashMonth), -1));
@@ -160,7 +161,17 @@ export function CashflowAnalysis() {
           {movements.creditPrincipalPaid > 0 ? <MovementRow label="Kredit qarzining asosiy qismi" value={-movements.creditPrincipalPaid} hint="balans kamayadi, xarajat emas" /> : null}
           <MovementRow label="Balansdagi o‘zgarish" value={balanceMovementNet} strong final />
         </div>
-        {!isPast ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2.5"><div className="min-w-0"><p className="text-[12px] font-semibold">Oy oxirigacha kutilgan o‘zgarish</p><p className="mt-0.5 text-[10.5px] text-muted">Rejadagi kirim va to‘lovlar hisobida</p></div><span className={`num shrink-0 text-[13px] font-bold ${forecastBalanceNet > 0 ? "text-positive-text" : forecastBalanceNet < 0 ? "text-negative-text" : "text-fg-soft"}`}>{forecastBalanceNet > 0 ? "+" : forecastBalanceNet < 0 ? "−" : ""}{formatAmount(Math.abs(forecastBalanceNet))}</span></div> : null}
+        {!isPast ? (
+          <div className="mt-3 rounded-xl bg-surface-2 px-3 py-2.5">
+            <p className="text-[12px] font-semibold">Qolgan reja</p>
+            <p className="mt-0.5 text-[10.5px] text-muted">Hali bajarilmagan kirim va to‘lovlar</p>
+            <div className="mt-2 divide-y divide-line">
+              {expectedIncome > 0 ? <MovementRow label="Kutilgan kirim" value={expectedIncome} /> : null}
+              {plannedPayments > 0 ? <MovementRow label="Rejalangan to‘lovlar" value={-plannedPayments} /> : null}
+              <MovementRow label="Oy oxirigacha kutilgan o‘zgarish" value={forecastBalanceNet} strong final />
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card>
