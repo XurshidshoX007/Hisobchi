@@ -15,14 +15,16 @@ export function parseCreditCommand(text: string): { schedule: PaymentSchedule | 
   if (lines.length < 3) return { schedule: null, error: null };
   const name = lines[0].slice(0, 120);
   const items: ScheduleItem[] = [];
-  for (const [offset, line] of lines.slice(1).entries()) {
-    const values = line.split("|").map((value) => value.trim().replace(/\s/g, "").replace(",", "."));
+  const rows = lines.slice(1).filter((line) => !/^sana\s*[|│]/i.test(line));
+  if (rows.length < 2) return { schedule: null, error: "Kamida 2 ta to‘lov qatori kerak." };
+  for (const [offset, line] of rows.entries()) {
+    const values = line.split(/[|│]/).map((value) => value.trim());
     if (values.length < 4 || values.length > 5 || !/^\d{4}-\d{2}-\d{2}$/.test(values[0])) {
       return { schedule: null, error: "Har qator: sana | jami | asosiy qism | foiz | komissiya bo‘lishi kerak." };
     }
     const date = new Date(`${values[0]}T00:00:00Z`);
     if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== values[0]) return { schedule: null, error: `${offset + 1}-to‘lov sanasi noto‘g‘ri.` };
-    const nums = values.slice(1).map(Number);
+    const nums = values.slice(1).map(parseImportAmount);
     if (nums.some((value) => !Number.isFinite(value) || value < 0)) return { schedule: null, error: `${offset + 1}-to‘lov summasi noto‘g‘ri.` };
     const [amount, principalAmount, interestAmount, feeAmount = 0] = nums;
     if (amount <= 0 || roundMoney(principalAmount + interestAmount + feeAmount) !== roundMoney(amount)) {
@@ -33,6 +35,18 @@ export function parseCreditCommand(text: string): { schedule: PaymentSchedule | 
   if (new Set(items.map((item) => item.date)).size !== items.length) return { schedule: null, error: "Bir sana ikki marta berilgan." };
   items.sort((a, b) => a.date.localeCompare(b.date));
   return { schedule: { type: "payment-schedule", name, items, totalAmount: roundMoney(items.reduce((sum, item) => sum + item.amount, 0)), rawInput: text }, error: null };
+}
+
+function parseImportAmount(raw: string): number {
+  const value = raw.replace(/[\s\u00a0]/g, "");
+  if (!value) return Number.NaN;
+  const lastComma = value.lastIndexOf(",");
+  const lastDot = value.lastIndexOf(".");
+  const decimalAt = Math.max(lastComma, lastDot);
+  if (decimalAt === -1) return Number(value.replace(/[.,]/g, ""));
+  const whole = value.slice(0, decimalAt).replace(/[.,]/g, "");
+  const fraction = value.slice(decimalAt + 1);
+  return /^\d+$/.test(whole) && /^\d{1,2}$/.test(fraction) ? Number(`${whole}.${fraction}`) : Number.NaN;
 }
 
 export const CREDIT_COMMAND_HELP = [

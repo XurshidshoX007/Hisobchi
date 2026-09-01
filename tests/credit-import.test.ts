@@ -17,3 +17,13 @@ test("/kredit rejects an allocation that would distort reports", () => {
 2026-10-07 | 1000 | 900 | 100 | 0`);
   assert.match(result.error ?? "", /teng/);
 });
+
+test("/kredit accepts copied table headers, Unicode columns and human money formatting", () => {
+  const result = parseCreditCommand(`/kredit Uzum Bank
+Sana │ Jami │ Asosiy qism │ Foiz │ Komissiya
+2026-09-07 │ 2 358 493,53 │ 2 061 808,60 │ 296 684,93 │ 0
+2026-10-07 │ 2,358,493.53 │ 2,179,749.93 │ 178,743.60 │ 0`);
+  assert.equal(result.error, null);
+  assert.equal(result.schedule?.items.length, 2);
+  assert.equal(result.schedule?.items[1].amount, 2358493.53);
+});
