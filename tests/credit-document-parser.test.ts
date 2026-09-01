@@ -14,6 +14,13 @@ test("local document parser never guesses a broken allocation", () => {
   assert.equal(parseCreditDocumentText(`07.09.2026 | 1000 | 800 | 50\n07.10.2026 | 1000 | 800 | 50`), null);
 });
 
+test("local document parser accepts reordered bank columns and split PDF rows", () => {
+  const schedule = parseCreditDocumentText(`To'lov jadvali\n07.09.2026\n2 061 808,60\n296 684,93\n2 358 493,53\n12 000 000\n07.10.2026 | 2 179 749,93 | 178 743,60 | 2 358 493,53 | 9 820 250,07`);
+  assert.equal(schedule?.items.length, 2);
+  assert.equal(schedule?.items[0].amount, 2358493.53);
+  assert.equal(schedule?.items[0].principalAmount, 2061808.6);
+});
+
 test("extracts CSV, Word and Excel table text locally", async () => {
   const csv = await extractCreditDocumentText(Buffer.from("07.09.2026,1000,900,100,0"), "jadval.csv");
   assert.match(csv ?? "", /07\.09\.2026/);

@@ -754,7 +754,23 @@ export async function POST(request: Request) {
         { fileId: document!.file_id, fileName: document!.file_name, mimeType: document!.mime_type },
         { requestId: sec.requestId, userId: user.id },
       );
-      const extracted = raw ? await extractCreditDocumentText(raw, document!.file_name, document!.mime_type) : null;
+      if (!raw) {
+        await callTelegram("sendMessage", {
+          chat_id: chatId,
+          text: "📎 Faylni Telegram’dan yuklab bo‘lmadi. Hech narsa saqlanmadi — faylni qayta yuborib ko‘ring.",
+          reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
+        });
+        return NextResponse.json({ ok: true });
+      }
+      const extracted = await extractCreditDocumentText(raw, document!.file_name, document!.mime_type);
+      if (!extracted) {
+        await callTelegram("sendMessage", {
+          chat_id: chatId,
+          text: "📎 Faylning matnli jadvalini o‘qib bo‘lmadi. Hozir faqat matnli PDF, CSV, Excel (.xlsx) va Word (.docx) AI’siz o‘qiladi; skan PDF uchun hech narsa saqlanmadi.",
+          reply_markup: { keyboard: MAIN_MENU, resize_keyboard: true, is_persistent: true },
+        });
+        return NextResponse.json({ ok: true });
+      }
       const schedule = extracted ? parseCreditDocumentText(extracted, document!.file_name ?? "Kredit") : null;
       if (schedule) {
         const batchId = randomBytes(8).toString("hex");

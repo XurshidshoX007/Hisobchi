@@ -125,18 +125,71 @@ function parseDate(value: string): string | null {
   return dot ? `${dot[3]}-${dot[2].padStart(2, "0")}-${dot[1].padStart(2, "0")}` : null;
 }
 
+type Allocation = { amount: number; principalAmount: number; interestAmount: number; feeAmount: number };
+
+/**
+ * A bank may put columns in a different order (or append the remaining debt).
+ * Select a row only when one total reconciles exactly with its components.
+ * Nothing is inferred from a balance column or a row sequence number.
+ */
+function reconcileAllocation(values: number[]): Allocation | null {
+  const candidates = new Map<string, { allocation: Allocation; componentCount: number }>();
+  for (let totalIndex = 0; totalIndex < values.length; totalIndex++) {
+    const amount = values[totalIndex];
+    if (amount <= 0) continue;
+    const componentIndexes = values.map((_, index) => index).filter((index) => index !== totalIndex);
+    for (let first = 0; first < componentIndexes.length; first++) {
+      for (let second = first + 1; second < componentIndexes.length; second++) {
+        const components = [values[componentIndexes[first]], values[componentIndexes[second]]];
+        if (roundMoney(components[0] + components[1]) !== amount) continue;
+        const [principalAmount, interestAmount] = [...components].sort((a, b) => b - a);
+        const allocation = { amount, principalAmount, interestAmount, feeAmount: 0 };
+        candidates.set(`${amount}|${principalAmount}|${interestAmount}|0`, { allocation, componentCount: 2 });
+        for (let third = second + 1; third < componentIndexes.length; third++) {
+          const three = [...components, values[componentIndexes[third]]];
+          if (roundMoney(three[0] + three[1] + three[2]) !== amount) continue;
+          const [principalAmount, interestAmount, feeAmount] = [...three].sort((a, b) => b - a);
+          const withFee = { amount, principalAmount, interestAmount, feeAmount };
+          candidates.set(`${amount}|${principalAmount}|${interestAmount}|${feeAmount}`, { allocation: withFee, componentCount: 3 });
+        }
+      }
+    }
+  }
+  if (!candidates.size) return null;
+  const maxComponentCount = Math.max(...[...candidates.values()].map((candidate) => candidate.componentCount));
+  const best = [...candidates.values()].filter((candidate) => candidate.componentCount === maxComponentCount);
+  return best.length === 1 ? best[0].allocation : null;
+}
+
+function scheduleRows(text: string): string[] {
+  const rows: string[] = [];
+  let row = "";
+  for (const sourceLine of text.split(/\r?\n/)) {
+    const line = sourceLine.trim();
+    if (!line) continue;
+    if (parseDate(line)) {
+      if (row) rows.push(row);
+      row = line;
+    } else if (row) {
+      // PDF text extractors sometimes place adjacent cells on separate lines.
+      row += ` | ${line}`;
+    }
+  }
+  if (row) rows.push(row);
+  return rows;
+}
+
 /** Extract only rows whose three components reconcile exactly; never guess. */
 export function parseCreditDocumentText(text: string, name = "Kredit"): PaymentSchedule | null {
   const items: ScheduleItem[] = [];
-  for (const line of text.split(/\r?\n/)) {
+  for (const line of scheduleRows(text)) {
     const date = parseDate(line);
     if (!date) continue;
     const withoutDate = line.replace(/\b(?:20\d{2})[-/.]\d{1,2}[-/.]\d{1,2}\b|\b\d{1,2}[./-]\d{1,2}[./-]20\d{2}\b/, " ");
     const values = [...withoutDate.matchAll(/\d[\d\s.,]*/g)].map((match) => parseMoney(match[0])).filter((value): value is number => value !== null);
-    if (values.length < 3) continue;
-    const [amount, principalAmount, interestAmount, feeAmount = 0] = values;
-    if (amount <= 0 || roundMoney(principalAmount + interestAmount + feeAmount) !== amount) continue;
-    items.push({ index: items.length + 1, date, amount, principalAmount, interestAmount, feeAmount, rawSegment: line });
+    const allocation = reconcileAllocation(values);
+    if (!allocation) continue;
+    items.push({ index: items.length + 1, date, ...allocation, rawSegment: line });
   }
   if (items.length < 2 || new Set(items.map((item) => item.date)).size !== items.length) return null;
   items.sort((a, b) => a.date.localeCompare(b.date));
