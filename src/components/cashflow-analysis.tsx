@@ -82,8 +82,10 @@ export function CashflowAnalysis() {
   const categories = state.analytics.categories.filter((category) => category.amount > 0).slice(0, 5);
   const movements = buildBalanceMovements({ transactions: state.transactions, month: cashMonth, today });
   const debtNet = movements.debtBorrowed - movements.debtLent + movements.debtRecovered - movements.debtRepaid;
-  const actualOperationalNet = completedOperational.income - completedOperational.expense;
-  const balanceMovementNet = actualOperationalNet + debtNet - movements.creditPrincipalPaid;
+  // Show the parts separately so interest is never mistaken for a second
+  // deduction after it has already been included in a generic expense total.
+  const everydayExpense = Math.max(0, completedOperational.expense - movements.creditInterestAndFees);
+  const balanceMovementNet = completedOperational.income - everydayExpense - movements.creditInterestAndFees + debtNet - movements.creditPrincipalPaid;
   const forecastBalanceNet = closing - opening;
   const completedTransactionCount = state.transactions.filter((transaction) => !transaction.isDeleted).length;
 
@@ -142,23 +144,23 @@ export function CashflowAnalysis() {
       <Card>
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
-            <p className="text-[15px] font-semibold">Haqiqiy balans harakati</p>
-            <p className="mt-0.5 text-[11.5px] text-muted">{monthLabel} · faqat bajarilgan tranzaksiyalar</p>
+            <p className="text-[15px] font-semibold">Shu oygacha</p>
+            <p className="mt-0.5 text-[11.5px] text-muted">{monthLabel} · bajarilgan operatsiyalar</p>
           </div>
           <Link href="/plans" className="shrink-0 text-[12px] font-semibold text-accent-text">Kreditlar →</Link>
         </div>
         <div className="divide-y divide-line">
-          <MovementRow label="Haqiqiy operatsion natija" value={actualOperationalNet} strong />
+          {completedOperational.income > 0 ? <MovementRow label="Daromad" value={completedOperational.income} /> : null}
+          {everydayExpense > 0 ? <MovementRow label="Kundalik xarajatlar" value={-everydayExpense} /> : null}
           {movements.debtBorrowed > 0 ? <MovementRow label="Qarz olindi" value={movements.debtBorrowed} /> : null}
           {movements.debtLent > 0 ? <MovementRow label="Qarz berildi" value={-movements.debtLent} /> : null}
           {movements.debtRecovered > 0 ? <MovementRow label="Qarz qaytdi" value={movements.debtRecovered} /> : null}
           {movements.debtRepaid > 0 ? <MovementRow label="Qarz to‘landi" value={-movements.debtRepaid} /> : null}
-          {movements.creditPrincipalPaid > 0 ? <MovementRow label="Kredit asosiy qismi" value={-movements.creditPrincipalPaid} /> : null}
-          {movements.creditInterestAndFees > 0 ? <MovementRow label="Foiz va komissiya" value={-movements.creditInterestAndFees} hint="xarajatga kiritilgan" /> : null}
-          <MovementRow label="Haqiqiy sof o‘zgarish" value={balanceMovementNet} strong final />
+          {movements.creditInterestAndFees > 0 ? <MovementRow label="Kredit foizi va komissiyasi" value={-movements.creditInterestAndFees} hint="xarajat sifatida hisoblandi" /> : null}
+          {movements.creditPrincipalPaid > 0 ? <MovementRow label="Kredit qarzining asosiy qismi" value={-movements.creditPrincipalPaid} hint="balans kamayadi, xarajat emas" /> : null}
+          <MovementRow label="Balansdagi o‘zgarish" value={balanceMovementNet} strong final />
         </div>
-        {!isPast ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2.5"><div className="min-w-0"><p className="text-[12px] font-semibold">Oy yakuni prognozi</p><p className="mt-0.5 text-[10.5px] text-muted">Kutilgan kirim va chiqimlar bilan</p></div><span className={`num shrink-0 text-[13px] font-bold ${forecastBalanceNet > 0 ? "text-positive-text" : forecastBalanceNet < 0 ? "text-negative-text" : "text-fg-soft"}`}>{forecastBalanceNet > 0 ? "+" : forecastBalanceNet < 0 ? "−" : ""}{formatAmount(Math.abs(forecastBalanceNet))}</span></div> : null}
-        <p className="mt-3 text-[11px] leading-relaxed text-muted">Asosiy qarz to‘lovi pulni kamaytiradi, ammo xarajatlar diagrammasiga kirmaydi.</p>
+        {!isPast ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2.5"><div className="min-w-0"><p className="text-[12px] font-semibold">Oy oxirigacha kutilgan o‘zgarish</p><p className="mt-0.5 text-[10.5px] text-muted">Rejadagi kirim va to‘lovlar hisobida</p></div><span className={`num shrink-0 text-[13px] font-bold ${forecastBalanceNet > 0 ? "text-positive-text" : forecastBalanceNet < 0 ? "text-negative-text" : "text-fg-soft"}`}>{forecastBalanceNet > 0 ? "+" : forecastBalanceNet < 0 ? "−" : ""}{formatAmount(Math.abs(forecastBalanceNet))}</span></div> : null}
       </Card>
 
       <Card>
