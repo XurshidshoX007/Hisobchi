@@ -597,7 +597,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     today,
   });
 
-  /* ---- monthly finance series (6 months: prev + current + next 4) ---- */
+  /* ---- monthly finance series (12 previous + current + next 4) ---- */
   let monthly: MonthlyView[] = [];
   try {
     const cashTxForMonthly = cashTxRows
@@ -615,7 +615,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       cashflow: forecast.cashflow,
       analytics,
       forecast,
-      monthsBefore: 5,
+      monthsBefore: 12,
       monthsAfter: 4,
     });
   } catch {

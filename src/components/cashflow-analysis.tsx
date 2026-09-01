@@ -7,7 +7,7 @@ import { Icon } from "@/components/icon";
 import { useFinance } from "@/components/providers";
 import { Badge, Card, Label, Skeleton } from "@/components/ui";
 import { addMonths, compact, formatAmount, monthKey, monthStart, shortDate, todayISO } from "@/lib/money";
-import { monthCashflow, monthPlanned } from "@/lib/finance";
+import { buildBalanceMovements, monthCashflow, monthPlanned } from "@/lib/finance";
 import { hasEnoughAnalyticsData } from "@/lib/onboarding";
 
 const NAV_BTN =
@@ -22,27 +22,51 @@ export function CashflowAnalysis() {
   if (!state) return null;
 
   const forecast = state.forecast;
-  const monthLabel = state.monthly?.find((month) => month.monthKey === cashMonth)?.label ?? cashMonth;
+  const monthlyView = state.monthly?.find((month) => month.monthKey === cashMonth);
+  const monthLabel = monthlyView?.label ?? cashMonth;
   const today = forecast.today;
   const current = monthKey(today);
-  const days = monthCashflow(forecast.cashflow, cashMonth);
+  const isPast = cashMonth < current;
+  const forecastDays = monthCashflow(forecast.cashflow, cashMonth);
+  // Historical months use the real ledger only. Forecast rows only exist from
+  // today forward, so reusing them here would make a past balance look empty.
+  const days = isPast && monthlyView
+    ? monthlyView.daily.map((day) => ({
+        date: day.date,
+        inflow: day.realIncome,
+        outflow: day.realExpense,
+        net: day.realIncome - day.realExpense,
+        projectedBase: day.projectedBase,
+        projectedMin: day.projectedMin,
+        projectedMax: day.projectedMax,
+        events: day.events,
+      }))
+    : forecastDays;
   const items = monthPlanned(forecast.planned, cashMonth);
-  const risks = forecast.riskDates.filter((risk) => monthKey(risk.date) === cashMonth);
+  const risks = isPast ? [] : forecast.riskDates.filter((risk) => monthKey(risk.date) === cashMonth);
   const first = days[0];
   const last = days[days.length - 1];
-  const opening = first ? first.projectedBase - first.net : 0;
+  const opening = monthlyView?.openingBalance ?? (first ? first.projectedBase - first.net : 0);
   const closing = last ? last.projectedBase : opening;
-  const inflow = days.reduce((sum, day) => sum + day.inflow, 0);
-  const outflow = days.reduce((sum, day) => sum + day.outflow, 0);
-  const mandatory = items.filter((item) => item.kind === "expense" && item.mandatory).reduce((sum, item) => sum + item.base, 0);
-  const expectedIncome = items.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.base, 0);
-  const chartData = days.map((day) => ({ ...day, actual: day.date <= today }));
+  // Income/expense reporting remains clean: loan and debt principal affect the
+  // cash line above, but are intentionally excluded from these two metrics.
+  const inflow = isPast && monthlyView ? monthlyView.realIncome : days.reduce((sum, day) => sum + day.inflow, 0);
+  const outflow = isPast && monthlyView ? monthlyView.realExpense : days.reduce((sum, day) => sum + day.outflow, 0);
+  const mandatory = isPast ? 0 : items.filter((item) => item.kind === "expense" && item.mandatory).reduce((sum, item) => sum + item.base, 0);
+  const expectedIncome = isPast ? 0 : items.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.base, 0);
+  const chartData = days.map((day) => ({ ...day, actual: isPast || day.date <= today }));
   const isCurrent = cashMonth === current;
+  const monthKeys = state.monthly?.map((month) => month.monthKey) ?? [];
+  const previousMonth = monthKey(addMonths(monthStart(cashMonth), -1));
+  const nextMonth = monthKey(addMonths(monthStart(cashMonth), 1));
+  const canGoPrevious = monthKeys.includes(previousMonth);
+  const canGoNext = monthKeys.includes(nextMonth);
   const trend = state.analytics.monthly;
   const categories = state.analytics.categories.filter((category) => category.amount > 0).slice(0, 5);
-  const movements = state.analytics.balanceMovements;
+  const movements = buildBalanceMovements({ transactions: state.transactions, month: cashMonth, today });
   const debtNet = movements.debtBorrowed - movements.debtLent + movements.debtRecovered - movements.debtRepaid;
-  const balanceMovementNet = state.analytics.monthTotals.net + debtNet - movements.creditPrincipalPaid;
+  const operationalNet = inflow - outflow;
+  const balanceMovementNet = operationalNet + debtNet - movements.creditPrincipalPaid;
   const completedTransactionCount = state.transactions.filter((transaction) => !transaction.isDeleted).length;
 
   if (!hasEnoughAnalyticsData(state.transactions)) {
@@ -53,14 +77,14 @@ export function CashflowAnalysis() {
     <div className="animate-fade-up mx-auto w-full max-w-3xl space-y-3.5 sm:space-y-4">
       <Card className="space-y-4">
         <div className="flex items-center justify-between gap-2">
-          <button type="button" onClick={() => setCashMonth(monthKey(addMonths(monthStart(cashMonth), -1)))} className={NAV_BTN} aria-label="Oldingi oy" disabled={cashMonth <= current}>
+          <button type="button" onClick={() => setCashMonth(previousMonth)} className={NAV_BTN} aria-label="Oldingi oy" disabled={!canGoPrevious}>
             <Icon name="chevron-left" size={15} />
           </button>
           <div className="min-w-0 text-center">
             <p className="truncate text-[15px] font-semibold">Pul oqimi · {monthLabel}</p>
-            <p className="mt-0.5 text-[11px] text-muted">{isCurrent ? "Joriy oy" : "Kelasi oy"}</p>
+            <p className="mt-0.5 text-[11px] text-muted">{isPast ? "O‘tgan oy" : isCurrent ? "Joriy oy" : "Kelasi oy"}</p>
           </div>
-          <button type="button" onClick={() => setCashMonth(monthKey(addMonths(monthStart(cashMonth), 1)))} className={NAV_BTN} aria-label="Keyingi oy">
+          <button type="button" onClick={() => setCashMonth(nextMonth)} className={NAV_BTN} aria-label="Keyingi oy" disabled={!canGoNext}>
             <Icon name="chevron-right" size={15} />
           </button>
         </div>
@@ -73,17 +97,21 @@ export function CashflowAnalysis() {
               <Metric label="Xarajat" value={`−${formatAmount(outflow)}`} />
               <Metric label="Yopilish" value={formatAmount(closing)} tone={closing < 0 ? "negative" : "warning"} />
             </div>
-            <p className="text-[11px] text-muted">
-              Majburiy <span className="num font-medium text-fg-soft">{compact(mandatory)}</span> · Kutilayotgan daromad{" "}
-              <span className="num font-medium text-fg-soft">{compact(expectedIncome)}</span>
-            </p>
+            {isPast ? (
+              <p className="text-[11px] text-muted">Bu oy yakunlangan — grafik faqat real pul harakatlarini ko‘rsatadi.</p>
+            ) : (
+              <p className="text-[11px] text-muted">
+                Majburiy <span className="num font-medium text-fg-soft">{compact(mandatory)}</span> · Kutilayotgan daromad{" "}
+                <span className="num font-medium text-fg-soft">{compact(expectedIncome)}</span>
+              </p>
+            )}
 
             <div>
               <ForecastArea data={chartData} />
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted">
                 <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 rounded" style={{ background: "var(--fg)" }} /> real</span>
-                <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 rounded border-b border-dashed" style={{ borderColor: "var(--gold)" }} /> prognoz</span>
-                <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--negative)" }} /> xavf</span>
+                {!isPast ? <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 rounded border-b border-dashed" style={{ borderColor: "var(--gold)" }} /> prognoz</span> : null}
+                {!isPast ? <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--negative)" }} /> xavf</span> : null}
               </div>
             </div>
             <div className="overflow-x-auto border-t border-line pt-3"><CashFlowStrip data={days} /></div>
@@ -102,7 +130,7 @@ export function CashflowAnalysis() {
           <Link href="/plans" className="shrink-0 text-[12px] font-semibold text-accent-text">Kreditlar →</Link>
         </div>
         <div className="divide-y divide-line">
-          <MovementRow label="Operatsion natija" value={state.analytics.monthTotals.net} strong />
+          <MovementRow label="Operatsion natija" value={operationalNet} strong />
           {movements.debtBorrowed > 0 ? <MovementRow label="Qarz olindi" value={movements.debtBorrowed} /> : null}
           {movements.debtLent > 0 ? <MovementRow label="Qarz berildi" value={-movements.debtLent} /> : null}
           {movements.debtRecovered > 0 ? <MovementRow label="Qarz qaytdi" value={movements.debtRecovered} /> : null}
@@ -123,7 +151,7 @@ export function CashflowAnalysis() {
             <span className="min-w-0 flex-1 truncate text-[13px] sm:text-[13.5px]">{item.label}</span>
             <Badge tone={item.mandatory ? "negative" : item.kind === "income" ? "positive" : "neutral"}>{item.mandatory ? "Majburiy" : item.kind === "income" ? (item.certainty === "estimated" ? "Taxminiy" : "Aniq") : "Ixtiyoriy"}</Badge>
           </div>
-        ))}</div> : <p className="text-[13px] leading-relaxed text-muted">Rejalashtirilgan to‘lovlar yo‘q.</p>}
+        ))}</div> : <p className="text-[13px] leading-relaxed text-muted">{isPast ? "Bu oy uchun rejalashtirilgan to‘lovlar arxivi yo‘q." : "Rejalashtirilgan to‘lovlar yo‘q."}</p>}
       </Card>
 
       <Card>
@@ -165,7 +193,7 @@ export function CashflowAnalysis() {
         <p className="mb-2 flex items-center gap-2 text-[15px] font-semibold"><Icon name="warning" size={16} className={risks.length ? "shrink-0 text-negative-text" : "shrink-0 text-faint"} />Xavf kunlari · {monthLabel}</p>
         {risks.length ? <><div className="divide-y divide-line">{risks.slice(0, 5).map((risk) => (
           <div key={risk.date} className="flex items-center justify-between gap-3 py-2"><div className="min-w-0"><span className="num text-[12.5px] font-semibold text-negative-text">{shortDate(risk.date)}</span><span className="ml-2 truncate text-[11.5px] text-muted">{risk.cause}</span></div><span className="num shrink-0 text-[12.5px] font-semibold text-negative-text">−{compact(risk.deficit)}</span></div>
-        ))}</div><Link href="/" className="mt-2 inline-block text-[12px] font-semibold text-accent-text">To‘liq izoh → Asosiy</Link></> : <p className="text-[13px] leading-relaxed text-muted">Xavf aniqlanmadi.</p>}
+        ))}</div><Link href="/" className="mt-2 inline-block text-[12px] font-semibold text-accent-text">To‘liq izoh → Asosiy</Link></> : <p className="text-[13px] leading-relaxed text-muted">{isPast ? "Xavf prognozi faqat joriy va kelasi oylar uchun hisoblanadi." : "Xavf aniqlanmadi."}</p>}
       </Card>
     </div>
   );
