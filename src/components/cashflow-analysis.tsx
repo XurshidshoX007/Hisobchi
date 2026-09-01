@@ -17,6 +17,7 @@ const NAV_BTN =
 export function CashflowAnalysis() {
   const { state, loading } = useFinance();
   const [cashMonth, setCashMonth] = useState(() => monthKey(todayISO()));
+  const [movementDetailsOpen, setMovementDetailsOpen] = useState(false);
 
   if (loading && !state) return <Skeleton className="h-96 w-full" />;
   if (!state) return null;
@@ -171,31 +172,48 @@ export function CashflowAnalysis() {
       <Card>
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
-            <p className="text-[15px] font-semibold">Shu oygacha</p>
-            <p className="mt-0.5 text-[11.5px] text-muted">{monthLabel} · bajarilgan operatsiyalar</p>
+            <p className="text-[15px] font-semibold">Oy holati</p>
+            <p className="mt-0.5 text-[11.5px] text-muted">{monthLabel} · real va reja alohida</p>
           </div>
-          <Link href="/plans" className="shrink-0 text-[12px] font-semibold text-accent-text">Kreditlar →</Link>
+          <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[10.5px] font-semibold text-muted">{isPast ? "Yakunlangan" : "Joriy"}</span>
         </div>
-        <div className="divide-y divide-line">
-          {completedOperational.income > 0 ? <MovementRow label="Daromad" value={completedOperational.income} /> : null}
-          {everydayExpense > 0 ? <MovementRow label="Kundalik xarajatlar" value={-everydayExpense} /> : null}
-          {movements.debtBorrowed > 0 ? <MovementRow label="Qarz olindi" value={movements.debtBorrowed} /> : null}
-          {movements.debtLent > 0 ? <MovementRow label="Qarz berildi" value={-movements.debtLent} /> : null}
-          {movements.debtRecovered > 0 ? <MovementRow label="Qarz qaytdi" value={movements.debtRecovered} /> : null}
-          {movements.debtRepaid > 0 ? <MovementRow label="Qarz to‘landi" value={-movements.debtRepaid} /> : null}
-          {movements.creditInterestAndFees > 0 ? <MovementRow label="Kredit foizi va komissiyasi" value={-movements.creditInterestAndFees} hint="xarajat sifatida hisoblandi" /> : null}
-          {movements.creditPrincipalPaid > 0 ? <MovementRow label="Kredit qarzining asosiy qismi" value={-movements.creditPrincipalPaid} hint="balans kamayadi, xarajat emas" /> : null}
-          <MovementRow label="Balansdagi o‘zgarish" value={balanceMovementNet} strong final />
+        <div className={`grid gap-2 ${isPast ? "grid-cols-1" : "grid-cols-2"}`}>
+          <BalanceSnapshot label="Shu paytgacha" value={balanceMovementNet} hint="faqat bajarilgan harakatlar" />
+          {!isPast ? <BalanceSnapshot label="Oy yakuni" value={forecastBalanceNet} hint="qolgan reja bilan prognoz" tone="forecast" /> : null}
         </div>
-        {!isPast ? (
-          <div className="mt-3 rounded-xl bg-surface-2 px-3 py-2.5">
-            <p className="text-[12px] font-semibold">Qolgan reja</p>
-            <p className="mt-0.5 text-[10.5px] text-muted">Hali bajarilmagan kirim va to‘lovlar</p>
-            <div className="mt-2 divide-y divide-line">
-              {expectedIncome > 0 ? <MovementRow label="Kutilgan kirim" value={expectedIncome} /> : null}
-              {plannedPayments > 0 ? <MovementRow label="Rejalangan to‘lovlar" value={-plannedPayments} /> : null}
-              <MovementRow label="Oy oxirigacha kutilgan o‘zgarish" value={forecastBalanceNet} strong final />
+        <button
+          type="button"
+          onClick={() => setMovementDetailsOpen((open) => !open)}
+          aria-expanded={movementDetailsOpen}
+          className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-xl px-2 text-[12px] font-semibold text-accent-text transition-colors hover:bg-accent-soft active:scale-[0.98] touch-manipulation"
+        >
+          {movementDetailsOpen ? "Hisobni yopish" : "Hisob qanday chiqdi?"}
+          <Icon name="chevron-down" size={14} className={movementDetailsOpen ? "rotate-180 transition-transform" : "transition-transform"} />
+        </button>
+        {movementDetailsOpen ? (
+          <div className="mt-2 border-t border-line pt-1">
+            <p className="px-0 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Bajarilgan harakatlar</p>
+            <div className="divide-y divide-line">
+              {completedOperational.income > 0 ? <MovementRow label="Daromad" value={completedOperational.income} /> : null}
+              {everydayExpense > 0 ? <MovementRow label="Kundalik xarajatlar" value={-everydayExpense} /> : null}
+              {movements.debtBorrowed > 0 ? <MovementRow label="Qarz olindi" value={movements.debtBorrowed} /> : null}
+              {movements.debtLent > 0 ? <MovementRow label="Qarz berildi" value={-movements.debtLent} /> : null}
+              {movements.debtRecovered > 0 ? <MovementRow label="Qarz qaytdi" value={movements.debtRecovered} /> : null}
+              {movements.debtRepaid > 0 ? <MovementRow label="Qarz to‘landi" value={-movements.debtRepaid} /> : null}
+              {movements.creditInterestAndFees > 0 ? <MovementRow label="Kredit foizi va komissiyasi" value={-movements.creditInterestAndFees} hint="xarajat sifatida hisoblandi" /> : null}
+              {movements.creditPrincipalPaid > 0 ? <MovementRow label="Kredit qarzining asosiy qismi" value={-movements.creditPrincipalPaid} hint="balans kamayadi, xarajat emas" /> : null}
+              <MovementRow label="Haqiqiy o‘zgarish" value={balanceMovementNet} strong final />
             </div>
+            {!isPast ? (
+              <div className="mt-3 rounded-xl bg-surface-2 px-3 py-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Qolgan reja</p>
+                <div className="mt-1 divide-y divide-line">
+                  {expectedIncome > 0 ? <MovementRow label="Kutilgan kirim" value={expectedIncome} /> : null}
+                  {plannedPayments > 0 ? <MovementRow label="Rejalangan to‘lovlar" value={-plannedPayments} /> : null}
+                  <MovementRow label="Oy yakuni prognozi" value={forecastBalanceNet} strong final />
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </Card>
@@ -225,6 +243,8 @@ export function CashflowAnalysis() {
           </p>
         </Card>
       ) : null}
+
+      {!isPast ? <RiskCard risks={risks} monthLabel={monthLabel} /> : null}
 
       {isCurrent && activeCredits.length ? (
         <Card>
@@ -288,12 +308,6 @@ export function CashflowAnalysis() {
         )}
       </Card>
 
-      <Card className={risks.length ? "animate-alert-once" : ""} style={risks.length ? { borderColor: "rgba(255,122,122,.28)", background: "linear-gradient(180deg, rgba(255,122,122,.09), rgba(255,122,122,.03))" } : undefined}>
-        <p className="mb-2 flex items-center gap-2 text-[15px] font-semibold"><Icon name="warning" size={16} className={risks.length ? "shrink-0 text-negative-text" : "shrink-0 text-faint"} />Xavf kunlari · {monthLabel}</p>
-        {risks.length ? <><div className="divide-y divide-line">{risks.slice(0, 5).map((risk) => (
-          <div key={risk.date} className="flex items-center justify-between gap-3 py-2"><div className="min-w-0"><span className="num text-[12.5px] font-semibold text-negative-text">{shortDate(risk.date)}</span><span className="ml-2 truncate text-[11.5px] text-muted">{risk.cause}</span></div><span className="num shrink-0 text-[12.5px] font-semibold text-negative-text">−{compact(risk.deficit)}</span></div>
-        ))}</div><Link href="/" className="mt-2 inline-block text-[12px] font-semibold text-accent-text">To‘liq izoh → Asosiy</Link></> : <p className="text-[13px] leading-relaxed text-muted">{isPast ? "Xavf prognozi faqat joriy va kelasi oylar uchun hisoblanadi." : "Xavf aniqlanmadi."}</p>}
-      </Card>
     </div>
   );
 }
@@ -438,6 +452,40 @@ function historicalOperationalTotals(transactions: LedgerMovement[], month: stri
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "positive" | "negative" | "warning" }) {
   const color = tone === "positive" ? "text-positive-text" : tone === "negative" ? "text-negative-text" : tone === "warning" ? "text-warning-text" : "";
   return <div className="min-w-0 bg-surface-2 px-3.5 py-3"><Label className="block truncate">{label}</Label><p className={`num mt-1 break-words text-[13.5px] font-bold ${color}`}>{value}</p></div>;
+}
+
+function BalanceSnapshot({ label, value, hint, tone }: { label: string; value: number; hint: string; tone?: "forecast" }) {
+  const color = value > 0 ? "text-positive-text" : value < 0 ? "text-negative-text" : "text-fg-soft";
+  return (
+    <div className={`min-w-0 rounded-xl border px-3 py-3 ${tone === "forecast" ? "border-accent/20 bg-accent-soft/30" : "border-line bg-surface-2"}`}>
+      <Label>{label}</Label>
+      <p className={`num mt-1 text-[15px] font-bold ${color}`}>{value > 0 ? "+" : value < 0 ? "−" : ""}{formatAmount(Math.abs(value))}</p>
+      <p className="mt-1 text-[10.5px] text-muted">{hint}</p>
+    </div>
+  );
+}
+
+function RiskCard({ risks, monthLabel }: { risks: Array<{ date: string; cause: string; deficit: number }>; monthLabel: string }) {
+  return (
+    <Card
+      className={risks.length ? "animate-alert-once" : ""}
+      style={risks.length ? { borderColor: "rgba(255,122,122,.28)", background: "linear-gradient(180deg, rgba(255,122,122,.09), rgba(255,122,122,.03))" } : undefined}
+    >
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-[15px] font-semibold"><Icon name="warning" size={16} className={risks.length ? "shrink-0 text-negative-text" : "shrink-0 text-faint"} />Xavf kunlari</p>
+        <span className="text-[11px] text-muted">{monthLabel}</span>
+      </div>
+      {risks.length ? (
+        <>
+          <p className="mb-2 text-[11px] text-muted">Balans zaxiradan pastga tushishi mumkin bo‘lgan sanalar.</p>
+          <div className="divide-y divide-line">{risks.slice(0, 5).map((risk) => (
+            <div key={risk.date} className="flex items-center justify-between gap-3 py-2.5"><div className="min-w-0"><span className="num text-[12.5px] font-semibold text-negative-text">{shortDate(risk.date)}</span><span className="ml-2 truncate text-[11.5px] text-muted">{risk.cause}</span></div><span className="num shrink-0 text-[12.5px] font-semibold text-negative-text">−{compact(risk.deficit)}</span></div>
+          ))}</div>
+          <Link href="/" className="mt-2 inline-block min-h-8 py-1 text-[12px] font-semibold text-accent-text">Asosiyda tekshirish →</Link>
+        </>
+      ) : <p className="text-[13px] leading-relaxed text-muted">Yaqin kunlar uchun balans xavfi aniqlanmadi.</p>}
+    </Card>
+  );
 }
 
 function MovementRow({ label, value, hint, strong, final }: { label: string; value: number; hint?: string; strong?: boolean; final?: boolean }) {
