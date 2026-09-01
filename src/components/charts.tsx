@@ -367,11 +367,12 @@ export function CategoryDonut({
             "--donut-offset": `${-slice.start}`,
             animationDelay: `${index * 70}ms`,
           } as CSSProperties}
-          className={`donut-segment origin-center transition-[stroke-dasharray,stroke-dashoffset,opacity,filter,transform] duration-300 ease-out ${
+          /* Active state uses contrast only. SVG drop-shadows can become a
+             bright white halo in Telegram WebView and hide the category color
+             on compact cards. */
+          className={`donut-segment transition-[stroke-dasharray,stroke-dashoffset,opacity] duration-300 ease-out ${
             slice.id !== null ? "cursor-pointer focus:outline-none" : ""
-          } ${activeId !== null && activeId !== slice.id ? "opacity-35" : "opacity-100"} ${
-            activeId !== null && activeId === slice.id ? "scale-[1.035] drop-shadow-[0_0_3px_currentColor]" : ""
-          }`}
+          } ${activeId !== null && activeId !== slice.id ? "opacity-35" : "opacity-100"}`}
           role={slice.id !== null ? "button" : undefined}
           tabIndex={slice.id !== null ? 0 : undefined}
           aria-label={slice.id !== null ? `${slice.name}, ${Math.round(slice.pct)}%. Tarixni ochish` : undefined}

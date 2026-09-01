@@ -260,6 +260,7 @@ test("Dashboard presentation contains only the approved hierarchy and preserves 
   assert.match(components, /Xarajat taqsimoti/);
   assert.match(components, /grid w-full grid-cols-2/, "long legends should stay compact below the chart");
   assert.match(components, /compact\(facts\.expense\)/, "the donut center should state the total, not a category count");
+  assert.doesNotMatch(readFileSync(new URL("../src/components/charts.tsx", import.meta.url), "utf8"), /drop-shadow-\[0_0_3px_currentColor\]/, "active donut slices must not render a white WebView halo");
 
   // Ownership boundary: forecast/insight vocabulary still belongs to Reja.
   assert.doesNotMatch(visibleSource, /sof natija|safe.?to.?spend|prognoz|kutilayotgan daromad|majburiy to['‘’]?lov|cash.?flow|insight/i);
