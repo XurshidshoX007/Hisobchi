@@ -190,6 +190,15 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   }
 
   /* ---- transactions view ---- */
+  // Old term plans predate credit allocation. They remain cash movements, but
+  // treating the whole installment as consumption makes charts and budgets
+  // materially wrong. Keep them explicitly visible as unallocated credit
+  // payments until a statement can supply the actual principal/interest split.
+  const legacyCreditPlanIds = new Set(
+    recurringRows
+      .filter((plan) => plan.planType === "term" && !plan.creditMode)
+      .map((plan) => plan.id),
+  );
   const txViews: TxView[] = txRows
     .filter((t) => !t.isDeleted)
     .map((t) => ({
@@ -214,6 +223,11 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       creditPrincipalAmount: t.creditPrincipalAmount,
       creditInterestAmount: t.creditInterestAmount,
       creditFeeAmount: t.creditFeeAmount,
+      isUnallocatedCreditPayment:
+        t.type === "expense" &&
+        t.recurringId !== null &&
+        legacyCreditPlanIds.has(t.recurringId) &&
+        (t.creditPrincipalAmount === null || t.creditPrincipalAmount === undefined),
       plannedDate: t.plannedDate,
       occurrenceNumber: t.occurrenceNumber,
       isDeleted: false,
@@ -224,12 +238,15 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
   const cashTxViews = txViews.filter((t) => t.currency === user.currency);
   const cashTxRows = txRows.filter((t) => t.currency === user.currency);
   // Principal is a balance movement, not earned/spent money. For an imported
-  // credit payment only interest and fees reach reports; legacy credit plans
-  // have no allocation and deliberately keep their historic behaviour.
-  const reportAmount = (t: { amount: number; creditPrincipalAmount: number | null }) =>
-    t.creditPrincipalAmount === null || t.creditPrincipalAmount === undefined
-      ? t.amount
-      : Math.max(0, t.amount - t.creditPrincipalAmount);
+  // credit payment only interest and fees reach reports. An old credit plan
+  // without an allocation must not be guessed as consumption: it is excluded
+  // from spend reports and exposed separately in balance movements.
+  const reportAmount = (t: Pick<TxView, "amount" | "creditPrincipalAmount" | "isUnallocatedCreditPayment">) =>
+    t.isUnallocatedCreditPayment
+      ? 0
+      : t.creditPrincipalAmount === null || t.creditPrincipalAmount === undefined
+        ? t.amount
+        : Math.max(0, t.amount - t.creditPrincipalAmount);
   const reportingTxViews = cashTxViews.filter((t) => t.debtId === null);
   const reportingTxRows = cashTxRows.filter((t) => t.debtId === null);
   const adjustedReportingTxViews = reportingTxViews
@@ -592,7 +609,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     today,
   });
   analytics.balanceMovements = buildBalanceMovements({
-    transactions: cashTxRows,
+    transactions: cashTxViews,
     month: thisMonth,
     today,
   });

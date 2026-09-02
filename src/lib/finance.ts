@@ -26,6 +26,8 @@ export type TxView = {
   creditPrincipalAmount: number | null;
   creditInterestAmount: number | null;
   creditFeeAmount: number | null;
+  /** Legacy credit-plan payment without a principal/interest allocation. */
+  isUnallocatedCreditPayment?: boolean;
   /** Scheduled occurrence date this transaction fulfils (occurrence identity). */
   plannedDate: string | null;
   occurrenceNumber: number | null;
@@ -1784,6 +1786,8 @@ export type BalanceMovements = {
   debtRecovered: number;
   /** Principal repayment changes balance, but is not consumption spending. */
   creditPrincipalPaid: number;
+  /** Legacy credit payment whose principal/interest split is not available. */
+  creditUnallocatedPaid: number;
   /** Kept explicit so the balance-movement card can disclose true cost. */
   creditInterestAndFees: number;
 };
@@ -1794,6 +1798,7 @@ const EMPTY_BALANCE_MOVEMENTS: BalanceMovements = {
   debtRepaid: 0,
   debtRecovered: 0,
   creditPrincipalPaid: 0,
+  creditUnallocatedPaid: 0,
   creditInterestAndFees: 0,
 };
 
@@ -1812,6 +1817,7 @@ export function buildBalanceMovements(params: {
     creditPrincipalAmount?: number | null;
     creditInterestAmount?: number | null;
     creditFeeAmount?: number | null;
+    isUnallocatedCreditPayment?: boolean;
     isDeleted?: boolean;
   }>;
   month: string;
@@ -1827,6 +1833,10 @@ export function buildBalanceMovements(params: {
         else if (tx.type === "income") result.debtRecovered += tx.amount;
       } else if (tx.type === "income") result.debtBorrowed += tx.amount;
       else if (tx.type === "expense") result.debtLent += tx.amount;
+      continue;
+    }
+    if (tx.type === "expense" && tx.isUnallocatedCreditPayment) {
+      result.creditUnallocatedPaid += tx.amount;
       continue;
     }
     if (tx.type === "expense" && tx.creditPrincipalAmount !== null && tx.creditPrincipalAmount !== undefined) {

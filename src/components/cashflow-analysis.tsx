@@ -89,7 +89,7 @@ export function CashflowAnalysis() {
   // Show the parts separately so interest is never mistaken for a second
   // deduction after it has already been included in a generic expense total.
   const everydayExpense = Math.max(0, completedOperational.expense - movements.creditInterestAndFees);
-  const balanceMovementNet = completedOperational.income - everydayExpense - movements.creditInterestAndFees + debtNet - movements.creditPrincipalPaid;
+  const balanceMovementNet = completedOperational.income - everydayExpense - movements.creditInterestAndFees + debtNet - movements.creditPrincipalPaid - movements.creditUnallocatedPaid;
   const forecastBalanceNet = closing - opening;
   const completedTransactionCount = state.transactions.filter((transaction) => !transaction.isDeleted).length;
   const essentialCategoryIds = new Set(state.categories.filter((category) => category.isEssential).map((category) => category.id));
@@ -220,6 +220,7 @@ export function CashflowAnalysis() {
               {movements.debtRepaid > 0 ? <MovementRow label="Qarz to‘landi" value={-movements.debtRepaid} /> : null}
               {movements.creditInterestAndFees > 0 ? <MovementRow label="Kredit foizi va komissiyasi" value={-movements.creditInterestAndFees} hint="xarajat sifatida hisoblandi" /> : null}
               {movements.creditPrincipalPaid > 0 ? <MovementRow label="Kredit qarzining asosiy qismi" value={-movements.creditPrincipalPaid} hint="balans kamayadi, xarajat emas" /> : null}
+              {movements.creditUnallocatedPaid > 0 ? <MovementRow label="Ajratilmagan kredit to‘lovi" value={-movements.creditUnallocatedPaid} hint="balans kamayadi, xarajat diagrammasiga kirmaydi" /> : null}
               <MovementRow label="Haqiqiy o‘zgarish" value={balanceMovementNet} strong final />
             </div>
             {!isPast ? (
@@ -333,6 +334,7 @@ type LedgerMovement = {
   amount: number;
   debtId: number | null;
   creditPrincipalAmount: number | null;
+  isUnallocatedCreditPayment?: boolean;
   isDeleted: boolean;
 };
 
@@ -388,6 +390,7 @@ function historicalOperationalTotals(transactions: LedgerMovement[], month: stri
     if (transaction.isDeleted || transaction.date > today || !transaction.date.startsWith(month) || transaction.debtId) continue;
     if (transaction.type === "income") income += transaction.amount;
     if (transaction.type === "expense") {
+      if (transaction.isUnallocatedCreditPayment) continue;
       const principal = transaction.creditPrincipalAmount ?? 0;
       expense += Math.max(0, transaction.amount - principal);
     }
