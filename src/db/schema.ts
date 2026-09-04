@@ -34,6 +34,7 @@ export const users = pgTable(
   username: text("username"),
   currency: text("currency").notNull().default("UZS"),
   locale: text("locale").notNull().default("uz"),
+  localeConfirmedAt: timestamp("locale_confirmed_at", { withTimezone: true }),
   theme: text("theme").notNull().default("system"),
   minReserve: money("min_reserve").notNull().default(0),
   estimatedIncomeConfidence: integer("estimated_income_confidence")

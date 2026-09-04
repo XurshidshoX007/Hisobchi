@@ -885,6 +885,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     username: user.username,
     currency: user.currency,
     locale: user.locale,
+    localeConfirmedAt: user.localeConfirmedAt?.toISOString() ?? null,
     theme: user.theme,
     minReserve: user.minReserve,
     estimatedIncomeConfidence: user.estimatedIncomeConfidence,

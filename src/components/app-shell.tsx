@@ -12,6 +12,7 @@ import { Badge, Button, Divider, Money, Sheet } from "./ui";
 import { SwipeBack } from "./swipe-back";
 import { Icon } from "@/components/icon";
 import { OnboardingTour } from "@/components/onboarding-tour";
+import { LanguageGate } from "@/components/language-gate";
 import type { TranslationKey } from "@/lib/i18n";
 
 const NAV: Array<{ href: string; labelKey: TranslationKey; shortKey: TranslationKey; icon: string }> = [
@@ -176,6 +177,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
       <AlertsSheet open={alertsOpen} onClose={() => setAlertsOpen(false)} />
     </div>
     <GlobalAddFab />
+    <LanguageGate />
     <OnboardingTour onStepChange={setTourRouteStable} />
     </>
   );

@@ -48,6 +48,11 @@ const uzLatn = {
   "common.unreadLabel": "{count} o‘qilmagan eslatma",
   "common.demo": "Demo rejim. Telegram orqali kiring.",
   "common.miniApp": "Mini App",
+  "language.title": "Tilni tanlang",
+  "language.subtitle": "Ilova va Telegram bot shu tilda ishlaydi.",
+  "language.continue": "Davom etish",
+  "language.saving": "Saqlanmoqda…",
+  "language.changeLater": "Tilni keyin Sozlamalarda o‘zgartirish mumkin.",
   "menu.sections": "Qo‘shimcha bo‘limlar",
   "menu.accounts": "Hisoblar",
   "menu.budgets": "Budjetlar",
@@ -169,6 +174,11 @@ const uzCyrl: Record<TranslationKey, string> = {
   "common.unreadLabel": "{count} ўқилмаган эслатма",
   "common.demo": "Демо режим. Telegram орқали киринг.",
   "common.miniApp": "Mini App",
+  "language.title": "Тилни танланг",
+  "language.subtitle": "Илова ва Telegram бот шу тилда ишлайди.",
+  "language.continue": "Давом этиш",
+  "language.saving": "Сақланмоқда…",
+  "language.changeLater": "Тилни кейин Созламаларда ўзгартириш мумкин.",
   "menu.sections": "Қўшимча бўлимлар",
   "menu.accounts": "Ҳисоблар",
   "menu.budgets": "Бюджетлар",
@@ -288,6 +298,11 @@ const ru: Record<TranslationKey, string> = {
   "common.unreadLabel": "Непрочитанных уведомлений: {count}",
   "common.demo": "Демо-режим. Войдите через Telegram.",
   "common.miniApp": "Mini App",
+  "language.title": "Выберите язык",
+  "language.subtitle": "Приложение и Telegram-бот будут работать на этом языке.",
+  "language.continue": "Продолжить",
+  "language.saving": "Сохранение…",
+  "language.changeLater": "Язык можно изменить позже в Настройках.",
   "menu.sections": "Дополнительные разделы",
   "menu.accounts": "Счета",
   "menu.budgets": "Бюджеты",
@@ -450,4 +465,8 @@ export function localizedMonth(locale: AppLocale, month: string): string {
     timeZone: "UTC",
   }).format(date);
   return formatted.charAt(0).toLocaleUpperCase(intlLocale(locale)) + formatted.slice(1);
+}
+
+export function needsLocaleConfirmation(localeConfirmedAt: string | null | undefined): boolean {
+  return !localeConfirmedAt;
 }

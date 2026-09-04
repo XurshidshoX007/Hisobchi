@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_LOCALE,
+  needsLocaleConfirmation,
   normalizeLocale,
   translate,
   translateCategory,
@@ -32,3 +33,8 @@ test("bot primary keyboard follows the saved locale", () => {
   assert.deepEqual(botLocaleCopy("uz-Cyrl").mainMenu, [["💰 Даромад", "💸 Харажат", "🔄 Ўтказма"]]);
 });
 
+test("language choice is required only until the profile confirms it", () => {
+  assert.equal(needsLocaleConfirmation(null), true);
+  assert.equal(needsLocaleConfirmation(undefined), true);
+  assert.equal(needsLocaleConfirmation("2026-09-04T12:00:00.000Z"), false);
+});

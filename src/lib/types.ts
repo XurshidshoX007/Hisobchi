@@ -23,6 +23,7 @@ export type UserView = {
   username: string | null;
   currency: string;
   locale: string;
+  localeConfirmedAt: string | null;
   theme: string;
   minReserve: number;
   estimatedIncomeConfidence: number;

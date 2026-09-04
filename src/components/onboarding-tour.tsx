@@ -28,7 +28,7 @@ export function OnboardingTour({ onStepChange }: { onStepChange: (href: string |
   const router = useRouter();
   const [step, setStep] = useState<number | null>(null);
 
-  const isEmptyAccount = state ? shouldStartOnboarding(state) : false;
+  const isEmptyAccount = state ? Boolean(state.user.localeConfirmedAt) && shouldStartOnboarding(state) : false;
   const storageKey = state ? onboardingStorageKey(state.user.id) : null;
 
   useEffect(() => {

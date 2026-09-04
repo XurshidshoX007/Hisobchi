@@ -143,7 +143,7 @@ export async function verifyInitData(initData: string | null): Promise<{
 
 export async function updateUserSettings(
   user: SessionUser,
-  patch: Partial<SessionUser>,
+  patch: Partial<SessionUser> & { confirmLocale?: boolean },
 ): Promise<{ ok: boolean; message: string }> {
   // Currency is a ledger dimension, not a display preference. Relabelling an
   // existing UZS ledger as USD/EUR without an immutable FX conversion corrupts
@@ -171,6 +171,7 @@ export async function updateUserSettings(
   if (typeof patch.currency === "string") allowed.currency = patch.currency;
   if (typeof patch.locale === "string" && ["uz", "uz-Latn", "uz-Cyrl", "ru"].includes(patch.locale)) {
     allowed.locale = normalizeLocale(patch.locale);
+    if (patch.confirmLocale === true) allowed.localeConfirmedAt = new Date();
   }
   if (typeof patch.theme === "string" && ["light", "dark", "system"].includes(patch.theme)) {
     allowed.theme = patch.theme;
