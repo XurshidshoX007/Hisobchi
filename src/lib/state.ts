@@ -223,6 +223,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
       creditPrincipalAmount: t.creditPrincipalAmount,
       creditInterestAmount: t.creditInterestAmount,
       creditFeeAmount: t.creditFeeAmount,
+      creditPayoff: t.creditPayoff,
       isUnallocatedCreditPayment:
         t.type === "expense" &&
         t.recurringId !== null &&
@@ -277,6 +278,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
     // principal-only credit installment whose reporting amount is zero.
     const planPayments = cashTxViews.filter((t) => t.type === "expense" && t.recurringId === r.id);
     const paidDates = new Set(planPayments.map((t) => t.plannedDate ?? t.date));
+    const hasPayoff = planPayments.some((t) => t.creditPayoff);
 
     // Credit schedule: a term plan whose installments are stored explicitly
     // (irregular dates + amounts). A historical opening state from an import
@@ -288,7 +290,7 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
             date: c.date,
             amount: c.amount,
             occurrenceNumber: c.occurrenceNumber,
-            paid: paidDates.has(c.date) || c.settledOnImport,
+            paid: hasPayoff || paidDates.has(c.date) || c.settledOnImport,
             principalAmount: c.principalAmount,
             interestAmount: c.interestAmount,
             feeAmount: c.feeAmount,
@@ -297,36 +299,41 @@ export async function buildAppState(user: SessionUserLike): Promise<AppState> {
 
     const hasCreditAllocation = Boolean(r.creditMode) && creditRows.some((c) => c.principalAmount !== null && c.interestAmount !== null && c.feeAmount !== null);
     const creditSummary = hasCreditAllocation
-      ? creditRows.reduce(
-          (summary, row) => {
-            const paid = paidDates.has(row.date) || row.settledOnImport;
-            const principal = row.principalAmount ?? 0;
-            const interest = row.interestAmount ?? 0;
-            const fee = row.feeAmount ?? 0;
-            summary.principalTotal += principal;
-            summary.interestTotal += interest;
-            summary.feeTotal += fee;
-            if (paid) {
-              summary.principalPaid += principal;
-              summary.interestPaid += interest;
-              summary.feePaid += fee;
-            }
-            return summary;
-          },
-          { principalTotal: 0, principalPaid: 0, interestTotal: 0, interestPaid: 0, feeTotal: 0, feePaid: 0 },
-        )
+      ? {
+          ...creditRows.reduce(
+            (summary, row) => {
+              summary.principalTotal += row.principalAmount ?? 0;
+              summary.interestTotal += row.interestAmount ?? 0;
+              summary.feeTotal += row.feeAmount ?? 0;
+              if (row.settledOnImport) {
+                summary.principalPaid += row.principalAmount ?? 0;
+                summary.interestPaid += row.interestAmount ?? 0;
+                summary.feePaid += row.feeAmount ?? 0;
+              }
+              return summary;
+            },
+            { principalTotal: 0, principalPaid: 0, interestTotal: 0, interestPaid: 0, feeTotal: 0, feePaid: 0 },
+          ),
+        }
       : null;
+    if (creditSummary) {
+      for (const payment of planPayments) {
+        creditSummary.principalPaid += payment.creditPrincipalAmount ?? 0;
+        creditSummary.interestPaid += payment.creditInterestAmount ?? 0;
+        creditSummary.feePaid += payment.creditFeeAmount ?? 0;
+      }
+    }
     const normalizedCreditSummary = creditSummary
       ? {
           principalTotal: round2(creditSummary.principalTotal),
-          principalPaid: round2(creditSummary.principalPaid),
+          principalPaid: round2(Math.min(creditSummary.principalTotal, creditSummary.principalPaid)),
           principalRemaining: round2(Math.max(0, creditSummary.principalTotal - creditSummary.principalPaid)),
           interestTotal: round2(creditSummary.interestTotal),
           interestPaid: round2(creditSummary.interestPaid),
-          interestRemaining: round2(Math.max(0, creditSummary.interestTotal - creditSummary.interestPaid)),
+          interestRemaining: hasPayoff ? 0 : round2(Math.max(0, creditSummary.interestTotal - creditSummary.interestPaid)),
           feeTotal: round2(creditSummary.feeTotal),
           feePaid: round2(creditSummary.feePaid),
-          feeRemaining: round2(Math.max(0, creditSummary.feeTotal - creditSummary.feePaid)),
+          feeRemaining: hasPayoff ? 0 : round2(Math.max(0, creditSummary.feeTotal - creditSummary.feePaid)),
         }
       : null;
 

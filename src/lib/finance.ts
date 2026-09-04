@@ -26,6 +26,8 @@ export type TxView = {
   creditPrincipalAmount: number | null;
   creditInterestAmount: number | null;
   creditFeeAmount: number | null;
+  /** The transaction settled the full remaining credit balance early. */
+  creditPayoff?: boolean;
   /** Legacy credit-plan payment without a principal/interest allocation. */
   isUnallocatedCreditPayment?: boolean;
   /** Scheduled occurrence date this transaction fulfils (occurrence identity). */

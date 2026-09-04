@@ -29,6 +29,30 @@ export type CreditInstallmentInput = {
 };
 
 /**
+ * Split a bank's exact early-settlement quote without inventing accounting
+ * data. Remaining principal is a balance movement; only the amount above it
+ * is a real interest/fee cost. Savings are compared with the still-open
+ * schedule and are intentionally clamped at zero (late penalties can make an
+ * early settlement more expensive than the original remaining schedule).
+ */
+export function calculateCreditPayoff(input: {
+  principalRemaining: number;
+  scheduledRemaining: number;
+  payoffAmount: number;
+}) {
+  const principalRemaining = round2(Math.max(0, input.principalRemaining));
+  const scheduledRemaining = round2(Math.max(0, input.scheduledRemaining));
+  const payoffAmount = round2(Math.max(0, input.payoffAmount));
+  return {
+    principalRemaining,
+    payoffAmount,
+    additionalCost: round2(Math.max(0, payoffAmount - principalRemaining)),
+    principalShortfall: round2(Math.max(0, principalRemaining - payoffAmount)),
+    estimatedSavings: round2(Math.max(0, scheduledRemaining - payoffAmount)),
+  };
+}
+
+/**
  * Normalize a credit/merchant name for duplicate detection ONLY. Stored names
  * are never rewritten — this is a comparison key, not a display value.
  *

@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ADD COLUMN "credit_payoff" boolean DEFAULT false NOT NULL;

@@ -5,6 +5,7 @@ import { parsePaymentSchedule } from "../src/lib/payment-schedule-parser";
 import { buildPlanned } from "../src/lib/finance";
 import {
   advanceCreditTerm,
+  calculateCreditPayoff,
   creditSchedulesMatch,
   normalizeCreditName,
   revertCreditTerm,
@@ -74,6 +75,33 @@ test("forecast counts each installment exactly once; a paid one is removed", () 
   const planned = buildPlanned([creditPlan], [], "2026-08-17", 180, paidTx);
   assert.equal(planned.some((p) => p.date === "2026-08-05"), false);
   assert.equal(planned.reduce((s, p) => s + p.base, 0), 660931);
+});
+
+test("early payoff keeps principal out of expenses and exposes only bank charges", () => {
+  assert.deepEqual(
+    calculateCreditPayoff({
+      principalRemaining: 6_500_000,
+      scheduledRemaining: 7_200_000,
+      payoffAmount: 6_770_506.85,
+    }),
+    {
+      principalRemaining: 6_500_000,
+      payoffAmount: 6_770_506.85,
+      additionalCost: 270_506.85,
+      principalShortfall: 0,
+      estimatedSavings: 429_493.15,
+    },
+  );
+});
+
+test("early payoff rejects an amount that cannot cover remaining principal", () => {
+  const result = calculateCreditPayoff({
+    principalRemaining: 6_500_000,
+    scheduledRemaining: 7_200_000,
+    payoffAmount: 6_400_000,
+  });
+  assert.equal(result.principalShortfall, 100_000);
+  assert.equal(result.additionalCost, 0);
 });
 
 test("historical installments settled during import never re-enter the forecast", () => {

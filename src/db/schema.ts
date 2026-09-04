@@ -398,6 +398,8 @@ export const transactions = pgTable(
     creditPrincipalAmount: money("credit_principal_amount"),
     creditInterestAmount: money("credit_interest_amount"),
     creditFeeAmount: money("credit_fee_amount"),
+    /** One real settlement transaction that closes every future installment. */
+    creditPayoff: boolean("credit_payoff").notNull().default(false),
     /**
      * Occurrence identity for plan ↔ transaction reconciliation.
      * `plannedDate` is the *scheduled* date of the occurrence this real

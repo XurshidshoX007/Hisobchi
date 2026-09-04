@@ -20,6 +20,7 @@ import { MAX_MONEY, addMonths, monthKey, roundMoney, todayISO } from "./money";
 import { parseDraft } from "./nlp";
 import {
   advanceCreditTerm,
+  calculateCreditPayoff,
   revertCreditTerm,
   type CreditInstallmentInput,
 } from "./installments";
@@ -93,7 +94,7 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
     transaction: ["create", "update", "delete"],
     account: ["create", "update"],
     category: ["create", "update"],
-    recurring: ["create", "update", "pay", "toggle", "restore", "delete"],
+    recurring: ["create", "update", "pay", "payoff", "toggle", "restore", "delete"],
     expectedIncome: ["create", "update", "receive", "toggle", "restore", "delete"],
     budget: ["upsert", "delete"],
     debt: ["create", "update", "pay", "delete", "cancel"],
@@ -701,6 +702,134 @@ export async function runMutation(user: User, input: MutateInput): Promise<{ ok:
         if (!updated[0]) return { ok: false, message: "To'lov topilmadi yoki ruxsat yo'q" };
         return { ok: true, id: updated[0].id, message: `${name} yangilandi` };
       }
+      if (input.action === "payoff") {
+        const id = int(d.id);
+        if (!id) return { ok: false, message: "Kredit tanlanmadi" };
+        const rec = await db
+          .select()
+          .from(recurringExpenses)
+          .where(and(eq(recurringExpenses.id, id), eq(recurringExpenses.userId, userId)))
+          .limit(1);
+        if (!rec[0]) return { ok: false, message: "Kredit topilmadi" };
+        if (!rec[0].creditMode || rec[0].planType !== "term") {
+          return { ok: false, message: "Muddatidan oldin yopish faqat taqsimlangan kreditlar uchun ishlaydi" };
+        }
+        if (rec[0].status === "cancelled" || rec[0].status === "completed") {
+          return { ok: false, message: "Bu kredit allaqachon yopilgan yoki bekor qilingan" };
+        }
+
+        const payoffAmount = num(d.amount);
+        if (!payoffAmount || payoffAmount <= 0) return { ok: false, message: "Bank ko'rsatgan yopish summasini kiriting" };
+        const paymentDate = isoDate(d.date, today) ?? today;
+        const paymentAccountId = int(d.accountId) ?? rec[0].accountId ?? (await defaultAccount(userId, user.currency));
+        if (!paymentAccountId) {
+          return { ok: false, message: "Faol hisob yo'q. Hisoblar bo'limida bitta hisobni faollashtiring." };
+        }
+        const account = await accountForPosting(userId, paymentAccountId, user.currency, "source");
+        if (!account.ok) return { ok: false, message: account.message };
+
+        const creditRows = await db
+          .select()
+          .from(creditInstallments)
+          .where(and(eq(creditInstallments.planId, id), eq(creditInstallments.userId, userId)))
+          .orderBy(creditInstallments.occurrenceNumber);
+        if (!creditRows.length) return { ok: false, message: "Kredit to'lov jadvali topilmadi" };
+        if (creditRows.some((row) => row.principalAmount === null || row.interestAmount === null || row.feeAmount === null)) {
+          return { ok: false, message: "Avval kreditning asosiy qism, foiz va komissiya taqsimotini to'liq kiriting" };
+        }
+
+        const paymentRows = await db
+          .select({
+            plannedDate: transactions.plannedDate,
+            date: transactions.date,
+            principalAmount: transactions.creditPrincipalAmount,
+            creditPayoff: transactions.creditPayoff,
+          })
+          .from(transactions)
+          .where(and(eq(transactions.recurringId, id), eq(transactions.userId, userId), eq(transactions.isDeleted, false)));
+        if (paymentRows.some((row) => row.creditPayoff)) {
+          return { ok: false, message: "Bu kredit bo'yicha to'liq yopish allaqachon qayd etilgan" };
+        }
+        if (paymentRows.some((row) => row.principalAmount === null)) {
+          return { ok: false, message: "Eski to'lovlardan birida asosiy qarz qismi ajratilmagan. Avval uni aniqlashtiring." };
+        }
+
+        const paidDates = new Set([
+          ...creditRows.filter((row) => row.settledOnImport).map((row) => row.date),
+          ...paymentRows.map((row) => row.plannedDate ?? row.date),
+        ]);
+        const principalTotal = creditRows.reduce((sum, row) => sum + (row.principalAmount ?? 0), 0);
+        const importedPrincipal = creditRows
+          .filter((row) => row.settledOnImport)
+          .reduce((sum, row) => sum + (row.principalAmount ?? 0), 0);
+        const recordedPrincipal = paymentRows.reduce((sum, row) => sum + (row.principalAmount ?? 0), 0);
+        const scheduledRemaining = creditRows
+          .filter((row) => !paidDates.has(row.date))
+          .reduce((sum, row) => sum + row.amount, 0);
+        const breakdown = calculateCreditPayoff({
+          principalRemaining: principalTotal - importedPrincipal - recordedPrincipal,
+          scheduledRemaining,
+          payoffAmount,
+        });
+        if (breakdown.principalRemaining <= 0) return { ok: false, message: "Bu kreditning asosiy qarzi qolmagan" };
+        if (breakdown.principalShortfall > 0) {
+          return {
+            ok: false,
+            message: `Yopish summasi qolgan asosiy qarzdan ${breakdown.principalShortfall} so'm kam`,
+          };
+        }
+
+        const createdId = await db.transaction(async (tx) => {
+          const claimed = await tx
+            .update(recurringExpenses)
+            .set({
+              isActive: false,
+              status: "completed",
+              installmentsPaid: creditRows.length,
+              nextDueDate: creditRows[creditRows.length - 1].date,
+            })
+            .where(
+              and(
+                eq(recurringExpenses.id, id),
+                eq(recurringExpenses.userId, userId),
+                eq(recurringExpenses.status, rec[0].status),
+                eq(recurringExpenses.installmentsPaid, rec[0].installmentsPaid),
+              ),
+            )
+            .returning({ id: recurringExpenses.id });
+          if (!claimed[0]) return null;
+          const inserted = await tx
+            .insert(transactions)
+            .values({
+              userId,
+              accountId: paymentAccountId,
+              categoryId: rec[0].categoryId,
+              type: "expense",
+              amount: breakdown.payoffAmount,
+              date: paymentDate,
+              note: `${rec[0].name} (muddatidan oldin yopildi)`,
+              source: "miniapp",
+              recurringId: rec[0].id,
+              currency: user.currency,
+              creditPrincipalAmount: breakdown.principalRemaining,
+              creditInterestAmount: breakdown.additionalCost,
+              creditFeeAmount: 0,
+              creditPayoff: true,
+            })
+            .returning({ id: transactions.id });
+          return inserted[0]?.id ?? null;
+        });
+        if (!createdId) return { ok: false, message: "Kredit holati o'zgargan. Ma'lumotni yangilab qayta urinib ko'ring." };
+        return {
+          ok: true,
+          id: createdId,
+          message:
+            breakdown.estimatedSavings > 0
+              ? `${rec[0].name} yopildi · taxminiy tejash ${breakdown.estimatedSavings} so'm`
+              : `${rec[0].name} to'liq yopildi`,
+        };
+      }
+
       if (input.action === "pay") {
         const id = int(d.id);
         if (!id) return { ok: false, message: "Yozuv tanlanmadi" };

@@ -11,6 +11,7 @@ import { PlanStatusFilter } from "@/components/plan-status-filter";
 import { TabSwipe } from "@/components/tab-swipe";
 import {
   AdvancedSection,
+  AccountPicker,
   AmountField,
   ChoiceGrid,
   CompactSegmented,
@@ -50,6 +51,7 @@ import {
 import { amountError, formatAmountInput, isDirtyDraft, parseAmountInput } from "@/lib/form-kit";
 import { filterPlansByTab, monthCashflow, monthPlanned, nextCreditInstallment } from "@/lib/finance";
 import type { ExpectedIncomeView, Forecast, PlanLifecycle, PlanListTab, RecurringView } from "@/lib/finance";
+import { calculateCreditPayoff } from "@/lib/installments";
 import { Icon } from "@/components/icon";
 
 type Tab = "payments" | "income";
@@ -57,7 +59,7 @@ type Tab = "payments" | "income";
 export const TAB_ORDER: readonly Tab[] = ["payments", "income"] as const;
 
 /** Actions a payment-plan row can emit, keyed by lifecycle status. */
-type PlanRowAction = "pay" | "toggle" | "restore" | "edit" | "cancel" | "history";
+type PlanRowAction = "pay" | "payoff" | "toggle" | "restore" | "edit" | "cancel" | "history";
 type IncomeRowAction = "receive" | "toggle" | "restore" | "edit" | "cancel" | "history";
 
 /* ============================ Design system helpers ============================ */
@@ -148,6 +150,7 @@ export default function PlansPage() {
   const [restoringIncome, setRestoringIncome] = useState<ExpectedIncomeView | null>(null);
   const [menuPlan, setMenuPlan] = useState<RecurringView | null>(null);
   const [menuIncome, setMenuIncome] = useState<ExpectedIncomeView | null>(null);
+  const [payoffPlan, setPayoffPlan] = useState<RecurringView | null>(null);
 
   // Global FAB: To‘lovlar opens a payment plan and Daromad opens expected income.
   useFabPage(
@@ -210,6 +213,10 @@ export default function PlansPage() {
    */
 
   function handlePlanAction(action: PlanRowAction, plan: RecurringView) {
+    if (action === "payoff") {
+      setPayoffPlan(plan);
+      return;
+    }
     if (action === "edit") {
       setEditing(plan);
       setSheet("recurring");
@@ -441,6 +448,10 @@ export default function PlansPage() {
                 onToggle: () => handlePlanAction("toggle", menuPlan),
                 onCancel: () => handlePlanAction("cancel", menuPlan),
                 onHistory: () => handlePlanAction("history", menuPlan),
+                onPayoff:
+                  menuPlan.creditSummary && (menuPlan.status === "active" || menuPlan.status === "paused")
+                    ? () => handlePlanAction("payoff", menuPlan)
+                    : undefined,
               }
             : menuIncome
               ? {
@@ -459,6 +470,8 @@ export default function PlansPage() {
           setMenuIncome(null);
         }}
       />
+
+      <CreditPayoffSheet plan={payoffPlan} onClose={() => setPayoffPlan(null)} />
 
       <CancelPlanConfirm
         target={
@@ -775,6 +788,7 @@ type MenuTarget = {
   onToggle: () => void;
   onCancel: () => void;
   onHistory: () => void;
+  onPayoff?: () => void;
 };
 
 /**
@@ -824,6 +838,12 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
             Tarixni ko‘rish ({plan.paymentsCount} ta)
           </button>
         ) : null}
+        {plan?.onPayoff && (plan.status === "active" || plan.status === "paused") ? (
+          <button type="button" className={`${rowClass} text-accent-text`} onClick={() => plan && run(plan.onPayoff!)}>
+            <Icon name="check-circle" size={17} className="w-6 shrink-0" />
+            Muddatidan oldin yopish
+          </button>
+        ) : null}
         {plan?.status === "active" || plan?.status === "paused" ? (
           <button
             type="button"
@@ -846,6 +866,148 @@ function PlanActionsSheet({ plan, onClose }: { plan: MenuTarget | null; onClose:
         </p>
       ) : null}
     </Sheet>
+  );
+}
+
+/**
+ * Records one exact bank settlement instead of fabricating payments for every
+ * future installment. The user sees the accounting split before confirming:
+ * principal changes cash, while only interest/fees become a real expense.
+ */
+function CreditPayoffSheet({ plan, onClose }: { plan: RecurringView | null; onClose: () => void }) {
+  const { mutate } = useFinance();
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const [accountId, setAccountId] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!plan) return;
+    setAmount("");
+    setDate(todayISO());
+    setAccountId(plan.accountId ? String(plan.accountId) : "");
+    setTouched(false);
+    setSaving(false);
+  }, [plan]);
+
+  const parsedAmount = parseAmountInput(amount);
+  const principalRemaining = plan?.creditSummary?.principalRemaining ?? 0;
+  const breakdown = calculateCreditPayoff({
+    principalRemaining,
+    scheduledRemaining: plan?.remainingTotal ?? 0,
+    payoffAmount: parsedAmount ?? 0,
+  });
+  const validation = amountError(amount, "Bank ko‘rsatgan aniq yopish summasini kiriting");
+  const amountValidation =
+    validation ??
+    (breakdown.principalShortfall > 0
+      ? `Summa qolgan asosiy qarzdan ${formatAmount(breakdown.principalShortfall)} so‘m kam`
+      : null);
+  const formError = touched ? amountValidation : null;
+
+  async function confirm() {
+    if (!plan || saving) return;
+    setTouched(true);
+    if (amountValidation || !parsedAmount) return;
+    setSaving(true);
+    try {
+      const result = await mutate("recurring", "payoff", {
+        id: plan.id,
+        amount: parsedAmount,
+        date,
+        accountId: Number(accountId) || undefined,
+      });
+      if (result.ok) onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Sheet
+      open={Boolean(plan)}
+      onClose={() => {
+        if (!saving) onClose();
+      }}
+      title="Kreditni to‘liq yopish"
+      subtitle={plan?.name}
+      icon="check-circle"
+      iconTone="accent"
+      footer={
+        <>
+          <Button variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>
+            Hozir emas
+          </Button>
+          <Button className="flex-[2]" onClick={confirm} disabled={saving || !plan?.creditSummary}>
+            {saving ? "Yopilmoqda…" : "To‘liq yopildi"}
+          </Button>
+        </>
+      }
+    >
+      <div className="rounded-2xl border border-line bg-surface-2 p-3.5">
+        <p className="text-[13px] font-semibold">Bank ilovasidagi bugungi aniq summani kiriting</p>
+        <p className="mt-1 text-[12px] leading-relaxed text-muted">
+          Bankning yopish summasi jadvaldagi oddiy oylik to‘lovdan farq qilishi mumkin.
+        </p>
+      </div>
+
+      <AmountField
+        value={amount}
+        onChange={setAmount}
+        label="Bank so‘ragan summa"
+        currency="so‘m"
+        error={formError}
+        quick={false}
+        autoFocus
+      />
+
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <DateField value={date} onChange={setDate} label="Yopilgan sana" />
+        <AccountPicker value={accountId} onChange={setAccountId} label="Qaysi hisobdan" includeArchivedId={plan?.accountId} />
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface-2">
+        <PayoffSummaryRow label="Qolgan asosiy qarz" value={principalRemaining} />
+        <PayoffSummaryRow label="Bankka jami to‘lov" value={parsedAmount ?? 0} strong />
+        <PayoffSummaryRow label="Foiz va komissiya" value={breakdown.additionalCost} expense />
+        {breakdown.estimatedSavings > 0 ? (
+          <PayoffSummaryRow label="Jadvalga nisbatan tejash" value={breakdown.estimatedSavings} positive />
+        ) : null}
+      </div>
+
+      <p className="rounded-xl bg-accent-soft px-3.5 py-3 text-[12px] leading-relaxed text-accent-text">
+        Asosiy qarz balansdan chiqadi, lekin xarajatga kirmaydi. Faqat foiz va komissiya xarajatlar tahliliga qo‘shiladi.
+      </p>
+    </Sheet>
+  );
+}
+
+function PayoffSummaryRow({
+  label,
+  value,
+  strong = false,
+  expense = false,
+  positive = false,
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+  expense?: boolean;
+  positive?: boolean;
+}) {
+  return (
+    <div className="flex min-h-12 items-center justify-between gap-3 border-b border-line px-3.5 py-2.5 last:border-b-0">
+      <span className={`min-w-0 text-[12.5px] ${strong ? "font-semibold text-fg" : "text-muted"}`}>{label}</span>
+      <span
+        className={`num shrink-0 text-right text-[13px] font-bold ${
+          positive ? "text-positive-text" : expense && value > 0 ? "text-negative-text" : "text-fg"
+        }`}
+      >
+        {positive && value > 0 ? "+" : expense && value > 0 ? "−" : ""}
+        {formatAmount(value)} so‘m
+      </span>
+    </div>
   );
 }
 
