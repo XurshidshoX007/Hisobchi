@@ -5,6 +5,7 @@ import { ensureSeed } from "./seed";
 import { INIT_DATA_MAX_AGE_SECONDS, demoModeEnabled, requireVerifiedIdentity, telegramBotToken } from "./env";
 import { MAX_MONEY } from "./money";
 import { bootstrapNewUser } from "./bootstrap-user";
+import { normalizeLocale } from "./i18n";
 
 export type SessionUser = typeof users.$inferSelect;
 
@@ -26,6 +27,7 @@ export async function resolveUser(input?: {
   firstName?: string | null;
   lastName?: string | null;
   username?: string | null;
+  languageCode?: string | null;
 }): Promise<SessionUser | null> {
   // Never seed shared demo data in a strict production environment.
   if (demoModeEnabled()) await ensureSeed();
@@ -41,6 +43,7 @@ export async function resolveUser(input?: {
         firstName: input.firstName ?? "Foydalanuvchi",
         lastName: input.lastName ?? null,
         username: input.username ?? null,
+        locale: normalizeLocale(input.languageCode),
       })
       .onConflictDoNothing({ target: users.telegramId })
       .returning();
@@ -87,6 +90,7 @@ export async function verifyInitData(initData: string | null): Promise<{
   firstName: string | null;
   lastName: string | null;
   username: string | null;
+  languageCode: string | null;
 } | null> {
   if (!initData || initData.length > 16_384) return null;
   const token = telegramBotToken();
@@ -96,7 +100,7 @@ export async function verifyInitData(initData: string | null): Promise<{
   params.delete("hash");
 
   if (!userRaw || userRaw.length > 4_096) return null;
-  let parsed: { id?: number; first_name?: string; last_name?: string; username?: string } = {};
+  let parsed: { id?: number; first_name?: string; last_name?: string; username?: string; language_code?: string } = {};
   try {
     parsed = JSON.parse(userRaw);
   } catch {
@@ -108,6 +112,7 @@ export async function verifyInitData(initData: string | null): Promise<{
     firstName: parsed.first_name?.slice(0, 128) ?? null,
     lastName: parsed.last_name?.slice(0, 128) ?? null,
     username: parsed.username?.slice(0, 64) ?? null,
+    languageCode: parsed.language_code?.slice(0, 24) ?? null,
   };
 
   if (!token || !hash) {
@@ -164,6 +169,9 @@ export async function updateUserSettings(
     if (value && value.length <= 128) allowed.firstName = value;
   }
   if (typeof patch.currency === "string") allowed.currency = patch.currency;
+  if (typeof patch.locale === "string" && ["uz", "uz-Latn", "uz-Cyrl", "ru"].includes(patch.locale)) {
+    allowed.locale = normalizeLocale(patch.locale);
+  }
   if (typeof patch.theme === "string" && ["light", "dark", "system"].includes(patch.theme)) {
     allowed.theme = patch.theme;
   }

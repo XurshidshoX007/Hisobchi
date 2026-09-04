@@ -40,6 +40,6 @@ test("Telegram export waits for the user to press the download link", () => {
 
   assert.doesNotMatch(provider, /anchor\.click\(\)/, "an async programmatic click is blocked by iOS WebView");
   assert.match(provider, /return \{ ok: true, message, url, filename \}/, "provider returns the ready file to UI");
-  assert.match(morePage, /Excel faylini yuklash/, "Menu shows a user-initiated download control");
+  assert.match(morePage, /t\("menu\.exportAction"\)/, "Menu shows a localized user-initiated download control");
   assert.match(morePage, /download=\{exportReady\.filename\}/, "the file name survives to the download control");
 });

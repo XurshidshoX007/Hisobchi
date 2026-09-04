@@ -15,9 +15,10 @@ import { QuickAddSheet } from "@/components/quick-add";
 import { QuickExpenses } from "@/components/quick-expenses";
 import { Button, EmptyState } from "@/components/ui";
 import { selectDashboardFacts } from "@/lib/dashboard";
+import { localizedMonth } from "@/lib/i18n";
 
 export default function DashboardPage() {
-  const { state, loading, error, refresh } = useFinance();
+  const { state, loading, error, refresh, t, locale } = useFinance();
   const [addOpen, setAddOpen] = useState(false);
   const [defaultType, setDefaultType] = useState<QuickActionId>("expense");
   const [breakdownOpen, setBreakdownOpen] = useState(false);
@@ -41,9 +42,9 @@ export default function DashboardPage() {
     return (
       <EmptyState
         icon="warning"
-        title="Ma’lumotni yuklashda xatolik yuz berdi."
-        description="Internet aloqasini tekshirib, qayta urinib ko‘ring."
-        action={<Button onClick={() => void refresh()}>Qayta urinish</Button>}
+        title={t("dashboard.loadError")}
+        description={t("dashboard.checkConnection")}
+        action={<Button onClick={() => void refresh()}>{t("dashboard.retry")}</Button>}
       />
     );
   }
@@ -64,7 +65,7 @@ export default function DashboardPage() {
 
       <div key={facts.monthLabel} className="dashboard-value-transition animate-category-in min-w-0">
         <MonthResult facts={facts} currency={state.user.currency} />
-        <ExpenseBreakdown facts={facts} monthLabel={facts.monthLabel} quickDock={<QuickExpenses />} />
+        <ExpenseBreakdown facts={facts} monthLabel={localizedMonth(locale, facts.month)} quickDock={<QuickExpenses />} />
       </div>
 
       <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} defaultType={defaultType} />

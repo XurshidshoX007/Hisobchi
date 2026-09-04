@@ -248,7 +248,7 @@ test("Dashboard presentation contains only the approved hierarchy and preserves 
 
   // ONE primary number, then one primary action set, then context. The month
   // appears once, in the header, and never again beside an amount.
-  assert.match(components, />Umumiy balans</);
+  assert.match(components, /t\("dashboard\.totalBalance"\)/);
   assert.match(components, /<Money whole value=\{facts\.balance\} size="hero"/);
   assert.doesNotMatch(page, /Dashboard oyi|<time\b/);
   assert.equal((components.match(/<Money whole/g) ?? []).length, 2, "every dashboard amount must hide fractional tiyin");
@@ -257,7 +257,7 @@ test("Dashboard presentation contains only the approved hierarchy and preserves 
   // answers "where did it go?" with a single chart instead of two long lists.
   assert.doesNotMatch(visibleSource, /Daromad kategoriyalari|Xarajat kategoriyalari/);
   assert.match(components, /<CategoryDonut/);
-  assert.match(components, /Xarajat taqsimoti/);
+  assert.match(components, /t\("dashboard\.expenseBreakdown"\)/);
   assert.match(components, /grid w-full grid-cols-2/, "long legends should stay compact below the chart");
   assert.match(components, /compact\(facts\.expense\)/, "the donut center should state the total, not a category count");
   const charts = readFileSync(new URL("../src/components/charts.tsx", import.meta.url), "utf8");
@@ -270,7 +270,7 @@ test("Dashboard presentation contains only the approved hierarchy and preserves 
 
   // Shared flows survive the redesign.
   assert.match(page, /QuickAddSheet/);
-  assert.match(page, /Qayta urinish/);
+  assert.match(page, /t\("dashboard\.retry"\)/);
   assert.match(components, /min-w-0/);
 
   // The balance composition reference lives inside the hero (single card) and

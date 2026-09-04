@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { categories as categoriesTable, idempotencyKeys, pendingDrafts, telegramUpdates } from "@/db/schema";
-import { respondToBotMessage, MAIN_MENU } from "@/lib/bot";
+import { respondToBotMessage } from "@/lib/bot";
 import { ACK, batchSummary, BUTTON, draftSummary, MINI_APP_INTRO, SCHEDULE } from "@/lib/bot-copy";
 import { createCreditTermPlan } from "@/lib/mutations";
 import {
@@ -27,6 +27,7 @@ import { checkRateLimit, rateLimitResponse, securityContext, securityLog } from 
 import { formatAmount, shortDate, todayISO } from "@/lib/money";
 import { downloadCreditDocument, extractCreditDocumentText, parseCreditDocumentText } from "@/lib/credit-document";
 import { classifyWebhookFailure } from "@/lib/webhook-failure";
+import { mainMenuForLocale } from "@/lib/bot-i18n";
 import { PayloadTooLargeError, readJsonBody } from "@/lib/request-body";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +76,7 @@ type TelegramUpdate = {
   message?: {
     chat: { id: number };
     message_id?: number;
-    from?: { id: number; first_name?: string; last_name?: string; username?: string };
+    from?: { id: number; first_name?: string; last_name?: string; username?: string; language_code?: string };
     text?: string;
     caption?: string;
     photo?: Array<{ file_id: string; file_unique_id: string; file_size?: number; width?: number; height?: number }>;
@@ -85,7 +86,7 @@ type TelegramUpdate = {
     id: string;
     data?: string;
     message?: { chat: { id: number }; message_id: number };
-    from?: { id: number; first_name?: string; last_name?: string; username?: string };
+    from?: { id: number; first_name?: string; last_name?: string; username?: string; language_code?: string };
   };
 };
 
@@ -166,11 +167,13 @@ export async function POST(request: Request) {
       firstName: from.first_name ?? null,
       lastName: from.last_name ?? null,
       username: from.username ?? null,
+      languageCode: from.language_code ?? null,
     });
     if (!user) {
       void writeSecurityEvent({ event: "blocked_or_invalid_bot_user", requestId: sec.requestId, ipHash: sec.ipKey });
       return NextResponse.json({ ok: true });
     }
+    const MAIN_MENU = mainMenuForLocale(user.locale);
     resolvedUserId = user.id;
     await db.update(telegramUpdates).set({ userId: user.id }).where(eq(telegramUpdates.updateId, update.update_id));
 

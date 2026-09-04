@@ -2,9 +2,19 @@
 
 import Link from "next/link";
 import type { BalanceGroup, BalanceGroupKey } from "@/lib/dashboard";
-import { currencyLabel } from "@/lib/money";
+import { localizedCurrencyLabel } from "@/lib/i18n";
 import { ContextualBottomSheet, Money } from "./ui";
 import { Icon } from "@/components/icon";
+import { useFinance } from "./providers";
+import type { TranslationKey } from "@/lib/i18n";
+
+const GROUP_LABEL_KEY: Record<string, TranslationKey> = {
+  bank: "dashboard.group.bank",
+  cards: "dashboard.group.cards",
+  cash: "dashboard.group.cash",
+  ewallet: "dashboard.group.ewallet",
+  other: "dashboard.group.other",
+};
 
 /**
  * Tone → paired background + text tokens.
@@ -42,6 +52,7 @@ export function BalanceDistributionBar({
   groups: BalanceGroup[];
   onOpen: () => void;
 }) {
+  const { t } = useFinance();
   const positiveGroups = groups.filter((group) => group.amount > 0);
   const positiveTotal = positiveGroups.reduce((sum, group) => sum + group.amount, 0);
   // A bar without at least one positive slice would be misleading (or empty).
@@ -52,7 +63,7 @@ export function BalanceDistributionBar({
     <button
       type="button"
       onClick={onOpen}
-      aria-label="Balans taqsimotini ochish"
+      aria-label={t("dashboard.openBreakdown")}
       className="group mt-3.5 block w-full select-none rounded-xl p-1.5 text-left transition-all duration-200 hover:bg-surface-2/80 active:bg-surface-3 active:scale-[0.99] touch-manipulation"
     >
       {hasBar ? (
@@ -79,7 +90,7 @@ export function BalanceDistributionBar({
             return (
               <li key={group.key} className="flex min-w-0 items-center gap-1.5">
                 <span className={`h-2 w-2 shrink-0 rounded-full shadow-2xs ${tone.dot}`} aria-hidden="true" />
-                <span className="truncate text-[11.5px] font-medium text-fg-soft">{group.label}</span>
+                <span className="truncate text-[11.5px] font-medium text-fg-soft">{t(GROUP_LABEL_KEY[group.key] ?? "dashboard.group.other")}</span>
                 <span className="text-[11.5px] font-semibold tabular-nums text-muted">
                   {formatPercent(group.share)}
                 </span>
@@ -129,29 +140,30 @@ export function BalanceBreakdownSheet({
   total: number;
   currency: string;
 }) {
-  const unit = currencyLabel(currency);
+  const { t, locale } = useFinance();
+  const unit = localizedCurrencyLabel(locale, currency);
   const positiveTotal = groups.reduce((sum, group) => (group.amount > 0 ? sum + group.amount : sum), 0);
 
   return (
     <ContextualBottomSheet
       open={open}
       onClose={onClose}
-      title="Balans taqsimoti"
-      subtitle="Faol hisoblar bo‘yicha bugungi qoldiq"
+      title={t("dashboard.balanceBreakdown")}
+      subtitle={t("dashboard.activeAccountBalance")}
       footer={
         <Link
           href="/accounts"
           onClick={onClose}
           className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-5 py-2 text-[15px] font-semibold text-accent-text shadow-xs transition-all duration-200 hover:border-line-strong hover:bg-surface-2 active:scale-[0.98] active:bg-surface-3 touch-manipulation"
         >
-          Hisoblarni boshqarish
+          {t("dashboard.manageAccounts")}
           <span className="inline-block transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true">→</span>
         </Link>
       }
     >
       <div className="space-y-5">
         <div className="rounded-2xl border border-line bg-surface-2/60 px-4 py-4 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Jami</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{t("dashboard.total")}</p>
           <div className="mt-1">
             <Money whole value={total} size="xl" tone={total < 0 ? "negative" : "default"} currency={unit} />
           </div>
@@ -187,9 +199,10 @@ export function BalanceBreakdownSheet({
 }
 
 function BreakdownRow({ group, unit }: { group: BalanceGroup; unit: string }) {
+  const { t } = useFinance();
   const tone = TONE_STYLES[group.tone];
   const isZero = Math.round(group.amount) === 0;
-  const subtitle = groupSubtitle(group);
+  const subtitle = groupSubtitle(group, (count) => t("dashboard.accountsInGroup", { count }));
 
   return (
     <li className="group flex items-center gap-3 px-4 py-3.5 transition-colors duration-150 hover:bg-surface-2/60">
@@ -200,7 +213,7 @@ function BreakdownRow({ group, unit }: { group: BalanceGroup; unit: string }) {
         <Icon name={group.icon} size={19} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className={`truncate text-[14.5px] font-semibold ${isZero ? "text-fg-soft" : "text-fg"}`}>{group.label}</p>
+        <p className={`truncate text-[14.5px] font-semibold ${isZero ? "text-fg-soft" : "text-fg"}`}>{t(GROUP_LABEL_KEY[group.key] ?? "dashboard.group.other")}</p>
         {subtitle ? <p className="mt-0.5 truncate text-[11.5px] text-muted">{subtitle}</p> : null}
       </div>
       <div className="shrink-0 text-right">
@@ -217,7 +230,7 @@ function BreakdownRow({ group, unit }: { group: BalanceGroup; unit: string }) {
   );
 }
 
-function groupSubtitle(group: BalanceGroup): string | null {
+function groupSubtitle(group: BalanceGroup, accountCount: (count: number) => string): string | null {
   if (!group.accounts.length) return null;
   if (group.key === "cards") {
     // "Uzcard · Humo · Uzcard" → dedupe with insertion order preserved.
@@ -233,7 +246,7 @@ function groupSubtitle(group: BalanceGroup): string | null {
     if (names.length) return names.join(" · ");
   }
   if (group.accounts.length === 1) return group.accounts[0].name;
-  return `${group.accounts.length} ta hisob`;
+  return accountCount(group.accounts.length);
 }
 
 function cardTypeLabel(type: string): string | null {

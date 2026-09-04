@@ -14,17 +14,12 @@ import {
   batchSummary,
   BUTTON,
   draftSummary,
-  HELP,
-  MAIN_MENU_TEXT,
-  MORE_MENU_TEXT,
   NOT_UNDERSTOOD,
-  PROMPT,
   SCHEDULE,
   settingsBlock,
-  startNew,
-  startReturning,
   TRANSFER_NEEDS_ACCOUNTS,
 } from "./bot-copy";
+import { botLocaleCopy } from "./bot-i18n";
 
 export type BotDraft = {
   type: "income" | "expense" | "transfer";
@@ -80,6 +75,15 @@ export async function respondToBotMessage(
   const text = message.trim();
   const intent = botIntent(text);
   const state = await buildAppState(user);
+  // Keep reply keyboards and the primary bot journey aligned with the Mini
+  // App preference. Callback payloads remain language-neutral identifiers.
+  const localized = botLocaleCopy(user.locale);
+  const MAIN_MENU = localized.mainMenu;
+  const MORE_MENU = localized.moreMenu;
+  const PROMPT = localized.prompts;
+  const HELP = localized.help;
+  const MAIN_MENU_TEXT = localized.mainMenuText;
+  const MORE_MENU_TEXT = localized.moreMenuText;
 
   if (confirm && (Array.isArray(confirm.drafts) || (confirm.amount && confirm.type))) {
     const items = Array.isArray(confirm.drafts)
@@ -105,16 +109,14 @@ export async function respondToBotMessage(
     // A brand-new account has nothing but zeroes; showing them as a welcome
     // teaches the user nothing. Numbers appear only once they exist.
     const isNew = state.transactions.length === 0;
-    const month = state.monthly?.find((x) => x.isCurrent);
     return {
       text: isNew
-        ? startNew(user.firstName)
-        : startReturning({
+        ? localized.startNew(user.firstName)
+        : localized.startReturning({
             firstName: user.firstName,
             balance: state.forecast.currentBalance,
             monthIncome: state.analytics.monthTotals.income,
             monthExpense: state.analytics.monthTotals.expense,
-            monthLabel: month?.label ?? null,
           }),
       keyboard: MAIN_MENU,
     };

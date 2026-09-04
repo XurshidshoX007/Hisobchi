@@ -7,17 +7,24 @@ import { Icon } from "@/components/icon";
 import { useFinance } from "@/components/providers";
 import { Button } from "@/components/ui";
 import { onboardingStorageKey, shouldStartOnboarding } from "@/lib/onboarding";
+import type { TranslationKey } from "@/lib/i18n";
 
-export const ONBOARDING_STEPS = [
-  { href: "/", navLabel: "Asosiy", icon: "nav-home", title: "Moliyangiz bir joyda", body: "Balans, shu oyning natijasi va tezkor daromad yoki xarajat qo‘shish shu yerda." },
-  { href: "/transactions", navLabel: "Tarix", icon: "nav-history", title: "Har bir operatsiya nazoratda", body: "Kiritilgan xarajat va daromadlarni ko‘ring, qidiring hamda kerak bo‘lsa tahrirlang." },
-  { href: "/plans", navLabel: "Reja", icon: "nav-plans", title: "Kelajakni rejalang", body: "To‘lovlar va kutilayotgan daromadlarni kiriting — ular Pul oqimi prognoziga qo‘shiladi." },
-  { href: "/analytics", navLabel: "Tahlil", icon: "nav-analytics", title: "Raqamlar sizga gapiradi", body: "Pul oqimi, trendlar va xarajat kategoriyalari ma’lumotlar kiritilgach shu yerda paydo bo‘ladi." },
-] as const;
+export const ONBOARDING_STEPS: ReadonlyArray<{
+  href: string;
+  navKey: TranslationKey;
+  icon: string;
+  titleKey: TranslationKey;
+  bodyKey: TranslationKey;
+}> = [
+  { href: "/", navKey: "nav.home", icon: "nav-home", titleKey: "onboarding.homeTitle", bodyKey: "onboarding.homeBody" },
+  { href: "/transactions", navKey: "nav.history", icon: "nav-history", titleKey: "onboarding.historyTitle", bodyKey: "onboarding.historyBody" },
+  { href: "/plans", navKey: "nav.plans", icon: "nav-plans", titleKey: "onboarding.plansTitle", bodyKey: "onboarding.plansBody" },
+  { href: "/analytics", navKey: "nav.analytics", icon: "nav-analytics", titleKey: "onboarding.analyticsTitle", bodyKey: "onboarding.analyticsBody" },
+];
 
 /** First-use guide. It is local-only so it never changes a user's finance data. */
 export function OnboardingTour({ onStepChange }: { onStepChange: (href: string | null) => void }) {
-  const { state, loading } = useFinance();
+  const { state, loading, t } = useFinance();
   const router = useRouter();
   const [step, setStep] = useState<number | null>(null);
 
@@ -77,20 +84,20 @@ export function OnboardingTour({ onStepChange }: { onStepChange: (href: string |
           <div className="tour-icon-orbit grid h-12 w-12 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-text" aria-hidden="true">
             <Icon name={current.icon} size={22} />
           </div>
-          <button type="button" onClick={finish} className="min-h-9 shrink-0 rounded-full px-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation">O‘tkazib yuborish</button>
+          <button type="button" onClick={finish} className="min-h-9 shrink-0 rounded-full px-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation">{t("onboarding.skip")}</button>
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-accent-text">{current.navLabel}</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-accent-text">{t(current.navKey)}</p>
           <span className="rounded-full border border-warning/35 bg-warning-soft px-2 py-1 text-[10px] font-bold text-warning-text">{currentIndex + 1} / {ONBOARDING_STEPS.length}</span>
         </div>
-        <h2 id="onboarding-title" className="mt-1.5 text-[20px] font-bold tracking-tight">{current.title}</h2>
-        <p className="mt-2 text-[13px] leading-relaxed text-muted">{current.body}</p>
-        <div className="mt-5 flex gap-1.5" aria-label={`${currentIndex + 1}-qadam`}>
+        <h2 id="onboarding-title" className="mt-1.5 text-[20px] font-bold tracking-tight">{t(current.titleKey)}</h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted">{t(current.bodyKey)}</p>
+        <div className="mt-5 flex gap-1.5" aria-label={t("onboarding.stepLabel", { step: currentIndex + 1 })}>
           {ONBOARDING_STEPS.map((item, index) => <span key={item.href} className={`h-1 flex-1 rounded-full transition-colors ${index <= currentIndex ? "bg-primary" : "bg-surface-3"}`} />)}
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
-          <Button variant="ghost" onClick={finish}>Keyinroq</Button>
-          <Button className="min-w-[116px]" onClick={next}>{currentIndex === ONBOARDING_STEPS.length - 1 ? "Boshlash" : "Keyingi"}</Button>
+          <Button variant="ghost" onClick={finish}>{t("onboarding.later")}</Button>
+          <Button className="min-w-[116px]" onClick={next}>{currentIndex === ONBOARDING_STEPS.length - 1 ? t("onboarding.start") : t("onboarding.next")}</Button>
         </div>
       </section>
     </div>

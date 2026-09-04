@@ -12,13 +12,14 @@ import { Badge, Button, Divider, Money, Sheet } from "./ui";
 import { SwipeBack } from "./swipe-back";
 import { Icon } from "@/components/icon";
 import { OnboardingTour } from "@/components/onboarding-tour";
+import type { TranslationKey } from "@/lib/i18n";
 
-const NAV = [
-  { href: "/", label: "Asosiy", short: "Asosiy", icon: "nav-home" },
-  { href: "/transactions", label: "Tarix", short: "Tarix", icon: "nav-history" },
-  { href: "/plans", label: "Reja", short: "Reja", icon: "nav-plans" },
-  { href: "/analytics", label: "Tahlil", short: "Tahlil", icon: "nav-analytics" },
-  { href: "/more", label: "Ko‘proq", short: "Menyu", icon: "nav-more" },
+const NAV: Array<{ href: string; labelKey: TranslationKey; shortKey: TranslationKey; icon: string }> = [
+  { href: "/", labelKey: "nav.home", shortKey: "nav.home", icon: "nav-home" },
+  { href: "/transactions", labelKey: "nav.history", shortKey: "nav.history", icon: "nav-history" },
+  { href: "/plans", labelKey: "nav.plans", shortKey: "nav.plans", icon: "nav-plans" },
+  { href: "/analytics", labelKey: "nav.analytics", shortKey: "nav.analytics", icon: "nav-analytics" },
+  { href: "/more", labelKey: "nav.moreLong", shortKey: "nav.more", icon: "nav-more" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -31,7 +32,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function AppShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { state, error, theme, setTheme, mutate } = useFinance();
+  const { state, error, theme, setTheme, mutate, t } = useFinance();
   const { currentContext } = useFab();
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [tourRoute, setTourRoute] = useState<string | null>(null);
@@ -54,9 +55,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary text-lg font-bold text-primary-fg">
             ₮
           </div>
-          <h1 className="mt-4 text-lg font-semibold tracking-tight">Hisobchi</h1>
+          <h1 className="mt-4 text-lg font-semibold tracking-tight">{t("app.name")}</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            Ilovani Telegram orqali oching — kirish Telegramda tasdiqlanadi.
+            {t("auth.openTelegram")}
           </p>
         </div>
       </div>
@@ -73,8 +74,8 @@ function AppShellContent({ children }: { children: ReactNode }) {
             <span>₮</span>
           </div>
           <div>
-            <p className="text-[13px] font-semibold leading-tight">Hisobchi</p>
-            <p className="text-[11px] text-muted">Shaxsiy moliya</p>
+            <p className="text-[13px] font-semibold leading-tight">{t("app.name")}</p>
+            <p className="text-[11px] text-muted">{t("app.tagline")}</p>
           </div>
         </div>
         {NAV.map((item) => {
@@ -88,7 +89,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
               }`}
             >
               <Icon name={item.icon} size={20} strokeWidth={active ? 1.9 : 1.8} />
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           );
         })}
@@ -99,16 +100,16 @@ function AppShellContent({ children }: { children: ReactNode }) {
             pathname === "/bot" ? "bg-primary text-primary-fg" : "text-fg-soft hover:bg-surface-2 hover:text-fg"
           }`}
         >
-          <Icon name="telegram" size={17} className="text-muted" /> Telegram bot
+          <Icon name="telegram" size={17} className="text-muted" /> {t("menu.telegramBot")}
         </Link>
 
         {/* Balance is OWNED by the Dashboard hero — the sidebar carries only a
             one-line reference to it (§4), never a second hero. */}
         <Link href="/" className="mt-6 block rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2">
           <p className="text-[11.5px] text-muted">
-            Balans: <span className="num font-semibold text-fg">{formatAmount(state?.currentBalance ?? 0)}</span>
+            {t("settings.balance")}: <span className="num font-semibold text-fg">{formatAmount(state?.currentBalance ?? 0)}</span>
           </p>
-          <p className="text-[10.5px] text-muted">{state?.accounts.length ?? 0} hisob · Asosiy →</p>
+          <p className="text-[10.5px] text-muted">{t("common.accountCount", { count: state?.accounts.length ?? 0 })} · {t("alerts.homeLink")}</p>
         </Link>
 
         <button
@@ -116,7 +117,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           className="mt-4 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
           <Icon name="bell" size={17} className="text-muted" />
-          Eslatmalar
+          {t("alerts.title")}
           {unread > 0 ? (
             <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-negative px-1.5 text-[10px] font-bold text-negative-fg">
               {unread > 9 ? "9+" : unread}
@@ -129,7 +130,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[14px] text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg touch-manipulation"
         >
           <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={17} className="text-muted" />
-          {theme === "dark" ? "Tungi" : theme === "light" ? "Kunduzgi" : "Tizim"}
+          {theme === "dark" ? t("theme.dark") : theme === "light" ? t("theme.light") : t("theme.system")}
         </button>
       </aside>
 
@@ -153,7 +154,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
             <NavItem
               key={item.href}
               href={item.href}
-              label={item.short}
+              label={t(item.shortKey)}
               icon={item.icon}
               active={
                 pathname === item.href ||
@@ -186,20 +187,20 @@ function AppShellContent({ children }: { children: ReactNode }) {
  * keeps a single implementation instead of a second copy per screen.
  */
 export function AlertsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { state, mutate } = useFinance();
+  const { state, mutate, t } = useFinance();
   return (
       <Sheet
         open={open}
         onClose={onClose}
-        title="Eslatmalar"
+        title={t("alerts.title")}
         footer={
           <Button variant="secondary" className="flex-1" onClick={() => mutate("notification", "readAll", {})}>
-            Hammasini o‘qilgan qilish
+            {t("alerts.markAllRead")}
           </Button>
         }
       >
         {!state?.alerts.length && !state?.notifications.length ? (
-          <p className="py-6 text-center text-sm text-muted">Hozircha eslatmalar yo‘q.</p>
+          <p className="py-6 text-center text-sm text-muted">{t("alerts.empty")}</p>
         ) : null}
         {state?.alerts.map((a) => (
           <div
@@ -231,7 +232,7 @@ export function AlertsSheet({ open, onClose }: { open: boolean; onClose: () => v
                 onClick={onClose}
                 className="shrink-0 text-[11.5px] font-semibold text-accent-text touch-manipulation"
               >
-                {a.severity === "critical" ? "Asosiy →" : "Reja →"}
+                {a.severity === "critical" ? t("alerts.homeLink") : t("alerts.planLink")}
               </Link>
             </div>
           </div>
@@ -240,7 +241,7 @@ export function AlertsSheet({ open, onClose }: { open: boolean; onClose: () => v
           <div key={n.id} className="flat-card p-4">
             <div className="flex items-start justify-between gap-3">
               <p className="text-[14px] font-medium">{n.title}</p>
-              <Badge tone={n.isRead ? "neutral" : "accent"}>{n.isRead ? "O‘qilgan" : "Yangi"}</Badge>
+              <Badge tone={n.isRead ? "neutral" : "accent"}>{n.isRead ? t("common.read") : t("common.new")}</Badge>
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-muted">{n.body}</p>
             <div className="mt-2 flex items-center justify-between">
@@ -251,7 +252,7 @@ export function AlertsSheet({ open, onClose }: { open: boolean; onClose: () => v
                   onClick={() => mutate("notification", "read", { id: n.id }, { silent: true })}
                   className="text-[11px] font-medium text-accent-text touch-manipulation"
                 >
-                  O‘qilgan
+                  {t("common.read")}
                 </button>
               ) : null}
             </div>

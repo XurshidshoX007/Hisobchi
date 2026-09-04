@@ -22,6 +22,7 @@ export type UserView = {
   lastName: string | null;
   username: string | null;
   currency: string;
+  locale: string;
   theme: string;
   minReserve: number;
   estimatedIncomeConfidence: number;

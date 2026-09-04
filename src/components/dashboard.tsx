@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { DashboardFacts } from "@/lib/dashboard";
-import { compact, currencyLabel } from "@/lib/money";
+import { compact } from "@/lib/money";
 import { CategoryDonut } from "./charts";
 import { Card, Label, Money, Skeleton } from "./ui";
 import { Icon } from "@/components/icon";
 import { useBalanceHidden, useFinance } from "./providers";
+import { localizedCurrencyLabel, translateCategory } from "@/lib/i18n";
+import type { TranslationKey } from "@/lib/i18n";
 
 /* =============================== HERO =============================== */
 
@@ -18,6 +20,14 @@ const GROUP_FILL: Record<string, string> = {
   cash: "var(--green)",
   ewallet: "var(--red)",
   other: "rgba(255,255,255,.12)",
+};
+
+const GROUP_LABEL_KEY: Record<string, TranslationKey> = {
+  bank: "dashboard.group.bank",
+  cards: "dashboard.group.cards",
+  cash: "dashboard.group.cash",
+  ewallet: "dashboard.group.ewallet",
+  other: "dashboard.group.other",
 };
 
 /**
@@ -34,9 +44,9 @@ export function DashboardHero({
   currency: string;
   onOpenBreakdown?: () => void;
 }) {
-  const unit = currencyLabel(currency);
+  const { setBalanceHidden, t, locale } = useFinance();
+  const unit = localizedCurrencyLabel(locale, currency);
   const hidden = useBalanceHidden();
-  const { setBalanceHidden } = useFinance();
 
   const positive = facts.balanceGroups.filter((group) => group.amount > 0);
   const positiveTotal = positive.reduce((sum, group) => sum + group.amount, 0);
@@ -65,12 +75,12 @@ export function DashboardHero({
 
       <div className="dashboard-value-transition relative min-w-0 px-5 pb-4.5 pt-5">
         <div className="flex items-center justify-between gap-3">
-          <Label>Umumiy balans</Label>
+          <Label>{t("dashboard.totalBalance")}</Label>
           <button
             type="button"
             onClick={() => setBalanceHidden(!hidden)}
             aria-pressed={hidden}
-            aria-label={hidden ? "Summalarni ko‘rsatish" : "Summalarni yashirish"}
+            aria-label={hidden ? t("dashboard.showAmounts") : t("dashboard.hideAmounts")}
             className="-mr-1 grid h-7.5 w-7.5 shrink-0 place-items-center rounded-lg text-faint transition-colors hover:text-fg-soft active:bg-surface-3 touch-manipulation"
           >
             <Icon name="eye" size={16} />
@@ -105,7 +115,7 @@ export function DashboardHero({
                   style={{ background: GROUP_FILL[group.key] ?? "var(--text-3)" }}
                   aria-hidden="true"
                 />
-                <span className="truncate text-[10.5px] font-bold text-faint">{group.label}</span>
+                <span className="truncate text-[10.5px] font-bold text-faint">{t(GROUP_LABEL_KEY[group.key] ?? "dashboard.group.other")}</span>
               </span>
               <p className="num mt-1 truncate text-[13px] font-bold">
                 {/* Compact form: three full amounts side by side do not fit at
@@ -129,6 +139,7 @@ function BalanceSegments({
   total: number;
   onOpen?: () => void;
 }) {
+  const { t } = useFinance();
   const bar = (
     <div className="flex h-2 w-full gap-[3px]" role="presentation">
       {groups.map((group) => (
@@ -151,7 +162,7 @@ function BalanceSegments({
     <button
       type="button"
       onClick={onOpen}
-      aria-label="Balans taqsimotini ochish"
+      aria-label={t("dashboard.openBreakdown")}
       className="mt-4 block w-full rounded-lg text-left transition-opacity active:opacity-70 touch-manipulation"
     >
       {bar}
@@ -165,14 +176,14 @@ export type QuickActionId = "income" | "expense" | "transfer";
 
 const QUICK_ACTIONS: Array<{
   id: QuickActionId;
-  label: string;
+  labelKey: "dashboard.income" | "dashboard.expense" | "dashboard.transfer";
   icon: string;
   color: string;
   tint: string;
 }> = [
-  { id: "income", label: "Daromad", icon: "arrow-up", color: "var(--green)", tint: "var(--tint-green)" },
-  { id: "expense", label: "Xarajat", icon: "arrow-down", color: "var(--red)", tint: "var(--tint-red)" },
-  { id: "transfer", label: "Transfer", icon: "transfer", color: "var(--blue)", tint: "var(--tint-blue)" },
+  { id: "income", labelKey: "dashboard.income", icon: "arrow-up", color: "var(--green)", tint: "var(--tint-green)" },
+  { id: "expense", labelKey: "dashboard.expense", icon: "arrow-down", color: "var(--red)", tint: "var(--tint-red)" },
+  { id: "transfer", labelKey: "dashboard.transfer", icon: "transfer", color: "var(--blue)", tint: "var(--tint-blue)" },
 ];
 
 /**
@@ -185,6 +196,7 @@ const QUICK_ACTIONS: Array<{
  * a control that would do nothing.
  */
 export function QuickActions({ onAdd }: { onAdd: (id: QuickActionId) => void }) {
+  const { t } = useFinance();
   const tile =
     "flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-[17px] border border-line-strong py-3 transition-transform active:scale-[0.97] touch-manipulation";
   const raised = { background: "var(--surface-raised)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.09)" };
@@ -200,7 +212,7 @@ export function QuickActions({ onAdd }: { onAdd: (id: QuickActionId) => void }) 
           >
             <Icon name={action.icon} size={16} />
           </span>
-          <span className="text-[10px] font-bold text-fg-soft">{action.label}</span>
+          <span className="text-[10px] font-bold text-fg-soft">{t(action.labelKey)}</span>
         </button>
       ))}
       <Link href="/bot" className={tile} style={raised}>
@@ -211,7 +223,7 @@ export function QuickActions({ onAdd }: { onAdd: (id: QuickActionId) => void }) 
         >
           <Icon name="camera" size={16} />
         </span>
-        <span className="text-[10px] font-bold text-fg-soft">Chek</span>
+        <span className="text-[10px] font-bold text-fg-soft">{t("dashboard.receipt")}</span>
       </Link>
     </div>
   );
@@ -220,10 +232,11 @@ export function QuickActions({ onAdd }: { onAdd: (id: QuickActionId) => void }) 
 /* =========================== MONTH RESULT =========================== */
 
 export function MonthResult({ facts, currency }: { facts: DashboardFacts; currency: string }) {
-  const unit = currencyLabel(currency);
+  const { t, locale } = useFinance();
+  const unit = localizedCurrencyLabel(locale, currency);
   const cells = [
-    { label: "Daromad", value: facts.income, icon: "arrow-up", color: "var(--green)", tint: "var(--tint-green)", tone: "positive" as const },
-    { label: "Xarajat", value: facts.expense, icon: "arrow-down", color: "var(--red)", tint: "var(--tint-red)", tone: "negative" as const },
+    { label: t("dashboard.income"), value: facts.income, icon: "arrow-up", color: "var(--green)", tint: "var(--tint-green)", tone: "positive" as const },
+    { label: t("dashboard.expense"), value: facts.expense, icon: "arrow-down", color: "var(--red)", tint: "var(--tint-red)", tone: "negative" as const },
   ];
 
   return (
@@ -275,6 +288,7 @@ const SAMPLE_EXPENSE_ITEMS = [
 
 /** A light, non-financial preview makes the dashboard's next useful surface discoverable. */
 function ExpenseBreakdownPreview({ monthLabel, quickDock }: { monthLabel: string; quickDock?: ReactNode }) {
+  const { locale, t } = useFinance();
   return (
     <Card className="mt-3.5">
       <ExpenseBreakdownHeader monthLabel={monthLabel} quickDock={quickDock} />
@@ -285,7 +299,7 @@ function ExpenseBreakdownPreview({ monthLabel, quickDock }: { monthLabel: string
           {SAMPLE_EXPENSE_ITEMS.map((item) => (
             <div key={item.name} className="flex min-h-8 min-w-0 items-center gap-2 rounded-[10px] px-2">
               <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: item.color }} />
-              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{item.name}</span>
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{translateCategory(locale, item.name)}</span>
               <span className="num shrink-0 text-[12.5px] font-bold text-faint">{Math.round(item.share * 100)}%</span>
             </div>
           ))}
@@ -293,8 +307,8 @@ function ExpenseBreakdownPreview({ monthLabel, quickDock }: { monthLabel: string
         </div>
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
           <span className="rounded-xl border border-line-strong bg-bg/90 px-3 py-2 shadow-lg">
-            <span className="block text-[9px] font-bold uppercase tracking-[0.12em] text-warning-text">Namuna</span>
-            <span className="mt-0.5 block text-[11px] font-semibold text-fg">Xarajat qo‘shing</span>
+            <span className="block text-[9px] font-bold uppercase tracking-[0.12em] text-warning-text">{t("dashboard.sample")}</span>
+            <span className="mt-0.5 block text-[11px] font-semibold text-fg">{t("dashboard.addExpense")}</span>
           </span>
         </div>
       </div>
@@ -307,10 +321,11 @@ function ExpenseBreakdownPreview({ monthLabel, quickDock }: { monthLabel: string
  * "where did it go?" and the readable legend preserves the complete breakdown.
  */
 function ExpenseBreakdownHeader({ monthLabel, quickDock }: { monthLabel: string; quickDock?: ReactNode }) {
+  const { t } = useFinance();
   return (
     <div className="flex min-w-0 items-center justify-between gap-2">
       <Label className="min-w-0 truncate">
-        Xarajat taqsimoti<span className="hidden min-[380px]:inline"> · {monthLabel.split(" ")[0].toUpperCase()}</span>
+        {t("dashboard.expenseBreakdown")}<span className="hidden min-[380px]:inline"> · {monthLabel.split(" ")[0].toUpperCase()}</span>
       </Label>
       {quickDock}
     </div>
@@ -319,10 +334,11 @@ function ExpenseBreakdownHeader({ monthLabel, quickDock }: { monthLabel: string;
 
 export function ExpenseBreakdown({ facts, monthLabel, quickDock }: { facts: DashboardFacts; monthLabel: string; quickDock?: ReactNode }) {
   const router = useRouter();
+  const { locale, t } = useFinance();
   const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
   const items = facts.expenseCategories.map((category, index) => ({
     id: category.id,
-    name: category.name,
+    name: translateCategory(locale, category.name),
     share: category.share,
     color: DONUT_COLORS[index % DONUT_COLORS.length],
   }));
@@ -364,7 +380,7 @@ export function ExpenseBreakdown({ facts, monthLabel, quickDock }: { facts: Dash
               {compact(facts.expense)}
             </span>
             <span className="mt-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-faint">
-              jami
+              {t("dashboard.total")}
             </span>
           </div>
         </div>
@@ -394,7 +410,7 @@ export function ExpenseBreakdown({ facts, monthLabel, quickDock }: { facts: Dash
               <Link
                 key={item.id}
                 href={categoryHref(item.id)}
-                aria-label={`${item.name} xarajatlarini Tarixda ko‘rish`}
+                aria-label={t("dashboard.categoryHistory", { name: item.name })}
                 title={item.name}
                 onPointerEnter={(event) => {
                   if (event.pointerType === "mouse") setActiveCategoryId(item.id);
@@ -426,8 +442,9 @@ export function ExpenseBreakdown({ facts, monthLabel, quickDock }: { facts: Dash
 /* ============================== LOADING ============================== */
 
 export function DashboardLoading() {
+  const { t } = useFinance();
   return (
-    <div aria-label="Ma’lumotlar yuklanmoqda" aria-busy="true">
+    <div aria-label={t("dashboard.loading")} aria-busy="true">
       <div className="mb-5 flex items-center gap-3">
         <Skeleton className="h-9 w-9 rounded-xl" />
         <div className="flex-1"><Skeleton className="h-2.5 w-20" /><Skeleton className="mt-1.5 h-4 w-32" /></div>

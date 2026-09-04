@@ -99,6 +99,18 @@ test("removed main-menu buttons keep their text routing (backward compatibility)
   assert.equal(botIntent("↔️ Transfer"), "add-transfer");
   assert.equal(botIntent("📌 Majburiy to'lovlar"), "payments");
   assert.equal(botIntent("📌 Majburiy to‘lovlar"), "payments");
+  assert.equal(botIntent("💳 Счета"), "accounts");
+  assert.equal(botIntent("📁 Категории"), "categories");
+  assert.equal(botIntent("📌 Платежи"), "payments");
+  assert.equal(botIntent("💵 Ожидаемые доходы"), "income-plans");
+  assert.equal(botIntent("🎯 Бюджет"), "budget");
+  assert.equal(botIntent("💳 Долги"), "debts");
+  assert.equal(botIntent("🏆 Цели"), "goals");
+  assert.equal(botIntent("🔔 Уведомления"), "alerts");
+  assert.equal(botIntent("💳 Ҳисоблар"), "accounts");
+  assert.equal(botIntent("📁 Тоифалар"), "categories");
+  assert.equal(botIntent("📌 Тўловлар"), "payments");
+  assert.equal(botIntent("💵 Кутилаётган даромад"), "income-plans");
 });
 
 test("Mini App and bot never mix synonyms for one concept", () => {
@@ -231,9 +243,9 @@ test("the dashboard hero states only balance and current-month real movement (§
   // The month context appears once above the card; labels do not repeat
   // "current", "real", or "this month" beside every amount.
   assert.doesNotMatch(dashboard, /REAL · |Joriy real balans|Bu oy · daromad|Bu oy · xarajat/i);
-  assert.match(components, />Umumiy balans</);
-  assert.match(components, /label: "Daromad"/);
-  assert.match(components, /label: "Xarajat"/);
+  assert.match(components, /t\("dashboard\.totalBalance"\)/);
+  assert.match(components, /label: t\("dashboard\.income"\)/);
+  assert.match(components, /label: t\("dashboard\.expense"\)/);
   assert.doesNotMatch(dashboard, /TERMS\.safeToSpend|Sarflash mumkin|Sof natija/i);
 });
 

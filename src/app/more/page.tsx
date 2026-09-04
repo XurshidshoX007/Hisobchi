@@ -6,6 +6,7 @@ import { AlertsSheet } from "@/components/app-shell";
 import { useFinance } from "@/components/providers";
 import { Badge, Card, ContextualBottomSheet, Label, Skeleton } from "@/components/ui";
 import { Icon } from "@/components/icon";
+import type { TranslationKey } from "@/lib/i18n";
 
 /**
  * MENU = NAVIGATION HUB (§37). It routes to secondary tools and nothing more.
@@ -14,17 +15,17 @@ import { Icon } from "@/components/icon";
  * never a sum: "is there anything in there, and does it need me?" is
  * navigation information; the amount itself is not.
  */
-const LINKS: Array<{ href: string; icon: string; title: string }> = [
-  { href: "/accounts", icon: "card", title: "Hisoblar" },
-  { href: "/budgets", icon: "target", title: "Budjetlar" },
-  { href: "/debts", icon: "doc", title: "Qarzdorlik" },
-  { href: "/goals", icon: "goal", title: "Maqsadlar" },
-  { href: "/bot", icon: "telegram", title: "Telegram bot" },
-  { href: "/settings", icon: "settings", title: "Sozlamalar" },
+const LINKS: Array<{ href: string; icon: string; titleKey: TranslationKey }> = [
+  { href: "/accounts", icon: "card", titleKey: "menu.accounts" },
+  { href: "/budgets", icon: "target", titleKey: "menu.budgets" },
+  { href: "/debts", icon: "doc", titleKey: "menu.debts" },
+  { href: "/goals", icon: "goal", titleKey: "menu.goals" },
+  { href: "/bot", icon: "telegram", titleKey: "menu.telegramBot" },
+  { href: "/settings", icon: "settings", titleKey: "menu.settings" },
 ];
 
 export default function MorePage() {
-  const { state, loading, theme, setTheme, telegram, exportXlsx } = useFinance();
+  const { state, loading, theme, setTheme, telegram, exportXlsx, t } = useFinance();
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportReady, setExportReady] = useState<{ url: string; filename: string } | null>(null);
@@ -44,10 +45,10 @@ export default function MorePage() {
    */
   const status = (href: string): { node: React.ReactNode } | null => {
     if (href === "/budgets" && exceeded > 0) {
-      return { node: <Badge tone="negative">{exceeded} oshdi</Badge> };
+      return { node: <Badge tone="negative">{t("menu.exceeded", { count: exceeded })}</Badge> };
     }
     if (href === "/bot") {
-      return telegram ? { node: <Badge tone="positive">Ulangan</Badge> } : null;
+      return telegram ? { node: <Badge tone="positive">{t("common.connected")}</Badge> } : null;
     }
     const counts: Record<string, number> = {
       "/accounts": accountCount,
@@ -59,7 +60,7 @@ export default function MorePage() {
     return count ? { node: <span className="text-[12px] font-semibold text-faint">{count}</span> } : null;
   };
 
-  const themeLabel = theme === "dark" ? "Tungi" : theme === "light" ? "Kunduzgi" : "Tizim";
+  const themeLabel = theme === "dark" ? t("theme.dark") : theme === "light" ? t("theme.light") : t("theme.system");
 
   async function downloadExcel() {
     if (exporting) return;
@@ -109,7 +110,7 @@ export default function MorePage() {
             <Icon name={theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor"} size={17} />
           </span>
           <span className="min-w-0">
-            <Label className="block">Rejim</Label>
+            <Label className="block">{t("menu.mode")}</Label>
             <span className="mt-0.5 block truncate text-[13.5px] font-bold">{themeLabel}</span>
           </span>
         </button>
@@ -118,7 +119,7 @@ export default function MorePage() {
           type="button"
           onClick={() => setAlertsOpen(true)}
           className="card flex items-center gap-3 p-3.5 text-left transition-transform active:scale-[0.99] touch-manipulation"
-          aria-label={`Eslatmalar${unread ? `, ${unread} o‘qilmagan` : ""}`}
+          aria-label={`${t("alerts.title")}${unread ? `, ${t("common.unreadLabel", { count: unread })}` : ""}`}
         >
           <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: "var(--tint-blue)", color: "var(--blue)" }} aria-hidden="true">
             <Icon name="bell" size={17} />
@@ -127,15 +128,15 @@ export default function MorePage() {
             ) : null}
           </span>
           <span className="min-w-0">
-            <Label className="block">Eslatma</Label>
+            <Label className="block">{t("menu.reminder")}</Label>
             <span className="mt-0.5 block truncate text-[13.5px] font-bold">
-              {unread > 0 ? `${unread} ta yangi` : "Yangi yo‘q"}
+              {unread > 0 ? t("common.unreadCount", { count: unread }) : t("common.noNew")}
             </span>
           </span>
         </button>
       </div>
 
-      <nav aria-label="Qo‘shimcha bo‘limlar" className="divide-y divide-hairline rounded-2xl border border-line bg-surface">
+      <nav aria-label={t("menu.sections")} className="divide-y divide-hairline rounded-2xl border border-line bg-surface">
         {LINKS.map((l) => {
           const trailing = status(l.href);
           if (l.href === "/settings") {
@@ -150,8 +151,8 @@ export default function MorePage() {
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-text" aria-hidden="true">
                     <Icon name="doc" size={17} />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">Excel eksport</span>
-                  <span className="shrink-0 text-[11.5px] font-semibold text-accent-text">{exporting ? "Tayyorlanmoqda…" : "Yuklash"}</span>
+                  <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{t("menu.excelExport")}</span>
+                  <span className="shrink-0 text-[11.5px] font-semibold text-accent-text">{exporting ? t("common.preparing") : t("common.download")}</span>
                 </button>
                 <Link
                   href={l.href}
@@ -160,7 +161,7 @@ export default function MorePage() {
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-neutral-soft text-fg-soft" aria-hidden="true">
                     <Icon name={l.icon} size={17} />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{l.title}</span>
+                  <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{t(l.titleKey)}</span>
                   <Icon name="chevron-right" size={13} className="shrink-0 text-text-4" />
                 </Link>
               </div>
@@ -175,7 +176,7 @@ export default function MorePage() {
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-neutral-soft text-fg-soft" aria-hidden="true">
                 <Icon name={l.icon} size={17} />
               </span>
-              <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{l.title}</span>
+              <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{t(l.titleKey)}</span>
               {trailing ? <span className="shrink-0">{trailing.node}</span> : null}
               <Icon name="chevron-right" size={13} className="shrink-0 text-text-4" />
             </Link>
@@ -187,8 +188,8 @@ export default function MorePage() {
       <ContextualBottomSheet
         open={Boolean(exportReady)}
         onClose={closeExportReady}
-        title="Excel fayli tayyor"
-        subtitle="Faylni telefoningizga saqlash uchun yuklang"
+        title={t("menu.exportReady")}
+        subtitle={t("menu.exportSubtitle")}
         icon="doc"
         iconTone="accent"
         footer={
@@ -199,13 +200,13 @@ export default function MorePage() {
               className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[15px] font-bold text-white shadow-lg shadow-accent/20 transition-transform active:scale-[0.98] touch-manipulation"
             >
               <Icon name="doc" size={17} />
-              Excel faylini yuklash
+              {t("menu.exportAction")}
             </a>
           ) : null
         }
       >
         <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3.5 text-[13px] leading-relaxed text-muted">
-          Operatsiyalar, hisoblar va umumiy ma’lumotlar alohida Excel varaqlarida tayyorlandi.
+          {t("menu.exportDescription")}
         </div>
       </ContextualBottomSheet>
     </div>

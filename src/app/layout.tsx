@@ -19,7 +19,7 @@ import { AppShell } from "@/components/app-shell";
  * stays untouched.
  */
 const manrope = Manrope({
-  subsets: ["latin"],
+  subsets: ["latin", "cyrillic"],
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
   variable: "--font-manrope",

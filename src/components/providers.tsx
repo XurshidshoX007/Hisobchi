@@ -12,8 +12,15 @@ import {
   type ReactNode,
 } from "react";
 import type { AppState } from "@/lib/types";
-import { ERRORS } from "@/lib/copy";
 import { Icon } from "@/components/icon";
+import {
+  DEFAULT_LOCALE,
+  normalizeLocale,
+  translate,
+  type AppLocale,
+  type TranslationKey,
+  type TranslationParams,
+} from "@/lib/i18n";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -43,6 +50,9 @@ type FinanceContextValue = {
   setTheme: (mode: ThemeMode) => void;
   isDark: boolean;
   telegram: boolean;
+  locale: AppLocale;
+  setLocale: (locale: AppLocale) => void;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
   /** Every amount in the product renders as ***** while this is on. */
   balanceHidden: boolean;
   setBalanceHidden: (hidden: boolean) => void;
@@ -51,6 +61,7 @@ type FinanceContextValue = {
 const FinanceContext = createContext<FinanceContextValue | null>(null);
 
 const BALANCE_HIDDEN_STORAGE_KEY = "pfos-balance-hidden";
+const LOCALE_STORAGE_KEY = "hisobchi:locale:v1";
 
 /**
  * Privacy state for <Money>, read WITHOUT throwing when no provider is present.
@@ -119,8 +130,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>("system");
   const [systemDark, setSystemDark] = useState(false);
   const [telegram, setTelegram] = useState(false);
+  const [locale, setLocaleState] = useState<AppLocale>(DEFAULT_LOCALE);
   const [balanceHidden, setBalanceHiddenState] = useState(false);
   const initDataRef = useRef<string | null>(null);
+  const localeRef = useRef<AppLocale>(DEFAULT_LOCALE);
 
   const toast = useCallback((text: string, tone: Toast["tone"] = "info") => {
     const id = Date.now() + Math.random();
@@ -151,7 +164,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setState(data);
         setError(null);
       } catch {
-        setError(ERRORS.load);
+        setError(translate(localeRef.current, "errors.load"));
       } finally {
         lastLoadRef.current = Date.now();
         loadInFlightRef.current = null;
@@ -170,6 +183,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const stored = (localStorage.getItem("pfos-theme") as ThemeMode | null) ?? "system";
     setThemeState(stored);
     setBalanceHiddenState(localStorage.getItem(BALANCE_HIDDEN_STORAGE_KEY) === "1");
+    setLocaleState(normalizeLocale(localStorage.getItem(LOCALE_STORAGE_KEY)));
     const tg = (window as unknown as { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
     if (tg) {
       setTelegram(true);
@@ -206,6 +220,22 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     };
   }, [load]);
 
+  useEffect(() => {
+    if (!state?.user.locale) return;
+    const resolved = normalizeLocale(state.user.locale);
+    setLocaleState(resolved);
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, resolved);
+    } catch {
+      // Storage restrictions must not prevent the server preference from working.
+    }
+  }, [state?.user.locale]);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    localeRef.current = locale;
+  }, [locale]);
+
   const isDark = theme === "system" ? systemDark : theme === "dark";
 
   useEffect(() => {
@@ -228,6 +258,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("pfos-theme", mode);
   }, []);
 
+  const setLocale = useCallback((nextLocale: AppLocale) => {
+    const normalized = normalizeLocale(nextLocale);
+    setLocaleState(normalized);
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, normalized);
+    } catch {
+      // The in-memory selection still works for this session.
+    }
+  }, []);
+
+  const t = useCallback(
+    (key: TranslationKey, params?: TranslationParams) => translate(locale, key, params),
+    [locale],
+  );
+
   const setBalanceHidden = useCallback((hidden: boolean) => {
     setBalanceHiddenState(hidden);
     try {
@@ -246,7 +291,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const mutate = useCallback<FinanceContextValue["mutate"]>(
     async (entity, action, data = {}, options = {}) => {
       if (inFlightRef.current) {
-        return { ok: false, message: ERRORS.busy };
+        return { ok: false, message: translate(locale, "errors.busy") };
       }
       inFlightRef.current = true;
       setMutating(true);
@@ -292,19 +337,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           pendingMutationRef.current = null;
           persistPendingMutation(null);
         }
-        if (!options.silent) toast(json.message ?? (json.ok ? "Saqlandi" : ERRORS.save), json.ok ? "success" : "error");
+        if (!options.silent) toast(json.message ?? (json.ok ? translate(locale, "common.saved") : translate(locale, "errors.save")), json.ok ? "success" : "error");
         return { ok: json.ok, message: json.message ?? "" };
       } catch {
         // Keep pendingMutationRef: the server may have committed before the
         // response was lost. A repeat submit must use the same key.
-        toast(ERRORS.connection, "error");
-        return { ok: false, message: ERRORS.connection };
+        toast(translate(locale, "errors.connection"), "error");
+        return { ok: false, message: translate(locale, "errors.connection") };
       } finally {
         inFlightRef.current = false;
         setMutating(false);
       }
     },
-    [toast],
+    [locale, toast],
   );
 
   const exportInFlightRef = useRef(false);
@@ -328,19 +373,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       toast(message, "success");
       return { ok: true, message, url, filename };
     } catch {
-      toast(ERRORS.connection, "error");
-      return { ok: false, message: ERRORS.connection };
+      toast(translate(locale, "errors.connection"), "error");
+      return { ok: false, message: translate(locale, "errors.connection") };
     } finally {
       exportInFlightRef.current = false;
     }
-  }, [toast]);
+  }, [locale, toast]);
 
   const value = useMemo<FinanceContextValue>(
     () => ({
       state, loading, error, refresh, mutate, exportXlsx, mutating, toast, theme, setTheme, isDark, telegram,
+      locale, setLocale, t,
       balanceHidden, setBalanceHidden,
     }),
-    [state, loading, error, refresh, mutate, exportXlsx, mutating, toast, theme, setTheme, isDark, telegram, balanceHidden, setBalanceHidden],
+    [state, loading, error, refresh, mutate, exportXlsx, mutating, toast, theme, setTheme, isDark, telegram, locale, setLocale, t, balanceHidden, setBalanceHidden],
   );
 
   return (
